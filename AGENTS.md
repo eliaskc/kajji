@@ -9,14 +9,61 @@
 - **Lint**: `bun lint` (biome check)
 - **Lint fix**: `bun lint:fix` (biome check --write)
 
+## OpenTUI Documentation
+
+Before working on TUI component tasks, read the OpenTUI Solid docs:
+```bash
+curl -s https://raw.githubusercontent.com/sst/opentui/refs/heads/main/packages/solid/README.md
+```
+
+For examples, use gitchamber:
+```bash
+# List all Solid examples
+curl -s "https://gitchamber.com/repos/sst/opentui/main/files?glob=packages/solid/examples/**"
+
+# Read specific example (e.g., input handling)
+curl -s "https://gitchamber.com/repos/sst/opentui/main/files/packages/solid/examples/components/input-demo.tsx?glob=**/*.tsx"
+```
+
 ## Code Style
 
 - **Runtime**: Bun with TypeScript
-- **Framework**: OpenTUI (React-like TUI framework)
+- **Framework**: OpenTUI (Solid.js-based TUI framework)
 - **Formatting**: Biome - tabs, no semicolons
 - **Naming**: camelCase for variables/functions, PascalCase for components/types
 - **Imports**: Relative imports for local modules
 - **Types**: Define interfaces in separate types.ts files when shared
+
+## Bun
+
+- **NEVER** run `bun src/index.tsx` directly - TUI apps will hang. Ask the user to run it manually.
+- **NEVER** use `require()` - always use ESM imports at file top
+- Use `bun add` to install packages, not `npm install`
+
+## Solid.js
+
+This project uses Solid.js, NOT React. Key differences:
+
+- **State**: Use `createSignal`, not `useState`
+  ```tsx
+  const [value, setValue] = createSignal("initial")
+  ```
+- **Reading signals**: Must call as functions: `value()`, not `value`
+  ```tsx
+  // WRONG: <text>{value}</text>
+  // CORRECT: <text>{value()}</text>
+  ```
+- **Mount effects**: Use `onMount`, not `useEffect`
+  ```tsx
+  onMount(() => {
+    loadData()
+  })
+  ```
+- **Input handling**: `<input>` uses `onInput`, receives string value not event
+  ```tsx
+  <input onInput={(value) => setValue(value)} />
+  ```
+- **No dependency arrays**: Solid tracks dependencies automatically - no `useEffect` deps needed
 
 ## Architecture
 
@@ -85,7 +132,10 @@ When unsure how to implement a jj TUI feature, check these repos:
 ### Specialized Components
 - **`<diff>`**: Git diff rendering. Props: `diff`, `view="unified"|"split"`, `filetype`, `syntaxStyle`, `showLineNumbers`
 - **`<code>`**: Syntax highlighted code. Props: `content`, `filetype`, `syntaxStyle`
-- **`<input>`**: Text input field
+- **`<input>`**: Text input field. Props: `focused`, `onInput`, `onSubmit`, `placeholder`, `ref`
+  - `onInput` receives `(value: string)` NOT an event object
+  - `onSubmit` fires on Enter key
+  - Use `ref` for programmatic control (e.g., `inputRef.insertText(text)`)
 
 ### Hooks
 - **`useKeyboard(callback)`**: Keyboard input handling

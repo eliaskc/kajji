@@ -27,6 +27,9 @@ function AppContent() {
 				renderer.destroy()
 				process.exit(0)
 				break
+			case "§":
+				renderer.console.toggle()
+				break
 			case "tab":
 				toggleFocus()
 				break

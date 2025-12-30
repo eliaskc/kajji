@@ -13,6 +13,8 @@ export function LogPanel() {
 			height="100%"
 			border
 			borderColor={isFocused() ? "#4ECDC4" : "#444444"}
+			overflow="hidden"
+			gap={0}
 		>
 			<Show when={loading()}>
 				<text>Loading...</text>
@@ -24,15 +26,14 @@ export function LogPanel() {
 				<For each={commits()}>
 					{(commit, index) => {
 						const isSelected = () => index() === selectedIndex()
-						const content = () => commit.lines.join("\n")
 						return (
-							<box
-								border={isSelected() ? ["left"] : undefined}
-								borderColor={isSelected() ? "#4ECDC4" : undefined}
-								paddingLeft={isSelected() ? 0 : 1}
-							>
-								<AnsiText content={content()} />
-							</box>
+							<For each={commit.lines}>
+								{(line) => (
+									<box backgroundColor={isSelected() ? "blue" : undefined} overflow="hidden">
+										<AnsiText content={line} />
+									</box>
+								)}
+							</For>
 						)
 					}}
 				</For>
