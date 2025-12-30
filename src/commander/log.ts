@@ -1,4 +1,4 @@
-import { executeWithColor } from "./executor"
+import { execute } from "./executor"
 import type { Commit } from "./types"
 
 const MARKER = "__LJ__"
@@ -12,8 +12,6 @@ function buildTemplate(): string {
 		`"${MARKER}"`,
 		"immutable",
 		`"${MARKER}"`,
-		'if(self.working_copies(), "@")',
-		`"${MARKER}"`,
 	].join(" ++ ")
 
 	return `${prefix} ++ builtin_log_compact`
@@ -24,20 +22,20 @@ export function parseLogOutput(output: string): Commit[] {
 	let current: Commit | null = null
 
 	for (const line of output.split("\n")) {
-		if (line.startsWith(MARKER)) {
+		if (line.includes(MARKER)) {
 			const parts = line.split(MARKER)
-			// parts: ["", changeId, commitId, immutable, workingCopy, displayContent]
-			if (parts.length >= 6) {
+			if (parts.length >= 5) {
 				if (current) {
 					commits.push(current)
 				}
 
+				const gutter = parts[0] ?? ""
 				current = {
 					changeId: parts[1] ?? "",
 					commitId: parts[2] ?? "",
 					immutable: parts[3] === "true",
-					isWorkingCopy: parts[4] === "@",
-					lines: [parts[5] ?? ""],
+					isWorkingCopy: gutter.includes("@"),
+					lines: [parts[4] ?? ""],
 				}
 				continue
 			}
@@ -57,7 +55,7 @@ export function parseLogOutput(output: string): Commit[] {
 
 export async function fetchLog(cwd?: string): Promise<Commit[]> {
 	const template = buildTemplate()
-	const result = await executeWithColor(["log", "--template", template], {
+	const result = await execute(["log", "--color", "never", "--template", template], {
 		cwd,
 	})
 

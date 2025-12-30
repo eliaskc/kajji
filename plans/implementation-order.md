@@ -8,93 +8,89 @@ This document outlines the order of implementation to get a working prototype qu
 
 ---
 
-## Phase 1: Hello World TUI
+## Phase 1: Hello World TUI ✅
 **Target: < 1 hour | Validates toolchain**
 
 ### 1.1 Project Scaffolding
-- [ ] Initialize with `bun create tui --template solid` OR manual setup
-- [ ] Create `package.json` with dependencies:
-  - `@opentui/core`, `@opentui/solid`, `solid-js`
-  - `babel-preset-solid`, `@babel/core`, `@babel/preset-typescript`
-- [ ] Create `tsconfig.json` with `jsxImportSource: "@opentui/solid"`
-- [ ] Create `bunfig.toml` with `preload = ["@opentui/solid/preload"]`
-- [ ] Create `biome.json` for linting
+- [x] Initialize with `bun create tui --template solid` OR manual setup
+- [x] Create `package.json` with dependencies
+- [x] Create `tsconfig.json` with `jsxImportSource: "@opentui/solid"`
+- [x] Create `bunfig.toml` with `preload = ["@opentui/solid/preload"]`
+- [x] Create `biome.json` for linting
 
 ### 1.2 Minimal Entry Point
-- [ ] `src/index.tsx` - renders a box with "lazierjj" text
-- [ ] Verify `bun run src/index.tsx` shows something on screen
-- [ ] Add `q` keybinding to quit (validates input handling works)
+- [x] `src/index.tsx` - renders root App component
+- [x] Verify `bun run src/index.tsx` shows something on screen
+- [x] Add `q` keybinding to quit
 
 ### 1.3 Scripts
-- [ ] `package.json` scripts: `dev`, `check`, `lint`, `lint:fix`
+- [x] `package.json` scripts: `dev`, `check`, `lint`, `lint:fix`, `test`
 
-**Milestone**: Can run `bun dev`, see text, press `q` to quit.
+**Milestone**: ✅ Can run `bun dev`, see text, press `q` to quit.
 
 ---
 
-## Phase 2: Commander Foundation
+## Phase 2: Commander Foundation ✅
 **Target: 1-2 hours | jj CLI abstraction**
 
 ### 2.1 Executor
-- [ ] `src/commander/executor.ts` - wrapper to run jj commands via `Bun.spawn`
-- [ ] Handle: stdout, stderr, exit code
-- [ ] Pass `--color always` flag for ANSI output
+- [x] `src/commander/executor.ts` - wrapper to run jj commands via `Bun.spawn`
+- [x] Handle: stdout, stderr, exit code
+- [x] `execute()` and `executeWithColor()` functions
 
 ### 2.2 Types
-- [ ] `src/commander/types.ts` - define `Commit` interface:
-  ```typescript
-  interface Commit {
-    changeId: string
-    commitId: string
-    lines: string[]      // Raw display lines (with ANSI)
-    isWorkingCopy: boolean
-    immutable: boolean
-  }
-  ```
+- [x] `src/commander/types.ts` - define `Commit` interface
 
 ### 2.3 Log Parser (Prefix Injection)
-- [ ] `src/commander/log.ts` - implements jjui-style prefix injection
-- [ ] Template: `"__LJ__" ++ change_id.short() ++ "__LJ__" ++ commit_id.short() ++ "__LJ__" ++ immutable ++ "__LJ__" ++ <builtin_template>`
-- [ ] Parser extracts metadata, groups lines by commit
-- [ ] Returns `Commit[]` array
+- [x] `src/commander/log.ts` - implements jjui-style prefix injection
+- [x] Template injects `__LJ__` markers before `builtin_log_compact`
+- [x] Parser extracts metadata, groups lines by commit
+- [x] Working copy detected from `@` in graph gutter (like jjui)
 
 ### 2.4 Unit Tests
-- [ ] `tests/unit/commander/log.test.ts` - snapshot tests for parser
-- [ ] Test with sample jj output (mock, don't need real repo)
+- [x] `tests/unit/commander/log.test.ts` - 6 tests passing
 
-**Milestone**: Can parse jj log output into structured data.
+**Milestone**: ✅ Can parse jj log output into structured data.
+
+**Learnings**:
+- `self.working_copies()` doesn't work as expected in jj templates - detect from graph gutter instead
+- OpenTUI cannot render ANSI escape codes - use `--color never` for now
 
 ---
 
-## Phase 3: Log Panel MVP
+## Phase 3: Log Panel MVP ✅
 **Target: 1-2 hours | First real UI**
 
 ### 3.1 Basic App Structure
-- [ ] `src/App.tsx` - root component with full-terminal box
-- [ ] Use `useTerminalDimensions()` from @opentui/solid
+- [x] `src/App.tsx` - root component with keyboard handling
+- [x] Uses `useKeyboard()` from @opentui/solid
 
 ### 3.2 State Management
-- [ ] `src/context/sync.tsx` - holds log data
+- [x] `src/context/sync.tsx` - SolidJS context with signals
   - `commits: Commit[]` signal
   - `selectedIndex: number` signal  
-  - `loadLog()` function that calls commander
+  - `loadLog()`, `selectNext()`, `selectPrev()`, `selectFirst()`, `selectLast()`
 
 ### 3.3 Log Panel Component
-- [ ] `src/components/panels/LogPanel.tsx`
-- [ ] Scrollable box showing commit lines
-- [ ] Highlight selected commit (different background)
-- [ ] Working copy (`@`) marker visible
+- [x] `src/components/panels/LogPanel.tsx`
+- [x] Shows commit lines with blue background on selected
+- [x] Currently shows first line per commit (multi-line deferred)
 
 ### 3.4 Navigation
-- [ ] `j` / `k` to move selection up/down
-- [ ] `g` / `G` for top/bottom
-- [ ] Selection wraps or stops at bounds
+- [x] `j` / `k` / `down` / `up` to move selection
+- [x] `g` / `G` for top/bottom
+- [x] `q` to quit
 
-**Milestone**: See real jj log, navigate with j/k, quit with q.
+**Milestone**: ✅ See real jj log, navigate with j/k, quit with q.
+
+**Learnings**:
+- OpenTUI `<text>` doesn't have backgroundColor - wrap in `<box>`
+- ANSI codes from jj not rendered by OpenTUI - switched to `--color never`
+- Multi-line commits cause selection highlight issues - showing single line for now
 
 ---
 
-## Phase 4: Two-Panel Layout + Diff
+## Phase 4: Two-Panel Layout + Diff 🚧 IN PROGRESS
 **Target: 2-3 hours | Core UX**
 
 ### 4.1 Layout Component
@@ -104,13 +100,13 @@ This document outlines the order of implementation to get a working prototype qu
 - [ ] Use hardcoded ratio for now
 
 ### 4.2 Diff Commander
-- [ ] `src/commander/diff.ts` - runs `jj diff -r <change_id> --color always`
-- [ ] Returns raw ANSI string (no parsing needed)
+- [ ] `src/commander/diff.ts` - runs `jj diff -r <change_id>`
+- [ ] Returns raw string (--color never since OpenTUI can't render ANSI)
 
 ### 4.3 Main Area Component  
 - [ ] `src/components/panels/MainArea.tsx`
 - [ ] Scrollable box showing diff output
-- [ ] Renders ANSI colors from jj
+- [ ] Plain text for now (colors deferred)
 
 ### 4.4 Selection → Diff Wiring
 - [ ] When selected commit changes, fetch and display its diff
@@ -208,8 +204,10 @@ bun run src/index.tsx
 
 ## Open Questions / Decisions Deferred
 
-1. **ANSI rendering**: OpenTUI should handle ANSI natively, but need to verify
+1. **ANSI rendering**: ❌ OpenTUI does NOT render ANSI - using `--color never` for now
 2. **Diff toggle (`v`)**: Defer until basic diff works
 3. **Mouse support**: Defer to post-prototype
 4. **Refresh (`R`)**: Add in Phase 5 or defer
+5. **Graph characters**: Not rendered yet - jjui does this by parsing gutter separately
+6. **Multi-line commits**: Deferred - showing single line per commit for now
 

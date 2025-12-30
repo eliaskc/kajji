@@ -3,7 +3,7 @@ import { parseLogOutput } from "../../../src/commander/log"
 
 describe("parseLogOutput", () => {
 	test("parses single commit", () => {
-		const output = `__LJ__abc123__LJ__def456__LJ__false__LJ____LJ__ ○ feat: add feature
+		const output = `○  __LJ__abc123__LJ__def456__LJ__false__LJ__abc123 user@email.com feat: add feature
 │  description continues here`
 
 		const commits = parseLogOutput(output)
@@ -16,9 +16,8 @@ describe("parseLogOutput", () => {
 		expect(commits[0]?.lines).toHaveLength(2)
 	})
 
-	test("parses working copy marker", () => {
-		const output =
-			"__LJ__abc123__LJ__def456__LJ__false__LJ__@__LJ__ @ wip commit"
+	test("detects working copy from @ in gutter", () => {
+		const output = "@  __LJ__abc123__LJ__def456__LJ__false__LJ__abc123 wip commit"
 
 		const commits = parseLogOutput(output)
 
@@ -26,8 +25,7 @@ describe("parseLogOutput", () => {
 	})
 
 	test("parses immutable commit", () => {
-		const output =
-			"__LJ__abc123__LJ__def456__LJ__true__LJ____LJ__ ◆ main commit"
+		const output = "◆  __LJ__abc123__LJ__def456__LJ__true__LJ__abc123 main commit"
 
 		const commits = parseLogOutput(output)
 
@@ -35,10 +33,10 @@ describe("parseLogOutput", () => {
 	})
 
 	test("parses multiple commits", () => {
-		const output = `__LJ__abc123__LJ__def456__LJ__false__LJ__@__LJ__ @ current work
-__LJ__ghi789__LJ__jkl012__LJ__false__LJ____LJ__ ○ previous commit
+		const output = `@  __LJ__abc123__LJ__def456__LJ__false__LJ__abc123 current work
+○  __LJ__ghi789__LJ__jkl012__LJ__false__LJ__ghi789 previous commit
 │  with description
-__LJ__mno345__LJ__pqr678__LJ__true__LJ____LJ__ ◆ root commit`
+◆  __LJ__mno345__LJ__pqr678__LJ__true__LJ__mno345 root commit`
 
 		const commits = parseLogOutput(output)
 
@@ -57,7 +55,7 @@ __LJ__mno345__LJ__pqr678__LJ__true__LJ____LJ__ ◆ root commit`
 	})
 
 	test("handles output with only whitespace lines", () => {
-		const output = `__LJ__abc123__LJ__def456__LJ__false__LJ____LJ__ ○ commit
+		const output = `○  __LJ__abc123__LJ__def456__LJ__false__LJ__abc123 commit
 
 `
 		const commits = parseLogOutput(output)
