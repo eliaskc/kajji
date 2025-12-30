@@ -12,10 +12,17 @@ function formatCommitLine(
 }
 
 export function LogPanel() {
-	const { commits, selectedIndex, loading, error } = useSync()
+	const { commits, selectedIndex, loading, error, focusedPanel } = useSync()
+	const isFocused = () => focusedPanel() === "log"
 
 	return (
-		<box flexDirection="column" flexGrow={1} height="100%">
+		<box
+			flexDirection="column"
+			flexGrow={1}
+			height="100%"
+			border
+			borderColor={isFocused() ? "#4ECDC4" : "#444444"}
+		>
 			<Show when={loading()}>
 				<text>Loading...</text>
 			</Show>

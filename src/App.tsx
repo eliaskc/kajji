@@ -7,7 +7,15 @@ import { SyncProvider, useSync } from "./context/sync"
 
 function AppContent() {
 	const renderer = useRenderer()
-	const { selectPrev, selectNext, selectFirst, selectLast, loadLog } = useSync()
+	const {
+		selectPrev,
+		selectNext,
+		selectFirst,
+		selectLast,
+		loadLog,
+		focusedPanel,
+		toggleFocus,
+	} = useSync()
 
 	onMount(() => {
 		loadLog()
@@ -19,19 +27,30 @@ function AppContent() {
 				renderer.destroy()
 				process.exit(0)
 				break
+			case "tab":
+				toggleFocus()
+				break
 			case "j":
 			case "down":
-				selectNext()
+				if (focusedPanel() === "log") {
+					selectNext()
+				}
 				break
 			case "k":
 			case "up":
-				selectPrev()
+				if (focusedPanel() === "log") {
+					selectPrev()
+				}
 				break
 			case "g":
-				selectFirst()
+				if (focusedPanel() === "log") {
+					selectFirst()
+				}
 				break
 			case "G":
-				selectLast()
+				if (focusedPanel() === "log") {
+					selectLast()
+				}
 				break
 		}
 	})

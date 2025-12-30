@@ -83,6 +83,94 @@ import { StyleFlags } from "ghostty-opentui"
 
 ---
 
+## OpenTUI Component Reference (from examples)
+
+### Available Primitives
+
+| Component | Description | Key Props |
+|-----------|-------------|-----------|
+| `<box>` | Primary layout/container | `border`, `flexDirection`, `flexGrow`, `gap`, `padding` |
+| `<text>` | Renders styled text | `content`, `fg`, `bg`, `paddingTop` |
+| `<span>` | Inline text styling inside `<text>` | `style={{ fg, bg, attributes }}` |
+| `<scrollbox>` | Virtualized scrollable container | `focused`, `stickyScroll`, `scrollbarOptions` |
+| `<input>` | Single-line text input | `value`, `onInput`, `placeholder`, `focused` |
+| `<textarea>` | Multi-line text editor | `value`, `onInput`, `wrap` |
+| `<select>` | List selection with navigation | `options`, `onSelect`, `showScrollIndicator` |
+| `<diff>` | Optimized diff viewer | `diff`, `view="unified"|"split"`, `syntaxStyle` |
+| `<code>` | Syntax highlighted code | `content`, `filetype`, `syntaxStyle` |
+| `<ascii_font>` | ASCII art text | `text`, `style={{ font: "tiny"|... }}` |
+
+### Borders & Backgrounds
+```tsx
+<box 
+  border={true}                // or ["left", "right"] for partial
+  borderStyle="rounded"        // "single" | "double" | "rounded"
+  borderColor="#4ECDC4"
+  backgroundColor="#0D1117"
+  title="My Panel"
+  titleAlignment="center"
+>
+```
+
+### Layout (Flexbox)
+```tsx
+<box flexDirection="row" gap={2} alignItems="center">
+  <box width="30%" height={10} border> Sidebar </box>
+  <box flexGrow={1} border> Main Content </box>
+</box>
+```
+
+Sizing options:
+- **Fixed**: `width={50}`, `height={20}`
+- **Percentage**: `width="100%"`, `height="50%"`
+- **Auto**: `flexGrow={1}` (consumes remaining space)
+
+### Text Formatting
+```tsx
+import { TextAttributes } from "@opentui/core"
+
+// Colors and attributes
+<text style={{ fg: "yellow", bg: "blue", attributes: TextAttributes.UNDERLINE }}>
+  Styled Text
+</text>
+
+// Helper components
+<text>
+  <b>Bold</b> <u>Underline</u> <i>Italic</i>
+</text>
+
+// Line breaks and links
+<text>
+  Line one
+  <br />
+  Line two with <span style={{ fg: "red" }}>Red Text</span>
+  <br />
+  <u><a href="https://opentui.com" style={{ fg: "blue" }}>Link</a></u>
+</text>
+```
+
+### Input Handling
+```tsx
+import { useKeyboard } from "@opentui/solid"
+
+useKeyboard((key) => {
+  if (key.name === "v" && !key.ctrl) {
+    toggleView()
+  }
+  // key.raw provides access to the raw ANSI sequence
+})
+
+// Interactive input
+const [value, setValue] = createSignal("")
+<input 
+  focused 
+  onInput={(v) => setValue(v)} 
+  placeholder="Type something..."
+/>
+```
+
+---
+
 ## OpenTUI Examples Summary
 
 ### scrollbox - Scrollable Content

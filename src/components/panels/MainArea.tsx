@@ -3,7 +3,9 @@ import { useSync } from "../../context/sync"
 import { AnsiText } from "../AnsiText"
 
 export function MainArea() {
-	const { selectedCommit, diff, diffLoading, diffError } = useSync()
+	const { selectedCommit, diff, diffLoading, diffError, focusedPanel } =
+		useSync()
+	const isFocused = () => focusedPanel() === "diff"
 
 	const headerText = () => {
 		const commit = selectedCommit()
@@ -13,7 +15,13 @@ export function MainArea() {
 	}
 
 	return (
-		<box flexDirection="column" flexGrow={1} height="100%">
+		<box
+			flexDirection="column"
+			flexGrow={1}
+			height="100%"
+			border
+			borderColor={isFocused() ? "#4ECDC4" : "#444444"}
+		>
 			<Show when={selectedCommit()}>
 				<text>{headerText()}</text>
 			</Show>
@@ -25,7 +33,11 @@ export function MainArea() {
 			</Show>
 			<Show when={!diffLoading() && !diffError() && diff()}>
 				{(content: Accessor<string>) => (
-					<scrollbox focused flexGrow={1} scrollbarOptions={{ visible: true }}>
+					<scrollbox
+						focused={isFocused()}
+						flexGrow={1}
+						scrollbarOptions={{ visible: true }}
+					>
 						<AnsiText content={content()} />
 					</scrollbox>
 				)}

@@ -9,6 +9,8 @@ import { fetchDiff } from "../commander/diff"
 import { fetchLog } from "../commander/log"
 import type { Commit } from "../commander/types"
 
+type FocusedPanel = "log" | "diff"
+
 interface SyncContextValue {
 	commits: () => Commit[]
 	selectedIndex: () => number
@@ -24,6 +26,8 @@ interface SyncContextValue {
 	diff: () => string | null
 	diffLoading: () => boolean
 	diffError: () => string | null
+	focusedPanel: () => FocusedPanel
+	toggleFocus: () => void
 }
 
 const SyncContext = createContext<SyncContextValue>()
@@ -36,6 +40,11 @@ export function SyncProvider(props: { children: JSX.Element }) {
 	const [diff, setDiff] = createSignal<string | null>(null)
 	const [diffLoading, setDiffLoading] = createSignal(false)
 	const [diffError, setDiffError] = createSignal<string | null>(null)
+	const [focusedPanel, setFocusedPanel] = createSignal<FocusedPanel>("log")
+
+	const toggleFocus = () => {
+		setFocusedPanel((p) => (p === "log" ? "diff" : "log"))
+	}
 
 	const selectPrev = () => {
 		setSelectedIndex((i) => Math.max(0, i - 1))
@@ -105,6 +114,8 @@ export function SyncProvider(props: { children: JSX.Element }) {
 		diff,
 		diffLoading,
 		diffError,
+		focusedPanel,
+		toggleFocus,
 	}
 
 	return (

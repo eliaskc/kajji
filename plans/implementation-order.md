@@ -90,7 +90,7 @@ This document outlines the order of implementation to get a working prototype qu
 
 ---
 
-## Phase 4: Two-Panel Layout + Diff 🚧 IN PROGRESS
+## Phase 4: Two-Panel Layout + Diff ✅
 **Target: 2-3 hours | Core UX**
 
 ### 4.1 Layout Component
@@ -113,19 +113,19 @@ This document outlines the order of implementation to get a working prototype qu
 - [x] diff/diffLoading/diffError signals in context
 
 ### 4.5 Focus Management
-- [ ] `Tab` to switch focus between Log and MainArea
-- [ ] Visual indicator of which panel is focused (border color?)
-- [ ] `j/k` scrolls focused panel
-- [ ] Use `<scrollbox>` for MainArea diff content (proper scrolling)
+- [x] `Tab` to switch focus between Log and MainArea
+- [x] Visual indicator of which panel is focused (border color: cyan=#4ECDC4 when focused, gray=#444444 when not)
+- [x] `j/k` scrolls focused panel (log selection when log focused, scrollbox handles diff when diff focused)
+- [x] Use `<scrollbox>` for MainArea diff content (proper scrolling)
 
 **Milestone**: Two panels, select commit on left → see diff on right.
 
 **Notes**:
 - Using flex ratios (1:2) for panel widths
 - Must set explicit `height="100%"` on all flex containers to fill terminal viewport
-- OpenTUI doesn't support `color` prop on `<text>` - colors deferred
-- OpenTUI can't render ANSI codes - must strip them with regex
-- jjui uses charmbracelet/bubbles viewport which renders ANSI natively - we can't do that
+- ANSI rendering solved with `ghostty-opentui` - parses ANSI to styled spans
+- Focus indicated by border color (cyan when focused, gray when not)
+- `focusedPanel` signal in sync context tracks which panel has focus
 
 ---
 
