@@ -73,14 +73,22 @@ export function parseLogOutput(output: string): Commit[] {
 	return commits
 }
 
-export async function fetchLog(cwd?: string): Promise<Commit[]> {
+export interface FetchLogOptions {
+	cwd?: string
+	revset?: string
+}
+
+export async function fetchLog(options?: FetchLogOptions): Promise<Commit[]> {
 	const template = buildTemplate()
-	const result = await execute(
-		["log", "--color", "always", "--template", template],
-		{
-			cwd,
-		},
-	)
+	const args = ["log", "--color", "always", "--template", template]
+
+	if (options?.revset) {
+		args.push("-r", options.revset)
+	}
+
+	const result = await execute(args, {
+		cwd: options?.cwd,
+	})
 
 	if (!result.success) {
 		throw new Error(`jj log failed: ${result.stderr}`)

@@ -23,6 +23,7 @@ import {
 } from "../utils/file-tree"
 
 export type ViewMode = "log" | "files"
+export type BookmarkViewMode = "list" | "commits" | "files"
 
 interface SyncContextValue {
 	commits: () => Commit[]
@@ -73,6 +74,32 @@ interface SyncContextValue {
 	selectFirstBookmark: () => void
 	selectLastBookmark: () => void
 	jumpToBookmarkCommit: () => number | null
+
+	bookmarkViewMode: () => BookmarkViewMode
+	bookmarkCommits: () => Commit[]
+	selectedBookmarkCommitIndex: () => number
+	bookmarkCommitsLoading: () => boolean
+	selectedBookmarkCommit: () => Commit | undefined
+	bookmarkFileTree: () => FileTreeNode | null
+	bookmarkFlatFiles: () => FlatFileNode[]
+	selectedBookmarkFileIndex: () => number
+	bookmarkFilesLoading: () => boolean
+	selectedBookmarkFile: () => FlatFileNode | undefined
+	bookmarkCollapsedPaths: () => Set<string>
+	activeBookmarkName: () => string | null
+
+	enterBookmarkCommitsView: () => Promise<void>
+	enterBookmarkFilesView: () => Promise<void>
+	exitBookmarkView: () => void
+	selectPrevBookmarkCommit: () => void
+	selectNextBookmarkCommit: () => void
+	selectFirstBookmarkCommit: () => void
+	selectLastBookmarkCommit: () => void
+	selectPrevBookmarkFile: () => void
+	selectNextBookmarkFile: () => void
+	selectFirstBookmarkFile: () => void
+	selectLastBookmarkFile: () => void
+	toggleBookmarkFolder: (path: string) => void
 }
 
 const SyncContext = createContext<SyncContextValue>()
@@ -104,6 +131,26 @@ export function SyncProvider(props: { children: JSX.Element }) {
 	const [bookmarksLoading, setBookmarksLoading] = createSignal(false)
 	const [bookmarksError, setBookmarksError] = createSignal<string | null>(null)
 
+	const [bookmarkViewMode, setBookmarkViewMode] =
+		createSignal<BookmarkViewMode>("list")
+	const [bookmarkCommits, setBookmarkCommits] = createSignal<Commit[]>([])
+	const [selectedBookmarkCommitIndex, setSelectedBookmarkCommitIndex] =
+		createSignal(0)
+	const [bookmarkCommitsLoading, setBookmarkCommitsLoading] =
+		createSignal(false)
+	const [activeBookmarkName, setActiveBookmarkName] = createSignal<
+		string | null
+	>(null)
+	const [bookmarkFiles, setBookmarkFiles] = createSignal<FileChange[]>([])
+	const [bookmarkFileTree, setBookmarkFileTree] =
+		createSignal<FileTreeNode | null>(null)
+	const [selectedBookmarkFileIndex, setSelectedBookmarkFileIndex] =
+		createSignal(0)
+	const [bookmarkCollapsedPaths, setBookmarkCollapsedPaths] = createSignal<
+		Set<string>
+	>(new Set())
+	const [bookmarkFilesLoading, setBookmarkFilesLoading] = createSignal(false)
+
 	const flatFiles = createMemo(() => {
 		const tree = fileTree()
 		if (!tree) return []
@@ -111,6 +158,17 @@ export function SyncProvider(props: { children: JSX.Element }) {
 	})
 
 	const selectedFile = () => flatFiles()[selectedFileIndex()]
+
+	const bookmarkFlatFiles = createMemo(() => {
+		const tree = bookmarkFileTree()
+		if (!tree) return []
+		return flattenTree(tree, bookmarkCollapsedPaths())
+	})
+
+	const selectedBookmarkCommit = () =>
+		bookmarkCommits()[selectedBookmarkCommitIndex()]
+	const selectedBookmarkFile = () =>
+		bookmarkFlatFiles()[selectedBookmarkFileIndex()]
 
 	const mainAreaWidth = () => {
 		const width = terminalWidth()
@@ -183,6 +241,109 @@ export function SyncProvider(props: { children: JSX.Element }) {
 		setSelectedBookmarkIndex(Math.max(0, localBookmarks().length - 1))
 	}
 
+	const selectPrevBookmarkCommit = () => {
+		setSelectedBookmarkCommitIndex((i) => Math.max(0, i - 1))
+	}
+
+	const selectNextBookmarkCommit = () => {
+		setSelectedBookmarkCommitIndex((i) =>
+			Math.min(bookmarkCommits().length - 1, i + 1),
+		)
+	}
+
+	const selectFirstBookmarkCommit = () => {
+		setSelectedBookmarkCommitIndex(0)
+	}
+
+	const selectLastBookmarkCommit = () => {
+		setSelectedBookmarkCommitIndex(Math.max(0, bookmarkCommits().length - 1))
+	}
+
+	const selectPrevBookmarkFile = () => {
+		setSelectedBookmarkFileIndex((i) => Math.max(0, i - 1))
+	}
+
+	const selectNextBookmarkFile = () => {
+		setSelectedBookmarkFileIndex((i) =>
+			Math.min(bookmarkFlatFiles().length - 1, i + 1),
+		)
+	}
+
+	const selectFirstBookmarkFile = () => {
+		setSelectedBookmarkFileIndex(0)
+	}
+
+	const selectLastBookmarkFile = () => {
+		setSelectedBookmarkFileIndex(Math.max(0, bookmarkFlatFiles().length - 1))
+	}
+
+	const toggleBookmarkFolder = (path: string) => {
+		setBookmarkCollapsedPaths((prev) => {
+			const next = new Set(prev)
+			if (next.has(path)) {
+				next.delete(path)
+			} else {
+				next.add(path)
+			}
+			return next
+		})
+	}
+
+	const enterBookmarkCommitsView = async () => {
+		const bookmark = selectedBookmark()
+		if (!bookmark) return
+
+		setBookmarkCommitsLoading(true)
+		try {
+			const result = await fetchLog({ revset: `::${bookmark.name}` })
+			setBookmarkCommits(result)
+			setSelectedBookmarkCommitIndex(0)
+			setActiveBookmarkName(bookmark.name)
+			setBookmarkViewMode("commits")
+		} catch (e) {
+			console.error("Failed to load bookmark commits:", e)
+		} finally {
+			setBookmarkCommitsLoading(false)
+		}
+	}
+
+	const enterBookmarkFilesView = async () => {
+		const commit = selectedBookmarkCommit()
+		if (!commit) return
+
+		setBookmarkFilesLoading(true)
+		try {
+			const result = await fetchFiles(commit.changeId, {
+				ignoreWorkingCopy: true,
+			})
+			setBookmarkFiles(result)
+			setBookmarkFileTree(buildFileTree(result))
+			setSelectedBookmarkFileIndex(0)
+			setBookmarkCollapsedPaths(new Set<string>())
+			setBookmarkViewMode("files")
+		} catch (e) {
+			console.error("Failed to load bookmark files:", e)
+		} finally {
+			setBookmarkFilesLoading(false)
+		}
+	}
+
+	const exitBookmarkView = () => {
+		const mode = bookmarkViewMode()
+		if (mode === "files") {
+			setBookmarkViewMode("commits")
+			setBookmarkFiles([])
+			setBookmarkFileTree(null)
+			setSelectedBookmarkFileIndex(0)
+			setBookmarkCollapsedPaths(new Set<string>())
+		} else if (mode === "commits") {
+			setBookmarkViewMode("list")
+			setBookmarkCommits([])
+			setSelectedBookmarkCommitIndex(0)
+			setActiveBookmarkName(null)
+		}
+	}
+
 	const loadBookmarks = async () => {
 		setBookmarksLoading(true)
 		setBookmarksError(null)
@@ -241,27 +402,43 @@ export function SyncProvider(props: { children: JSX.Element }) {
 	}
 
 	createEffect(() => {
-		const commit = selectedCommit()
 		const columns = mainAreaWidth()
 		const mode = viewMode()
-
-		if (!commit) return
+		const bmMode = bookmarkViewMode()
 
 		if (diffDebounceTimer) {
 			clearTimeout(diffDebounceTimer)
 		}
 
-		if (mode === "files") {
+		if (bmMode === "commits") {
+			const commit = selectedBookmarkCommit()
+			if (!commit) return
+			diffDebounceTimer = setTimeout(() => {
+				loadDiff(commit.changeId, columns)
+			}, 100)
+		} else if (bmMode === "files") {
+			const commit = selectedBookmarkCommit()
+			const file = selectedBookmarkFile()
+			if (!commit || !file) return
+			const paths = file.node.isDirectory
+				? getFilePaths(file.node)
+				: [file.node.path]
+			diffDebounceTimer = setTimeout(() => {
+				loadDiff(commit.changeId, columns, paths)
+			}, 100)
+		} else if (mode === "files") {
+			const commit = selectedCommit()
 			const file = selectedFile()
-			if (file) {
-				const paths = file.node.isDirectory
-					? getFilePaths(file.node)
-					: [file.node.path]
-				diffDebounceTimer = setTimeout(() => {
-					loadDiff(commit.changeId, columns, paths)
-				}, 100)
-			}
+			if (!commit || !file) return
+			const paths = file.node.isDirectory
+				? getFilePaths(file.node)
+				: [file.node.path]
+			diffDebounceTimer = setTimeout(() => {
+				loadDiff(commit.changeId, columns, paths)
+			}, 100)
 		} else {
+			const commit = selectedCommit()
+			if (!commit) return
 			diffDebounceTimer = setTimeout(() => {
 				loadDiff(commit.changeId, columns)
 			}, 100)
@@ -373,6 +550,32 @@ export function SyncProvider(props: { children: JSX.Element }) {
 		selectFirstBookmark,
 		selectLastBookmark,
 		jumpToBookmarkCommit,
+
+		bookmarkViewMode,
+		bookmarkCommits,
+		selectedBookmarkCommitIndex,
+		bookmarkCommitsLoading,
+		selectedBookmarkCommit,
+		bookmarkFileTree,
+		bookmarkFlatFiles,
+		selectedBookmarkFileIndex,
+		bookmarkFilesLoading,
+		selectedBookmarkFile,
+		bookmarkCollapsedPaths,
+		activeBookmarkName,
+
+		enterBookmarkCommitsView,
+		enterBookmarkFilesView,
+		exitBookmarkView,
+		selectPrevBookmarkCommit,
+		selectNextBookmarkCommit,
+		selectFirstBookmarkCommit,
+		selectLastBookmarkCommit,
+		selectPrevBookmarkFile,
+		selectNextBookmarkFile,
+		selectFirstBookmarkFile,
+		selectLastBookmarkFile,
+		toggleBookmarkFolder,
 	}
 
 	return (
