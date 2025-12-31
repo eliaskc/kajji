@@ -1,4 +1,5 @@
-import { For, Match, Show, Switch } from "solid-js"
+import type { ScrollBoxRenderable } from "@opentui/core"
+import { For, Match, Show, Switch, createEffect, createSignal } from "solid-js"
 import { useCommand } from "../../context/command"
 import { useFocus } from "../../context/focus"
 import { useSync } from "../../context/sync"
@@ -58,6 +59,80 @@ export function BookmarksPanel() {
 
 	const isFocused = () => focus.is("bookmarks")
 	const localBookmarks = () => bookmarks().filter((b) => b.isLocal)
+
+	let listScrollRef: ScrollBoxRenderable | undefined
+	let commitsScrollRef: ScrollBoxRenderable | undefined
+	let filesScrollRef: ScrollBoxRenderable | undefined
+
+	const [listScrollTop, setListScrollTop] = createSignal(0)
+	const [commitsScrollTop, setCommitsScrollTop] = createSignal(0)
+	const [filesScrollTop, setFilesScrollTop] = createSignal(0)
+
+	const scrollIntoView = (
+		ref: ScrollBoxRenderable | undefined,
+		index: number,
+		scrollTop: number,
+		setScrollTop: (n: number) => void,
+		listLength: number,
+	) => {
+		if (!ref || listLength === 0) return
+		const margin = 2
+		const refAny = ref as unknown as Record<string, unknown>
+		const viewportHeight =
+			(typeof refAny.height === "number" ? refAny.height : null) ??
+			(typeof refAny.rows === "number" ? refAny.rows : null) ??
+			10
+
+		const visibleStart = scrollTop
+		const visibleEnd = scrollTop + viewportHeight - 1
+		const safeStart = visibleStart + margin
+		const safeEnd = visibleEnd - margin
+
+		let newScrollTop = scrollTop
+		if (index < safeStart) {
+			newScrollTop = Math.max(0, index - margin)
+		} else if (index > safeEnd) {
+			newScrollTop = Math.max(0, index - viewportHeight + margin + 1)
+		}
+
+		if (newScrollTop !== scrollTop) {
+			ref.scrollTo(newScrollTop)
+			setScrollTop(newScrollTop)
+		}
+	}
+
+	createEffect(() => {
+		const index = selectedBookmarkIndex()
+		scrollIntoView(
+			listScrollRef,
+			index,
+			listScrollTop(),
+			setListScrollTop,
+			localBookmarks().length,
+		)
+	})
+
+	createEffect(() => {
+		const index = selectedBookmarkCommitIndex()
+		scrollIntoView(
+			commitsScrollRef,
+			index,
+			commitsScrollTop(),
+			setCommitsScrollTop,
+			bookmarkCommits().length,
+		)
+	})
+
+	createEffect(() => {
+		const index = selectedBookmarkFileIndex()
+		scrollIntoView(
+			filesScrollRef,
+			index,
+			filesScrollTop(),
+			setFilesScrollTop,
+			bookmarkFlatFiles().length,
+		)
+	})
 
 	const title = () => {
 		const mode = bookmarkViewMode()
@@ -268,29 +343,35 @@ export function BookmarksPanel() {
 							when={localBookmarks().length > 0}
 							fallback={<text fg={colors.textMuted}>No bookmarks</text>}
 						>
-							<For each={localBookmarks()}>
-								{(bookmark, index) => {
-									const isSelected = () => index() === selectedBookmarkIndex()
-									return (
-										<box
-											backgroundColor={
-												isSelected() ? colors.selectionBackground : undefined
-											}
-											overflow="hidden"
-										>
-											<text>
-												<span style={{ fg: colors.primary }}>
-													{bookmark.name}
-												</span>
-												<span style={{ fg: colors.textMuted }}>
-													{" "}
-													{bookmark.changeId.slice(0, 8)}
-												</span>
-											</text>
-										</box>
-									)
-								}}
-							</For>
+							<scrollbox
+								ref={listScrollRef}
+								flexGrow={1}
+								scrollbarOptions={{ visible: false }}
+							>
+								<For each={localBookmarks()}>
+									{(bookmark, index) => {
+										const isSelected = () => index() === selectedBookmarkIndex()
+										return (
+											<box
+												backgroundColor={
+													isSelected() ? colors.selectionBackground : undefined
+												}
+												overflow="hidden"
+											>
+												<text>
+													<span style={{ fg: colors.primary }}>
+														{bookmark.name}
+													</span>
+													<span style={{ fg: colors.textMuted }}>
+														{" "}
+														{bookmark.changeId.slice(0, 8)}
+													</span>
+												</text>
+											</box>
+										)
+									}}
+								</For>
+							</scrollbox>
 						</Show>
 					</Show>
 				</Match>
@@ -304,38 +385,46 @@ export function BookmarksPanel() {
 							when={bookmarkCommits().length > 0}
 							fallback={<text fg={colors.textMuted}>No commits</text>}
 						>
-							<For each={bookmarkCommits()}>
-								{(commit, index) => {
-									const isSelected = () =>
-										index() === selectedBookmarkCommitIndex()
-									const icon = commit.isWorkingCopy ? "◆" : "○"
-									const desc = commit.description.replace(/\x1b\[[0-9;]*m/g, "")
-									return (
-										<box
-											backgroundColor={
-												isSelected() ? colors.selectionBackground : undefined
-											}
-											overflow="hidden"
-										>
-											<text>
-												<span
-													style={{
-														fg: commit.isWorkingCopy
-															? colors.primary
-															: colors.textMuted,
-													}}
-												>
-													{icon}{" "}
-												</span>
-												<span style={{ fg: colors.warning }}>
-													{commit.changeId.slice(0, 8)}
-												</span>
-												<span style={{ fg: colors.text }}> {desc}</span>
-											</text>
-										</box>
-									)
-								}}
-							</For>
+							<scrollbox
+								ref={commitsScrollRef}
+								flexGrow={1}
+								scrollbarOptions={{ visible: false }}
+							>
+								<For each={bookmarkCommits()}>
+									{(commit, index) => {
+										const isSelected = () =>
+											index() === selectedBookmarkCommitIndex()
+										const icon = commit.isWorkingCopy ? "◆" : "○"
+										return (
+											<box
+												backgroundColor={
+													isSelected() ? colors.selectionBackground : undefined
+												}
+												overflow="hidden"
+											>
+												<text wrapMode="none">
+													<span
+														style={{
+															fg: commit.isWorkingCopy
+																? colors.primary
+																: colors.textMuted,
+														}}
+													>
+														{icon}{" "}
+													</span>
+													<span style={{ fg: colors.warning }}>
+														{commit.changeId.slice(0, 8)}
+													</span>
+													<span style={{ fg: colors.text }}>
+														{" "}
+														{commit.description}
+													</span>
+												</text>
+											</box>
+										)
+									}}
+								</For>
+							</scrollbox>
 						</Show>
 					</Show>
 				</Match>
@@ -349,60 +438,68 @@ export function BookmarksPanel() {
 							when={bookmarkFlatFiles().length > 0}
 							fallback={<text fg={colors.textMuted}>No files</text>}
 						>
-							<For each={bookmarkFlatFiles()}>
-								{(item, index) => {
-									const isSelected = () =>
-										index() === selectedBookmarkFileIndex()
-									const node = item.node
-									const indent = "  ".repeat(item.visualDepth)
-									const isCollapsed = bookmarkCollapsedPaths().has(node.path)
+							<scrollbox
+								ref={filesScrollRef}
+								flexGrow={1}
+								scrollbarOptions={{ visible: false }}
+							>
+								<For each={bookmarkFlatFiles()}>
+									{(item, index) => {
+										const isSelected = () =>
+											index() === selectedBookmarkFileIndex()
+										const node = item.node
+										const indent = "  ".repeat(item.visualDepth)
+										const isCollapsed = bookmarkCollapsedPaths().has(node.path)
 
-									const icon = node.isDirectory
-										? isCollapsed
-											? "▶"
-											: "▼"
-										: " "
+										const icon = node.isDirectory
+											? isCollapsed
+												? "▶"
+												: "▼"
+											: " "
 
-									const statusChar = node.status
-										? (STATUS_CHARS[node.status] ?? " ")
-										: " "
-									const statusColor = node.status
-										? STATUS_COLORS[node.status]
-										: colors.text
+										const statusChar = node.status
+											? (STATUS_CHARS[node.status] ?? " ")
+											: " "
+										const statusColor = node.status
+											? STATUS_COLORS[node.status]
+											: colors.text
 
-									return (
-										<box
-											backgroundColor={
-												isSelected() ? colors.selectionBackground : undefined
-											}
-											overflow="hidden"
-										>
-											<text>
-												<span style={{ fg: colors.textMuted }}>{indent}</span>
-												<span
-													style={{
-														fg: node.isDirectory
-															? colors.info
-															: colors.textMuted,
-													}}
-												>
-													{icon}{" "}
-												</span>
-												<Show when={!node.isDirectory}>
-													<span style={{ fg: statusColor }}>{statusChar} </span>
-												</Show>
-												<span
-													style={{
-														fg: node.isDirectory ? colors.info : colors.text,
-													}}
-												>
-													{node.name}
-												</span>
-											</text>
-										</box>
-									)
-								}}
-							</For>
+										return (
+											<box
+												backgroundColor={
+													isSelected() ? colors.selectionBackground : undefined
+												}
+												overflow="hidden"
+											>
+												<text>
+													<span style={{ fg: colors.textMuted }}>{indent}</span>
+													<span
+														style={{
+															fg: node.isDirectory
+																? colors.info
+																: colors.textMuted,
+														}}
+													>
+														{icon}{" "}
+													</span>
+													<Show when={!node.isDirectory}>
+														<span style={{ fg: statusColor }}>
+															{statusChar}{" "}
+														</span>
+													</Show>
+													<span
+														style={{
+															fg: node.isDirectory ? colors.info : colors.text,
+														}}
+													>
+														{node.name}
+													</span>
+												</text>
+											</box>
+										)
+									}}
+								</For>
+							</scrollbox>
 						</Show>
 					</Show>
 				</Match>

@@ -1,4 +1,5 @@
-import { For, Show } from "solid-js"
+import type { ScrollBoxRenderable } from "@opentui/core"
+import { For, Show, createEffect, createSignal } from "solid-js"
 import { useCommand } from "../../context/command"
 import { useFocus } from "../../context/focus"
 import { useSync } from "../../context/sync"
@@ -39,6 +40,39 @@ export function FileTreePanel() {
 	const command = useCommand()
 
 	const isFocused = () => focus.is("log")
+
+	let scrollRef: ScrollBoxRenderable | undefined
+	const [scrollTop, setScrollTop] = createSignal(0)
+
+	createEffect(() => {
+		const index = selectedFileIndex()
+		if (!scrollRef || flatFiles().length === 0) return
+
+		const margin = 2
+		const refAny = scrollRef as unknown as Record<string, unknown>
+		const viewportHeight =
+			(typeof refAny.height === "number" ? refAny.height : null) ??
+			(typeof refAny.rows === "number" ? refAny.rows : null) ??
+			10
+		const currentScrollTop = scrollTop()
+
+		const visibleStart = currentScrollTop
+		const visibleEnd = currentScrollTop + viewportHeight - 1
+		const safeStart = visibleStart + margin
+		const safeEnd = visibleEnd - margin
+
+		let newScrollTop = currentScrollTop
+		if (index < safeStart) {
+			newScrollTop = Math.max(0, index - margin)
+		} else if (index > safeEnd) {
+			newScrollTop = Math.max(0, index - viewportHeight + margin + 1)
+		}
+
+		if (newScrollTop !== currentScrollTop) {
+			scrollRef.scrollTo(newScrollTop)
+			setScrollTop(newScrollTop)
+		}
+	})
 
 	const handleEnter = () => {
 		const file = flatFiles()[selectedFileIndex()]
@@ -124,53 +158,59 @@ export function FileTreePanel() {
 				<text fg={colors.error}>Error: {filesError()}</text>
 			</Show>
 			<Show when={!filesLoading() && !filesError()}>
-				<For each={flatFiles()}>
-					{(item, index) => {
-						const isSelected = () => index() === selectedFileIndex()
-						const node = item.node
-						const indent = "  ".repeat(item.visualDepth)
-						const isCollapsed = collapsedPaths().has(node.path)
+				<scrollbox
+					ref={scrollRef}
+					flexGrow={1}
+					scrollbarOptions={{ visible: false }}
+				>
+					<For each={flatFiles()}>
+						{(item, index) => {
+							const isSelected = () => index() === selectedFileIndex()
+							const node = item.node
+							const indent = "  ".repeat(item.visualDepth)
+							const isCollapsed = collapsedPaths().has(node.path)
 
-						const icon = node.isDirectory ? (isCollapsed ? "▶" : "▼") : " "
+							const icon = node.isDirectory ? (isCollapsed ? "▶" : "▼") : " "
 
-						const statusChar = node.status
-							? (STATUS_CHARS[node.status] ?? " ")
-							: " "
-						const statusColor = node.status
-							? STATUS_COLORS[node.status]
-							: colors.text
+							const statusChar = node.status
+								? (STATUS_CHARS[node.status] ?? " ")
+								: " "
+							const statusColor = node.status
+								? STATUS_COLORS[node.status]
+								: colors.text
 
-						return (
-							<box
-								backgroundColor={
-									isSelected() ? colors.selectionBackground : undefined
-								}
-								overflow="hidden"
-							>
-								<text>
-									<span style={{ fg: colors.textMuted }}>{indent}</span>
-									<span
-										style={{
-											fg: node.isDirectory ? colors.info : colors.textMuted,
-										}}
-									>
-										{icon}{" "}
-									</span>
-									<Show when={!node.isDirectory}>
-										<span style={{ fg: statusColor }}>{statusChar} </span>
-									</Show>
-									<span
-										style={{
-											fg: node.isDirectory ? colors.info : colors.text,
-										}}
-									>
-										{node.name}
-									</span>
-								</text>
-							</box>
-						)
-					}}
-				</For>
+							return (
+								<box
+									backgroundColor={
+										isSelected() ? colors.selectionBackground : undefined
+									}
+									overflow="hidden"
+								>
+									<text>
+										<span style={{ fg: colors.textMuted }}>{indent}</span>
+										<span
+											style={{
+												fg: node.isDirectory ? colors.info : colors.textMuted,
+											}}
+										>
+											{icon}{" "}
+										</span>
+										<Show when={!node.isDirectory}>
+											<span style={{ fg: statusColor }}>{statusChar} </span>
+										</Show>
+										<span
+											style={{
+												fg: node.isDirectory ? colors.info : colors.text,
+											}}
+										>
+											{node.name}
+										</span>
+									</text>
+								</box>
+							)
+						}}
+					</For>
+				</scrollbox>
 			</Show>
 		</box>
 	)

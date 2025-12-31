@@ -50,7 +50,7 @@ export function parseLogOutput(output: string): Commit[] {
 					commitId: stripAnsi(parts[2] ?? ""),
 					immutable: stripAnsi(parts[3] ?? "") === "true",
 					empty: stripAnsi(parts[4] ?? "") === "true",
-					description: parts[5] ?? "",
+					description: stripAnsi(parts[5] ?? ""),
 					author: stripAnsi(parts[6] ?? ""),
 					authorEmail: stripAnsi(parts[7] ?? ""),
 					timestamp: stripAnsi(parts[8] ?? ""),
