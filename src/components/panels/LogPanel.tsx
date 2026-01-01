@@ -1,29 +1,56 @@
 import type { ScrollBoxRenderable } from "@opentui/core"
 import { For, Show, createEffect, createSignal } from "solid-js"
+import {
+	type OperationResult,
+	isImmutableError,
+	jjAbandon,
+	jjDescribe,
+	jjEdit,
+	jjNew,
+	jjShowDescription,
+	jjSquash,
+} from "../../commander/operations"
 import { useCommand } from "../../context/command"
+import { useCommandLog } from "../../context/commandlog"
+import { useDialog } from "../../context/dialog"
 import { useFocus } from "../../context/focus"
 import { useSync } from "../../context/sync"
 import { useTheme } from "../../context/theme"
 import { AnsiText } from "../AnsiText"
 import { Panel } from "../Panel"
+import { DescribeModal } from "../modals/DescribeModal"
 
 export function LogPanel() {
 	const {
 		commits,
 		selectedIndex,
+		selectedCommit,
 		loading,
 		error,
 		selectNext,
 		selectPrev,
 		enterFilesView,
 		viewMode,
+		loadLog,
+		loadBookmarks,
 	} = useSync()
 	const focus = useFocus()
 	const command = useCommand()
+	const commandLog = useCommandLog()
+	const dialog = useDialog()
 	const { colors } = useTheme()
 
 	const isFocused = () => focus.isPanel("log")
 	const title = () => (viewMode() === "files" ? "Files" : "Log")
+
+	const runOperation = async (op: () => Promise<OperationResult>) => {
+		const result = await op()
+		commandLog.addEntry(result)
+		if (result.success) {
+			loadLog()
+			loadBookmarks()
+		}
+	}
 
 	let scrollRef: ScrollBoxRenderable | undefined
 	const [scrollTop, setScrollTop] = createSignal(0)
@@ -95,6 +122,115 @@ export function LogPanel() {
 			panel: "log",
 			hidden: true,
 			onSelect: () => enterFilesView(),
+		},
+		{
+			id: "commits.new",
+			title: "New change",
+			keybind: "jj_new",
+			context: "commits",
+			type: "action",
+			panel: "log",
+			onSelect: () => {
+				const commit = selectedCommit()
+				if (commit) runOperation(() => jjNew(commit.changeId))
+			},
+		},
+		{
+			id: "commits.edit",
+			title: "Edit change",
+			keybind: "jj_edit",
+			context: "commits",
+			type: "action",
+			panel: "log",
+			onSelect: () => {
+				const commit = selectedCommit()
+				if (commit) runOperation(() => jjEdit(commit.changeId))
+			},
+		},
+		{
+			id: "commits.squash",
+			title: "Squash into parent",
+			keybind: "jj_squash",
+			context: "commits",
+			type: "action",
+			panel: "log",
+			onSelect: async () => {
+				const commit = selectedCommit()
+				if (!commit) return
+				const result = await jjSquash(commit.changeId)
+				if (isImmutableError(result)) {
+					const confirmed = await dialog.confirm({
+						message: "Parent is immutable. Squash anyway?",
+					})
+					if (confirmed) {
+						await runOperation(() =>
+							jjSquash(commit.changeId, { ignoreImmutable: true }),
+						)
+					}
+				} else {
+					commandLog.addEntry(result)
+					if (result.success) {
+						loadLog()
+						loadBookmarks()
+					}
+				}
+			},
+		},
+		{
+			id: "commits.describe",
+			title: "Describe change",
+			keybind: "jj_describe",
+			context: "commits",
+			type: "action",
+			panel: "log",
+			onSelect: async () => {
+				const commit = selectedCommit()
+				if (!commit) return
+
+				let ignoreImmutable = false
+				if (commit.immutable) {
+					const confirmed = await dialog.confirm({
+						message: "Commit is immutable. Describe anyway?",
+					})
+					if (!confirmed) return
+					ignoreImmutable = true
+				}
+
+				const desc = await jjShowDescription(commit.changeId)
+				dialog.open(
+					() => (
+						<DescribeModal
+							initialSubject={desc.subject}
+							initialBody={desc.body}
+							onSave={(subject, body) => {
+								const message = body ? `${subject}\n\n${body}` : subject
+								runOperation(() =>
+									jjDescribe(commit.changeId, message, { ignoreImmutable }),
+								)
+							}}
+						/>
+					),
+					{ id: "describe" },
+				)
+			},
+		},
+		{
+			id: "commits.abandon",
+			title: "Abandon change",
+			keybind: "jj_abandon",
+			context: "commits",
+			type: "action",
+			panel: "log",
+			onSelect: async () => {
+				const commit = selectedCommit()
+				if (!commit) return
+				const confirmed = await dialog.confirm({
+					message: `Abandon change ${commit.changeId.slice(0, 8)}?`,
+				})
+				if (confirmed) {
+					await runOperation(() => jjAbandon(commit.changeId))
+				}
+			},
 		},
 	])
 

@@ -17,6 +17,41 @@ interface DialogState {
 	onClose?: () => void
 }
 
+interface ConfirmOptions {
+	message: string
+}
+
+function ConfirmDialogContent(props: {
+	message: string
+	onResolve: (confirmed: boolean) => void
+}) {
+	const { colors, style } = useTheme()
+
+	useKeyboard((evt) => {
+		if (evt.name === "y" || evt.name === "return") {
+			evt.preventDefault()
+			props.onResolve(true)
+		} else if (evt.name === "n" || evt.name === "escape") {
+			evt.preventDefault()
+			props.onResolve(false)
+		}
+	})
+
+	return (
+		<box
+			flexDirection="column"
+			border
+			borderStyle={style().panel.borderStyle}
+			borderColor={colors().borderFocused}
+			backgroundColor={colors().background}
+			paddingLeft={2}
+			width="50%"
+		>
+			<text fg={colors().text}>{props.message}</text>
+		</box>
+	)
+}
+
 export const { use: useDialog, provider: DialogProvider } = createSimpleContext(
 	{
 		name: "Dialog",
@@ -59,12 +94,42 @@ export const { use: useDialog, provider: DialogProvider } = createSimpleContext(
 				}
 			}
 
+			const confirm = (options: ConfirmOptions): Promise<boolean> => {
+				return new Promise((resolve) => {
+					let resolved = false
+					const handleResolve = (confirmed: boolean) => {
+						if (resolved) return
+						resolved = true
+						close()
+						resolve(confirmed)
+					}
+					open(
+						() => (
+							<ConfirmDialogContent
+								message={options.message}
+								onResolve={handleResolve}
+							/>
+						),
+						{
+							id: "confirm-dialog",
+							onClose: () => {
+								if (!resolved) {
+									resolved = true
+									resolve(false)
+								}
+							},
+						},
+					)
+				})
+			}
+
 			return {
 				isOpen: () => stack().length > 0,
 				current: () => stack().at(-1),
 				open,
 				toggle,
 				close,
+				confirm,
 				clear: () => {
 					for (const item of stack()) {
 						item.onClose?.()
@@ -116,13 +181,13 @@ export function DialogContainer(props: ParentProps) {
 	const dialog = useDialog()
 
 	return (
-		<>
+		<box flexGrow={1} width="100%" height="100%">
 			{props.children}
 			<Show when={dialog.isOpen()}>
 				<DialogBackdrop onClose={dialog.close}>
 					{dialog.current()?.render()}
 				</DialogBackdrop>
 			</Show>
-		</>
+		</box>
 	)
 }

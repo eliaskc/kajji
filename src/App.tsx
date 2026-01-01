@@ -7,6 +7,7 @@ import { FileTreePanel } from "./components/panels/FileTreePanel"
 import { LogPanel } from "./components/panels/LogPanel"
 import { MainArea } from "./components/panels/MainArea"
 import { CommandProvider, useCommand } from "./context/command"
+import { CommandLogProvider } from "./context/commandlog"
 import { DialogContainer, DialogProvider, useDialog } from "./context/dialog"
 import { FocusProvider, useFocus } from "./context/focus"
 import { KeybindProvider } from "./context/keybind"
@@ -151,11 +152,13 @@ export function App() {
 			<FocusProvider>
 				<SyncProvider>
 					<KeybindProvider>
-						<DialogProvider>
-							<CommandProvider>
-								<AppContent />
-							</CommandProvider>
-						</DialogProvider>
+						<CommandLogProvider>
+							<DialogProvider>
+								<CommandProvider>
+									<AppContent />
+								</CommandProvider>
+							</DialogProvider>
+						</CommandLogProvider>
 					</KeybindProvider>
 				</SyncProvider>
 			</FocusProvider>

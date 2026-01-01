@@ -12,10 +12,20 @@
 
 | Area | Description | Plan |
 |------|-------------|------|
-| **Core Operations** | `new`, `edit`, `describe`, `squash`, `abandon` | [Details below](#core-operations) |
+| ~~**Core Operations**~~ | ~~`new`, `edit`, `describe`, `squash`, `abandon`~~ | ✅ Done |
+| **Undo/Redo** | `u` / `Ctrl+r` with confirmation - CRITICAL safety feature | — |
 | **Performance** | Profile and fix lag in bookmarks navigation | [Details below](#performance-investigation) |
 | **Mouse Support** | Click to focus, scroll, double-click actions | — |
 | **Configuration** | User config file, theme selection, custom keybinds | [plans/configuration.md](./plans/configuration.md) |
+
+### Easy Wins (Soon)
+
+| Area | Description | Plan |
+|------|-------------|------|
+| **Text Editing** | Copy (Ctrl+C in modals), word nav (Alt+arrows), word delete (Alt+backspace/delete) | Start with describe modal, generalize to all inputs |
+| **Bookmark Operations** | Create, delete, rename, move bookmarks | — |
+| **Workspace Tab** | List and switch between workspaces | — |
+| **Oplog View** | View and restore from operation history | — |
 
 ### Medium Priority
 
@@ -23,6 +33,7 @@
 |------|-------------|------|
 | **Diff Viewing** | Side-by-side, layout modes, difftastic integration | [plans/diff-viewing.md](./plans/diff-viewing.md) |
 | **Release Flows** | bunx, Homebrew, npm publishing | [plans/release-flows.md](./plans/release-flows.md) |
+| **Multi-Select** | Visual mode (`v`) for batch operations on commits/bookmarks | [plans/multi-select.md](./plans/multi-select.md) |
 | **Auto-Refresh** | Watch filesystem, refresh on changes | — |
 
 ### Nice-to-Have
@@ -31,13 +42,13 @@
 |------|-------------|
 | Search & Filter | `/` to filter log by description/change ID |
 | Command Mode | `:` to run arbitrary jj commands |
-| Undo/Redo | `u` / `Ctrl+r` with confirmation |
 | Git Push/Fetch | `P` / `f` for remote operations |
-| Oplog View | View and restore from operation history |
 
 ---
 
 ## Core Operations
+
+> ✅ **Done** - All core operations implemented with command log panel.
 
 The essential jj operations to make lazyjuju useful for daily work.
 
@@ -148,7 +159,7 @@ Longer-term possibilities, not planned for near-term:
 - PR status indicator in bookmark list
 - Conflict visualization
 - Revset filtering
-- Multi-select for batch operations
+- ~~Multi-select for batch operations~~ → moved to Medium Priority
 - Interactive rebase UI
 - Large repo optimization (10k+ commits)
 

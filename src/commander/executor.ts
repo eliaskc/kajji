@@ -19,8 +19,13 @@ export async function execute(
 		cwd: options.cwd,
 		env: {
 			...process.env,
+			// Prevent jj from opening editors
+			JJ_EDITOR: "true",
+			EDITOR: "true",
+			VISUAL: "true",
 			...options.env,
 		},
+		stdin: "ignore",
 		stdout: "pipe",
 		stderr: "pipe",
 	})

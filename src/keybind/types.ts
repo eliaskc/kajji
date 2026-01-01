@@ -24,6 +24,11 @@ export type KeybindConfigKey =
 	| "refresh"
 	| "enter"
 	| "escape"
+	| "jj_new"
+	| "jj_edit"
+	| "jj_describe"
+	| "jj_squash"
+	| "jj_abandon"
 
 export type KeybindConfig = Record<KeybindConfigKey, string>
 
@@ -46,4 +51,9 @@ export const DEFAULT_KEYBINDS: KeybindConfig = {
 	refresh: "R",
 	enter: "enter",
 	escape: "escape",
+	jj_new: "n",
+	jj_edit: "e",
+	jj_describe: "d",
+	jj_squash: "s",
+	jj_abandon: "a",
 }

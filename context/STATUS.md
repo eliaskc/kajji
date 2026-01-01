@@ -44,6 +44,17 @@
 - **Status bar** - Context-aware keybinding hints filtered by active context + panel
 - **Command palette** (`?`) - Grouped by panel, fuzzy search, Enter executes, inactive commands dimmed
 
+### Core Operations
+
+- `n` - New change (create new revision on selected commit)
+- `e` - Edit change (make selected revision the working copy)
+- `s` - Squash into parent
+- `d` - Describe change (modal with subject + body fields, character count, Tab to switch)
+- `a` - Abandon change (with confirmation modal)
+- **Command log panel** - Shows output/errors from operations, scrolls to latest
+
+All operations work in both Log panel and Bookmarks commits view.
+
 ### Utilities
 
 - `R` - Manual refresh
@@ -60,6 +71,7 @@
 
 - Help modal has small visual gap between border and outer edge (OpenTUI quirk)
 - Search input in help modal doesn't render visually (filtering works though)
+- Keybinds not visible in modals (dimming overlay blocks status bar) - need alternative display method
 
 ### Performance
 
@@ -70,8 +82,17 @@
 ### UX Polish Needed
 
 - Log and bookmark panels could be slightly wider
+- Selected bookmark should match working copy on load (or closest parent if no exact match)
+- Active bookmark indication when navigating (vs just focused item)
 
 ---
+
+## Technical Debt & TODOs
+
+- Add unit tests for core operations (mock executor, test --ignore-immutable flag passing, isImmutableError detection)
+- Verify all jj errors are shown in command log (currently only operation errors - check if others slip through)
+- Review dialog API usage patterns - consider consolidating repeated confirm/modal patterns
+- Dialog system: Promise-based `dialog.confirm()` works well, consider similar for other modals
 
 ## Not Yet Implemented
 
@@ -79,8 +100,8 @@ See [ROADMAP.md](./ROADMAP.md) for planned features and priorities.
 
 **Quick summary of major missing pieces:**
 
-- Core operations (new, edit, describe, squash, abandon)
 - Command mode (`:`)
 - Search/filter (`/`)
 - GitHub integration
 - Mouse support
+- Configuration (user config file, theme switching)

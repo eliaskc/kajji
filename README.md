@@ -79,29 +79,26 @@ bun dev
 | `Ctrl+Y` | Copy selection to clipboard |
 | `q`      | Quit                        |
 
-<!-- TODO: Add when implemented
 ### Operations
 
-| Key | Action |
-|-----|--------|
-| `n` | New commit |
-| `e` | Edit commit |
-| `d` | Describe commit |
-| `s` | Squash into parent |
-| `a` | Abandon commit |
--->
+| Key | Action              |
+| --- | ------------------- |
+| `n` | New change          |
+| `e` | Edit change         |
+| `d` | Describe change     |
+| `s` | Squash into parent  |
+| `a` | Abandon change      |
 
 ## Roadmap
 
 **Coming soon:**
 
-- Core operations (`new`, `edit`, `describe`, `squash`, `abandon`)
-- Command palette / unified help
 - Search and filter (`/`)
 - Command mode (`:`)
 - Mouse support
 - Auto-refresh on file changes
 - GitHub integration (create PR, open in browser)
+- Configuration (user config file, theme selection)
 
 See [ROADMAP](./context/ROADMAP.md) for the full plan.
 
