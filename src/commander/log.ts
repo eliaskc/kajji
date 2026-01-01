@@ -4,6 +4,7 @@ import type { Commit } from "./types"
 const MARKER = "__LJ__"
 
 // Strip ANSI escape codes from a string (for extracting clean metadata)
+// biome-ignore lint/suspicious/noControlCharactersInRegex: intentional ANSI escape sequence
 const stripAnsi = (str: string) => str.replace(/\x1b\[[0-9;]*m/g, "")
 
 function buildTemplate(): string {
