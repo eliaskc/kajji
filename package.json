@@ -4,8 +4,8 @@
 	"type": "module",
 	"private": true,
 	"scripts": {
-		"dev": "bun run --watch src/index.tsx",
-		"build": "bun build --compile --define 'DEV=false' src/index.tsx --outfile lazyjuju",
+		"dev": "NODE_ENV=development bun --watch run src/index.tsx",
+		"build": "bun build --compile src/index.tsx --outfile lazyjuju",
 		"test": "bun test",
 		"check": "tsc --noEmit",
 		"lint": "biome check .",

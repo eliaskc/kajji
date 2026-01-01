@@ -56,7 +56,7 @@ function AppContent() {
 				process.exit(0)
 			},
 		},
-		...(typeof DEV !== "undefined" && DEV === true
+		...(Bun.env.NODE_ENV === "development"
 			? [
 					{
 						id: "global.toggle_console",
