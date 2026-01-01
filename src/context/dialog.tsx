@@ -12,6 +12,7 @@ import { createSimpleContext } from "./helper"
 import { useTheme } from "./theme"
 
 interface DialogState {
+	id?: string
 	render: () => JSX.Element
 	onClose?: () => void
 }
@@ -35,12 +36,34 @@ export const { use: useDialog, provider: DialogProvider } = createSimpleContext(
 				}
 			})
 
+			const open = (
+				render: () => JSX.Element,
+				options?: { id?: string; onClose?: () => void },
+			) => {
+				setStack((s) => [
+					...s,
+					{ id: options?.id, render, onClose: options?.onClose },
+				])
+			}
+
+			const toggle = (
+				id: string,
+				render: () => JSX.Element,
+				options?: { onClose?: () => void },
+			) => {
+				const current = stack().at(-1)
+				if (current?.id === id) {
+					close()
+				} else {
+					open(render, { id, onClose: options?.onClose })
+				}
+			}
+
 			return {
 				isOpen: () => stack().length > 0,
 				current: () => stack().at(-1),
-				open: (render: () => JSX.Element, onClose?: () => void) => {
-					setStack((s) => [...s, { render, onClose }])
-				},
+				open,
+				toggle,
 				close,
 				clear: () => {
 					for (const item of stack()) {

@@ -64,7 +64,6 @@
 
 ### UX Polish Needed
 
-- `?` should toggle (also close) the help modal
 - Log and bookmark panels could be slightly wider
 
 ---
