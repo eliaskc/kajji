@@ -188,6 +188,25 @@ export function SyncProvider(props: { children: JSX.Element }) {
 		onCleanup(() => renderer.off("resize", handleResize))
 	})
 
+	createEffect(() => {
+		const currentPanel = focus.panel()
+		if (currentPanel === "log") {
+			const mode = viewMode()
+			focus.setActiveContext(mode === "files" ? "files" : "commits")
+		} else if (currentPanel === "bookmarks") {
+			const mode = bookmarkViewMode()
+			if (mode === "files") {
+				focus.setActiveContext("files")
+			} else if (mode === "commits") {
+				focus.setActiveContext("commits")
+			} else {
+				focus.setActiveContext("bookmarks")
+			}
+		} else if (currentPanel === "diff") {
+			focus.setActiveContext("diff")
+		}
+	})
+
 	const selectPrev = () => {
 		setSelectedIndex((i) => Math.max(0, i - 1))
 	}
@@ -302,6 +321,7 @@ export function SyncProvider(props: { children: JSX.Element }) {
 			setSelectedBookmarkCommitIndex(0)
 			setActiveBookmarkName(bookmark.name)
 			setBookmarkViewMode("commits")
+			focus.setActiveContext("commits")
 		} catch (e) {
 			console.error("Failed to load bookmark commits:", e)
 		} finally {
@@ -323,6 +343,7 @@ export function SyncProvider(props: { children: JSX.Element }) {
 			setSelectedBookmarkFileIndex(0)
 			setBookmarkCollapsedPaths(new Set<string>())
 			setBookmarkViewMode("files")
+			focus.setActiveContext("files")
 		} catch (e) {
 			console.error("Failed to load bookmark files:", e)
 		} finally {
@@ -338,11 +359,13 @@ export function SyncProvider(props: { children: JSX.Element }) {
 			setBookmarkFileTree(null)
 			setSelectedBookmarkFileIndex(0)
 			setBookmarkCollapsedPaths(new Set<string>())
+			focus.setActiveContext("commits")
 		} else if (mode === "commits") {
 			setBookmarkViewMode("list")
 			setBookmarkCommits([])
 			setSelectedBookmarkCommitIndex(0)
 			setActiveBookmarkName(null)
+			focus.setActiveContext("bookmarks")
 		}
 	}
 
@@ -407,7 +430,7 @@ export function SyncProvider(props: { children: JSX.Element }) {
 		const columns = mainAreaWidth()
 		const mode = viewMode()
 		const bmMode = bookmarkViewMode()
-		const focusedPanel = focus.current()
+		const focusedPanel = focus.panel()
 
 		if (diffDebounceTimer) {
 			clearTimeout(diffDebounceTimer)
@@ -477,6 +500,7 @@ export function SyncProvider(props: { children: JSX.Element }) {
 			setSelectedFileIndex(0)
 			setCollapsedPaths(new Set<string>())
 			setViewMode("files")
+			focus.setActiveContext("files")
 		} catch (e) {
 			setFilesError(e instanceof Error ? e.message : "Failed to load files")
 		} finally {
@@ -490,6 +514,7 @@ export function SyncProvider(props: { children: JSX.Element }) {
 		setFileTree(null)
 		setSelectedFileIndex(0)
 		setCollapsedPaths(new Set<string>())
+		focus.setActiveContext("commits")
 	}
 
 	const toggleFolder = (path: string) => {

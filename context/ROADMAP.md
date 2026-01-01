@@ -14,7 +14,6 @@
 |------|-------------|------|
 | **Core Operations** | `new`, `edit`, `describe`, `squash`, `abandon` | [Details below](#core-operations) |
 | **Performance** | Profile and fix lag in bookmarks navigation | [Details below](#performance-investigation) |
-| **Command Palette** | Unified help + command execution | [Details below](#command-palette) |
 | **Mouse Support** | Click to focus, scroll, double-click actions | — |
 | **Configuration** | User config file, theme selection, custom keybinds | [plans/configuration.md](./plans/configuration.md) |
 
@@ -22,7 +21,6 @@
 
 | Area | Description | Plan |
 |------|-------------|------|
-| **Keybindings** | Context-aware keybinds, status bar visibility | [plans/keybindings.md](./plans/keybindings.md) |
 | **Diff Viewing** | Side-by-side, layout modes, difftastic integration | [plans/diff-viewing.md](./plans/diff-viewing.md) |
 | **Release Flows** | bunx, Homebrew, npm publishing | [plans/release-flows.md](./plans/release-flows.md) |
 | **Auto-Refresh** | Watch filesystem, refresh on changes | — |
@@ -79,18 +77,19 @@ For destructive operations (abandon, undo):
 
 ## Performance Investigation
 
-Noticeable lag when navigating commits in bookmarks panel.
+Some lag when navigating commits quickly.
 
-**Suspected causes:**
+**Fixed:**
+- ✅ Diff reload on focus switch — now skips if content unchanged (major perceived lag reduction)
+
+**Remaining suspected causes:**
 - Diff rendering (ANSI parsing via ghostty-opentui)
 - Frequent re-renders during navigation
-- Debouncing may not be aggressive enough
 
 **Investigation steps:**
-1. Static analysis first — trace the code path for navigation events
-2. Profile with `bun --inspect` or console timing
-3. Identify hot paths (diff loading? ANSI parsing? rendering?)
-4. Consider: memoization, virtualization, or async loading patterns
+1. Profile with `bun --inspect` or console timing
+2. Identify hot paths (ANSI parsing? rendering?)
+3. Consider: memoization, virtualization, or async loading patterns
 
 **Success criteria:** Navigation feels instant (<50ms perceived lag)
 
@@ -98,17 +97,13 @@ Noticeable lag when navigating commits in bookmarks panel.
 
 ## Command Palette
 
-Unify help modal and command execution into one interface.
+> ✅ **Done** - Help modal (`?`) now functions as command palette
 
-**Trigger**: `?` (or `Ctrl+P`)
-
-**Behavior**:
-- Shows all available commands with keybindings
-- Type to filter
+- Shows all commands grouped by panel (Log, Bookmarks, Diff, Global)
+- Fuzzy search filters commands
 - Enter executes selected command
-- Commands without keybinds accessible here too
-
-**Why unified**: One UI to learn, all actions discoverable in one place.
+- Inactive commands dimmed based on current context
+- j/k or arrow keys to navigate
 
 ---
 
@@ -136,7 +131,10 @@ Unify help modal and command execution into one interface.
 
 Quick wins:
 
-- [ ] `?` should toggle (also close) help modal
+- [x] `?` should toggle (also close) help modal
+- [x] Context-aware keybinds with panel/context/type taxonomy
+- [x] Help modal groups by panel, dims inactive commands
+- [x] Command palette (help modal with Enter-to-execute)
 - [ ] Log/bookmark panels slightly wider
 - [ ] Rich commit details (full message + file stats)
 

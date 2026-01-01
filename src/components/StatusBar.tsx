@@ -12,20 +12,25 @@ export function StatusBar() {
 
 	const relevantCommands = createMemo(() => {
 		const all = command.all()
-		const currentFocus = focus.current()
+		const activeCtx = focus.activeContext()
+		const activePanel = focus.panel()
 
-		const contextCommands = all.filter(
-			(cmd) => cmd.keybind && cmd.context === currentFocus,
+		const isRelevant = (cmd: (typeof all)[0]) => {
+			if (!cmd.keybind) return false
+			if (cmd.context !== activeCtx && cmd.context !== "global") return false
+			if (cmd.panel && cmd.panel !== activePanel) return false
+			return true
+		}
+
+		const contextCmds = all.filter(
+			(cmd) => isRelevant(cmd) && cmd.context !== "global",
 		)
-
-		const globalCommands = all.filter(
-			(cmd) => cmd.keybind && cmd.context === "global",
+		const globalCmds = all.filter(
+			(cmd) => isRelevant(cmd) && cmd.context === "global",
 		)
-
-		const combined = [...contextCommands, ...globalCommands]
 
 		const seen = new Set<string>()
-		return combined.filter((cmd) => {
+		return [...contextCmds, ...globalCmds].filter((cmd) => {
 			if (cmd.hidden) return false
 			if (seen.has(cmd.id)) return false
 			seen.add(cmd.id)

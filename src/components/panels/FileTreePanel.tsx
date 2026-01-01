@@ -39,7 +39,7 @@ export function FileTreePanel() {
 		copied: colors().info,
 	})
 
-	const isFocused = () => focus.is("log")
+	const isFocused = () => focus.isPanel("log")
 
 	let scrollRef: ScrollBoxRenderable | undefined
 	const [scrollTop, setScrollTop] = createSignal(0)
@@ -86,33 +86,40 @@ export function FileTreePanel() {
 			id: "files.next",
 			title: "Next file",
 			keybind: "nav_down",
-			context: "log",
-			category: "Navigation",
+			context: "files",
+			type: "navigation",
+			panel: "log",
+			hidden: true,
 			onSelect: selectNextFile,
 		},
 		{
 			id: "files.prev",
 			title: "Previous file",
 			keybind: "nav_up",
-			context: "log",
-			category: "Navigation",
+			context: "files",
+			type: "navigation",
+			panel: "log",
+			hidden: true,
 			onSelect: selectPrevFile,
 		},
-
 		{
-			id: "files.toggle_or_select",
-			title: "Toggle folder / Select file",
+			id: "files.toggle",
+			title: "Toggle folder",
 			keybind: "enter",
-			context: "log",
-			category: "Files",
+			context: "files",
+			type: "action",
+			panel: "log",
+			hidden: true,
 			onSelect: handleEnter,
 		},
 		{
 			id: "files.back",
-			title: "Back to log",
+			title: "Back to commits",
 			keybind: "escape",
-			context: "log",
-			category: "Files",
+			context: "files",
+			type: "view",
+			panel: "log",
+			hidden: true,
 			onSelect: exitFilesView,
 		},
 	])

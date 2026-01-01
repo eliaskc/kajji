@@ -50,7 +50,7 @@ function AppContent() {
 			title: "Quit",
 			keybind: "quit",
 			context: "global",
-			category: "UI",
+			type: "action",
 			onSelect: () => {
 				renderer.destroy()
 				process.exit(0)
@@ -63,7 +63,7 @@ function AppContent() {
 						title: "Toggle Console",
 						keybind: "toggle_console" as const,
 						context: "global" as const,
-						category: "UI",
+						type: "action" as const,
 						onSelect: () => renderer.console.toggle(),
 					},
 				]
@@ -73,7 +73,7 @@ function AppContent() {
 			title: "Focus Next Panel",
 			keybind: "focus_next",
 			context: "global",
-			category: "UI",
+			type: "navigation",
 			hidden: true,
 			onSelect: () => focus.cycleNext(),
 		},
@@ -82,7 +82,7 @@ function AppContent() {
 			title: "Focus Previous Panel",
 			keybind: "focus_prev",
 			context: "global",
-			category: "UI",
+			type: "navigation",
 			hidden: true,
 			onSelect: () => focus.cyclePrev(),
 		},
@@ -91,34 +91,34 @@ function AppContent() {
 			title: "Focus Log Panel",
 			keybind: "focus_panel_1",
 			context: "global",
-			category: "UI",
+			type: "navigation",
 			hidden: true,
-			onSelect: () => focus.set("log"),
+			onSelect: () => focus.setPanel("log"),
 		},
 		{
 			id: "global.focus_panel_2",
 			title: "Focus Bookmarks Panel",
 			keybind: "focus_panel_2",
 			context: "global",
-			category: "UI",
+			type: "navigation",
 			hidden: true,
-			onSelect: () => focus.set("bookmarks"),
+			onSelect: () => focus.setPanel("bookmarks"),
 		},
 		{
 			id: "global.focus_panel_3",
 			title: "Focus Diff Panel",
 			keybind: "focus_panel_3",
 			context: "global",
-			category: "UI",
+			type: "navigation",
 			hidden: true,
-			onSelect: () => focus.set("diff"),
+			onSelect: () => focus.setPanel("diff"),
 		},
 		{
 			id: "global.help",
 			title: "Help",
 			keybind: "help",
 			context: "global",
-			category: "UI",
+			type: "action",
 			onSelect: () => dialog.toggle("help", () => <HelpModal />),
 		},
 		{
@@ -126,7 +126,7 @@ function AppContent() {
 			title: "Refresh",
 			keybind: "refresh",
 			context: "global",
-			category: "UI",
+			type: "action",
 			onSelect: () => {
 				loadLog()
 				loadBookmarks()

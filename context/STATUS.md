@@ -1,6 +1,6 @@
 # lazyjuju - Current Status
 
-> Last updated: 2026-01-01
+> Last updated: 2026-01-02
 
 ## What Works
 
@@ -29,15 +29,20 @@
 ### Infrastructure
 
 - **Keybind system** - Registry architecture with config support ready
-- **Command registry** - Commands register with metadata (id, title, keybind, context, category)
+- **Command registry** - Panel/context/type taxonomy:
+  - `context`: global, commits, bookmarks, files, diff, help
+  - `type`: action, navigation, view
+  - `panel`: optional scoping to prevent conflicts (log, bookmarks, diff)
+  - `hidden`: omit from help and status bar (navigation commands like j/k)
+- **Focus tracking** - `activeContext` updates based on panel + view mode
 - **Dialog system** - Modal stack with backdrop, theme-aware overlay opacity
 - **Theme system** - Dual-theme support with hardcoded toggle:
   - **lazygit theme**: Green accent, rounded borders, `•` separator, adapts to terminal background
   - **opencode theme**: Peach accent, single borders, gap-based spacing, fixed dark background
   - Themed scrollbars (track/thumb colors)
   - Panel component with theme-aware borders
-- **Status bar** - Context-sensitive keybinding hints, theme-aware separator
-- **Help modal** (`?`) - Auto-generated from command registry, searchable, responsive columns
+- **Status bar** - Context-aware keybinding hints filtered by active context + panel
+- **Command palette** (`?`) - Grouped by panel, fuzzy search, Enter executes, inactive commands dimmed
 
 ### Utilities
 
@@ -45,7 +50,7 @@
 - `Ctrl+Y` - Copy selection to clipboard
 - Bold working copy indicator
 - Auto-hiding scrollbar
-- Debounced diff loading (smooth fast navigation)
+- Smart diff loading - debounced + skips reload when content unchanged (no flash on focus switch)
 
 ---
 
@@ -58,8 +63,8 @@
 
 ### Performance
 
-- Noticeable lag when navigating commits in bookmarks tab
-  - Likely culprit: diff rendering and/or ANSI parsing
+- ~~Flashing when switching focus between panels~~ Fixed: skip diff reload if content unchanged
+- Some lag when navigating commits quickly (diff rendering / ANSI parsing)
   - See [ROADMAP.md#performance-investigation](./ROADMAP.md#performance-investigation) for investigation plan
 
 ### UX Polish Needed

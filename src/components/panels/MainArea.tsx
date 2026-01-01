@@ -45,7 +45,7 @@ export function MainArea() {
 
 	let scrollRef: ScrollBoxRenderable | undefined
 
-	const isFocused = () => focus.is("diff")
+	const isFocused = () => focus.isPanel("diff")
 
 	command.register(() => [
 		{
@@ -53,7 +53,7 @@ export function MainArea() {
 			title: "Page up",
 			keybind: "nav_page_up",
 			context: "diff",
-			category: "Navigation",
+			type: "navigation",
 			onSelect: () => scrollRef?.scrollBy(-0.5, "viewport"),
 		},
 		{
@@ -61,7 +61,7 @@ export function MainArea() {
 			title: "Page down",
 			keybind: "nav_page_down",
 			context: "diff",
-			category: "Navigation",
+			type: "navigation",
 			onSelect: () => scrollRef?.scrollBy(0.5, "viewport"),
 		},
 	])

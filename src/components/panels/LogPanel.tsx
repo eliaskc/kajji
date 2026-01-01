@@ -22,7 +22,7 @@ export function LogPanel() {
 	const command = useCommand()
 	const { colors } = useTheme()
 
-	const isFocused = () => focus.is("log")
+	const isFocused = () => focus.isPanel("log")
 	const title = () => (viewMode() === "files" ? "Files" : "Log")
 
 	let scrollRef: ScrollBoxRenderable | undefined
@@ -67,28 +67,33 @@ export function LogPanel() {
 
 	command.register(() => [
 		{
-			id: "log.next",
+			id: "commits.next",
 			title: "Next commit",
 			keybind: "nav_down",
-			context: "log",
-			category: "Navigation",
+			context: "commits",
+			type: "navigation",
+			panel: "log",
+			hidden: true,
 			onSelect: selectNext,
 		},
 		{
-			id: "log.prev",
+			id: "commits.prev",
 			title: "Previous commit",
 			keybind: "nav_up",
-			context: "log",
-			category: "Navigation",
+			context: "commits",
+			type: "navigation",
+			panel: "log",
+			hidden: true,
 			onSelect: selectPrev,
 		},
-
 		{
-			id: "log.enter_files",
+			id: "commits.view_files",
 			title: "View files",
 			keybind: "enter",
-			context: "log",
-			category: "Navigation",
+			context: "commits",
+			type: "view",
+			panel: "log",
+			hidden: true,
 			onSelect: () => enterFilesView(),
 		},
 	])

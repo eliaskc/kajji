@@ -2,16 +2,20 @@ import { useKeyboard } from "@opentui/solid"
 import { type Accessor, createMemo, createSignal, onCleanup } from "solid-js"
 import type { KeybindConfigKey } from "../keybind"
 import { useDialog } from "./dialog"
-import { type FocusContext, useFocus } from "./focus"
+import { useFocus } from "./focus"
 import { createSimpleContext } from "./helper"
 import { useKeybind } from "./keybind"
+import type { CommandContext, CommandType, PanelFocus } from "./types"
+
+export type { CommandContext, CommandType }
 
 export type CommandOption = {
 	id: string
 	title: string
 	keybind?: KeybindConfigKey
-	context?: FocusContext | "global"
-	category?: string
+	context: CommandContext
+	type: CommandType
+	panel?: PanelFocus
 	hidden?: boolean
 	onSelect: () => void
 }
@@ -33,20 +37,21 @@ export const { use: useCommand, provider: CommandProvider } =
 
 			useKeyboard((evt) => {
 				const dialogOpen = dialog.isOpen()
+				const activeCtx = focus.activeContext()
+				const activePanel = focus.panel()
 
 				for (const cmd of allCommands()) {
-					// When dialog is open, only allow help toggle (escape is handled by dialog.tsx)
 					if (dialogOpen && cmd.keybind !== "help") {
 						continue
 					}
 
-					if (
-						!dialogOpen &&
-						cmd.context &&
-						cmd.context !== "global" &&
-						cmd.context !== focus.current()
-					) {
-						continue
+					if (!dialogOpen) {
+						if (cmd.context !== "global" && cmd.context !== activeCtx) {
+							continue
+						}
+						if (cmd.panel && cmd.panel !== activePanel) {
+							continue
+						}
 					}
 
 					if (cmd.keybind && keybind.match(cmd.keybind, evt)) {

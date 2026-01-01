@@ -1,38 +1,46 @@
 import { createSignal } from "solid-js"
 import { createSimpleContext } from "./helper"
+import type { CommandContext, PanelFocus } from "./types"
 
-export type FocusContext = "log" | "bookmarks" | "diff"
+export type { PanelFocus }
 
-const FOCUS_ORDER: FocusContext[] = ["log", "bookmarks", "diff"]
+const PANEL_ORDER: PanelFocus[] = ["log", "bookmarks", "diff"]
 
 export const { use: useFocus, provider: FocusProvider } = createSimpleContext({
 	name: "Focus",
 	init: () => {
-		const [current, setCurrent] = createSignal<FocusContext>("log")
+		const [panel, setPanel] = createSignal<PanelFocus>("log")
+		const [activeContext, setActiveContext] =
+			createSignal<CommandContext>("commits")
+
+		const setFocusedPanel = (p: PanelFocus) => {
+			setPanel(p)
+		}
 
 		const cycleNext = () => {
-			setCurrent((c) => {
-				const idx = FOCUS_ORDER.indexOf(c)
-				return FOCUS_ORDER[(idx + 1) % FOCUS_ORDER.length] ?? "log"
-			})
+			const current = panel()
+			const idx = PANEL_ORDER.indexOf(current)
+			const next = PANEL_ORDER[(idx + 1) % PANEL_ORDER.length] ?? "log"
+			setFocusedPanel(next)
 		}
 
 		const cyclePrev = () => {
-			setCurrent((c) => {
-				const idx = FOCUS_ORDER.indexOf(c)
-				return (
-					FOCUS_ORDER[(idx - 1 + FOCUS_ORDER.length) % FOCUS_ORDER.length] ??
-					"log"
-				)
-			})
+			const current = panel()
+			const idx = PANEL_ORDER.indexOf(current)
+			const next =
+				PANEL_ORDER[(idx - 1 + PANEL_ORDER.length) % PANEL_ORDER.length] ??
+				"log"
+			setFocusedPanel(next)
 		}
 
 		return {
-			current,
-			set: setCurrent,
+			panel,
+			setPanel: setFocusedPanel,
+			activeContext,
+			setActiveContext,
 			cycleNext,
 			cyclePrev,
-			is: (ctx: FocusContext) => current() === ctx,
+			isPanel: (p: PanelFocus) => panel() === p,
 		}
 	},
 })

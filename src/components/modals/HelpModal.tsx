@@ -11,15 +11,47 @@ import {
 	onCleanup,
 	onMount,
 } from "solid-js"
-import { type CommandOption, useCommand } from "../../context/command"
+import {
+	type CommandContext,
+	type CommandOption,
+	useCommand,
+} from "../../context/command"
 import { useDialog } from "../../context/dialog"
+import { useFocus } from "../../context/focus"
 import { useKeybind } from "../../context/keybind"
 import { useTheme } from "../../context/theme"
 import type { KeybindConfigKey } from "../../keybind"
 
-interface CategoryGroup {
-	name: string
+type PanelGroup = "log" | "bookmarks" | "diff" | "global"
+
+interface PanelGroupData {
+	panel: PanelGroup
+	label: string
 	commands: CommandOption[]
+}
+
+const PANEL_ORDER: PanelGroup[] = ["log", "bookmarks", "diff", "global"]
+
+const PANEL_LABELS: Record<PanelGroup, string> = {
+	log: "Log",
+	bookmarks: "Bookmarks",
+	diff: "Diff",
+	global: "Global",
+}
+
+function contextToPanel(context: CommandContext): PanelGroup {
+	switch (context) {
+		case "commits":
+		case "files":
+			return "log"
+		case "bookmarks":
+			return "bookmarks"
+		case "diff":
+			return "diff"
+		case "global":
+		case "help":
+			return "global"
+	}
 }
 
 const NARROW_THRESHOLD = 100
@@ -29,6 +61,7 @@ export function HelpModal() {
 	const command = useCommand()
 	const keybind = useKeybind()
 	const dialog = useDialog()
+	const focus = useFocus()
 	const { colors, style } = useTheme()
 	const [filter, setFilter] = createSignal("")
 	const [selectedIndex, setSelectedIndex] = createSignal(-1)
@@ -63,7 +96,7 @@ export function HelpModal() {
 		}
 
 		const results = fuzzysort.go(filterText, all, {
-			keys: ["title", "category", "keybindStr"],
+			keys: ["title", "context", "keybindStr"],
 			threshold: -10000,
 		})
 
@@ -89,28 +122,31 @@ export function HelpModal() {
 		return matchedInColumnOrder()[idx] ?? null
 	})
 
-	const groupedCommands = createMemo(() => {
+	const groupedCommands = createMemo((): PanelGroupData[] => {
 		const all = allCommands()
 
-		const groups = new Map<string, CommandOption[]>()
+		const groups = new Map<PanelGroup, CommandOption[]>()
 		for (const cmd of all) {
-			const category = cmd.category || "Other"
-			const existing = groups.get(category) || []
-			groups.set(category, [...existing, cmd])
+			const panel = cmd.panel ?? contextToPanel(cmd.context)
+			const existing = groups.get(panel) || []
+			groups.set(panel, [...existing, cmd])
 		}
 
-		const result: CategoryGroup[] = []
-		for (const [name, commands] of groups) {
-			result.push({ name, commands })
+		const result: PanelGroupData[] = []
+		for (const panel of PANEL_ORDER) {
+			const commands = groups.get(panel)
+			if (commands && commands.length > 0) {
+				result.push({ panel, label: PANEL_LABELS[panel], commands })
+			}
 		}
 
-		return result.sort((a, b) => a.name.localeCompare(b.name))
+		return result
 	})
 
 	const columns = createMemo(() => {
 		const groups = groupedCommands()
 		const numCols = columnCount()
-		const cols: CategoryGroup[][] = Array.from({ length: numCols }, () => [])
+		const cols: PanelGroupData[][] = Array.from({ length: numCols }, () => [])
 
 		let colIndex = 0
 		for (const group of groups) {
@@ -179,6 +215,12 @@ export function HelpModal() {
 
 	const isMatched = (cmd: CommandOption) => matchedIds().has(cmd.id)
 	const isSelected = (cmd: CommandOption) => selectedCommand()?.id === cmd.id
+	const isActive = (cmd: CommandOption) => {
+		if (cmd.context === "global") return true
+		if (cmd.context !== focus.activeContext()) return false
+		if (cmd.panel && cmd.panel !== focus.panel()) return false
+		return true
+	}
 
 	return (
 		<box
@@ -215,7 +257,7 @@ export function HelpModal() {
 									<box flexDirection="column" marginBottom={1}>
 										<box flexDirection="row">
 											<box width={10} flexShrink={0} />
-											<text fg={colors().primary}> {group.name}</text>
+											<text fg={colors().primary}> {group.label}</text>
 										</box>
 										<For each={group.commands}>
 											{(cmd) => (
@@ -234,7 +276,7 @@ export function HelpModal() {
 																	fg={
 																		isSelected(cmd)
 																			? colors().selectionText
-																			: isMatched(cmd)
+																			: isMatched(cmd) && isActive(cmd)
 																				? colors().info
 																				: colors().textMuted
 																	}
@@ -249,7 +291,7 @@ export function HelpModal() {
 														fg={
 															isSelected(cmd)
 																? colors().selectionText
-																: isMatched(cmd)
+																: isMatched(cmd) && isActive(cmd)
 																	? colors().text
 																	: colors().textMuted
 														}
@@ -266,25 +308,6 @@ export function HelpModal() {
 						</box>
 					)}
 				</For>
-			</box>
-
-			<box marginTop={1} paddingLeft={4} flexDirection="row" gap={gap()}>
-				<text>
-					<span style={{ fg: colors().primary }}>esc or ?</span>
-					<span style={{ fg: colors().text }}> Close</span>
-				</text>
-
-				<Show when={selectedCommand()}>
-					<text>
-						<Show when={separator()}>
-							<span
-								style={{ fg: colors().textMuted }}
-							>{` ${separator()} `}</span>
-						</Show>
-						<span style={{ fg: colors().primary }}>enter</span>
-						<span style={{ fg: colors().text }}> Run command</span>
-					</text>
-				</Show>
 			</box>
 		</box>
 	)
