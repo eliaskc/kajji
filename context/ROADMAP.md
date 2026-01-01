@@ -152,8 +152,32 @@ Longer-term possibilities, not planned for near-term:
 - Revset filtering
 - Multi-select for batch operations
 - Interactive rebase UI
-- Stacked PRs support
 - Large repo optimization (10k+ commits)
+
+---
+
+## Dream State: GitHub PR Integration
+
+> Aspirational feature requiring significant work. Think "Graphite in a TUI."
+
+### PR Review Workflow
+- View PR details, comments, and review status in TUI
+- Add comments, approve, request changes without leaving terminal
+- See CI status and checks inline
+
+### Stacked PRs Management
+- Visualize PR stack (parent/child relationships)
+- Rebase entire stack with single command
+- Auto-update dependent PRs when base changes
+- Sync with GitHub's stacked PR support (when available)
+
+### Why This Matters
+jj's first-class support for stacked changes makes it natural for stacked PRs, but managing them on GitHub is painful. A TUI that understands both jj's change graph AND GitHub's PR model could be transformative.
+
+### Prior Art
+- [Graphite](https://graphite.dev/) — Stacked PRs workflow (CLI + web)
+- [gh-stack](https://github.com/timothyandrew/gh-stack) — CLI for stacked PRs
+- [spr](https://github.com/ejoffe/spr) — Stacked PRs for GitHub
 
 ---
 
