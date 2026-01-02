@@ -165,7 +165,7 @@ Each corner prop accepts `JSX.Element | string`. Internally wraps content in `po
 ### Performance
 
 - Some lag when navigating commits quickly (diff rendering / ANSI parsing)
-- Lazy load or virtualize oplog for large repos with long operation history
+- **Fixed:** Oplog lazy loading (initial 50, loads more on scroll near bottom)
 - **Fixed:** Diff reload flash, log/bookmarks flash, spinner flash
 
 ### UX Polish
@@ -200,19 +200,37 @@ Longer-term possibilities, not actively planned:
 
 ---
 
-## Dream: GitHub PR Integration
+## GitHub PR Stacking
 
-> Aspirational. Think "Graphite in a TUI."
+> "Graphite in a TUI" — stacked PRs with jj's clean model.
 
-**PR Review Workflow:**
-- View PR details, comments, review status in TUI
+**Stack Creation:**
+- Select commit, create PRs for all bookmarks between it and main
+- Each PR targets the bookmark below it in the stack
+- Preview modal shows full stack before creation
+- All PRs created as drafts (encourages correct merge order)
+
+**Stack Reconciliation:**
+- On fetch, detect merged PRs
+- Offer to rebase remaining stack and update PR targets
+- Handle mid-stack merges (e.g., #2 merged → #3 now targets #1)
+- Preview modal shows proposed changes before execution
+
+**Conflict Handling:**
+- jj allows conflicts to persist; show clear warnings
+- Block force-push until resolved (or explicit override)
+
+→ [Detailed plan](./plans/github-stacking.md)
+
+---
+
+## Future: PR Review in TUI
+
+Longer-term addition to GitHub integration:
+
+- View PR details, comments, review status
 - Add comments, approve, request changes
 - See CI status inline
-
-**Stacked PRs:**
-- Visualize PR stack (parent/child)
-- Rebase entire stack with single command
-- Auto-update dependent PRs
 
 **Prior Art:** [Graphite](https://graphite.dev/), [gh-stack](https://github.com/timothyandrew/gh-stack), [spr](https://github.com/ejoffe/spr)
 

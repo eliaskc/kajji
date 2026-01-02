@@ -61,6 +61,8 @@ export function LogPanel() {
 	const [opLogEntries, setOpLogEntries] = createSignal<OpLogEntry[]>([])
 	const [opLogLoading, setOpLogLoading] = createSignal(false)
 	const [opLogSelectedIndex, setOpLogSelectedIndex] = createSignal(0)
+	const [opLogLimit, setOpLogLimit] = createSignal(50)
+	const [opLogHasMore, setOpLogHasMore] = createSignal(true)
 
 	const isFocused = () => focus.isPanel("log")
 	const isFilesView = () => viewMode() === "files"
@@ -69,16 +71,29 @@ export function LogPanel() {
 
 	const title = () => (isFilesView() ? "Files" : undefined)
 
-	const loadOpLog = async () => {
-		setOpLogLoading(true)
+	const loadOpLog = async (limit?: number) => {
+		const effectiveLimit = limit ?? opLogLimit()
+		const isInitialLoad = opLogEntries().length === 0
+		if (isInitialLoad) setOpLogLoading(true)
 		try {
-			const lines = await fetchOpLog()
-			setOpLogEntries(parseOpLog(lines))
+			await globalLoading.run("Loading...", async () => {
+				const lines = await fetchOpLog(effectiveLimit)
+				const entries = parseOpLog(lines)
+				setOpLogEntries(entries)
+				setOpLogHasMore(entries.length >= effectiveLimit)
+			})
 		} catch (e) {
 			console.error("Failed to load op log:", e)
 		} finally {
-			setOpLogLoading(false)
+			if (isInitialLoad) setOpLogLoading(false)
 		}
+	}
+
+	const loadMoreOpLog = async () => {
+		if (!opLogHasMore() || opLogLoading()) return
+		const newLimit = opLogLimit() + 50
+		setOpLogLimit(newLimit)
+		await loadOpLog(newLimit)
 	}
 
 	onMount(() => {
@@ -161,6 +176,8 @@ export function LogPanel() {
 		for (const entry of entries.slice(0, clampedIndex)) {
 			lineOffset += entry.lines.length
 		}
+		const selectedHeight = entries[clampedIndex]?.lines.length ?? 1
+		const lineEnd = lineOffset + selectedHeight - 1
 
 		const margin = 2
 		const refAny = opLogScrollRef as unknown as Record<string, unknown>
@@ -178,8 +195,8 @@ export function LogPanel() {
 		let newScrollTop = currentScrollTop
 		if (lineOffset < safeStart) {
 			newScrollTop = Math.max(0, lineOffset - margin)
-		} else if (lineOffset > safeEnd) {
-			newScrollTop = Math.max(0, lineOffset - viewportHeight + margin + 1)
+		} else if (lineEnd > safeEnd) {
+			newScrollTop = Math.max(0, lineEnd - viewportHeight + margin + 1)
 		}
 
 		if (newScrollTop !== currentScrollTop) {
@@ -193,7 +210,14 @@ export function LogPanel() {
 	}
 
 	const selectNextOpLog = () => {
-		setOpLogSelectedIndex((i) => Math.min(opLogEntries().length - 1, i + 1))
+		const entries = opLogEntries()
+		const currentIndex = opLogSelectedIndex()
+		const newIndex = Math.min(entries.length - 1, currentIndex + 1)
+		setOpLogSelectedIndex(newIndex)
+
+		if (entries.length - newIndex <= 5 && opLogHasMore()) {
+			loadMoreOpLog()
+		}
 	}
 
 	const selectedOperation = () => opLogEntries()[opLogSelectedIndex()]
