@@ -23,12 +23,18 @@ import { useFocus } from "../../context/focus"
 import { useLoading } from "../../context/loading"
 import { useSync } from "../../context/sync"
 import { useTheme } from "../../context/theme"
+import type { Context } from "../../context/types"
 import { AnsiText } from "../AnsiText"
 import { Panel } from "../Panel"
 import { DescribeModal } from "../modals/DescribeModal"
 import { UndoModal } from "../modals/UndoModal"
 
-type LogTab = "log" | "oplog"
+type LogTab = "revisions" | "oplog"
+
+const LOG_TABS: Array<{ id: LogTab; label: string; context: Context }> = [
+	{ id: "revisions", label: "Revisions", context: "log.revisions" },
+	{ id: "oplog", label: "Oplog", context: "log.oplog" },
+]
 
 export function LogPanel() {
 	const {
@@ -51,7 +57,7 @@ export function LogPanel() {
 	const globalLoading = useLoading()
 	const { colors } = useTheme()
 
-	const [activeTab, setActiveTab] = createSignal<LogTab>("log")
+	const [activeTab, setActiveTab] = createSignal<LogTab>("revisions")
 	const [opLogEntries, setOpLogEntries] = createSignal<OpLogEntry[]>([])
 	const [opLogLoading, setOpLogLoading] = createSignal(false)
 	const [opLogSelectedIndex, setOpLogSelectedIndex] = createSignal(0)
@@ -59,13 +65,7 @@ export function LogPanel() {
 	const isFocused = () => focus.isPanel("log")
 	const isFilesView = () => viewMode() === "files"
 
-	const tabs = () =>
-		isFilesView()
-			? undefined
-			: [
-					{ id: "log", label: "Log" },
-					{ id: "oplog", label: "Oplog" },
-				]
+	const tabs = () => (isFilesView() ? undefined : LOG_TABS)
 
 	const title = () => (isFilesView() ? "Files" : undefined)
 
@@ -85,9 +85,12 @@ export function LogPanel() {
 		loadOpLog()
 	})
 
-	const switchTab = (tab: LogTab) => {
-		setActiveTab(tab)
-		if (tab === "oplog") {
+	const switchTab = (tabId: string) => {
+		const tab = LOG_TABS.find((t) => t.id === tabId)
+		if (!tab) return
+		setActiveTab(tab.id)
+		focus.setActiveContext(tab.context)
+		if (tab.id === "oplog") {
 			loadOpLog()
 		}
 	}
@@ -217,96 +220,60 @@ export function LogPanel() {
 
 	command.register(() => [
 		{
-			id: "log.next_tab",
-			title: "Next tab",
-			keybind: "next_tab",
-			context: "commits",
-			type: "view",
-			panel: "log",
-			onSelect: () => switchTab("oplog"),
-		},
-		{
-			id: "log.prev_tab",
-			title: "Previous tab",
-			keybind: "prev_tab",
-			context: "commits",
-			type: "view",
-			panel: "log",
-			onSelect: () => switchTab("oplog"),
-		},
-		{
-			id: "oplog.next_tab",
-			title: "Next tab",
-			keybind: "next_tab",
-			context: "oplog",
-			type: "view",
-			panel: "log",
-			onSelect: () => switchTab("log"),
-		},
-		{
-			id: "oplog.prev_tab",
-			title: "Previous tab",
-			keybind: "prev_tab",
-			context: "oplog",
-			type: "view",
-			panel: "log",
-			onSelect: () => switchTab("log"),
-		},
-		{
-			id: "oplog.next",
+			id: "log.oplog.next",
 			title: "Next operation",
 			keybind: "nav_down",
-			context: "oplog",
+			context: "log.oplog",
 			type: "navigation",
 			panel: "log",
 			hidden: true,
 			onSelect: selectNextOpLog,
 		},
 		{
-			id: "oplog.prev",
+			id: "log.oplog.prev",
 			title: "Previous operation",
 			keybind: "nav_up",
-			context: "oplog",
+			context: "log.oplog",
 			type: "navigation",
 			panel: "log",
 			hidden: true,
 			onSelect: selectPrevOpLog,
 		},
 		{
-			id: "commits.next",
-			title: "Next commit",
+			id: "log.revisions.next",
+			title: "Next revision",
 			keybind: "nav_down",
-			context: "commits",
+			context: "log.revisions",
 			type: "navigation",
 			panel: "log",
 			hidden: true,
 			onSelect: selectNext,
 		},
 		{
-			id: "commits.prev",
-			title: "Previous commit",
+			id: "log.revisions.prev",
+			title: "Previous revision",
 			keybind: "nav_up",
-			context: "commits",
+			context: "log.revisions",
 			type: "navigation",
 			panel: "log",
 			hidden: true,
 			onSelect: selectPrev,
 		},
 		{
-			id: "commits.view_files",
+			id: "log.revisions.view_files",
 			title: "View files",
 			keybind: "enter",
-			context: "commits",
+			context: "log.revisions",
 			type: "view",
 			panel: "log",
 			hidden: true,
 			onSelect: () => enterFilesView(),
 		},
 		{
-			id: "commits.new",
-			title: "New change",
+			id: "log.revisions.new",
+			title: "New",
 			keybind: "jj_new",
-			context: "commits",
+			context: "log.revisions",
 			type: "action",
 			panel: "log",
 			onSelect: () => {
@@ -315,10 +282,10 @@ export function LogPanel() {
 			},
 		},
 		{
-			id: "commits.edit",
-			title: "Edit change",
+			id: "log.revisions.edit",
+			title: "Edit",
 			keybind: "jj_edit",
-			context: "commits",
+			context: "log.revisions",
 			type: "action",
 			panel: "log",
 			onSelect: () => {
@@ -327,10 +294,10 @@ export function LogPanel() {
 			},
 		},
 		{
-			id: "commits.squash",
-			title: "Squash into parent",
+			id: "log.revisions.squash",
+			title: "Squash",
 			keybind: "jj_squash",
-			context: "commits",
+			context: "log.revisions",
 			type: "action",
 			panel: "log",
 			onSelect: async () => {
@@ -357,10 +324,10 @@ export function LogPanel() {
 			},
 		},
 		{
-			id: "commits.describe",
-			title: "Describe change",
+			id: "log.revisions.describe",
+			title: "Describe",
 			keybind: "jj_describe",
-			context: "commits",
+			context: "log.revisions",
 			type: "action",
 			panel: "log",
 			onSelect: async () => {
@@ -395,10 +362,10 @@ export function LogPanel() {
 			},
 		},
 		{
-			id: "commits.abandon",
-			title: "Abandon change",
+			id: "log.revisions.abandon",
+			title: "Abandon",
 			keybind: "jj_abandon",
-			context: "commits",
+			context: "log.revisions",
 			type: "action",
 			panel: "log",
 			onSelect: async () => {
@@ -413,28 +380,28 @@ export function LogPanel() {
 			},
 		},
 		{
-			id: "commits.undo",
+			id: "log.revisions.undo",
 			title: "Undo",
 			keybind: "jj_undo",
-			context: "commits",
+			context: "log.revisions",
 			type: "action",
 			panel: "log",
 			onSelect: () => openUndoModal("undo"),
 		},
 		{
-			id: "commits.redo",
+			id: "log.revisions.redo",
 			title: "Redo",
 			keybind: "jj_redo",
-			context: "commits",
+			context: "log.revisions",
 			type: "action",
 			panel: "log",
 			onSelect: () => openUndoModal("redo"),
 		},
 		{
-			id: "oplog.restore",
-			title: "Restore to operation",
+			id: "log.oplog.restore",
+			title: "Restore",
 			keybind: "jj_restore",
-			context: "oplog",
+			context: "log.oplog",
 			type: "action",
 			panel: "log",
 			onSelect: () => {
@@ -462,7 +429,8 @@ export function LogPanel() {
 
 	createEffect(() => {
 		if (isFocused() && !isFilesView()) {
-			focus.setActiveContext(activeTab() === "oplog" ? "oplog" : "commits")
+			const tab = LOG_TABS.find((t) => t.id === activeTab())
+			if (tab) focus.setActiveContext(tab.context)
 		}
 	})
 
@@ -548,10 +516,12 @@ export function LogPanel() {
 			title={title()}
 			tabs={tabs()}
 			activeTab={activeTab()}
+			onTabChange={switchTab}
+			panelId="log"
 			hotkey="1"
 			focused={isFocused()}
 		>
-			<Show when={activeTab() === "log" || isFilesView()}>
+			<Show when={activeTab() === "revisions" || isFilesView()}>
 				{renderLogContent()}
 			</Show>
 			<Show when={activeTab() === "oplog" && !isFilesView()}>

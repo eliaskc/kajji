@@ -5,19 +5,28 @@ import { useDialog } from "./dialog"
 import { useFocus } from "./focus"
 import { createSimpleContext } from "./helper"
 import { useKeybind } from "./keybind"
-import type { CommandContext, CommandType, PanelFocus } from "./types"
+import type { CommandType, Context, Panel } from "./types"
 
-export type { CommandContext, CommandType }
+export type { CommandType, Context }
 
 export type CommandOption = {
 	id: string
 	title: string
 	keybind?: KeybindConfigKey
-	context: CommandContext
+	context: Context
 	type: CommandType
-	panel?: PanelFocus
+	panel?: Panel
 	hidden?: boolean
 	onSelect: () => void
+}
+
+function contextMatches(
+	commandContext: Context,
+	activeContext: Context,
+): boolean {
+	if (commandContext === "global") return true
+	if (commandContext === activeContext) return true
+	return activeContext.startsWith(`${commandContext}.`)
 }
 
 export const { use: useCommand, provider: CommandProvider } =
@@ -46,7 +55,7 @@ export const { use: useCommand, provider: CommandProvider } =
 					}
 
 					if (!dialogOpen) {
-						if (cmd.context !== "global" && cmd.context !== activeCtx) {
+						if (!contextMatches(cmd.context, activeCtx)) {
 							continue
 						}
 						if (cmd.panel && cmd.panel !== activePanel) {

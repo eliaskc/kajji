@@ -4,6 +4,16 @@ import { useFocus } from "../context/focus"
 import { useKeybind } from "../context/keybind"
 import { useLoading } from "../context/loading"
 import { useTheme } from "../context/theme"
+import type { Context } from "../context/types"
+
+function contextMatches(
+	commandContext: Context,
+	activeContext: Context,
+): boolean {
+	if (commandContext === "global") return true
+	if (commandContext === activeContext) return true
+	return activeContext.startsWith(`${commandContext}.`)
+}
 
 const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
 
@@ -47,7 +57,7 @@ export function StatusBar() {
 
 		const isRelevant = (cmd: (typeof all)[0]) => {
 			if (!cmd.keybind) return false
-			if (cmd.context !== activeCtx && cmd.context !== "global") return false
+			if (!contextMatches(cmd.context, activeCtx)) return false
 			if (cmd.panel && cmd.panel !== activePanel) return false
 			return true
 		}

@@ -46,11 +46,11 @@ All operations work in both Log panel and Bookmarks commits view.
 
 - [x] Keybind system — registry architecture with config support ready
 - [x] Command registry — panel/context/type taxonomy
-- [x] Focus tracking — `activeContext` updates based on panel + view mode
+- [x] Focus tracking — hierarchical context system (e.g., `log.revisions.files`) with prefix matching
 - [x] Dialog system — modal stack with backdrop, theme-aware overlay
 - [x] Theme system — dual-theme support (lazygit, opencode)
 - [x] Status bar — context-aware keybinding hints
-- [x] Command palette (`?`) — grouped by panel, fuzzy search, Enter executes
+- [x] Command palette (`?`) — grouped by context hierarchy, fuzzy search, Enter executes
 - [ ] Configuration — user config file, theme selection, custom keybinds → [plan](./plans/configuration.md)
 
 ## Utilities
@@ -173,11 +173,11 @@ Each corner prop accepts `JSX.Element | string`. Internally wraps content in `po
 - [ ] Log/bookmark panels slightly wider
 - [ ] Selected bookmark should match working copy on load
 - [ ] Active bookmark indication when navigating
-- [ ] Remove "Change" prefix from command titles (e.g., "New" not "New change")
+- [x] Remove "Change" prefix from command titles (e.g., "New" not "New change")
 - [ ] Hide tab switching `[`/`]` from status bar, add to help modal Navigation section
   - Group with other general nav commands (j/k, ctrl+u/d) that apply across contexts
   - Avoid duplicating commands that appear in multiple contexts
-- [ ] Command grouping by tab instead of panel in help/status
+- [x] Command grouping by context hierarchy in help modal (Navigation section for global commands)
 
 ### Technical Debt
 

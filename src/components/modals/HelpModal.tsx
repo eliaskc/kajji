@@ -12,8 +12,8 @@ import {
 	onMount,
 } from "solid-js"
 import {
-	type CommandContext,
 	type CommandOption,
+	type Context,
 	useCommand,
 } from "../../context/command"
 import { useDialog } from "../../context/dialog"
@@ -22,37 +22,66 @@ import { useKeybind } from "../../context/keybind"
 import { useTheme } from "../../context/theme"
 import type { KeybindConfigKey } from "../../keybind"
 
-type PanelGroup = "log" | "bookmarks" | "diff" | "global"
+type ContextGroup =
+	| "navigation"
+	| "log.revisions"
+	| "log.oplog"
+	| "refs.bookmarks"
+	| "detail"
+	| "global"
 
-interface PanelGroupData {
-	panel: PanelGroup
+interface ContextGroupData {
+	context: ContextGroup
 	label: string
 	commands: CommandOption[]
 }
 
-const PANEL_ORDER: PanelGroup[] = ["log", "bookmarks", "diff", "global"]
+const GROUP_ORDER: ContextGroup[] = [
+	"log.revisions",
+	"log.oplog",
+	"refs.bookmarks",
+	"detail",
+	"navigation",
+	"global",
+]
 
-const PANEL_LABELS: Record<PanelGroup, string> = {
-	log: "Log",
-	bookmarks: "Bookmarks",
-	diff: "Diff",
+const GROUP_LABELS: Record<ContextGroup, string> = {
+	navigation: "Navigation",
+	"log.revisions": "Revisions",
+	"log.oplog": "Oplog",
+	"refs.bookmarks": "Bookmarks",
+	detail: "Detail",
 	global: "Global",
 }
 
-function contextToPanel(context: CommandContext): PanelGroup {
-	switch (context) {
-		case "commits":
-		case "files":
-		case "oplog":
-			return "log"
-		case "bookmarks":
-			return "bookmarks"
-		case "diff":
-			return "diff"
-		case "global":
-		case "help":
-			return "global"
-	}
+const NAVIGATION_KEYBINDS = new Set([
+	"nav_down",
+	"nav_up",
+	"nav_page_up",
+	"nav_page_down",
+	"next_tab",
+	"prev_tab",
+	"focus_next",
+	"focus_prev",
+])
+
+function contextToGroup(context: Context): ContextGroup {
+	if (context.startsWith("log.revisions")) return "log.revisions"
+	if (context.startsWith("log.oplog")) return "log.oplog"
+	if (context.startsWith("refs.bookmarks")) return "refs.bookmarks"
+	if (context === "detail") return "detail"
+	if (context === "log") return "log.revisions"
+	if (context === "refs") return "refs.bookmarks"
+	return "global"
+}
+
+function contextMatches(
+	commandContext: Context,
+	activeContext: Context,
+): boolean {
+	if (commandContext === "global") return true
+	if (commandContext === activeContext) return true
+	return activeContext.startsWith(`${commandContext}.`)
 }
 
 const NARROW_THRESHOLD = 100
@@ -123,21 +152,36 @@ export function HelpModal() {
 		return matchedInColumnOrder()[idx] ?? null
 	})
 
-	const groupedCommands = createMemo((): PanelGroupData[] => {
+	const groupedCommands = createMemo((): ContextGroupData[] => {
 		const all = allCommands()
+		const seenTitles = new Set<string>()
 
-		const groups = new Map<PanelGroup, CommandOption[]>()
+		const groups = new Map<ContextGroup, CommandOption[]>()
+		const navCommands: CommandOption[] = []
+
 		for (const cmd of all) {
-			const panel = cmd.panel ?? contextToPanel(cmd.context)
-			const existing = groups.get(panel) || []
-			groups.set(panel, [...existing, cmd])
+			if (NAVIGATION_KEYBINDS.has(cmd.keybind ?? "")) {
+				if (!seenTitles.has(cmd.title)) {
+					navCommands.push(cmd)
+					seenTitles.add(cmd.title)
+				}
+				continue
+			}
+
+			const group = contextToGroup(cmd.context)
+			const existing = groups.get(group) || []
+			groups.set(group, [...existing, cmd])
 		}
 
-		const result: PanelGroupData[] = []
-		for (const panel of PANEL_ORDER) {
-			const commands = groups.get(panel)
+		if (navCommands.length > 0) {
+			groups.set("navigation", navCommands)
+		}
+
+		const result: ContextGroupData[] = []
+		for (const group of GROUP_ORDER) {
+			const commands = groups.get(group)
 			if (commands && commands.length > 0) {
-				result.push({ panel, label: PANEL_LABELS[panel], commands })
+				result.push({ context: group, label: GROUP_LABELS[group], commands })
 			}
 		}
 
@@ -147,7 +191,7 @@ export function HelpModal() {
 	const columns = createMemo(() => {
 		const groups = groupedCommands()
 		const numCols = columnCount()
-		const cols: PanelGroupData[][] = Array.from({ length: numCols }, () => [])
+		const cols: ContextGroupData[][] = Array.from({ length: numCols }, () => [])
 
 		let colIndex = 0
 		for (const group of groups) {
@@ -217,8 +261,7 @@ export function HelpModal() {
 	const isMatched = (cmd: CommandOption) => matchedIds().has(cmd.id)
 	const isSelected = (cmd: CommandOption) => selectedCommand()?.id === cmd.id
 	const isActive = (cmd: CommandOption) => {
-		if (cmd.context === "global") return true
-		if (cmd.context !== focus.activeContext()) return false
+		if (!contextMatches(cmd.context, focus.activeContext())) return false
 		if (cmd.panel && cmd.panel !== focus.panel()) return false
 		return true
 	}

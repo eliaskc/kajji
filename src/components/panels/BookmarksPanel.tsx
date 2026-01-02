@@ -83,7 +83,7 @@ export function BookmarksPanel() {
 		copied: colors().info,
 	})
 
-	const isFocused = () => focus.isPanel("bookmarks")
+	const isFocused = () => focus.isPanel("refs")
 	const localBookmarks = () => bookmarks().filter((b) => b.isLocal)
 
 	let listScrollRef: ScrollBoxRenderable | undefined
@@ -193,42 +193,42 @@ export function BookmarksPanel() {
 		if (mode === "files") {
 			return [
 				{
-					id: "bookmark_files.next",
+					id: "refs.bookmarks.revisions.files.next",
 					title: "Next file",
 					keybind: "nav_down",
-					context: "files",
+					context: "refs.bookmarks.revisions.files",
 					type: "navigation",
-					panel: "bookmarks",
+					panel: "refs",
 					hidden: true,
 					onSelect: selectNextBookmarkFile,
 				},
 				{
-					id: "bookmark_files.prev",
+					id: "refs.bookmarks.revisions.files.prev",
 					title: "Previous file",
 					keybind: "nav_up",
-					context: "files",
+					context: "refs.bookmarks.revisions.files",
 					type: "navigation",
-					panel: "bookmarks",
+					panel: "refs",
 					hidden: true,
 					onSelect: selectPrevBookmarkFile,
 				},
 				{
-					id: "bookmark_files.toggle",
+					id: "refs.bookmarks.revisions.files.toggle",
 					title: "Toggle folder",
 					keybind: "enter",
-					context: "files",
+					context: "refs.bookmarks.revisions.files",
 					type: "action",
-					panel: "bookmarks",
+					panel: "refs",
 					hidden: true,
 					onSelect: handleFilesEnter,
 				},
 				{
-					id: "bookmark_files.back",
-					title: "Back to commits",
+					id: "refs.bookmarks.revisions.files.back",
+					title: "Back to revisions",
 					keybind: "escape",
-					context: "files",
+					context: "refs.bookmarks.revisions.files",
 					type: "view",
-					panel: "bookmarks",
+					panel: "refs",
 					hidden: true,
 					onSelect: exitBookmarkView,
 				},
@@ -238,52 +238,52 @@ export function BookmarksPanel() {
 		if (mode === "commits") {
 			return [
 				{
-					id: "bookmark_commits.next",
-					title: "Next commit",
+					id: "refs.bookmarks.revisions.next",
+					title: "Next revision",
 					keybind: "nav_down",
-					context: "commits",
+					context: "refs.bookmarks.revisions",
 					type: "navigation",
-					panel: "bookmarks",
+					panel: "refs",
 					hidden: true,
 					onSelect: selectNextBookmarkCommit,
 				},
 				{
-					id: "bookmark_commits.prev",
-					title: "Previous commit",
+					id: "refs.bookmarks.revisions.prev",
+					title: "Previous revision",
 					keybind: "nav_up",
-					context: "commits",
+					context: "refs.bookmarks.revisions",
 					type: "navigation",
-					panel: "bookmarks",
+					panel: "refs",
 					hidden: true,
 					onSelect: selectPrevBookmarkCommit,
 				},
 				{
-					id: "bookmark_commits.view_files",
+					id: "refs.bookmarks.revisions.view_files",
 					title: "View files",
 					keybind: "enter",
-					context: "commits",
+					context: "refs.bookmarks.revisions",
 					type: "view",
-					panel: "bookmarks",
+					panel: "refs",
 					hidden: true,
 					onSelect: handleCommitsEnter,
 				},
 				{
-					id: "bookmark_commits.back",
+					id: "refs.bookmarks.revisions.back",
 					title: "Back to bookmarks",
 					keybind: "escape",
-					context: "commits",
+					context: "refs.bookmarks.revisions",
 					type: "view",
-					panel: "bookmarks",
+					panel: "refs",
 					hidden: true,
 					onSelect: exitBookmarkView,
 				},
 				{
-					id: "bookmark_commits.new",
-					title: "New change",
+					id: "refs.bookmarks.revisions.new",
+					title: "New",
 					keybind: "jj_new",
-					context: "commits",
+					context: "refs.bookmarks.revisions",
 					type: "action",
-					panel: "bookmarks",
+					panel: "refs",
 					onSelect: () => {
 						const commit = selectedBookmarkCommit()
 						if (commit)
@@ -291,12 +291,12 @@ export function BookmarksPanel() {
 					},
 				},
 				{
-					id: "bookmark_commits.edit",
-					title: "Edit change",
+					id: "refs.bookmarks.revisions.edit",
+					title: "Edit",
 					keybind: "jj_edit",
-					context: "commits",
+					context: "refs.bookmarks.revisions",
 					type: "action",
-					panel: "bookmarks",
+					panel: "refs",
 					onSelect: () => {
 						const commit = selectedBookmarkCommit()
 						if (commit)
@@ -304,12 +304,12 @@ export function BookmarksPanel() {
 					},
 				},
 				{
-					id: "bookmark_commits.squash",
-					title: "Squash into parent",
+					id: "refs.bookmarks.revisions.squash",
+					title: "Squash",
 					keybind: "jj_squash",
-					context: "commits",
+					context: "refs.bookmarks.revisions",
 					type: "action",
-					panel: "bookmarks",
+					panel: "refs",
 					onSelect: async () => {
 						const commit = selectedBookmarkCommit()
 						if (!commit) return
@@ -333,12 +333,12 @@ export function BookmarksPanel() {
 					},
 				},
 				{
-					id: "bookmark_commits.describe",
-					title: "Describe change",
+					id: "refs.bookmarks.revisions.describe",
+					title: "Describe",
 					keybind: "jj_describe",
-					context: "commits",
+					context: "refs.bookmarks.revisions",
 					type: "action",
-					panel: "bookmarks",
+					panel: "refs",
 					onSelect: async () => {
 						const commit = selectedBookmarkCommit()
 						if (!commit) return
@@ -371,12 +371,12 @@ export function BookmarksPanel() {
 					},
 				},
 				{
-					id: "bookmark_commits.abandon",
-					title: "Abandon change",
+					id: "refs.bookmarks.revisions.abandon",
+					title: "Abandon",
 					keybind: "jj_abandon",
-					context: "commits",
+					context: "refs.bookmarks.revisions",
 					type: "action",
-					panel: "bookmarks",
+					panel: "refs",
 					onSelect: async () => {
 						const commit = selectedBookmarkCommit()
 						if (!commit) return
@@ -395,32 +395,32 @@ export function BookmarksPanel() {
 
 		return [
 			{
-				id: "bookmarks.next",
+				id: "refs.bookmarks.next",
 				title: "Next bookmark",
 				keybind: "nav_down",
-				context: "bookmarks",
+				context: "refs.bookmarks",
 				type: "navigation",
-				panel: "bookmarks",
+				panel: "refs",
 				hidden: true,
 				onSelect: selectNextBookmark,
 			},
 			{
-				id: "bookmarks.prev",
+				id: "refs.bookmarks.prev",
 				title: "Previous bookmark",
 				keybind: "nav_up",
-				context: "bookmarks",
+				context: "refs.bookmarks",
 				type: "navigation",
-				panel: "bookmarks",
+				panel: "refs",
 				hidden: true,
 				onSelect: selectPrevBookmark,
 			},
 			{
-				id: "bookmarks.view_commits",
-				title: "View commits",
+				id: "refs.bookmarks.view_revisions",
+				title: "View revisions",
 				keybind: "enter",
-				context: "bookmarks",
+				context: "refs.bookmarks",
 				type: "view",
-				panel: "bookmarks",
+				panel: "refs",
 				hidden: true,
 				onSelect: handleListEnter,
 			},

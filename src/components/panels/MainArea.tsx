@@ -45,29 +45,29 @@ export function MainArea() {
 
 	let scrollRef: ScrollBoxRenderable | undefined
 
-	const isFocused = () => focus.isPanel("diff")
+	const isFocused = () => focus.isPanel("detail")
 
 	command.register(() => [
 		{
-			id: "diff.page_up",
+			id: "detail.page_up",
 			title: "Page up",
 			keybind: "nav_page_up",
-			context: "diff",
+			context: "detail",
 			type: "navigation",
 			onSelect: () => scrollRef?.scrollBy(-0.5, "viewport"),
 		},
 		{
-			id: "diff.page_down",
+			id: "detail.page_down",
 			title: "Page down",
 			keybind: "nav_page_down",
-			context: "diff",
+			context: "detail",
 			type: "navigation",
 			onSelect: () => scrollRef?.scrollBy(0.5, "viewport"),
 		},
 	])
 
 	return (
-		<Panel title="Diff" hotkey="3" focused={isFocused()}>
+		<Panel title="Detail" hotkey="3" focused={isFocused()}>
 			<Show when={diffLoading()}>
 				<text>Loading diff...</text>
 			</Show>
