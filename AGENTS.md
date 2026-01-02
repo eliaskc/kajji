@@ -76,9 +76,8 @@ This project uses Solid.js, NOT React. Key differences:
 
 The `context/` folder contains project documentation:
 
-### Primary Docs (start here)
-- **`context/STATUS.md`** - Current state: what works, known issues
-- **`context/ROADMAP.md`** - Priorities and planned features (links to detailed plans)
+### Primary Doc
+- **`context/PROJECT.md`** - Features, plans, and known issues (single source of truth)
 
 ### Detailed Plans
 - **`context/plans/configuration.md`** - Config system design
@@ -103,10 +102,9 @@ Keep docs in sync with changes:
 
 | Trigger | Action |
 |---------|--------|
-| **Implemented a feature** | Update `STATUS.md` (move to "What Works", remove from known issues) |
-| **Found a bug** | Add to `STATUS.md` under "Known Issues" |
-| **User mentions new feature/goal** | Add to `ROADMAP.md` or create/update a `plans/*.md` file |
-| **Completed a roadmap item** | Mark as done in `ROADMAP.md`, update `STATUS.md` |
+| **Implemented a feature** | Check off in `PROJECT.md` |
+| **Found a bug** | Add to `PROJECT.md` under "Known Issues" |
+| **New feature/goal** | Add checkbox to `PROJECT.md`, or create `plans/*.md` for complex features |
 | **Design decision made** | Document in relevant `plans/*.md` file |
 | **Discovered useful pattern** | Add to `references/` or this file |
 

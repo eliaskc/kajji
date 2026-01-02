@@ -100,7 +100,7 @@ bun dev
 - GitHub integration (create PR, open in browser)
 - Configuration (user config file, theme selection)
 
-See [ROADMAP](./context/ROADMAP.md) for the full plan.
+See [PROJECT](./context/PROJECT.md) for the full plan.
 
 ## Configuration
 
