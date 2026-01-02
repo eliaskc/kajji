@@ -98,7 +98,7 @@ describe("keybindToString", () => {
 	it("formats with multiple modifiers", () => {
 		expect(
 			keybindToString({ name: "s", ctrl: true, meta: false, shift: true }),
-		).toBe("ctrl+shift+s")
+		).toBe("ctrl+S")
 	})
 
 	it("formats escape as esc", () => {

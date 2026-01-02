@@ -1,5 +1,10 @@
 # lazyjuju Agent Guidelines
 
+Follow the Boy Scout rule:
+- For minor things, just improve them
+- For larger improvements, lift them to the user OR add them directly to `context/PROJECT.md`
+- If you see a lack of testing in an area, offer to add
+
 ## Build/Test Commands
 
 - **Install**: `bun install`

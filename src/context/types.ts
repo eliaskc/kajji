@@ -7,5 +7,6 @@ export type CommandContext =
 	| "files"
 	| "diff"
 	| "help"
+	| "oplog"
 
 export type CommandType = "action" | "navigation" | "view"

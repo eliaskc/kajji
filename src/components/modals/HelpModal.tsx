@@ -43,6 +43,7 @@ function contextToPanel(context: CommandContext): PanelGroup {
 	switch (context) {
 		case "commits":
 		case "files":
+		case "oplog":
 			return "log"
 		case "bookmarks":
 			return "bookmarks"

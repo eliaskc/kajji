@@ -37,8 +37,8 @@
 - [x] `d` — describe change (modal with subject + body, character count, Tab to switch)
 - [x] `a` — abandon change (with confirmation modal)
 - [x] Command log panel — shows output/errors, scrolls to latest
-- [ ] `u` — undo with confirmation (**critical safety feature**)
-- [ ] `Ctrl+r` — redo with confirmation
+- [x] `u` — undo with confirmation (shows last operation, y/n to confirm)
+- [x] `U` — redo with confirmation
 
 All operations work in both Log panel and Bookmarks commits view.
 
@@ -55,7 +55,7 @@ All operations work in both Log panel and Bookmarks commits view.
 
 ## Utilities
 
-- [x] `R` — manual refresh
+- [x] `ctrl+r` — manual refresh (changed from `R` to avoid conflict with restore)
 - [x] `Ctrl+Y` — copy selection to clipboard
 - [x] Bold working copy indicator
 - [x] Auto-hiding scrollbar
@@ -73,7 +73,11 @@ Start with describe modal, generalize to all inputs.
 ## Easy Wins
 
 - [ ] Workspace tab — list and switch between workspaces
-- [ ] Oplog view — view and restore from operation history
+- [x] Oplog view — view and navigate operation history
+  - [x] Log/Oplog tabs (switch with `[` and `]`)
+  - [x] Grouped operation selection (multi-line blocks)
+  - [x] `r` to restore to selected operation
+  - [x] Auto-scrolling with margin
 
 **Implementation note — styled panel titles for tabs:**
 OpenTUI's `<box title="">` only accepts plain strings (passed to Zig renderer). To style parts of the title differently (e.g., highlight active tab), use the sibling overlay pattern:
@@ -156,10 +160,12 @@ Each corner prop accepts `JSX.Element | string`. Internally wraps content in `po
 - Help modal has small visual gap between border and outer edge (OpenTUI quirk)
 - Search input in help modal doesn't render visually (filtering works though)
 - Keybinds not visible in modals (dimming overlay blocks status bar)
+- Spaces not rendering in BorderBox corner overlays
 
 ### Performance
 
 - Some lag when navigating commits quickly (diff rendering / ANSI parsing)
+- Lazy load or virtualize oplog for large repos with long operation history
 - **Fixed:** Diff reload flash, log/bookmarks flash, spinner flash
 
 ### UX Polish
@@ -167,6 +173,11 @@ Each corner prop accepts `JSX.Element | string`. Internally wraps content in `po
 - [ ] Log/bookmark panels slightly wider
 - [ ] Selected bookmark should match working copy on load
 - [ ] Active bookmark indication when navigating
+- [ ] Remove "Change" prefix from command titles (e.g., "New" not "New change")
+- [ ] Hide tab switching `[`/`]` from status bar, add to help modal Navigation section
+  - Group with other general nav commands (j/k, ctrl+u/d) that apply across contexts
+  - Avoid duplicating commands that appear in multiple contexts
+- [ ] Command grouping by tab instead of panel in help/status
 
 ### Technical Debt
 

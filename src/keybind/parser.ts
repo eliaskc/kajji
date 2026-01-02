@@ -4,7 +4,7 @@ export function parse(key: string): KeybindInfo[] {
 	if (key === "none") return []
 
 	return key.split(",").map((combo) => {
-		const parts = combo.toLowerCase().split("+")
+		const parts = combo.split("+")
 		const info: KeybindInfo = {
 			ctrl: false,
 			meta: false,
@@ -13,7 +13,8 @@ export function parse(key: string): KeybindInfo[] {
 		}
 
 		for (const part of parts) {
-			switch (part) {
+			const lower = part.toLowerCase()
+			switch (lower) {
 				case "ctrl":
 					info.ctrl = true
 					break
@@ -29,7 +30,10 @@ export function parse(key: string): KeybindInfo[] {
 					info.name = "escape"
 					break
 				default:
-					info.name = part
+					if (part.length === 1 && part !== lower) {
+						info.shift = true
+					}
+					info.name = lower
 					break
 			}
 		}
@@ -52,10 +56,14 @@ export function keybindToString(info: KeybindInfo): string {
 
 	if (info.ctrl) parts.push("ctrl")
 	if (info.meta) parts.push("alt")
-	if (info.shift) parts.push("shift")
+
+	const isSingleLetter = info.name.length === 1 && /[a-z]/.test(info.name)
+	if (info.shift && !isSingleLetter) parts.push("shift")
+
 	if (info.name) {
 		if (info.name === "delete") parts.push("del")
 		else if (info.name === "escape") parts.push("esc")
+		else if (info.shift && isSingleLetter) parts.push(info.name.toUpperCase())
 		else parts.push(info.name)
 	}
 
