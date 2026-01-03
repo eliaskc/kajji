@@ -18,7 +18,10 @@
 - [x] `Tab` — cycle focus between panels
 - [x] `1`/`2`/`3` — jump directly to panel
 - [x] `Escape` — back navigation in drill-down views
-- [ ] Mouse support — click to focus, scroll, double-click actions
+- [ ] Mouse support
+  - [ ] Click to focus panels
+  - [ ] Scroll wheel in panels
+  - [ ] Double-click as primary action (enter file view, drill into commits/files)
 
 ## Bookmarks Panel
 
@@ -27,7 +30,15 @@
 - [x] File tree with folder collapse/expand
 - [x] File status colors (A/M/D)
 - [x] Diff view for selected files
-- [ ] Bookmark operations — create, delete, rename, move
+- [ ] Bookmark operations (Phase 1 — low effort)
+  - [ ] `c` — create bookmark at @ (modal for name)
+  - [ ] `d` — delete bookmark (confirmation dialog)
+  - [ ] `r` — rename bookmark (modal for new name)
+  - [ ] `x` — forget bookmark (local only, no remote propagation)
+  - [ ] `b` in Log panel — create/set bookmark on selected commit (popup)
+- [ ] Bookmark operations (Phase 2 — medium effort)
+  - [ ] `m` — move bookmark to different commit (revset picker)
+  - [ ] `t`/`T` — track/untrack remote bookmark
 
 ## Core Operations
 
@@ -70,9 +81,39 @@ All operations work in both Log panel and Bookmarks commits view.
 
 Start with describe modal, generalize to all inputs.
 
+## Workspaces
+
+> lazyjuju is a jj power tool, not an agent orchestrator. Agents are just another way commits appear.
+
+**Core Features:**
+- [ ] Workspaces tab (`w`) — list all workspaces
+- [ ] Status display: name, working copy change ID, description, last modified
+- [ ] Color coding: uncommitted (yellow), described (green), conflicts (red)
+- [ ] Create workspace modal (`c`) — name + base revision, shows path to copy
+- [ ] Operations from workspace view:
+  - [ ] Enter → jump log to workspace's working copy
+  - [ ] `s` → squash workspace commits into parent
+  - [ ] `r` → rebase workspace onto different target
+  - [ ] `d` → archive workspace (after integration)
+
+**Agent Integration (bring-your-own):**
+- Human creates workspace via lazyjuju or manually
+- Human launches agent in workspace directory (opencode, claude code, etc.)
+- Human monitors progress in lazyjuju (commits appear via auto-refresh)
+- No orchestration layer — just visibility and operations
+
+**Optional: Workspace Briefing**
+
+On workspace creation, offer to copy a snippet for the agent:
+```
+You're working in a jj workspace called `<name>`.
+Your working copy is change `<id>` on top of `<base>`.
+When done: run `jj describe -m "your commit message"`
+Don't edit commits outside your workspace.
+```
+
 ## Easy Wins
 
-- [ ] Workspace tab — list and switch between workspaces
 - [x] Oplog view — view and navigate operation history
   - [x] Log/Oplog tabs (switch with `[` and `]`)
   - [x] Grouped operation selection (multi-line blocks)
@@ -122,8 +163,13 @@ Each corner prop accepts `JSX.Element | string`. Internally wraps content in `po
 
 - [ ] `v` to enter visual mode
 - [ ] `j`/`k` extends selection from anchor
-- [ ] Batch operations on selected items
-- [ ] Works in Log, Bookmarks, and Bookmarks commits view
+- [ ] Status bar shows "VISUAL (N selected)"
+- [ ] Batch operations:
+  - [ ] `s` squash — opens target picker, uses `jj squash --from first::last --into <target>`
+  - [ ] `r` rebase — opens target picker, uses `jj rebase -r first::last -d <target>`
+  - [ ] `a` abandon — confirm dialog, abandons all selected
+  - [ ] `Ctrl+Y` copy — copies all change IDs
+- [ ] Works in Log, Bookmarks commits view
 
 → [Detailed plan](./plans/multi-select.md)
 
@@ -146,14 +192,33 @@ Lazygit-style interactive `jj split` — mark files/hunks to keep in current com
 
 ## Release & Distribution
 
-- [ ] bunx / npx execution
-- [ ] Homebrew tap
-- [ ] npm publishing
+**Phase 1 — npm ecosystem (one publish covers all):**
+- [ ] npm/bunx/pnpm/yarn — add `"bin"` entry, publish to npm
+
+**Phase 2 — additional channels:**
+- [ ] Homebrew tap — separate repo + formula
+- [ ] curl installer — binary builds + install script
 - [ ] GitHub Actions release workflow
+
+**Phase 3 — polish:**
 - [ ] CLI alias — short command like `ljj`, `lj`, or `juju`
-- [ ] Auto-updater with self-update capability
+- [ ] Auto-updater with update notification + `lazyjuju update` command
 
 → [Detailed plan](./plans/release-flows.md)
+
+## Git Remote Operations
+
+- [ ] `f` — git fetch (default remote)
+- [ ] `F` — git fetch all remotes
+- [ ] `p` — push change + create PR (jj-native, works on any commit)
+  - Runs `jj git push --change <selected>` (auto-creates bookmark from change ID)
+  - Runs `gh pr create --head <auto-bookmark>`
+  - No bookmark naming required — jj handles it
+- [ ] `P` — push all tracked bookmarks
+
+**jj-native approach:** Change ID is the identity, bookmark is just transport. No naming ceremony — select commit, press `p`, PR exists.
+
+**Note:** jj's push is safe by default (like `git push --force-with-lease`). No force flag needed.
 
 ---
 
@@ -161,7 +226,6 @@ Lazygit-style interactive `jj split` — mark files/hunks to keep in current com
 
 - [ ] Search & filter — `/` to filter log by description/change ID
 - [ ] Command mode — `:` to run arbitrary jj commands
-- [ ] Git push/fetch — `P` / `f` for remote operations
 
 ---
 

@@ -36,12 +36,50 @@ Commands must declare whether they support multi-select. When in visual mode wit
 
 | Command | Multi-select? | Behavior |
 |---------|---------------|----------|
-| `a` abandon | Yes | Abandon all selected commits |
-| `s` squash | Yes | Squash all into parent of topmost |
-| `d` describe | **No** | Disabled (makes no sense for multiple) |
-| `e` edit | **No** | Disabled (can only edit one working copy) |
-| `n` new | **No** | Disabled |
+| `s` squash | Yes | Opens target picker → `jj squash --from first::last --into <target>` |
+| `r` rebase | Yes | Opens target picker → `jj rebase -r first::last -d <target>` |
+| `a` abandon | Yes | Confirmation dialog → abandons all selected |
 | `Ctrl+Y` copy | Yes | Copy all change IDs (newline-separated) |
+| `d` describe | **No** | Disabled (can't describe multiple) |
+| `e` edit | **No** | Disabled (single working copy) |
+| `n` new | **No** | Disabled |
+
+### Target Picker Modal
+
+For squash and rebase, instead of inline target selection (like jjui), use a **modal picker**:
+
+```
+┌─ Select Target ─────────────────────────────────────────────────┐
+│                                                                 │
+│  Squash 3 commits into:                                         │
+│                                                                 │
+│  > ○ abc12345 main: Latest feature                              │
+│    ○ def67890 Add documentation                                 │
+│    ○ ghi11111 Fix bug in parser                                 │
+│    ○ jkl22222 Initial commit                                    │
+│                                                                 │
+│  [Enter] Confirm    [Escape] Cancel    [j/k] Navigate           │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Why modal instead of inline?**
+- jjui's inline selection is confusing (cursor vs selection ambiguity)
+- Modal makes the action explicit and reversible
+- Can show more context (commit messages, graph)
+- Consistent with other modals (describe, abandon confirmation)
+
+### jj Commands
+
+```bash
+# Squash range into target
+jj squash --from <first>::<last> --into <target>
+
+# Rebase range onto target  
+jj rebase -r <first>::<last> -d <target>
+
+# Abandon multiple
+jj abandon <id1> <id2> <id3>
+```
 
 ### Command Registry Extension
 
@@ -49,6 +87,7 @@ Commands must declare whether they support multi-select. When in visual mode wit
 interface Command {
   // ... existing fields
   multiSelect?: boolean  // Default: false. If true, command works with visual selection.
+  needsTarget?: boolean  // If true, opens target picker before executing
 }
 ```
 
@@ -95,18 +134,20 @@ function getSelectedRange(items: string[], anchor: string, cursor: string): stri
 
 ## Future Scope
 
-- **File tree multi-select** — mark multiple files for `jj split` operations (select which files go into new commit)
+- **File tree multi-select** — mark multiple files for `jj split` operations
 - Select all (`V` or `ggVG`)
+- **Rebase with options** — modal with `-s` (with descendants), `-b` (whole branch), `-r` (single)
 
 ## Not In Scope
 
-- Non-contiguous selection (Space to toggle individual items like jjui)
+- Non-contiguous selection (Space to toggle individual items)
 - Mouse drag selection
+- Inline target selection (use modal picker instead)
 
 ---
 
 ## Priority
 
-Medium effort | Medium impact | Post-MVP
+Medium effort | High impact
 
 Depends on: Core operations being implemented first (need commands to batch)
