@@ -4,7 +4,7 @@
 
 A simple terminal UI for [Jujutsu](https://github.com/martinvonz/jj), inspired by [lazygit](https://github.com/jesseduffield/lazygit). Built with [OpenTUI](https://github.com/sst/opentui) and [SolidJS](https://www.solidjs.com/).
 
-<!-- TODO: demo GIF -->
+![kajji screenshot](./assets/kajji.png)
 
 While learning jj I found myself coming back to lazygit to view diffs and traverse the changes I'd made quickly and easily, which has become increasingly important to me with the rise of coding agents. While there are existing jj TUIs, none quite scratched that lazygit itch.
 
