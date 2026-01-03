@@ -11,8 +11,7 @@ function contextMatches(
 	activeContext: Context,
 ): boolean {
 	if (commandContext === "global") return true
-	if (commandContext === activeContext) return true
-	return activeContext.startsWith(`${commandContext}.`)
+	return commandContext === activeContext
 }
 
 const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]

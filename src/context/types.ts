@@ -4,29 +4,27 @@
 export type Panel = "log" | "refs" | "detail"
 
 /**
- * Hierarchical context representing where you are in the UI.
- * Format: panel.tab.drilldown (e.g., "log.revisions.files")
+ * Context represents the current interaction mode (what keys mean right now).
+ * Format: panel.mode (e.g., "log.revisions", "log.files")
  *
- * Command matching uses prefix matching:
- * - context "log" matches "log", "log.revisions", "log.revisions.files", "log.oplog"
- * - context "log.revisions" matches "log.revisions" and "log.revisions.files"
+ * Modes are siblings, not hierarchical. "files" is NOT a child of "revisions".
+ * This prevents accidental command inheritance via prefix matching.
  */
 export type Context =
 	// Special contexts
 	| "global"
 	| "help"
-	// Log panel
+	// Log panel modes
 	| "log"
 	| "log.revisions"
-	| "log.revisions.files"
+	| "log.files"
 	| "log.oplog"
-	// Refs panel (bookmarks, workspaces, PRs)
+	// Refs panel modes
 	| "refs"
 	| "refs.bookmarks"
-	| "refs.bookmarks.revisions"
-	| "refs.bookmarks.revisions.files"
-	// Future: refs.workspaces, refs.prs
-	// Detail panel (diff, interactive editing)
+	| "refs.revisions"
+	| "refs.files"
+	// Detail panel
 	| "detail"
 
 export type CommandType = "action" | "navigation" | "view"

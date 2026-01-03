@@ -24,9 +24,10 @@ import type { KeybindConfigKey } from "../../keybind"
 
 type ContextGroup =
 	| "navigation"
-	| "log.revisions"
-	| "log.oplog"
-	| "refs.bookmarks"
+	| "revisions"
+	| "files"
+	| "bookmarks"
+	| "oplog"
 	| "detail"
 	| "global"
 
@@ -37,9 +38,10 @@ interface ContextGroupData {
 }
 
 const GROUP_ORDER: ContextGroup[] = [
-	"log.revisions",
-	"log.oplog",
-	"refs.bookmarks",
+	"revisions",
+	"files",
+	"bookmarks",
+	"oplog",
 	"detail",
 	"navigation",
 	"global",
@@ -47,9 +49,10 @@ const GROUP_ORDER: ContextGroup[] = [
 
 const GROUP_LABELS: Record<ContextGroup, string> = {
 	navigation: "Navigation",
-	"log.revisions": "Revisions",
-	"log.oplog": "Oplog",
-	"refs.bookmarks": "Bookmarks",
+	revisions: "Revisions",
+	files: "Files",
+	bookmarks: "Bookmarks",
+	oplog: "Oplog",
 	detail: "Detail",
 	global: "Global",
 }
@@ -66,12 +69,12 @@ const NAVIGATION_KEYBINDS = new Set([
 ])
 
 function contextToGroup(context: Context): ContextGroup {
-	if (context.startsWith("log.revisions")) return "log.revisions"
-	if (context.startsWith("log.oplog")) return "log.oplog"
-	if (context.startsWith("refs.bookmarks")) return "refs.bookmarks"
+	if (context === "log.revisions" || context === "refs.revisions")
+		return "revisions"
+	if (context === "log.files" || context === "refs.files") return "files"
+	if (context === "refs.bookmarks") return "bookmarks"
+	if (context === "log.oplog") return "oplog"
 	if (context === "detail") return "detail"
-	if (context === "log") return "log.revisions"
-	if (context === "refs") return "refs.bookmarks"
 	return "global"
 }
 

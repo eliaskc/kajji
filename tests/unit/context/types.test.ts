@@ -13,15 +13,15 @@ describe("panelFromContext", () => {
 	test("returns log for log panel contexts", () => {
 		expect(panelFromContext("log")).toBe("log")
 		expect(panelFromContext("log.revisions")).toBe("log")
-		expect(panelFromContext("log.revisions.files")).toBe("log")
+		expect(panelFromContext("log.files")).toBe("log")
 		expect(panelFromContext("log.oplog")).toBe("log")
 	})
 
 	test("returns refs for refs panel contexts", () => {
 		expect(panelFromContext("refs")).toBe("refs")
 		expect(panelFromContext("refs.bookmarks")).toBe("refs")
-		expect(panelFromContext("refs.bookmarks.revisions")).toBe("refs")
-		expect(panelFromContext("refs.bookmarks.revisions.files")).toBe("refs")
+		expect(panelFromContext("refs.revisions")).toBe("refs")
+		expect(panelFromContext("refs.files")).toBe("refs")
 	})
 
 	test("returns detail for detail panel context", () => {

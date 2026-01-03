@@ -357,15 +357,13 @@ export function SyncProvider(props: { children: JSX.Element }) {
 		const currentPanel = focus.panel()
 		if (currentPanel === "log") {
 			const mode = viewMode()
-			focus.setActiveContext(
-				mode === "files" ? "log.revisions.files" : "log.revisions",
-			)
+			focus.setActiveContext(mode === "files" ? "log.files" : "log.revisions")
 		} else if (currentPanel === "refs") {
 			const mode = bookmarkViewMode()
 			if (mode === "files") {
-				focus.setActiveContext("refs.bookmarks.revisions.files")
+				focus.setActiveContext("refs.files")
 			} else if (mode === "commits") {
-				focus.setActiveContext("refs.bookmarks.revisions")
+				focus.setActiveContext("refs.revisions")
 			} else {
 				focus.setActiveContext("refs.bookmarks")
 			}
@@ -533,7 +531,7 @@ export function SyncProvider(props: { children: JSX.Element }) {
 			setSelectedBookmarkCommitIndex(0)
 			setActiveBookmarkName(bookmark.name)
 			setBookmarkViewMode("commits")
-			focus.setActiveContext("refs.bookmarks.revisions")
+			focus.setActiveContext("refs.revisions")
 		} catch (e) {
 			console.error("Failed to load bookmark commits:", e)
 		} finally {
@@ -555,7 +553,7 @@ export function SyncProvider(props: { children: JSX.Element }) {
 			setSelectedBookmarkFileIndex(0)
 			setBookmarkCollapsedPaths(new Set<string>())
 			setBookmarkViewMode("files")
-			focus.setActiveContext("refs.bookmarks.revisions.files")
+			focus.setActiveContext("refs.files")
 		} catch (e) {
 			console.error("Failed to load bookmark files:", e)
 		} finally {
@@ -571,7 +569,7 @@ export function SyncProvider(props: { children: JSX.Element }) {
 			setBookmarkFileTree(null)
 			setSelectedBookmarkFileIndex(0)
 			setBookmarkCollapsedPaths(new Set<string>())
-			focus.setActiveContext("refs.bookmarks.revisions")
+			focus.setActiveContext("refs.revisions")
 		} else if (mode === "commits") {
 			setBookmarkViewMode("list")
 			setBookmarkCommits([])
@@ -738,7 +736,7 @@ export function SyncProvider(props: { children: JSX.Element }) {
 			setSelectedFileIndex(0)
 			setCollapsedPaths(new Set<string>())
 			setViewMode("files")
-			focus.setActiveContext("log.revisions.files")
+			focus.setActiveContext("log.files")
 		} catch (e) {
 			setFilesError(e instanceof Error ? e.message : "Failed to load files")
 		} finally {
