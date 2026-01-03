@@ -121,6 +121,7 @@ function AppContent() {
 			keybind: "refresh",
 			context: "global",
 			type: "action",
+			hidden: true,
 			onSelect: () => refresh(),
 		},
 		{
@@ -129,6 +130,7 @@ function AppContent() {
 			keybind: "jj_git_fetch",
 			context: "global",
 			type: "action",
+			hidden: true,
 			onSelect: async () => {
 				const result = await globalLoading.run("Fetching...", () =>
 					jjGitFetch(),
@@ -145,6 +147,7 @@ function AppContent() {
 			keybind: "jj_git_fetch_all",
 			context: "global",
 			type: "action",
+			hidden: true,
 			onSelect: async () => {
 				const result = await globalLoading.run("Fetching all...", () =>
 					jjGitFetch({ allRemotes: true }),
@@ -161,6 +164,7 @@ function AppContent() {
 			keybind: "jj_git_push",
 			context: "global",
 			type: "action",
+			hidden: true,
 			onSelect: async () => {
 				const result = await globalLoading.run("Pushing...", () => jjGitPush())
 				commandLog.addEntry(result)

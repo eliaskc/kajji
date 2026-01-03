@@ -111,13 +111,10 @@ export function HelpModal() {
 	type SearchableCommand = CommandOption & { keybindStr: string }
 
 	const allCommands = createMemo((): SearchableCommand[] => {
-		return command
-			.all()
-			.filter((cmd) => !cmd.hidden)
-			.map((cmd) => ({
-				...cmd,
-				keybindStr: cmd.keybind ? keybind.print(cmd.keybind) : "",
-			}))
+		return command.all().map((cmd) => ({
+			...cmd,
+			keybindStr: cmd.keybind ? keybind.print(cmd.keybind) : "",
+		}))
 	})
 
 	const matchedCommands = createMemo(() => {

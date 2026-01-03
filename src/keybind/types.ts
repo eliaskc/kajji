@@ -40,6 +40,7 @@ export type KeybindConfigKey =
 	| "bookmark_rename"
 	| "bookmark_forget"
 	| "bookmark_set"
+	| "bookmark_move"
 
 export type KeybindConfig = Record<KeybindConfigKey, string>
 
@@ -78,4 +79,5 @@ export const DEFAULT_KEYBINDS: KeybindConfig = {
 	bookmark_rename: "r",
 	bookmark_forget: "x",
 	bookmark_set: "b",
+	bookmark_move: "m",
 }

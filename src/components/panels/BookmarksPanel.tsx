@@ -5,6 +5,7 @@ import {
 	jjBookmarkDelete,
 	jjBookmarkForget,
 	jjBookmarkRename,
+	jjBookmarkSet,
 } from "../../commander/bookmarks"
 import {
 	type OperationResult,
@@ -29,6 +30,7 @@ import { FileTreeList } from "../FileTreeList"
 import { Panel } from "../Panel"
 import { BookmarkNameModal } from "../modals/BookmarkNameModal"
 import { DescribeModal } from "../modals/DescribeModal"
+import { RevisionPickerModal } from "../modals/RevisionPickerModal"
 
 export function BookmarksPanel() {
 	const {
@@ -165,7 +167,7 @@ export function BookmarksPanel() {
 			return commit ? `Files (${commit.changeId.slice(0, 8)})` : "Files"
 		}
 		if (mode === "commits") {
-			return `Commits (${activeBookmarkName()})`
+			return `Revisions (${activeBookmarkName()})`
 		}
 		return "Bookmarks"
 	}
@@ -420,11 +422,12 @@ export function BookmarksPanel() {
 						dialog.open(
 							() => (
 								<BookmarkNameModal
-									title={`Create Bookmark at ${commit.changeId.slice(0, 8)}`}
-									placeholder="bookmark-name"
-									onSave={(name) => {
+									title="Create Bookmark"
+									commits={bookmarkCommits()}
+									defaultRevision={commit.changeId}
+									onSave={(name, revision) => {
 										runOperation("Creating bookmark...", () =>
-											jjBookmarkCreate(name, { revision: commit.changeId }),
+											jjBookmarkCreate(name, { revision }),
 										)
 									}}
 								/>
@@ -475,14 +478,16 @@ export function BookmarksPanel() {
 				type: "action",
 				panel: "refs",
 				onSelect: () => {
+					const workingCopy = commits().find((c) => c.isWorkingCopy)
 					dialog.open(
 						() => (
 							<BookmarkNameModal
 								title="Create Bookmark"
-								placeholder="bookmark-name"
-								onSave={(name) => {
+								commits={commits()}
+								defaultRevision={workingCopy?.changeId}
+								onSave={(name, revision) => {
 									runOperation("Creating bookmark...", () =>
-										jjBookmarkCreate(name),
+										jjBookmarkCreate(name, { revision }),
 									)
 								}}
 							/>
@@ -555,6 +560,33 @@ export function BookmarksPanel() {
 							jjBookmarkForget(bookmark.name),
 						)
 					}
+				},
+			},
+			{
+				id: "refs.bookmarks.move",
+				title: "move",
+				keybind: "bookmark_move",
+				context: "refs.bookmarks",
+				type: "action",
+				panel: "refs",
+				onSelect: () => {
+					const bookmark = selectedBookmark()
+					if (!bookmark) return
+					dialog.open(
+						() => (
+							<RevisionPickerModal
+								title={`Move "${bookmark.name}" to`}
+								commits={commits()}
+								defaultRevision={bookmark.changeId}
+								onSelect={(revision) => {
+									runOperation("Moving bookmark...", () =>
+										jjBookmarkSet(bookmark.name, revision),
+									)
+								}}
+							/>
+						),
+						{ id: "bookmark-move" },
+					)
 				},
 			},
 		]

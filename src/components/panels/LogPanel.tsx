@@ -476,11 +476,12 @@ export function LogPanel() {
 				dialog.open(
 					() => (
 						<BookmarkNameModal
-							title={`Create Bookmark at ${commit.changeId.slice(0, 8)}`}
-							placeholder="bookmark-name"
-							onSave={(name) => {
+							title="Create Bookmark"
+							commits={commits()}
+							defaultRevision={commit.changeId}
+							onSave={(name, revision) => {
 								runOperation("Creating bookmark...", () =>
-									jjBookmarkCreate(name, { revision: commit.changeId }),
+									jjBookmarkCreate(name, { revision }),
 								)
 							}}
 						/>

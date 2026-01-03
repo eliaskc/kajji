@@ -38,7 +38,7 @@ export const lazygitTheme: Theme = {
 			separator: "•",
 		},
 		dialog: {
-			overlayOpacity: 150,
+			overlayOpacity: 0,
 		},
 		adaptToTerminal: true,
 	},
