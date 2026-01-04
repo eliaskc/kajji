@@ -109,6 +109,7 @@ Must-do before initial release:
 - [ ] Word navigation (`Alt+arrows`)
 - [ ] Word delete (`Alt+backspace/delete`)
 - [ ] Jump to line start/end (`Home`/`End`)
+- [ ] Subject/body field separation — Enter saves in subject, newline in body. Use granular contexts (`modal.describe.subject`, `modal.describe.body`) rather than a new abstraction.
 
 Start with describe modal, generalize to all inputs.
 
@@ -195,14 +196,17 @@ Each corner prop accepts `JSX.Element | string`. Internally wraps content in `po
 
 ## Multi-Select (Visual Mode)
 
-- [ ] `v` to enter visual mode
+- [ ] `v` to enter visual mode (contiguous mode by default)
 - [ ] `j`/`k` extends selection from anchor
+- [ ] **Contiguous mode**: invalid selections dimmed (for stack/rebase/squash)
+- [ ] **Free mode**: any commits selectable (for abandon/copy)
 - [ ] Status bar shows "VISUAL (N selected)"
 - [ ] Batch operations:
-  - [ ] `s` squash — opens target picker, uses `jj squash --from first::last --into <target>`
-  - [ ] `r` rebase — opens target picker, uses `jj rebase -r first::last -d <target>`
-  - [ ] `a` abandon — confirm dialog, abandons all selected
-  - [ ] `Ctrl+Y` copy — copies all change IDs
+  - [ ] `c` / `P` stack — opens stack editor (contiguous)
+  - [ ] `s` squash — opens target picker (contiguous)
+  - [ ] `r` rebase — opens target picker (contiguous)
+  - [ ] `a` abandon — confirm dialog (free)
+  - [ ] `Ctrl+Y` copy — copies all change IDs (free)
 - [ ] Works in Log, Bookmarks commits view
 
 → [Detailed plan](./plans/multi-select.md)
@@ -289,11 +293,22 @@ All major performance issues have been resolved:
 - Results written to `bench-results.json` (gitignored)
 - Threshold assertions catch major regressions
 
+### Horizontal Scrolling & h/l Navigation
+
+- [ ] `h`/`l` or left/right to scroll log sideways (revisions, bookmarks commits, oplog)
+- [ ] Fix scrollbox horizontal scroll — currently scrolls only the element under cursor, should scroll entire view
+- [ ] Same fix needed for diff panel
+- [ ] `h`/`l` or left/right for diff panel horizontal scrolling
+- [ ] In file tree: `h`/`l` or left/right to toggle folder collapse/expand
+- [ ] Consider: if file selected, right/`l` could focus diff panel — but returning via left/`h` is tricky (only when coming from file tree, not otherwise). Decide when implementing.
+
 ### UX Polish
 
 - [ ] Log/bookmark panels slightly wider
 - [ ] Selected bookmark should match working copy on load
 - [ ] Active bookmark indication when navigating
+- [ ] Disable selection highlight in unfocused panels
+- [ ] Revisit keybind consistency between revisions and bookmarks panels — e.g., `n` for create bookmark (matches "new"), `d` for rename (matches "describe"). May not be needed once unfocused highlight is disabled.
 - [x] All command titles lowercase (e.g., "new" not "New")
 - [x] Simplified command titles in context (e.g., "create" not "Create bookmark" in bookmarks context)
 - [x] Semantic command grouping in help modal (revisions, files, bookmarks, oplog)
@@ -312,7 +327,6 @@ All major performance issues have been resolved:
 Longer-term possibilities, not actively planned:
 
 - Command mode autocomplete
-- PR status indicator in bookmark list
 - Conflict visualization
 - Revset filtering
 - Interactive rebase UI
@@ -322,37 +336,30 @@ Longer-term possibilities, not actively planned:
 
 ## GitHub PR Stacking
 
-> "Graphite in a TUI" — stacked PRs with jj's clean model.
+> "Graphite in a TUI" — stacked PRs with jj's clean model, open-source and free.
 
-**Stack Creation:**
-- Select commit, create PRs for all bookmarks between it and main
-- Each PR targets the bookmark below it in the stack
-- Preview modal shows full stack before creation
-- All PRs created as drafts (encourages correct merge order)
+**Log-centric approach:**
+- Multi-select commits in log (contiguous mode) → create stack
+- Visual stack editor: rename bookmarks, toggle draft/ready per-PR
+- Base PR ready for review, rest draft by default
+- Pre-fills existing bookmarks, auto-generates `push-xxx` for others
 
-**Stack Reconciliation:**
+**Stack viewing:**
+- Stacks panel (in bookmarks/refs area) shows all active stacks
+- PR status indicators (draft/ready/merged, CI status)
+- Drill into stack to see commits and PRs
+
+**Stack reconciliation:**
 - On fetch, detect merged PRs
-- Offer to rebase remaining stack and update PR targets
+- One-keypress fix: rebase remaining stack, update PR targets
 - Handle mid-stack merges (e.g., #2 merged → #3 now targets #1)
-- Preview modal shows proposed changes before execution
 
-**Conflict Handling:**
-- jj allows conflicts to persist; show clear warnings
-- Block force-push until resolved (or explicit override)
+**Future: Full PR management:**
+- View all PRs (assigned, open, review requested)
+- PR descriptions (especially useful for stacks)
+- Add comments, approve, request changes, merge
 
 → [Detailed plan](./plans/github-stacking.md)
-
----
-
-## Future: PR Review in TUI
-
-Longer-term addition to GitHub integration:
-
-- View PR details, comments, review status
-- Add comments, approve, request changes
-- See CI status inline
-
-**Prior Art:** [Graphite](https://graphite.dev/), [gh-stack](https://github.com/timothyandrew/gh-stack), [spr](https://github.com/ejoffe/spr)
 
 ---
 

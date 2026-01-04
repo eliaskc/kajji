@@ -14,39 +14,96 @@ This applies to:
 
 ---
 
+## Selection Modes
+
+### Contiguous Mode (Default)
+
+For operations requiring ancestry chain: **stack creation, rebase, squash**.
+
+**Behavior:**
+- Selection must be contiguous in ancestry
+- Invalid selections are **dimmed** — commits that would break the chain are visually de-emphasized
+- As you extend selection, dimming updates in real-time
+
+**Visual feedback:**
+```
+  ○ abc12345 feature: add auth     ← selectable (ancestor of selection)
+  ● def67890 fix: validation bug   ← SELECTED (anchor)
+  ● ghi11111 refactor: cleanup     ← SELECTED (cursor)
+  ○ jkl22222 docs: update readme   ← selectable (descendant of selection)
+  ◌ mno33333 unrelated branch      ← DIMMED (not in ancestry chain)
+  ◌ pqr44444 another branch        ← DIMMED
+```
+
+**Operations using contiguous mode:**
+| Command | Action |
+|---------|--------|
+| `c` / `P` | Create PR stack |
+| `s` | Squash into target |
+| `r` | Rebase onto target |
+
+### Free Mode
+
+For operations that work on any set of commits.
+
+**Behavior:**
+- Any commits can be selected
+- No dimming — all commits are valid targets
+- Selection still extends contiguously from anchor to cursor (vim visual line behavior)
+
+**Operations using free mode:**
+| Command | Action |
+|---------|--------|
+| `a` | Abandon all selected |
+| `Ctrl+Y` | Copy all change IDs |
+
+### Mode Selection
+
+`v` enters **contiguous mode** by default. This is the more common use case (stack creation, rebase, squash).
+
+For operations that need free mode (abandon, copy), contiguous mode still works — you just can't select non-contiguous commits. This is acceptable because:
+- Abandoning a contiguous range is the common case
+- Copying a contiguous range is the common case
+- If you need true non-contiguous selection, see "Alternative: Toggle Selection" below
+
+---
+
 ## UX Flow
 
 1. **Normal mode**: Single item selected (current behavior)
 2. **Press `v`**: Enter visual mode, anchor at current item
-3. **Navigate `j`/`k`**: Selection extends from anchor to cursor (contiguous range)
+3. **Navigate `j`/`k`**: Selection extends from anchor to cursor
+   - In contiguous mode: invalid items are dimmed, cursor skips them
 4. **Perform action**: Execute command on all selected items
 5. **`Escape`**: Exit visual mode, return to single selection
 
 ### Visual Feedback
 
-- Selected range: same styling as single-item selection (no separate color needed)
-- Anchor item: subtle indicator to show where selection started (e.g., underline or marker)
-- Status bar: shows "VISUAL" mode indicator + count (e.g., "VISUAL (3 selected)")
+- Selected range: highlighted background (same as single-item selection, but spanning multiple)
+- Anchor item: subtle indicator (e.g., underline or `>` marker)
+- Dimmed items (contiguous mode): reduced opacity or muted colors
+- Status bar: shows mode + count (e.g., "VISUAL (3 selected)" or "VISUAL-CONTIGUOUS (3)")
 
 ---
 
 ## Command Compatibility
 
-Commands must declare whether they support multi-select. When in visual mode with N > 1 items:
+Commands must declare whether they support multi-select and which mode they require.
 
-| Command | Multi-select? | Behavior |
-|---------|---------------|----------|
-| `s` squash | Yes | Opens target picker → `jj squash --from first::last --into <target>` |
-| `r` rebase | Yes | Opens target picker → `jj rebase -r first::last -d <target>` |
-| `a` abandon | Yes | Confirmation dialog → abandons all selected |
-| `Ctrl+Y` copy | Yes | Copy all change IDs (newline-separated) |
-| `d` describe | **No** | Disabled (can't describe multiple) |
-| `e` edit | **No** | Disabled (single working copy) |
-| `n` new | **No** | Disabled |
+| Command | Multi-select? | Mode | Behavior |
+|---------|---------------|------|----------|
+| `c` / `P` stack | Yes | Contiguous | Opens stack editor → creates PR stack |
+| `s` squash | Yes | Contiguous | Opens target picker → `jj squash --from first::last --into <target>` |
+| `r` rebase | Yes | Contiguous | Opens target picker → `jj rebase -r first::last -d <target>` |
+| `a` abandon | Yes | Free | Confirmation dialog → abandons all selected |
+| `Ctrl+Y` copy | Yes | Free | Copy all change IDs (newline-separated) |
+| `d` describe | **No** | — | Disabled (can't describe multiple) |
+| `e` edit | **No** | — | Disabled (single working copy) |
+| `n` new | **No** | — | Disabled |
 
 ### Target Picker Modal
 
-For squash and rebase, instead of inline target selection (like jjui), use a **modal picker**:
+For squash and rebase, use a **modal picker**:
 
 ```
 ┌─ Select Target ─────────────────────────────────────────────────┐
@@ -86,8 +143,9 @@ jj abandon <id1> <id2> <id3>
 ```typescript
 interface Command {
   // ... existing fields
-  multiSelect?: boolean  // Default: false. If true, command works with visual selection.
-  needsTarget?: boolean  // If true, opens target picker before executing
+  multiSelect?: boolean       // Default: false. If true, command works with visual selection.
+  multiSelectMode?: 'contiguous' | 'free'  // Which mode this command requires
+  needsTarget?: boolean       // If true, opens target picker before executing
 }
 ```
 
@@ -104,16 +162,17 @@ When visual mode is active and N > 1:
 ```typescript
 interface VisualModeState {
   active: boolean
-  anchor: string | null  // Change ID or bookmark name where v was pressed
+  mode: 'contiguous' | 'free'
+  anchor: string | null  // Change ID where v was pressed
   cursor: string | null  // Current position
 }
 
 // Derived: selectedItems = range from anchor to cursor (inclusive)
+// Derived: dimmedItems = items not in valid selection range (contiguous mode only)
 ```
 
 ### Selection Computation
 
-Since log/bookmarks are ordered lists, selection is always a contiguous range:
 ```typescript
 function getSelectedRange(items: string[], anchor: string, cursor: string): string[] {
   const anchorIdx = items.indexOf(anchor)
@@ -122,25 +181,75 @@ function getSelectedRange(items: string[], anchor: string, cursor: string): stri
   const end = Math.max(anchorIdx, cursorIdx)
   return items.slice(start, end + 1)
 }
+
+function getDimmedItems(
+  items: string[], 
+  anchor: string, 
+  ancestryChain: Set<string>
+): string[] {
+  // In contiguous mode, dim items not in the ancestry chain of the anchor
+  return items.filter(item => !ancestryChain.has(item))
+}
 ```
+
+### Ancestry Chain Computation
+
+For contiguous mode, we need to know which commits are valid selections:
+
+```typescript
+// Get all commits in ancestry chain (ancestors + descendants) of anchor
+function getAncestryChain(anchor: string): Set<string> {
+  // Use jj log with revset: ancestors(anchor) | descendants(anchor)
+  // Or compute from already-loaded log data if we have parent info
+}
+```
+
+---
 
 ## Edge Cases
 
 - **Empty selection**: If anchor item is deleted/moved, exit visual mode
 - **Panel switch**: Exiting panel while in visual mode should exit visual mode
 - **Scroll**: Large selections may extend beyond viewport — ensure cursor stays visible
+- **Dimmed navigation**: In contiguous mode, `j`/`k` should skip dimmed items (or jump to next valid item)
+
+---
+
+## Alternative: Toggle Selection (jjui style)
+
+jjui uses `Space` to toggle selection on individual items, rather than vim-style visual mode.
+
+**How it works:**
+- Normal navigation with `j`/`k`
+- `Space` toggles current item's selection state
+- Can select non-contiguous items freely
+- Operation applies to all toggled items
+
+**Pros:**
+- More flexible — can select any combination
+- Familiar to some users (file managers, etc.)
+- No "mode" to enter/exit
+
+**Cons:**
+- More keystrokes for contiguous ranges (must toggle each item)
+- Less vim-like (kajji's general UX is vim-inspired)
+- No visual "anchor to cursor" range extension
+- Harder to integrate with stack creation (which requires contiguous)
+
+**Current decision:** Visual mode (vim-style) is preferred for kajji's UX consistency. Toggle selection noted as alternative but not planned.
 
 ---
 
 ## Future Scope
 
 - **File tree multi-select** — mark multiple files for `jj split` operations
-- Select all (`V` or `ggVG`)
+- **Select all** (`V` or `ggVG`)
 - **Rebase with options** — modal with `-s` (with descendants), `-b` (whole branch), `-r` (single)
+- **Mode toggle** — if needed, add a way to switch between contiguous and free mode mid-selection
 
 ## Not In Scope
 
-- Non-contiguous selection (Space to toggle individual items)
+- Non-contiguous selection via toggle (Space) — see alternative above
 - Mouse drag selection
 - Inline target selection (use modal picker instead)
 
@@ -151,3 +260,5 @@ function getSelectedRange(items: string[], anchor: string, cursor: string): stri
 Medium effort | High impact
 
 Depends on: Core operations being implemented first (need commands to batch)
+
+Enables: Stack creation flow (uses contiguous multi-select)
