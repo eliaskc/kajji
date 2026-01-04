@@ -20,12 +20,10 @@ import {
 	jjNew,
 	jjOpRestore,
 	jjRebase,
-	jjRedo,
 	jjRestore,
 	jjShowDescription,
 	jjSplitInteractive,
 	jjSquash,
-	jjUndo,
 	parseOpLog,
 } from "../../commander/operations"
 import { useCommand } from "../../context/command"
@@ -289,32 +287,6 @@ export function LogPanel() {
 	}
 
 	const selectedOperation = () => opLogEntries()[opLogSelectedIndex()]
-
-	const openUndoModal = (type: "undo" | "redo") => {
-		dialog.open(
-			() => (
-				<UndoModal
-					type={type}
-					onConfirm={async () => {
-						dialog.close()
-						const op = type === "undo" ? jjUndo : jjRedo
-						await runOperation(
-							type === "undo" ? "Undoing..." : "Redoing...",
-							op,
-						)
-					}}
-					onCancel={() => dialog.close()}
-				/>
-			),
-			{
-				id: `${type}-modal`,
-				hints: [
-					{ key: "y", label: "confirm" },
-					{ key: "n", label: "cancel" },
-				],
-			},
-		)
-	}
 
 	command.register(() => [
 		{
@@ -654,24 +626,6 @@ export function LogPanel() {
 					},
 				)
 			},
-		},
-		{
-			id: "log.revisions.undo",
-			title: "undo",
-			keybind: "jj_undo",
-			context: "log.revisions",
-			type: "action",
-			panel: "log",
-			onSelect: () => openUndoModal("undo"),
-		},
-		{
-			id: "log.revisions.redo",
-			title: "redo",
-			keybind: "jj_redo",
-			context: "log.revisions",
-			type: "action",
-			panel: "log",
-			onSelect: () => openUndoModal("redo"),
 		},
 		{
 			id: "log.oplog.restore",

@@ -1,8 +1,9 @@
 import { useRenderer } from "@opentui/solid"
 import { onMount } from "solid-js"
-import { jjGitFetch, jjGitPush } from "./commander/operations"
+import { jjGitFetch, jjGitPush, jjRedo, jjUndo } from "./commander/operations"
 import { Layout } from "./components/Layout"
 import { HelpModal } from "./components/modals/HelpModal"
+import { UndoModal } from "./components/modals/UndoModal"
 import { BookmarksPanel } from "./components/panels/BookmarksPanel"
 import { LogPanel } from "./components/panels/LogPanel"
 import { MainArea } from "./components/panels/MainArea"
@@ -201,6 +202,72 @@ function AppContent() {
 				if (result.success) {
 					refresh()
 				}
+			},
+		},
+		{
+			id: "global.undo",
+			title: "undo",
+			keybind: "jj_undo",
+			context: "global",
+			type: "action",
+			visibility: "help-only",
+			onSelect: () => {
+				dialog.open(
+					() => (
+						<UndoModal
+							type="undo"
+							onConfirm={async () => {
+								dialog.close()
+								const result = await globalLoading.run("Undoing...", jjUndo)
+								commandLog.addEntry(result)
+								if (result.success) {
+									refresh()
+								}
+							}}
+							onCancel={() => dialog.close()}
+						/>
+					),
+					{
+						id: "undo-modal",
+						hints: [
+							{ key: "y", label: "confirm" },
+							{ key: "n", label: "cancel" },
+						],
+					},
+				)
+			},
+		},
+		{
+			id: "global.redo",
+			title: "redo",
+			keybind: "jj_redo",
+			context: "global",
+			type: "action",
+			visibility: "help-only",
+			onSelect: () => {
+				dialog.open(
+					() => (
+						<UndoModal
+							type="redo"
+							onConfirm={async () => {
+								dialog.close()
+								const result = await globalLoading.run("Redoing...", jjRedo)
+								commandLog.addEntry(result)
+								if (result.success) {
+									refresh()
+								}
+							}}
+							onCancel={() => dialog.close()}
+						/>
+					),
+					{
+						id: "redo-modal",
+						hints: [
+							{ key: "y", label: "confirm" },
+							{ key: "n", label: "cancel" },
+						],
+					},
+				)
 			},
 		},
 	])
