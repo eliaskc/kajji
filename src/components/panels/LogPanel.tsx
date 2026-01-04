@@ -1,4 +1,5 @@
 import type { ScrollBoxRenderable } from "@opentui/core"
+import { useRenderer } from "@opentui/solid"
 import {
 	For,
 	Show,
@@ -22,6 +23,7 @@ import {
 	jjRedo,
 	jjRestore,
 	jjShowDescription,
+	jjSplitInteractive,
 	jjSquash,
 	jjUndo,
 	parseOpLog,
@@ -51,6 +53,7 @@ const LOG_TABS: Array<{ id: LogTab; label: string; context: Context }> = [
 ]
 
 export function LogPanel() {
+	const renderer = useRenderer()
 	const {
 		commits,
 		selectedIndex,
@@ -478,6 +481,35 @@ export function LogPanel() {
 				)
 			},
 		},
+		{
+			id: "log.revisions.split",
+			title: "split",
+			keybind: "jj_split",
+			context: "log.revisions",
+			type: "action",
+			panel: "log",
+			onSelect: async () => {
+				const commit = selectedCommit()
+				if (!commit) return
+
+				if (commit.empty) {
+					await dialog.confirm({
+						message: "Cannot split an empty commit.",
+					})
+					return
+				}
+
+				renderer.suspend?.()
+				try {
+					await jjSplitInteractive(commit.changeId)
+				} finally {
+					renderer.resume?.()
+					refresh()
+					loadOpLog()
+				}
+			},
+		},
+		{
 			id: "log.revisions.describe",
 			title: "describe",
 			keybind: "jj_describe",

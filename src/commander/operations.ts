@@ -4,6 +4,31 @@ export interface OperationResult extends ExecuteResult {
 	command: string
 }
 
+export interface InteractiveOptions {
+	cwd?: string
+}
+
+export async function jjSplitInteractive(
+	revision: string,
+	options?: InteractiveOptions,
+): Promise<{ success: boolean; error?: string }> {
+	const args = ["split", "-r", revision]
+	const cwd = options?.cwd ?? process.cwd()
+
+	const proc = Bun.spawn(["jj", ...args], {
+		cwd,
+		stdin: "inherit",
+		stdout: "inherit",
+		stderr: "inherit",
+	})
+
+	const exitCode = await proc.exited
+	return {
+		success: exitCode === 0,
+		error: exitCode !== 0 ? `jj split exited with code ${exitCode}` : undefined,
+	}
+}
+
 export interface OpLogEntry {
 	operationId: string
 	lines: string[]

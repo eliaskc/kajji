@@ -1,4 +1,5 @@
 import type { ScrollBoxRenderable } from "@opentui/core"
+import { useRenderer } from "@opentui/solid"
 import { For, Match, Show, Switch, createEffect, createSignal } from "solid-js"
 import {
 	jjBookmarkCreate,
@@ -17,6 +18,7 @@ import {
 	jjRebase,
 	jjRestore,
 	jjShowDescription,
+	jjSplitInteractive,
 	jjSquash,
 } from "../../commander/operations"
 import { useCommand } from "../../context/command"
@@ -34,6 +36,7 @@ import { DescribeModal } from "../modals/DescribeModal"
 import { RevisionPickerModal } from "../modals/RevisionPickerModal"
 
 export function BookmarksPanel() {
+	const renderer = useRenderer()
 	const {
 		commits,
 		bookmarks,
@@ -412,6 +415,34 @@ export function BookmarksPanel() {
 						)
 					},
 				},
+				{
+					id: "refs.revisions.split",
+					title: "split",
+					keybind: "jj_split",
+					context: "refs.revisions",
+					type: "action",
+					panel: "refs",
+					onSelect: async () => {
+						const commit = selectedBookmarkCommit()
+						if (!commit) return
+
+						if (commit.empty) {
+							await dialog.confirm({
+								message: "Cannot split an empty commit.",
+							})
+							return
+						}
+
+						renderer.suspend?.()
+						try {
+							await jjSplitInteractive(commit.changeId)
+						} finally {
+							renderer.resume?.()
+							refresh()
+						}
+					},
+				},
+				{
 					id: "refs.revisions.describe",
 					title: "describe",
 					keybind: "jj_describe",

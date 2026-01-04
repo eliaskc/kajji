@@ -33,6 +33,7 @@ export type KeybindConfigKey =
 	| "jj_redo"
 	| "jj_restore"
 	| "jj_rebase"
+	| "jj_split"
 	| "jj_git_fetch"
 	| "jj_git_fetch_all"
 	| "jj_git_push"
@@ -74,6 +75,7 @@ export const DEFAULT_KEYBINDS: KeybindConfig = {
 	jj_redo: "U",
 	jj_restore: "r",
 	jj_rebase: "r",
+	jj_split: "S",
 	jj_git_fetch: "f",
 	jj_git_fetch_all: "F",
 	jj_git_push: "p",
