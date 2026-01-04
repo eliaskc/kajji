@@ -101,7 +101,7 @@ function FileStats(props: { stats: DiffStats; maxWidth: number }) {
 					)
 					return (
 						<text wrapMode="none">
-							{file.path}
+							<span style={{ fg: colors().text }}>{file.path}</span>
 							{" | "}
 							<span style={{ fg: colors().success }}>
 								{"+".repeat(bar.plus)}
@@ -159,13 +159,13 @@ function CommitHeader(props: {
 				<span style={{ fg: colors().textMuted }}>{props.commit.commitId}</span>
 			</text>
 			<text>
-				{"Author: "}
+				<span style={{ fg: colors().text }}>{"Author: "}</span>
 				<span style={{ fg: colors().secondary }}>
 					{`${props.commit.author} <${props.commit.authorEmail}>`}
 				</span>
 			</text>
 			<text>
-				{"Date:   "}
+				<span style={{ fg: colors().text }}>{"Date:   "}</span>
 				<span style={{ fg: colors().secondary }}>
 					{formatTimestamp(props.commit.timestamp)}
 				</span>

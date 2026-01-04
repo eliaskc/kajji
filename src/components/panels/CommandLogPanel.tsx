@@ -71,11 +71,9 @@ export function CommandLogPanel() {
 		<text>
 			<Show
 				when={isFocused()}
-				fallback={
-					<span style={{ fg: colors().textMuted }}>[4]─Command log</span>
-				}
+				fallback={<span style={{ fg: colors().border }}>[4]─Command log</span>}
 			>
-				<span style={{ fg: colors().primary }}>[4]─Command log</span>
+				<span style={{ fg: colors().borderFocused }}>[4]─Command log</span>
 			</Show>
 		</text>
 	)

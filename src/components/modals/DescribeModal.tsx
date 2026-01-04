@@ -63,9 +63,9 @@ export function DescribeModal(props: DescribeModalProps) {
 	const charCount = () => subject().length
 
 	const subjectTitleColor = () =>
-		focusedField() === "subject" ? colors().borderFocused : colors().textMuted
+		focusedField() === "subject" ? colors().borderFocused : colors().border
 	const bodyTitleColor = () =>
-		focusedField() === "body" ? colors().borderFocused : colors().textMuted
+		focusedField() === "body" ? colors().borderFocused : colors().border
 
 	return (
 		<box flexDirection="column" width="60%" gap={0}>

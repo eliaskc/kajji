@@ -101,9 +101,9 @@ export function SetBookmarkModal(props: SetBookmarkModalProps) {
 	const placeholder = () => `push-${props.changeId.slice(0, 8)}`
 
 	const pickerTitleColor = () =>
-		focusedField() === "picker" ? colors().borderFocused : colors().textMuted
+		focusedField() === "picker" ? colors().borderFocused : colors().border
 	const createTitleColor = () =>
-		focusedField() === "create" ? colors().borderFocused : colors().textMuted
+		focusedField() === "create" ? colors().borderFocused : colors().border
 
 	return (
 		<box flexDirection="column" width="60%" gap={0}>

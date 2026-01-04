@@ -9,10 +9,10 @@ export const lazygitTheme: Theme = {
 		backgroundSecondary: "#141414",
 		backgroundElement: "#1e1e1e",
 
-		text: "#eeeeee",
+		text: "#bfbdb6",
 		textMuted: "#808080",
 
-		border: "#606060",
+		border: "#bfbdb6",
 		borderFocused: "#7FD962",
 
 		selectionBackground: "#323264",

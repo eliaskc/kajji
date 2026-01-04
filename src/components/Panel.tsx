@@ -72,24 +72,24 @@ export function Panel(props: PanelProps) {
 					<Show
 						when={props.focused}
 						fallback={
-							<span style={{ fg: colors().textMuted }}>[{props.hotkey}]</span>
+							<span style={{ fg: colors().border }}>[{props.hotkey}]</span>
 						}
 					>
-						<span style={{ fg: colors().primary }}>[{props.hotkey}]</span>
+						<span style={{ fg: colors().borderFocused }}>[{props.hotkey}]</span>
 					</Show>
-					<span style={{ fg: colors().textMuted }}>─</span>
+					<span style={{ fg: colors().border }}>─</span>
 					<For each={props.tabs}>
 						{(tab, i) => (
 							<>
 								<Show when={i() > 0}>
-									<span style={{ fg: colors().textMuted }}> </span>
+									<span style={{ fg: colors().border }}> </span>
 								</Show>
 								<span
 									style={{
 										fg:
 											tab.id === props.activeTab
-												? colors().primary
-												: colors().textMuted,
+												? colors().borderFocused
+												: colors().border,
 									}}
 								>
 									{tab.label}
@@ -106,12 +106,12 @@ export function Panel(props: PanelProps) {
 				<Show
 					when={props.focused}
 					fallback={
-						<span style={{ fg: colors().textMuted }}>
+						<span style={{ fg: colors().border }}>
 							[{props.hotkey}]─{props.title}
 						</span>
 					}
 				>
-					<span style={{ fg: colors().primary }}>
+					<span style={{ fg: colors().borderFocused }}>
 						[{props.hotkey}]─{props.title}
 					</span>
 				</Show>

@@ -12,7 +12,7 @@ export const opencodeTheme: Theme = {
 		text: "#eeeeee",
 		textMuted: "#808080",
 
-		border: "#484848",
+		border: "#eeeeee",
 		borderFocused: "#eeeeee",
 
 		selectionBackground: "#1e1e1e",

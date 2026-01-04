@@ -107,9 +107,9 @@ export function BookmarkNameModal(props: BookmarkNameModalProps) {
 	const nameTitleColor = () =>
 		focusedField() === "name" || !hasRevisionPicker()
 			? colors().borderFocused
-			: colors().textMuted
+			: colors().border
 	const revisionTitleColor = () =>
-		focusedField() === "picker" ? colors().borderFocused : colors().textMuted
+		focusedField() === "picker" ? colors().borderFocused : colors().border
 
 	return (
 		<box flexDirection="column" width={props.width ?? "60%"} gap={0}>
