@@ -63,6 +63,8 @@ mkdirSync(`${wrapperDir}/script`, { recursive: true })
 
 cpSync("bin/kajji", `${wrapperDir}/bin/kajji`)
 cpSync("script/postinstall.mjs", `${wrapperDir}/script/postinstall.mjs`)
+cpSync("README.md", `${wrapperDir}/README.md`)
+cpSync("LICENSE", `${wrapperDir}/LICENSE`)
 
 const optionalDeps: Record<string, string> = {}
 for (const { os, arch } of platforms) {

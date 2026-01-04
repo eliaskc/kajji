@@ -10,6 +10,7 @@
 - [x] Diff viewer — full ANSI color support (difftastic, delta, etc.)
 - [x] Two-panel layout — log/bookmarks left, diff/detail right
 - [x] Commit header — author, date, timezone, empty status, description
+- [ ] Commit header indicators — bookmarks, workspace, git HEAD, remote tracking
 - [ ] Rich commit details — full message + file stats
 
 ## Navigation
@@ -52,6 +53,7 @@
 - [x] `u` — undo with confirmation (shows last operation, y/n to confirm)
 - [x] `U` — redo with confirmation
 - [x] `r` — restore file/folder in file tree (discard changes, with confirmation)
+- [ ] `B` — move bookmark here (in revisions view: pick bookmark to move to selected commit)
 
 All operations work in both Log panel and Bookmarks commits view.
 
@@ -79,6 +81,7 @@ All operations work in both Log panel and Bookmarks commits view.
 - [x] Command palette (`?`) — semantic grouping (revisions, files, bookmarks), fuzzy search, Enter executes
 - [ ] Configuration — user config file, theme selection, custom keybinds → [plan](./plans/configuration.md)
   - [ ] "Open config" command (`help-only` visibility, opens `$EDITOR`, creates default if missing)
+- [ ] Startup: detect no jj repo — suggest `jj git init` (if .git found) or show recent jj repos
 
 ## Utilities
 
@@ -100,18 +103,17 @@ Must-do before initial release:
 - [x] Update HelpModal to filter by visibility
 
 **Command log:**
-- [ ] Click to focus
-- [ ] Keyboard scroll (j/k, ctrl+u/d)
-- [ ] Expand height when focused
+- [x] Click to focus
+- [x] Keyboard scroll (j/k, ctrl+u/d)
+- [x] Expand height when focused
 
 **Input improvements:**
-- [ ] Paste (`Ctrl+V` / `Cmd+V`)
-- [ ] Word navigation (`Alt+arrows`)
-- [ ] Word delete (`Alt+backspace/delete`)
-- [ ] Jump to line start/end (`Home`/`End`)
-- [ ] Subject/body field separation — Enter saves in subject, newline in body. Use granular contexts (`modal.describe.subject`, `modal.describe.body`) rather than a new abstraction.
+- [x] Paste (`Ctrl+V` / `Cmd+V`)
+- [x] Word navigation (`Alt+arrows`)
+- [x] Word delete (`Alt+backspace/delete`)
+- [x] Jump to line start/end (`Home`/`End`)
 
-Start with describe modal, generalize to all inputs.
+Solved by replacing `<input>` with `<textarea>` using single-line keybindings (Enter→submit instead of newline). Textarea natively supports all text editing features.
 
 **Bugs:**
 - [x] Describe modal pre-fill text is garbled/corrupted
@@ -228,6 +230,31 @@ Lazygit-style interactive `jj split` — mark files/hunks to keep in current com
 
 → [Detailed plan](./plans/interactive-splitting.md)
 
+## CLI Commands
+
+> What's good for humans is good for agents, and vice versa.
+
+Agent-friendly CLI for operations jj doesn't expose non-interactively. TUI users never need to touch these; CLI users never need to touch the TUI.
+
+**Core commands:**
+- [ ] `kajji changes <rev>` — List changes with addressable hunk IDs
+- [ ] `kajji split <rev>` — Non-interactive split with hunk selection
+- [ ] `kajji stack create <revs>` — Create PR stack from commits
+- [ ] `kajji stack list` — List all PR stacks with status
+- [ ] `kajji stack sync` — Reconcile stacks after merges
+- [ ] `kajji stack show <name>` — Show stack details
+
+**Design principles:**
+- `--json` on every command for agent consumption
+- `--dry-run` for destructive operations
+- Excellent `--help` with examples
+- Errors that explain themselves and guide to solutions
+- Deterministic, composable, no hidden state
+
+**Non-goals:** Don't wrap jj commands that already work well (`diff`, `log`, `rebase`, `describe`, etc.)
+
+→ [Detailed plan](./plans/cli.md)
+
 ## Release & Distribution
 
 **Compiled binaries (v0.1.1+):**
@@ -274,10 +301,12 @@ Lazygit-style interactive `jj split` — mark files/hunks to keep in current com
 ### Bugs
 
 - **HIGH:** Divergent change IDs break operations — need to detect and fall back to commit ID
+- **HIGH:** Diff doesn't re-render on refresh (manual or auto)
 - Help modal has small visual gap between border and outer edge (OpenTUI quirk)
 - Search input in help modal doesn't render visually (filtering works though)
 - Spaces not rendering in BorderBox corner overlays
 - Help modal narrow mode: adjust 3→1 column threshold, make scrollable, fix rendering
+- Single-line textarea inputs have slight right margin → [OpenTUI issue draft](./issues/opentui-textarea-width.md)
 
 ### Performance
 

@@ -20,14 +20,25 @@ Kajji is my attempt to bring the simplicity and polish of lazygit to jj, while a
 
 ## Features
 
-- **Full-color diffs** — works with difftastic, delta, or your configured diff tool
-- **Commit log** — navigate jj's graph with vim-style keybindings
-- **Bookmarks panel** — drill down into commits and files
-- **Collapsible file tree** — with status colors (A/M/D)
-- **Operation log** — view and restore from jj op history
-- **Git operations** — fetch and push
-- **Undo/redo** — with confirmation showing what will change
-- **Help palette** — press `?` for all keybindings with fuzzy search
+**Core jj operations:**
+- [x] View commit log with graph
+- [x] View diffs (difftastic, delta, etc.)
+- [x] New / edit / describe / squash / abandon
+- [x] Undo / redo with preview
+- [x] Bookmarks (create, delete, rename, move)
+- [x] Git fetch / push
+- [x] Operation log with restore
+- [ ] Rebase
+- [ ] Split
+- [ ] Conflict resolution
+
+**TUI polish:**
+- [x] Vim-style navigation (j/k, ctrl+u/d)
+- [x] Mouse support (click, double-click, scroll)
+- [x] Collapsible file tree with status colors
+- [x] Help palette with fuzzy search (`?`)
+- [ ] Multi-select for batch operations
+- [ ] Search and filter
 
 ## Installation
 
@@ -100,19 +111,7 @@ kajji
 | `r` | Rename bookmark |
 | `b` | Create bookmark on commit |
 
-## Next up
-
-- Multi-select for batch rebase and squash
-- Search and filter (log, bookmarks, files)
-- Workspaces tab (monitor agent commits across workspaces)
-
-## Exploring
-
-- Interactive `jj split` (file/hunk selection)
-- Stacked PR creation and overview
-- Configuration (user config file, theme switching)
-
-See [PROJECT](./context/PROJECT.md) for the full plan.
+See [PROJECT](./context/PROJECT.md) for the full roadmap.
 
 ## Built With
 
