@@ -55,8 +55,14 @@ export async function jjNew(revision: string): Promise<OperationResult> {
 	}
 }
 
-export async function jjEdit(revision: string): Promise<OperationResult> {
+export async function jjEdit(
+	revision: string,
+	options?: { ignoreImmutable?: boolean },
+): Promise<OperationResult> {
 	const args = ["edit", revision]
+	if (options?.ignoreImmutable) {
+		args.push("--ignore-immutable")
+	}
 	const result = await execute(args)
 	return {
 		...result,
@@ -156,8 +162,14 @@ export async function jjShowDescriptionStyled(
 	return { subject, body }
 }
 
-export async function jjAbandon(revision: string): Promise<OperationResult> {
+export async function jjAbandon(
+	revision: string,
+	options?: { ignoreImmutable?: boolean },
+): Promise<OperationResult> {
 	const args = ["abandon", revision]
+	if (options?.ignoreImmutable) {
+		args.push("--ignore-immutable")
+	}
 	const result = await execute(args)
 	return {
 		...result,

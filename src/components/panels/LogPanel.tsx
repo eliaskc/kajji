@@ -379,9 +379,26 @@ export function LogPanel() {
 			context: "log.revisions",
 			type: "action",
 			panel: "log",
-			onSelect: () => {
+			onSelect: async () => {
 				const commit = selectedCommit()
-				if (commit) runOperation("Editing...", () => jjEdit(commit.changeId))
+				if (!commit) return
+				const result = await jjEdit(commit.changeId)
+				if (isImmutableError(result)) {
+					const confirmed = await dialog.confirm({
+						message: "Commit is immutable. Edit anyway?",
+					})
+					if (confirmed) {
+						await runOperation("Editing...", () =>
+							jjEdit(commit.changeId, { ignoreImmutable: true }),
+						)
+					}
+				} else {
+					commandLog.addEntry(result)
+					if (result.success) {
+						refresh()
+						loadOpLog()
+					}
+				}
 			},
 		},
 		{
@@ -470,8 +487,23 @@ export function LogPanel() {
 				const confirmed = await dialog.confirm({
 					message: `Abandon change ${commit.changeId.slice(0, 8)}?`,
 				})
-				if (confirmed) {
-					await runOperation("Abandoning...", () => jjAbandon(commit.changeId))
+				if (!confirmed) return
+				const result = await jjAbandon(commit.changeId)
+				if (isImmutableError(result)) {
+					const immutableConfirmed = await dialog.confirm({
+						message: "Commit is immutable. Abandon anyway?",
+					})
+					if (immutableConfirmed) {
+						await runOperation("Abandoning...", () =>
+							jjAbandon(commit.changeId, { ignoreImmutable: true }),
+						)
+					}
+				} else {
+					commandLog.addEntry(result)
+					if (result.success) {
+						refresh()
+						loadOpLog()
+					}
 				}
 			},
 		},

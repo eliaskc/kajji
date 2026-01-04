@@ -317,10 +317,25 @@ export function BookmarksPanel() {
 					context: "refs.revisions",
 					type: "action",
 					panel: "refs",
-					onSelect: () => {
+					onSelect: async () => {
 						const commit = selectedBookmarkCommit()
-						if (commit)
-							runOperation("Editing...", () => jjEdit(commit.changeId))
+						if (!commit) return
+						const result = await jjEdit(commit.changeId)
+						if (isImmutableError(result)) {
+							const confirmed = await dialog.confirm({
+								message: "Commit is immutable. Edit anyway?",
+							})
+							if (confirmed) {
+								await runOperation("Editing...", () =>
+									jjEdit(commit.changeId, { ignoreImmutable: true }),
+								)
+							}
+						} else {
+							commandLog.addEntry(result)
+							if (result.success) {
+								refresh()
+							}
+						}
 					},
 				},
 				{
@@ -408,10 +423,22 @@ export function BookmarksPanel() {
 						const confirmed = await dialog.confirm({
 							message: `Abandon change ${commit.changeId.slice(0, 8)}?`,
 						})
-						if (confirmed) {
-							await runOperation("Abandoning...", () =>
-								jjAbandon(commit.changeId),
-							)
+						if (!confirmed) return
+						const result = await jjAbandon(commit.changeId)
+						if (isImmutableError(result)) {
+							const immutableConfirmed = await dialog.confirm({
+								message: "Commit is immutable. Abandon anyway?",
+							})
+							if (immutableConfirmed) {
+								await runOperation("Abandoning...", () =>
+									jjAbandon(commit.changeId, { ignoreImmutable: true }),
+								)
+							}
+						} else {
+							commandLog.addEntry(result)
+							if (result.success) {
+								refresh()
+							}
 						}
 					},
 				},
