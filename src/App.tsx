@@ -1,6 +1,12 @@
 import { useRenderer } from "@opentui/solid"
 import { onMount } from "solid-js"
-import { jjGitFetch, jjGitPush, jjRedo, jjUndo } from "./commander/operations"
+import {
+	fetchOpLog,
+	jjGitFetch,
+	jjGitPush,
+	jjRedo,
+	jjUndo,
+} from "./commander/operations"
 import { Layout } from "./components/Layout"
 import { HelpModal } from "./components/modals/HelpModal"
 import { UndoModal } from "./components/modals/UndoModal"
@@ -211,11 +217,13 @@ function AppContent() {
 			context: "global",
 			type: "action",
 			visibility: "help-only",
-			onSelect: () => {
+			onSelect: async () => {
+				const opLines = await fetchOpLog(1)
 				dialog.open(
 					() => (
 						<UndoModal
 							type="undo"
+							operationLines={opLines}
 							onConfirm={async () => {
 								dialog.close()
 								const result = await globalLoading.run("Undoing...", jjUndo)
@@ -244,11 +252,13 @@ function AppContent() {
 			context: "global",
 			type: "action",
 			visibility: "help-only",
-			onSelect: () => {
+			onSelect: async () => {
+				const opLines = await fetchOpLog(1)
 				dialog.open(
 					() => (
 						<UndoModal
 							type="redo"
+							operationLines={opLines}
 							onConfirm={async () => {
 								dialog.close()
 								const result = await globalLoading.run("Redoing...", jjRedo)
