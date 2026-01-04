@@ -8,7 +8,7 @@ import {
 	createSignal,
 	onMount,
 } from "solid-js"
-import { jjBookmarkCreate } from "../../commander/bookmarks"
+import { jjBookmarkCreate, jjBookmarkSet } from "../../commander/bookmarks"
 import {
 	type OpLogEntry,
 	type OperationResult,
@@ -41,6 +41,7 @@ import { AnsiText } from "../AnsiText"
 import { FileTreeList } from "../FileTreeList"
 import { Panel } from "../Panel"
 import { BookmarkNameModal } from "../modals/BookmarkNameModal"
+import { BookmarkPickerModal } from "../modals/BookmarkPickerModal"
 import { DescribeModal } from "../modals/DescribeModal"
 import { RevisionPickerModal } from "../modals/RevisionPickerModal"
 import { UndoModal } from "../modals/UndoModal"
@@ -76,6 +77,7 @@ export function LogPanel() {
 		toggleFolder,
 		selectNextFile,
 		selectPrevFile,
+		bookmarks,
 	} = useSync()
 	const focus = useFocus()
 	const command = useCommand()
@@ -615,6 +617,40 @@ export function LogPanel() {
 							{ key: "tab", label: "switch field" },
 							{ key: "enter", label: "save" },
 						],
+					},
+				)
+			},
+		},
+		{
+			id: "log.revisions.bookmark_move",
+			title: "move bookmark here",
+			keybind: "bookmark_move",
+			context: "log.revisions",
+			type: "action",
+			panel: "log",
+			onSelect: () => {
+				const commit = selectedCommit()
+				if (!commit) return
+				const localBookmarks = bookmarks().filter((b) => b.isLocal)
+				if (localBookmarks.length === 0) {
+					dialog.confirm({ message: "No bookmarks to move." })
+					return
+				}
+				dialog.open(
+					() => (
+						<BookmarkPickerModal
+							title={`Move bookmark to ${commit.changeId.slice(0, 8)}`}
+							bookmarks={localBookmarks}
+							onSelect={(bookmark) => {
+								runOperation("Moving bookmark...", () =>
+									jjBookmarkSet(bookmark.name, commit.changeId),
+								)
+							}}
+						/>
+					),
+					{
+						id: "bookmark-move",
+						hints: [{ key: "enter", label: "confirm" }],
 					},
 				)
 			},

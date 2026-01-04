@@ -84,6 +84,6 @@ export const DEFAULT_KEYBINDS: KeybindConfig = {
 	bookmark_delete: "d",
 	bookmark_rename: "r",
 	bookmark_forget: "x",
-	bookmark_set: "b",
-	bookmark_move: "m",
+	bookmark_set: "B",
+	bookmark_move: "b",
 }

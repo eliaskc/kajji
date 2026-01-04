@@ -32,6 +32,7 @@ import { createDoubleClickDetector } from "../../utils/double-click"
 import { FileTreeList } from "../FileTreeList"
 import { Panel } from "../Panel"
 import { BookmarkNameModal } from "../modals/BookmarkNameModal"
+import { BookmarkPickerModal } from "../modals/BookmarkPickerModal"
 import { DescribeModal } from "../modals/DescribeModal"
 import { RevisionPickerModal } from "../modals/RevisionPickerModal"
 
@@ -547,6 +548,39 @@ export function BookmarksPanel() {
 									{ key: "tab", label: "switch field" },
 									{ key: "enter", label: "save" },
 								],
+							},
+						)
+					},
+				},
+				{
+					id: "refs.revisions.bookmark_move",
+					title: "move bookmark here",
+					keybind: "bookmark_move",
+					context: "refs.revisions",
+					type: "action",
+					panel: "refs",
+					onSelect: () => {
+						const commit = selectedBookmarkCommit()
+						if (!commit) return
+						if (localBookmarks().length === 0) {
+							dialog.confirm({ message: "No bookmarks to move." })
+							return
+						}
+						dialog.open(
+							() => (
+								<BookmarkPickerModal
+									title={`Move bookmark to ${commit.changeId.slice(0, 8)}`}
+									bookmarks={localBookmarks()}
+									onSelect={(bookmark) => {
+										runOperation("Moving bookmark...", () =>
+											jjBookmarkSet(bookmark.name, commit.changeId),
+										)
+									}}
+								/>
+							),
+							{
+								id: "bookmark-move",
+								hints: [{ key: "enter", label: "confirm" }],
 							},
 						)
 					},
