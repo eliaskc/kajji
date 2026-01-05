@@ -116,11 +116,7 @@ export function BookmarksPanel() {
 	) => {
 		if (!ref || listLength === 0) return
 		const margin = 2
-		const refAny = ref as unknown as Record<string, unknown>
-		const viewportHeight =
-			(typeof refAny.height === "number" ? refAny.height : null) ??
-			(typeof refAny.rows === "number" ? refAny.rows : null) ??
-			10
+		const viewportHeight = ref.viewport?.height ?? 30
 
 		const visibleStart = scrollTop
 		const visibleEnd = scrollTop + viewportHeight - 1

@@ -166,11 +166,7 @@ export function LogPanel() {
 			}
 
 			const margin = 2
-			const refAny = scrollRef as unknown as Record<string, unknown>
-			const viewportHeight =
-				(typeof refAny.height === "number" ? refAny.height : null) ??
-				(typeof refAny.rows === "number" ? refAny.rows : null) ??
-				10
+			const viewportHeight = scrollRef.viewport?.height ?? 30
 			const currentScrollTop = scrollTop()
 
 			const visibleStart = currentScrollTop
@@ -205,11 +201,7 @@ export function LogPanel() {
 			const lineEnd = lineOffset + selectedHeight - 1
 
 			const margin = 2
-			const refAny = opLogScrollRef as unknown as Record<string, unknown>
-			const viewportHeight =
-				(typeof refAny.height === "number" ? refAny.height : null) ??
-				(typeof refAny.rows === "number" ? refAny.rows : null) ??
-				10
+			const viewportHeight = opLogScrollRef.viewport?.height ?? 30
 			const currentScrollTop = opLogScrollTop()
 
 			const visibleStart = currentScrollTop
@@ -239,11 +231,7 @@ export function LogPanel() {
 			if (!filesScrollRef || files.length === 0) return
 
 			const margin = 2
-			const refAny = filesScrollRef as unknown as Record<string, unknown>
-			const viewportHeight =
-				(typeof refAny.height === "number" ? refAny.height : null) ??
-				(typeof refAny.rows === "number" ? refAny.rows : null) ??
-				10
+			const viewportHeight = filesScrollRef.viewport?.height ?? 30
 			const currentScrollTop = filesScrollTop()
 
 			const visibleStart = currentScrollTop
