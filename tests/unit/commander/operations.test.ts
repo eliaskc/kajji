@@ -18,6 +18,7 @@ import {
 	jjAbandon,
 	jjDescribe,
 	jjEdit,
+	jjShowDescriptionStyled,
 	jjSquash,
 	parseOpLog,
 } from "../../../src/commander/operations"
@@ -336,5 +337,114 @@ describe("jjAbandon", () => {
 
 		expect(result.command).toBe("jj abandon abc123")
 		expect(result.success).toBe(true)
+	})
+})
+
+describe("jjShowDescriptionStyled", () => {
+	test("parses subject and body from multi-line description", async () => {
+		mockExecute
+			.mockResolvedValueOnce({
+				stdout: "feat: add new feature",
+				stderr: "",
+				exitCode: 0,
+				success: true,
+			})
+			.mockResolvedValueOnce({
+				stdout:
+					"feat: add new feature\n\nThis is the body.\nWith multiple lines.",
+				stderr: "",
+				exitCode: 0,
+				success: true,
+			})
+
+		const result = await jjShowDescriptionStyled("abc123")
+
+		expect(result.subject).toBe("feat: add new feature")
+		expect(result.body).toBe("This is the body.\nWith multiple lines.")
+	})
+
+	test("returns empty body for single-line description", async () => {
+		mockExecute
+			.mockResolvedValueOnce({
+				stdout: "fix: quick bugfix",
+				stderr: "",
+				exitCode: 0,
+				success: true,
+			})
+			.mockResolvedValueOnce({
+				stdout: "fix: quick bugfix",
+				stderr: "",
+				exitCode: 0,
+				success: true,
+			})
+
+		const result = await jjShowDescriptionStyled("abc123")
+
+		expect(result.subject).toBe("fix: quick bugfix")
+		expect(result.body).toBe("")
+	})
+
+	test("handles empty description", async () => {
+		mockExecute
+			.mockResolvedValueOnce({
+				stdout: "(no description set)",
+				stderr: "",
+				exitCode: 0,
+				success: true,
+			})
+			.mockResolvedValueOnce({
+				stdout: "",
+				stderr: "",
+				exitCode: 0,
+				success: true,
+			})
+
+		const result = await jjShowDescriptionStyled("abc123")
+
+		expect(result.subject).toBe("(no description set)")
+		expect(result.body).toBe("")
+	})
+
+	test("preserves ANSI codes in styled subject", async () => {
+		const styledSubject = "\x1b[33m(empty)\x1b[0m feat: something"
+		mockExecute
+			.mockResolvedValueOnce({
+				stdout: styledSubject,
+				stderr: "",
+				exitCode: 0,
+				success: true,
+			})
+			.mockResolvedValueOnce({
+				stdout: "feat: something\n\nBody text",
+				stderr: "",
+				exitCode: 0,
+				success: true,
+			})
+
+		const result = await jjShowDescriptionStyled("abc123")
+
+		expect(result.subject).toBe(styledSubject)
+		expect(result.body).toBe("Body text")
+	})
+
+	test("handles failed execute gracefully", async () => {
+		mockExecute
+			.mockResolvedValueOnce({
+				stdout: "",
+				stderr: "error",
+				exitCode: 1,
+				success: false,
+			})
+			.mockResolvedValueOnce({
+				stdout: "",
+				stderr: "error",
+				exitCode: 1,
+				success: false,
+			})
+
+		const result = await jjShowDescriptionStyled("nonexistent")
+
+		expect(result.subject).toBe("")
+		expect(result.body).toBe("")
 	})
 })
