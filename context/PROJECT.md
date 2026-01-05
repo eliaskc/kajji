@@ -315,6 +315,10 @@ Agent-friendly CLI for operations jj doesn't expose non-interactively. TUI users
 - [x] `p` — git push change (jj-native, works on any commit)
   - Runs `jj git push --change <selected>` (auto-creates bookmark from change ID)
 - [x] `P` — push all tracked bookmarks
+- [ ] **Push behavior in log.revisions:**
+  - If revision has bookmark(s): push the bookmark(s)
+  - If no bookmark: show modal offering `--change` push (auto-creates `push-<id>` bookmark)
+  - Modal shows: "No bookmark on this revision. Push as `push-<changeId>`?" with y/n
 - [ ] PR creation after push (`gh pr create` integration)
 
 **jj-native approach:** Change ID is the identity, bookmark is just transport. No naming ceremony — select commit, press `p`, done.
@@ -336,6 +340,61 @@ Revsets are jj's query language for selecting commits (e.g., `trunk()..@`, `auth
 
 - [ ] Command mode — `:` to run arbitrary jj commands
 - [ ] Smart paste in describe modal — if pasted text contains a newline, put first line in subject and rest in body
+
+## Open in Editor
+
+- [ ] `e` — open selected file in `$EDITOR` (in file tree views)
+- [ ] `E` — open all files from selected commit in `$EDITOR`
+  - Get file list from commit's diff summary
+  - Pass all paths to editor: `$EDITOR file1 file2 file3`
+  - Most editors handle multiple files (nvim tabs/splits, VSCode tabs, etc.)
+- [ ] Works in: log.files, bookmarks.files
+- [ ] Respect `$VISUAL` over `$EDITOR` if set (standard convention)
+- [ ] Suspend TUI while editor runs, restore on exit
+
+---
+
+## Search & Filtering
+
+General pattern: list views with many items need filtering/search.
+
+- [ ] **Bookmark picker filtering** — SetBookmarkModal should support filtering bookmarks by name (fuzzy or prefix match) when selecting which bookmark to set on a revision
+- [ ] **File tree search** — `/` to filter files by name in file tree views (log.files, bookmarks.files)
+  - Fuzzy match on file path
+  - Show matching files only (collapse non-matching folders)
+  - Clear with Escape or empty input
+- [ ] **Revisions by file** — search for commits that touched files matching a pattern
+  - Could integrate with revset: `jj log -r 'file("pattern")'`
+  - Or custom UI: `/` in log.revisions opens file filter mode
+- [ ] **Similar picker patterns** — apply same filtering UX to other pickers:
+  - [ ] Revset picker (for rebase target selection)
+  - [ ] Workspace picker (when implemented)
+  - [ ] Any future list-based selection modals
+- [ ] **Mouse support in picker modals** — click to select item in bookmark picker, revset picker, etc. (focus switching already works)
+
+Part of broader search/filter work (see Revset Filtering above).
+
+---
+
+## Confirmation Flags
+
+jj commands that modify history require confirmation flags. We handle `--ignore-immutable` with a confirmation modal. Other flags to handle:
+
+- [ ] **`--allow-backwards`** — required when moving bookmarks backwards/sideways
+  - `jj bookmark set` — when target is ancestor of current position
+  - `jj bookmark move` — same case
+  - UX: detect when needed, show confirmation modal ("This will move bookmark backwards. Continue?")
+- [ ] **`--ignore-immutable`** — already implemented with confirmation modal
+- [ ] **`--allow-large-revsets`** — for operations affecting many commits
+  - `jj rebase` with broad revsets
+  - `jj abandon` with multiple commits
+  - UX: show count warning ("This will affect N commits. Continue?")
+
+**Implementation pattern:**
+1. Run command without flag
+2. Parse error output for specific error codes/messages
+3. Show appropriate confirmation modal
+4. Re-run with flag if confirmed
 
 ---
 
@@ -383,6 +442,7 @@ All major performance issues have been resolved:
 - [ ] Selected bookmark should match working copy on load
 - [ ] Active bookmark indication when navigating
 - [x] Disable selection highlight in unfocused panels
+- [ ] Keep file selection highlight visible when diff panel is focused (files remain navigable via mouse even when diff is focused)
 - [ ] Revisit keybind consistency between revisions and bookmarks panels — e.g., `n` for create bookmark (matches "new"), `d` for rename (matches "describe"). May not be needed once unfocused highlight is disabled.
 - [x] All command titles lowercase (e.g., "new" not "New")
 - [x] Simplified command titles in context (e.g., "create" not "Create bookmark" in bookmarks context)
