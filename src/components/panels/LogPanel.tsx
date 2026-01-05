@@ -6,6 +6,7 @@ import {
 	createEffect,
 	createMemo,
 	createSignal,
+	on,
 	onMount,
 } from "solid-js"
 import { jjBookmarkCreate, jjBookmarkSet } from "../../commander/bookmarks"
@@ -154,114 +155,115 @@ export function LogPanel() {
 	let opLogScrollRef: ScrollBoxRenderable | undefined
 	const [opLogScrollTop, setOpLogScrollTop] = createSignal(0)
 
-	createEffect(() => {
-		const index = selectedIndex()
-		const commitList = commits()
-		if (!scrollRef || commitList.length === 0) return
+	createEffect(
+		on([selectedIndex, commits], ([index, commitList]) => {
+			if (!scrollRef || commitList.length === 0) return
 
-		let lineOffset = 0
-		const clampedIndex = Math.min(index, commitList.length)
-		for (const commit of commitList.slice(0, clampedIndex)) {
-			lineOffset += commit.lines.length
-		}
+			let lineOffset = 0
+			const clampedIndex = Math.min(index, commitList.length)
+			for (const commit of commitList.slice(0, clampedIndex)) {
+				lineOffset += commit.lines.length
+			}
 
-		const margin = 2
-		const refAny = scrollRef as unknown as Record<string, unknown>
-		const viewportHeight =
-			(typeof refAny.height === "number" ? refAny.height : null) ??
-			(typeof refAny.rows === "number" ? refAny.rows : null) ??
-			10
-		const currentScrollTop = scrollTop()
+			const margin = 2
+			const refAny = scrollRef as unknown as Record<string, unknown>
+			const viewportHeight =
+				(typeof refAny.height === "number" ? refAny.height : null) ??
+				(typeof refAny.rows === "number" ? refAny.rows : null) ??
+				10
+			const currentScrollTop = scrollTop()
 
-		const visibleStart = currentScrollTop
-		const visibleEnd = currentScrollTop + viewportHeight - 1
-		const safeStart = visibleStart + margin
-		const safeEnd = visibleEnd - margin
+			const visibleStart = currentScrollTop
+			const visibleEnd = currentScrollTop + viewportHeight - 1
+			const safeStart = visibleStart + margin
+			const safeEnd = visibleEnd - margin
 
-		let newScrollTop = currentScrollTop
-		if (lineOffset < safeStart) {
-			newScrollTop = Math.max(0, lineOffset - margin)
-		} else if (lineOffset > safeEnd) {
-			newScrollTop = Math.max(0, lineOffset - viewportHeight + margin + 1)
-		}
+			let newScrollTop = currentScrollTop
+			if (lineOffset < safeStart) {
+				newScrollTop = Math.max(0, lineOffset - margin)
+			} else if (lineOffset > safeEnd) {
+				newScrollTop = Math.max(0, lineOffset - viewportHeight + margin + 1)
+			}
 
-		if (newScrollTop !== currentScrollTop) {
-			scrollRef.scrollTo(newScrollTop)
-			setScrollTop(newScrollTop)
-		}
-	})
+			if (newScrollTop !== currentScrollTop) {
+				scrollRef.scrollTo(newScrollTop)
+				setScrollTop(newScrollTop)
+			}
+		}),
+	)
 
-	createEffect(() => {
-		const index = opLogSelectedIndex()
-		const entries = opLogEntries()
-		if (!opLogScrollRef || entries.length === 0) return
+	createEffect(
+		on([opLogSelectedIndex, opLogEntries], ([index, entries]) => {
+			if (!opLogScrollRef || entries.length === 0) return
 
-		let lineOffset = 0
-		const clampedIndex = Math.min(index, entries.length)
-		for (const entry of entries.slice(0, clampedIndex)) {
-			lineOffset += entry.lines.length
-		}
-		const selectedHeight = entries[clampedIndex]?.lines.length ?? 1
-		const lineEnd = lineOffset + selectedHeight - 1
+			let lineOffset = 0
+			const clampedIndex = Math.min(index, entries.length)
+			for (const entry of entries.slice(0, clampedIndex)) {
+				lineOffset += entry.lines.length
+			}
+			const selectedHeight = entries[clampedIndex]?.lines.length ?? 1
+			const lineEnd = lineOffset + selectedHeight - 1
 
-		const margin = 2
-		const refAny = opLogScrollRef as unknown as Record<string, unknown>
-		const viewportHeight =
-			(typeof refAny.height === "number" ? refAny.height : null) ??
-			(typeof refAny.rows === "number" ? refAny.rows : null) ??
-			10
-		const currentScrollTop = opLogScrollTop()
+			const margin = 2
+			const refAny = opLogScrollRef as unknown as Record<string, unknown>
+			const viewportHeight =
+				(typeof refAny.height === "number" ? refAny.height : null) ??
+				(typeof refAny.rows === "number" ? refAny.rows : null) ??
+				10
+			const currentScrollTop = opLogScrollTop()
 
-		const visibleStart = currentScrollTop
-		const visibleEnd = currentScrollTop + viewportHeight - 1
-		const safeStart = visibleStart + margin
-		const safeEnd = visibleEnd - margin
+			const visibleStart = currentScrollTop
+			const visibleEnd = currentScrollTop + viewportHeight - 1
+			const safeStart = visibleStart + margin
+			const safeEnd = visibleEnd - margin
 
-		let newScrollTop = currentScrollTop
-		if (lineOffset < safeStart) {
-			newScrollTop = Math.max(0, lineOffset - margin)
-		} else if (lineEnd > safeEnd) {
-			newScrollTop = Math.max(0, lineEnd - viewportHeight + margin + 1)
-		}
+			let newScrollTop = currentScrollTop
+			if (lineOffset < safeStart) {
+				newScrollTop = Math.max(0, lineOffset - margin)
+			} else if (lineEnd > safeEnd) {
+				newScrollTop = Math.max(0, lineEnd - viewportHeight + margin + 1)
+			}
 
-		if (newScrollTop !== currentScrollTop) {
-			opLogScrollRef.scrollTo(newScrollTop)
-			setOpLogScrollTop(newScrollTop)
-		}
-	})
+			if (newScrollTop !== currentScrollTop) {
+				opLogScrollRef.scrollTo(newScrollTop)
+				setOpLogScrollTop(newScrollTop)
+			}
+		}),
+	)
 
 	let filesScrollRef: ScrollBoxRenderable | undefined
 	const [filesScrollTop, setFilesScrollTop] = createSignal(0)
 
-	createEffect(() => {
-		const index = selectedFileIndex()
-		if (!filesScrollRef || flatFiles().length === 0) return
+	createEffect(
+		on([selectedFileIndex, flatFiles], ([index, files]) => {
+			if (!filesScrollRef || files.length === 0) return
 
-		const margin = 2
-		const refAny = filesScrollRef as unknown as Record<string, unknown>
-		const viewportHeight =
-			(typeof refAny.height === "number" ? refAny.height : null) ??
-			(typeof refAny.rows === "number" ? refAny.rows : null) ??
-			10
-		const currentScrollTop = filesScrollTop()
+			const margin = 2
+			const refAny = filesScrollRef as unknown as Record<string, unknown>
+			const viewportHeight =
+				(typeof refAny.height === "number" ? refAny.height : null) ??
+				(typeof refAny.rows === "number" ? refAny.rows : null) ??
+				10
+			const currentScrollTop = filesScrollTop()
 
-		const visibleStart = currentScrollTop
-		const visibleEnd = currentScrollTop + viewportHeight - 1
-		const safeStart = visibleStart + margin
-		const safeEnd = visibleEnd - margin
+			const visibleStart = currentScrollTop
+			const visibleEnd = currentScrollTop + viewportHeight - 1
+			const safeStart = visibleStart + margin
+			const safeEnd = visibleEnd - margin
 
-		let newScrollTop = currentScrollTop
-		if (index < safeStart) {
-			newScrollTop = Math.max(0, index - margin)
-		} else if (index > safeEnd) {
-			newScrollTop = Math.max(0, index - viewportHeight + margin + 1)
-		}
+			let newScrollTop = currentScrollTop
+			if (index < safeStart) {
+				newScrollTop = Math.max(0, index - margin)
+			} else if (index > safeEnd) {
+				newScrollTop = Math.max(0, index - viewportHeight + margin + 1)
+			}
 
-		if (newScrollTop !== currentScrollTop) {
-			filesScrollRef.scrollTo(newScrollTop)
-			setFilesScrollTop(newScrollTop)
-		}
-	})
+			if (newScrollTop !== currentScrollTop) {
+				filesScrollRef.scrollTo(newScrollTop)
+				setFilesScrollTop(newScrollTop)
+			}
+		}),
+	)
 
 	const handleFileEnter = () => {
 		const file = flatFiles()[selectedFileIndex()]

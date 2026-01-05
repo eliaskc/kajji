@@ -1,6 +1,14 @@
 import type { ScrollBoxRenderable } from "@opentui/core"
 import { useRenderer } from "@opentui/solid"
-import { For, Match, Show, Switch, createEffect, createSignal } from "solid-js"
+import {
+	For,
+	Match,
+	Show,
+	Switch,
+	createEffect,
+	createSignal,
+	on,
+} from "solid-js"
 import {
 	jjBookmarkCreate,
 	jjBookmarkDelete,
@@ -132,38 +140,41 @@ export function BookmarksPanel() {
 		}
 	}
 
-	createEffect(() => {
-		const index = selectedBookmarkIndex()
-		scrollIntoView(
-			listScrollRef,
-			index,
-			listScrollTop(),
-			setListScrollTop,
-			localBookmarks().length,
-		)
-	})
+	createEffect(
+		on(selectedBookmarkIndex, (index) => {
+			scrollIntoView(
+				listScrollRef,
+				index,
+				listScrollTop(),
+				setListScrollTop,
+				localBookmarks().length,
+			)
+		}),
+	)
 
-	createEffect(() => {
-		const index = selectedBookmarkCommitIndex()
-		scrollIntoView(
-			commitsScrollRef,
-			index,
-			commitsScrollTop(),
-			setCommitsScrollTop,
-			bookmarkCommits().length,
-		)
-	})
+	createEffect(
+		on(selectedBookmarkCommitIndex, (index) => {
+			scrollIntoView(
+				commitsScrollRef,
+				index,
+				commitsScrollTop(),
+				setCommitsScrollTop,
+				bookmarkCommits().length,
+			)
+		}),
+	)
 
-	createEffect(() => {
-		const index = selectedBookmarkFileIndex()
-		scrollIntoView(
-			filesScrollRef,
-			index,
-			filesScrollTop(),
-			setFilesScrollTop,
-			bookmarkFlatFiles().length,
-		)
-	})
+	createEffect(
+		on(selectedBookmarkFileIndex, (index) => {
+			scrollIntoView(
+				filesScrollRef,
+				index,
+				filesScrollTop(),
+				setFilesScrollTop,
+				bookmarkFlatFiles().length,
+			)
+		}),
+	)
 
 	const title = () => {
 		const mode = bookmarkViewMode()
