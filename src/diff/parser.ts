@@ -244,3 +244,32 @@ export function getDiffTotals(files: FileDiffMetadata[]): {
 
 	return { files: files.length, additions, deletions }
 }
+
+/**
+ * Get the maximum line number across all flattened files.
+ * Used for consistent gutter width alignment.
+ */
+export function getMaxLineNumber(files: FlattenedFile[]): number {
+	let max = 0
+	for (const file of files) {
+		for (const hunk of file.hunks) {
+			for (const line of hunk.lines) {
+				if (line.oldLineNumber && line.oldLineNumber > max) {
+					max = line.oldLineNumber
+				}
+				if (line.newLineNumber && line.newLineNumber > max) {
+					max = line.newLineNumber
+				}
+			}
+		}
+	}
+	return max
+}
+
+/**
+ * Calculate the width needed to display a line number.
+ */
+export function getLineNumWidth(maxLineNum: number): number {
+	if (maxLineNum <= 0) return 1
+	return Math.max(1, Math.floor(Math.log10(maxLineNum)) + 1)
+}

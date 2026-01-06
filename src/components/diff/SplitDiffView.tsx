@@ -14,6 +14,8 @@ import {
 	getFileStatusColor,
 	getFileStatusIndicator,
 	getLanguage,
+	getLineNumWidth,
+	getMaxLineNumber,
 	tokenizeLineSync,
 } from "../../diff"
 
@@ -34,8 +36,6 @@ const BAR_COLORS = {
 const BAR_CHAR = "▌"
 const EMPTY_STRIPE_CHAR = "╱"
 const EMPTY_STRIPE_COLOR = "#2a2a2a"
-
-const LINE_NUM_WIDTH = 3
 
 interface SplitDiffViewProps {
 	files: FlattenedFile[]
@@ -59,8 +59,12 @@ export function SplitDiffView(props: SplitDiffViewProps) {
 		return props.files
 	})
 
-	// Calculate column widths
-	const columnWidth = createMemo(() => Math.floor((props.width - 3) / 2)) // -3 for separator
+	const lineNumWidth = createMemo(() => {
+		const maxLine = getMaxLineNumber(props.files)
+		return Math.max(1, getLineNumWidth(maxLine))
+	})
+
+	const columnWidth = createMemo(() => Math.floor((props.width - 3) / 2))
 
 	return (
 		<box flexDirection="column">
@@ -70,6 +74,7 @@ export function SplitDiffView(props: SplitDiffViewProps) {
 						file={file}
 						currentHunkId={props.currentHunkId}
 						columnWidth={columnWidth()}
+						lineNumWidth={lineNumWidth()}
 					/>
 				)}
 			</For>
@@ -84,6 +89,7 @@ interface SplitFileSectionProps {
 	file: FlattenedFile
 	currentHunkId?: HunkId | null
 	columnWidth: number
+	lineNumWidth: number
 }
 
 function SplitFileSection(props: SplitFileSectionProps) {
@@ -129,6 +135,7 @@ function SplitFileSection(props: SplitFileSectionProps) {
 						isCurrent={hunk.hunkId === props.currentHunkId}
 						columnWidth={props.columnWidth}
 						filename={props.file.name}
+						lineNumWidth={props.lineNumWidth}
 					/>
 				)}
 			</For>
@@ -143,6 +150,7 @@ interface SplitHunkSectionProps {
 	isCurrent: boolean
 	columnWidth: number
 	filename: string
+	lineNumWidth: number
 }
 
 function SplitHunkSection(props: SplitHunkSectionProps) {
@@ -170,6 +178,7 @@ function SplitHunkSection(props: SplitHunkSectionProps) {
 						row={row}
 						columnWidth={props.columnWidth}
 						filename={props.filename}
+						lineNumWidth={props.lineNumWidth}
 					/>
 				)}
 			</For>
@@ -249,6 +258,7 @@ interface SplitRowViewProps {
 	row: AlignedRow
 	columnWidth: number
 	filename: string
+	lineNumWidth: number
 }
 
 interface TokenWithEmphasis extends SyntaxToken {
@@ -258,73 +268,36 @@ interface TokenWithEmphasis extends SyntaxToken {
 function SplitRowView(props: SplitRowViewProps) {
 	const { colors } = useTheme()
 
-	const contentWidth = createMemo(() => props.columnWidth - LINE_NUM_WIDTH - 2)
 	const language = createMemo(() => getLanguage(props.filename))
 
 	const formatLineNum = (num: number | undefined) =>
-		(num?.toString() ?? "").padStart(LINE_NUM_WIDTH, " ")
+		(num?.toString() ?? "").padStart(props.lineNumWidth, " ")
 
 	const tokenizeWithWordDiff = (
 		content: string,
 		wordDiff: WordDiffSegment[] | undefined,
-		maxWidth: number,
 		emphasisType: "removed" | "added",
 	): TokenWithEmphasis[] => {
 		if (!wordDiff) {
 			const tokens = tokenizeLineSync(content, language())
-			let currentLen = 0
-			const result: TokenWithEmphasis[] = []
-
-			for (const token of tokens) {
-				if (currentLen >= maxWidth) break
-				const remaining = maxWidth - currentLen
-				if (token.content.length <= remaining) {
-					result.push({
-						content: token.content,
-						color: token.color ?? colors().text,
-					})
-					currentLen += token.content.length
-				} else {
-					result.push({
-						content: `${token.content.slice(0, remaining - 1)}…`,
-						color: token.color ?? colors().text,
-					})
-					break
-				}
-			}
-			return result
+			return tokens.map((t) => ({
+				content: t.content,
+				color: t.color ?? colors().text,
+			}))
 		}
 
 		const result: TokenWithEmphasis[] = []
-		let currentLen = 0
-
 		for (const segment of wordDiff) {
-			if (currentLen >= maxWidth) break
-
 			const segmentTokens = tokenizeLineSync(segment.text, language())
 			const isEmphasis = segment.type === emphasisType
-
 			for (const token of segmentTokens) {
-				if (currentLen >= maxWidth) break
-				const remaining = maxWidth - currentLen
-				if (token.content.length <= remaining) {
-					result.push({
-						content: token.content,
-						color: token.color ?? colors().text,
-						emphasis: isEmphasis,
-					})
-					currentLen += token.content.length
-				} else {
-					result.push({
-						content: `${token.content.slice(0, remaining - 1)}…`,
-						color: token.color ?? colors().text,
-						emphasis: isEmphasis,
-					})
-					break
-				}
+				result.push({
+					content: token.content,
+					color: token.color ?? colors().text,
+					emphasis: isEmphasis,
+				})
 			}
 		}
-
 		return result
 	}
 
@@ -342,7 +315,6 @@ function SplitRowView(props: SplitRowViewProps) {
 		tokenizeWithWordDiff(
 			props.row.left?.content ?? "",
 			props.row.leftWordDiff,
-			contentWidth(),
 			"removed",
 		),
 	)
@@ -351,7 +323,6 @@ function SplitRowView(props: SplitRowViewProps) {
 		tokenizeWithWordDiff(
 			props.row.right?.content ?? "",
 			props.row.rightWordDiff,
-			contentWidth(),
 			"added",
 		),
 	)
@@ -400,7 +371,7 @@ function SplitRowView(props: SplitRowViewProps) {
 					}
 				>
 					<text wrapMode="none">
-						<span style={{ fg: leftBar()?.color }}>{leftBar()?.char}</span>
+						<span style={{ fg: leftBar()?.color }}>{leftBar()?.char}</span>{" "}
 						<span style={{ fg: leftLineNumColor() }}>
 							{formatLineNum(props.row.left?.oldLineNumber)}
 						</span>
@@ -420,6 +391,7 @@ function SplitRowView(props: SplitRowViewProps) {
 					</text>
 				</Show>
 			</box>
+			<box width={1} />
 			<box backgroundColor={rightBg()} flexGrow={1} flexBasis={0}>
 				<Show
 					when={props.row.right}
@@ -430,7 +402,7 @@ function SplitRowView(props: SplitRowViewProps) {
 					}
 				>
 					<text wrapMode="none">
-						<span style={{ fg: rightBar()?.color }}>{rightBar()?.char}</span>
+						<span style={{ fg: rightBar()?.color }}>{rightBar()?.char}</span>{" "}
 						<span style={{ fg: rightLineNumColor() }}>
 							{formatLineNum(props.row.right?.newLineNumber)}
 						</span>

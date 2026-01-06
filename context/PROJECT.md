@@ -205,12 +205,15 @@ Each corner prop accepts `JSX.Element | string`. Internally wraps content in `po
 
 - [x] Basic diff display with ANSI colors
 - [x] Split/unified view with width-based default (split if mainAreaWidth >= 90)
-- [ ] Dynamic line number width — adapt to max line number in file (1-5 digits)
+- [x] Dynamic line number width — adapts to max line number across all files
+- [x] Unified view single-column gutter with colored numbers (deletion=red, addition=green)
+- [x] Syntax highlighting via Shiki (`ayu-dark` theme)
 - [ ] Synchronized horizontal scroll — both sides of split diff scroll together (like @pierre/diffs)
 - [ ] Layout modes — half-width, full-width, unified
 - [ ] Auto-switch based on terminal width
 - [ ] Manual toggle keybind (`v` or `+`/`-`)
 - [ ] Difftastic integration with correct width
+- [ ] Diff theming — refactor hardcoded diff colors to `src/theme/` → [plan](./plans/custom-diff-renderer.md#theming)
 
 → [Detailed plan](./plans/diff-viewing.md)
 

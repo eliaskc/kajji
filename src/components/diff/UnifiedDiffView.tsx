@@ -12,6 +12,8 @@ import {
 	getFileStatusColor,
 	getFileStatusIndicator,
 	getLanguage,
+	getLineNumWidth,
+	getMaxLineNumber,
 	tokenizeLineSync,
 } from "../../diff"
 
@@ -51,11 +53,20 @@ export function UnifiedDiffView(props: UnifiedDiffViewProps) {
 		return props.files
 	})
 
+	const lineNumWidth = createMemo(() => {
+		const maxLine = getMaxLineNumber(props.files)
+		return Math.max(1, getLineNumWidth(maxLine))
+	})
+
 	return (
 		<box flexDirection="column">
 			<For each={filesToRender()}>
 				{(file) => (
-					<FileSection file={file} currentHunkId={props.currentHunkId} />
+					<FileSection
+						file={file}
+						currentHunkId={props.currentHunkId}
+						lineNumWidth={lineNumWidth()}
+					/>
 				)}
 			</For>
 			<Show when={props.files.length === 0}>
@@ -68,6 +79,7 @@ export function UnifiedDiffView(props: UnifiedDiffViewProps) {
 interface FileSectionProps {
 	file: FlattenedFile
 	currentHunkId?: HunkId | null
+	lineNumWidth: number
 }
 
 function FileSection(props: FileSectionProps) {
@@ -112,6 +124,7 @@ function FileSection(props: FileSectionProps) {
 						hunk={hunk}
 						isCurrent={hunk.hunkId === props.currentHunkId}
 						filename={props.file.name}
+						lineNumWidth={props.lineNumWidth}
 					/>
 				)}
 			</For>
@@ -125,6 +138,7 @@ interface HunkSectionProps {
 	hunk: FlattenedHunk
 	isCurrent: boolean
 	filename: string
+	lineNumWidth: number
 }
 
 interface LineWithWordDiff {
@@ -203,6 +217,7 @@ function HunkSection(props: HunkSectionProps) {
 						line={item.line}
 						filename={props.filename}
 						wordDiff={item.wordDiff}
+						lineNumWidth={props.lineNumWidth}
 					/>
 				)}
 			</For>
@@ -214,9 +229,8 @@ interface DiffLineViewProps {
 	line: DiffLine
 	filename: string
 	wordDiff?: WordDiffSegment[]
+	lineNumWidth: number
 }
-
-const LINE_NUM_WIDTH = 3
 
 interface TokenWithEmphasis extends SyntaxToken {
 	emphasis?: boolean
@@ -281,21 +295,24 @@ function DiffLineView(props: DiffLineViewProps) {
 		return result
 	})
 
-	const oldLineNum = createMemo(() =>
-		(props.line.oldLineNumber?.toString() ?? "").padStart(LINE_NUM_WIDTH, " "),
-	)
+	const lineNum = createMemo(() => {
+		const num =
+			props.line.type === "deletion"
+				? props.line.oldLineNumber
+				: props.line.newLineNumber
+		return (num?.toString() ?? "").padStart(props.lineNumWidth, " ")
+	})
 
-	const newLineNum = createMemo(() =>
-		(props.line.newLineNumber?.toString() ?? "").padStart(LINE_NUM_WIDTH, " "),
-	)
-
-	const oldLineNumColor = createMemo(() =>
-		props.line.type === "deletion" ? colors().error : colors().textMuted,
-	)
-
-	const newLineNumColor = createMemo(() =>
-		props.line.type === "addition" ? colors().success : colors().textMuted,
-	)
+	const lineNumColor = createMemo(() => {
+		switch (props.line.type) {
+			case "deletion":
+				return colors().error
+			case "addition":
+				return colors().success
+			default:
+				return colors().textMuted
+		}
+	})
 
 	const bar = createMemo(() => {
 		switch (props.line.type) {
@@ -311,9 +328,8 @@ function DiffLineView(props: DiffLineViewProps) {
 	return (
 		<box flexDirection="row" backgroundColor={lineBg()}>
 			<text wrapMode="none">
-				<span style={{ fg: bar().color }}>{bar().char}</span>
-				<span style={{ fg: oldLineNumColor() }}>{oldLineNum()}</span>
-				<span style={{ fg: newLineNumColor() }}> {newLineNum()}</span>
+				<span style={{ fg: bar().color }}>{bar().char}</span>{" "}
+				<span style={{ fg: lineNumColor() }}>{lineNum()}</span>
 				<span style={{ fg: colors().textMuted }}> │ </span>
 				<For each={tokens()}>
 					{(token) => (

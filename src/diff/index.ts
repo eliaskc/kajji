@@ -21,6 +21,8 @@ export {
 	getDiffTotals,
 	getFileStatusColor,
 	getFileStatusIndicator,
+	getLineNumWidth,
+	getMaxLineNumber,
 	parseDiffString,
 	type DiffLine,
 	type DiffLineType,

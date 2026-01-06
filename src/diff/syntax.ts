@@ -38,7 +38,7 @@ export async function initHighlighter(): Promise<void> {
 	}
 
 	highlighterPromise = getSharedHighlighter({
-		themes: ["pierre-dark"],
+		themes: ["ayu-dark"],
 		langs: COMMON_LANGS,
 	})
 
@@ -76,7 +76,7 @@ export async function tokenizeLine(
 
 		const result = hl.codeToTokens(content, {
 			lang: language,
-			theme: "pierre-dark",
+			theme: "ayu-dark",
 		})
 
 		const tokens: SyntaxToken[] = []
@@ -111,7 +111,7 @@ export function tokenizeLineSync(
 
 		const result = highlighter.codeToTokens(content, {
 			lang: language,
-			theme: "pierre-dark",
+			theme: "ayu-dark",
 		})
 
 		const tokens: SyntaxToken[] = []
