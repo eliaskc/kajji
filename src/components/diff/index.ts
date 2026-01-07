@@ -1,3 +1,5 @@
 export { FileList, FileSummary } from "./FileList"
 export { SplitDiffView } from "./SplitDiffView"
 export { UnifiedDiffView } from "./UnifiedDiffView"
+export { VirtualizedSplitView } from "./VirtualizedSplitView"
+export { VirtualizedUnifiedView } from "./VirtualizedUnifiedView"

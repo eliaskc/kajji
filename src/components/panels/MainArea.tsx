@@ -19,7 +19,7 @@ import { type FlattenedFile, fetchParsedDiff, flattenDiff } from "../../diff"
 import { getFilePaths } from "../../utils/file-tree"
 import { AnsiText } from "../AnsiText"
 import { Panel } from "../Panel"
-import { FileSummary, SplitDiffView, UnifiedDiffView } from "../diff"
+import { FileSummary, VirtualizedSplitView, VirtualizedUnifiedView } from "../diff"
 
 type DiffRenderMode = "passthrough" | "custom"
 type DiffViewStyle = "unified" | "split"
@@ -232,6 +232,7 @@ export function MainArea() {
 	let scrollRef: ScrollBoxRenderable | undefined
 
 	const [scrollTop, setScrollTop] = createSignal(0)
+	const [viewportHeight, setViewportHeight] = createSignal(30)
 	const [limit, setLimit] = createSignal(INITIAL_LIMIT)
 	const [currentCommitId, setCurrentCommitId] = createSignal<string | null>(
 		null,
@@ -403,7 +404,9 @@ export function MainArea() {
 		const pollInterval = setInterval(() => {
 			if (scrollRef) {
 				const currentScroll = scrollRef.scrollTop ?? 0
-				if (currentScroll !== scrollTop()) {
+				const currentViewport = scrollRef.viewport?.height ?? 30
+				if (currentScroll !== scrollTop() || currentViewport !== viewportHeight()) {
+					setViewportHeight(currentViewport)
 					setScrollTop(currentScroll)
 					loadMoreIfNeeded()
 				}
@@ -594,18 +597,22 @@ export function MainArea() {
 									activeFileId={activeFileId()}
 								/>
 								<Show when={viewStyle() === "unified"}>
-									<UnifiedDiffView
+									<VirtualizedUnifiedView
 										files={parsedFiles()}
 										activeFileId={null}
 										currentHunkId={activeHunkId()}
+										scrollTop={scrollTop()}
+										viewportHeight={viewportHeight()}
 									/>
 								</Show>
 								<Show when={viewStyle() === "split"}>
-									<SplitDiffView
+									<VirtualizedSplitView
 										files={parsedFiles()}
 										activeFileId={null}
 										currentHunkId={activeHunkId()}
 										width={mainAreaWidth()}
+										scrollTop={scrollTop()}
+										viewportHeight={viewportHeight()}
 									/>
 								</Show>
 							</Show>

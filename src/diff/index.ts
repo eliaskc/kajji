@@ -68,3 +68,21 @@ export {
 	tokenizeLineSync,
 	type SyntaxToken,
 } from "./syntax"
+
+// Syntax cache
+export {
+	clearSyntaxCache,
+	getSyntaxCacheSize,
+	tokenizeWithCache,
+} from "./syntax-cache"
+
+// Virtualization
+export {
+	findRowIndexByFileId,
+	findRowIndexByHunkId,
+	flattenToRows,
+	getVisibleRange,
+	type DiffRow,
+	type DiffRowType,
+	type ViewportState,
+} from "./virtualization"
