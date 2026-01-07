@@ -3,7 +3,7 @@ import {
 	Show,
 	createMemo,
 	createEffect,
-	createSignal,
+	on,
 	createContext,
 	useContext,
 } from "solid-js"
@@ -305,35 +305,33 @@ function DiffLineRow(props: DiffLineRowProps) {
 		}
 	})
 
-	const [tokens, setTokens] = createSignal<TokenWithEmphasis[]>([
-		{ content: props.row.content, color: colors().text },
-	])
+	const tokens = createMemo(
+		on(
+			() => scheduler?.version() ?? 0,
+			() => {
+				const content = props.row.content
+				const defaultColor = colors().text
+				const lang = language()
 
-	createEffect(() => {
-		const content = props.row.content
-		const defaultColor = colors().text
-		const lang = language()
+				if (!scheduler) {
+					return [{ content, color: defaultColor }] as TokenWithEmphasis[]
+				}
 
-		if (!scheduler) {
-			setTokens([{ content, color: defaultColor }])
-			return
-		}
+				const key = scheduler.makeKey(content, lang)
+				const cached = scheduler.store[key]
 
-		scheduler.version()
-		const key = scheduler.makeKey(content, lang)
-		const cached = scheduler.store[key]
+				if (cached) {
+					return cached.map((t) => ({
+						content: t.content,
+						color: t.color ?? defaultColor,
+					})) as TokenWithEmphasis[]
+				}
 
-		if (cached) {
-			setTokens(
-				cached.map((t) => ({
-					content: t.content,
-					color: t.color ?? defaultColor,
-				})),
-			)
-		} else {
-			setTokens([{ content, color: defaultColor }])
-		}
-	})
+				return [{ content, color: defaultColor }] as TokenWithEmphasis[]
+			},
+			{ defer: false },
+		),
+	)
 
 	const lineNum = createMemo(() => {
 		const num =

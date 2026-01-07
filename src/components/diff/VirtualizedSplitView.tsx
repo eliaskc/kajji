@@ -3,7 +3,7 @@ import {
 	Show,
 	createMemo,
 	createEffect,
-	createSignal,
+	on,
 	createContext,
 	useContext,
 } from "solid-js"
@@ -482,63 +482,71 @@ function SplitContentRow(props: SplitContentRowProps) {
 		return result
 	}
 
-	const [leftTokens, setLeftTokens] = createSignal<TokenWithEmphasis[]>([])
-	const [rightTokens, setRightTokens] = createSignal<TokenWithEmphasis[]>([])
+	const leftTokens = createMemo(
+		on(
+			() => scheduler?.version() ?? 0,
+			(): TokenWithEmphasis[] => {
+				const lang = language()
+				const leftContent = props.row.left?.content ?? ""
 
-	createEffect(() => {
-		const lang = language()
-		scheduler?.version()
+				if (!leftContent) return []
 
-		const leftContent = props.row.left?.content ?? ""
-		if (!leftContent) {
-			setLeftTokens([])
-		} else {
-			const wordDiff = props.row.leftWordDiff
-			if (wordDiff) {
-				setLeftTokens(tokenizeSegments(wordDiff, "removed", lang))
-			} else if (!scheduler) {
-				setLeftTokens([{ content: leftContent, color: defaultColor }])
-			} else {
+				const wordDiff = props.row.leftWordDiff
+				if (wordDiff) {
+					return tokenizeSegments(wordDiff, "removed", lang)
+				}
+
+				if (!scheduler) {
+					return [{ content: leftContent, color: defaultColor }]
+				}
+
 				const key = scheduler.makeKey(leftContent, lang)
 				const cached = scheduler.store[key]
 				if (cached) {
-					setLeftTokens(
-						cached.map((t) => ({
-							content: t.content,
-							color: t.color ?? defaultColor,
-						})),
-					)
-				} else {
-					setLeftTokens([{ content: leftContent, color: defaultColor }])
+					return cached.map((t) => ({
+						content: t.content,
+						color: t.color ?? defaultColor,
+					}))
 				}
-			}
-		}
 
-		const rightContent = props.row.right?.content ?? ""
-		if (!rightContent) {
-			setRightTokens([])
-		} else {
-			const wordDiff = props.row.rightWordDiff
-			if (wordDiff) {
-				setRightTokens(tokenizeSegments(wordDiff, "added", lang))
-			} else if (!scheduler) {
-				setRightTokens([{ content: rightContent, color: defaultColor }])
-			} else {
+				return [{ content: leftContent, color: defaultColor }]
+			},
+			{ defer: false },
+		),
+	)
+
+	const rightTokens = createMemo(
+		on(
+			() => scheduler?.version() ?? 0,
+			(): TokenWithEmphasis[] => {
+				const lang = language()
+				const rightContent = props.row.right?.content ?? ""
+
+				if (!rightContent) return []
+
+				const wordDiff = props.row.rightWordDiff
+				if (wordDiff) {
+					return tokenizeSegments(wordDiff, "added", lang)
+				}
+
+				if (!scheduler) {
+					return [{ content: rightContent, color: defaultColor }]
+				}
+
 				const key = scheduler.makeKey(rightContent, lang)
 				const cached = scheduler.store[key]
 				if (cached) {
-					setRightTokens(
-						cached.map((t) => ({
-							content: t.content,
-							color: t.color ?? defaultColor,
-						})),
-					)
-				} else {
-					setRightTokens([{ content: rightContent, color: defaultColor }])
+					return cached.map((t) => ({
+						content: t.content,
+						color: t.color ?? defaultColor,
+					}))
 				}
-			}
-		}
-	})
+
+				return [{ content: rightContent, color: defaultColor }]
+			},
+			{ defer: false },
+		),
+	)
 
 	const leftLineNumColor = createMemo(() => {
 		if (!props.row.left) return LINE_NUM_COLORS.context
