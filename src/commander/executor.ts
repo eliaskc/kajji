@@ -239,11 +239,22 @@ export function executePTYStreaming(
 						}, UPDATE_INTERVAL)
 					}
 				},
+				close() {
+					const closeTime = performance.now() - startTime
+					profileMsg(
+						`  PTY close callback: ${closeTime.toFixed(0)}ms, ${chunkCount} chunks`,
+					)
+				},
 			},
 		})
 
 		proc.exited.then((exitCode) => {
 			if (cancelled) return
+
+			const exitTime = performance.now() - startTime
+			profileMsg(
+				`  PTY exited: ${exitTime.toFixed(0)}ms, ${chunkCount} chunks, ${stdout.length} bytes total`,
+			)
 
 			proc.terminal?.close()
 			endTotal()
