@@ -12,6 +12,7 @@
 	"files": ["bin", "script", "src"],
 	"scripts": {
 		"dev": "NODE_ENV=development bun --watch run src/index.tsx",
+		"profile": "KAJJI_PROFILE=1 NODE_ENV=development bun run src/index.tsx",
 		"test": "bun test",
 		"check": "tsc --noEmit",
 		"lint": "biome check .",

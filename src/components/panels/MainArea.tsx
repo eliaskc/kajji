@@ -28,6 +28,16 @@ const INITIAL_LIMIT = 1000
 const LIMIT_INCREMENT = 200
 const LOAD_THRESHOLD = 200
 
+const PROFILE = process.env.KAJJI_PROFILE === "1"
+
+function profileLog(label: string, data?: Record<string, unknown>) {
+	if (!PROFILE) return
+	const msg = data
+		? `[PROFILE] ${label}: ${JSON.stringify(data)}`
+		: `[PROFILE] ${label}`
+	console.error(msg)
+}
+
 // Threshold for when to default to split view vs unified
 // Split needs ~36 chars per side (bar + linenum + separator + ~30 content)
 const SPLIT_VIEW_THRESHOLD = 90
@@ -348,11 +358,22 @@ export function MainArea() {
 		setParsedDiffLoading(true)
 		setParsedDiffError(null)
 
+		const fetchStart = performance.now()
 		fetchParsedDiff(commit.changeId, { paths })
 			.then((files) => {
 				// Only update if this is still the current fetch
 				if (currentFetchKey === fetchKey) {
-					setParsedFiles(flattenDiff(files))
+					const flattened = flattenDiff(files)
+					const lineCount = flattened.reduce(
+						(sum, f) => sum + f.hunks.reduce((s, h) => s + h.lines.length, 0),
+						0,
+					)
+					profileLog("diff-fetch-complete", {
+						fetchMs: Math.round(performance.now() - fetchStart),
+						files: flattened.length,
+						lines: lineCount,
+					})
+					setParsedFiles(flattened)
 					setParsedDiffLoading(false)
 				}
 			})
@@ -579,9 +600,6 @@ export function MainArea() {
 								<text fg={colors().textMuted}>Parsing diff...</text>
 							</Show>
 							<Show when={parsedFiles().length > 0}>
-								<Show when={parsedDiffLoading()}>
-									<text fg={colors().textMuted}>Updating...</text>
-								</Show>
 								<FileSummary
 									files={parsedFiles()}
 									activeFileId={activeFileId()}

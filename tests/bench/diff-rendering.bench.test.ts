@@ -1,7 +1,13 @@
 import { describe, expect, test } from "bun:test"
 import { writeFileSync } from "node:fs"
 import { join } from "node:path"
-import { computeWordDiff, flattenDiff, parseDiffString } from "../../src/diff"
+import {
+	computeWordDiff,
+	flattenDiff,
+	initHighlighter,
+	parseDiffString,
+	tokenizeLineSync,
+} from "../../src/diff"
 
 const RESULTS_FILE = join(import.meta.dir, "../../bench-diff-results.json")
 
@@ -218,6 +224,74 @@ describe("Word-level diff computation", () => {
 		allResults.push(result)
 		console.log(formatResult(result))
 		expect(result.p95Ms).toBeLessThan(5)
+	})
+})
+
+describe("Syntax highlighting (tokenizeLineSync)", () => {
+	const sampleLines = [
+		'const foo = "hello world"',
+		"export function processData(input: string): void {",
+		"  return { success: true, data: input }",
+		'import { useState, useEffect } from "react"',
+		"const [count, setCount] = useState<number>(0)",
+	]
+
+	test("initialize highlighter", async () => {
+		await initHighlighter()
+	})
+
+	test("single line tokenization", () => {
+		const line = sampleLines[0] ?? ""
+		const result = benchmark("syntax-single-line", () => {
+			tokenizeLineSync(line, "typescript")
+		})
+		allResults.push(result)
+		console.log(formatResult(result))
+		expect(result.p95Ms).toBeLessThan(1)
+	})
+
+	test("100 lines tokenization", () => {
+		const result = benchmark("syntax-100-lines", () => {
+			for (let i = 0; i < 100; i++) {
+				const line = sampleLines[i % sampleLines.length] ?? ""
+				tokenizeLineSync(line, "typescript")
+			}
+		})
+		allResults.push(result)
+		console.log(formatResult(result))
+		expect(result.p95Ms).toBeLessThan(50)
+	})
+
+	test("500 lines tokenization (medium diff)", () => {
+		const result = benchmark(
+			"syntax-500-lines",
+			() => {
+				for (let i = 0; i < 500; i++) {
+					const line = sampleLines[i % sampleLines.length] ?? ""
+					tokenizeLineSync(line, "typescript")
+				}
+			},
+			20,
+		)
+		allResults.push(result)
+		console.log(formatResult(result))
+		expect(result.p95Ms).toBeLessThan(200)
+	})
+
+	test("2000 lines tokenization (large diff, split view = 2x)", () => {
+		const result = benchmark(
+			"syntax-2000-lines",
+			() => {
+				for (let i = 0; i < 2000; i++) {
+					const line = sampleLines[i % sampleLines.length] ?? ""
+					tokenizeLineSync(line, "typescript")
+				}
+			},
+			10,
+		)
+		allResults.push(result)
+		console.log(formatResult(result))
+		expect(result.p95Ms).toBeLessThan(1000)
 	})
 })
 
