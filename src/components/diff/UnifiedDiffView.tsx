@@ -18,19 +18,26 @@ import {
 } from "../../diff"
 
 const DIFF_BG = {
-	addition: "#12211E",
-	deletion: "#361815",
-	hunkHeader: "#1a1a2e",
-	additionEmphasis: "#1a4a1a",
-	deletionEmphasis: "#4a1a1a",
+	addition: "#0d2818",
+	deletion: "#2d1215",
+	additionEmphasis: "#1a5a2a",
+	deletionEmphasis: "#5a1a1a",
+	hunkHeader: "#161620",
 } as const
 
 const BAR_COLORS = {
-	addition: "#00cab1",
-	deletion: "#ff2e3f",
+	addition: "#3fb950",
+	deletion: "#f85149",
+} as const
+
+const LINE_NUM_COLORS = {
+	addition: "#3fb950",
+	deletion: "#f85149",
+	context: "#6e7681",
 } as const
 
 const BAR_CHAR = "▌"
+const SEPARATOR_COLOR = "#30363d"
 
 interface UnifiedDiffViewProps {
 	files: FlattenedFile[]
@@ -82,38 +89,42 @@ interface FileSectionProps {
 	lineNumWidth: number
 }
 
+const FILE_HEADER_BG = "#1c2128"
+const STAT_COLORS = {
+	addition: "#3fb950",
+	deletion: "#f85149",
+}
+
 function FileSection(props: FileSectionProps) {
 	const { colors } = useTheme()
 
 	return (
 		<box flexDirection="column">
-			<box
-				backgroundColor={colors().backgroundElement}
-				paddingLeft={1}
-				paddingRight={1}
-			>
+			<box backgroundColor={FILE_HEADER_BG} paddingLeft={1} paddingRight={1}>
 				<text>
 					<span style={{ fg: getFileStatusColor(props.file.type) }}>
 						{getFileStatusIndicator(props.file.type)}
-					</span>{" "}
-					<span style={{ fg: colors().text }}>{props.file.name}</span>
+					</span>
+					<span style={{ fg: colors().text }}> {props.file.name}</span>
 					<Show when={props.file.prevName}>
 						<span style={{ fg: colors().textMuted }}>
-							{" "}
-							← {props.file.prevName}
+							{" ← "}
+							{props.file.prevName}
 						</span>
 					</Show>
-					<span style={{ fg: colors().textMuted }}>│ </span>
+					<span style={{ fg: SEPARATOR_COLOR }}> │ </span>
 					<Show when={props.file.additions > 0}>
-						<span style={{ fg: colors().success }}>
+						<span style={{ fg: STAT_COLORS.addition }}>
 							+{props.file.additions}
 						</span>
 					</Show>
 					<Show when={props.file.additions > 0 && props.file.deletions > 0}>
-						<span style={{ fg: colors().textMuted }}> </span>
+						<span> </span>
 					</Show>
 					<Show when={props.file.deletions > 0}>
-						<span style={{ fg: colors().error }}>-{props.file.deletions}</span>
+						<span style={{ fg: STAT_COLORS.deletion }}>
+							-{props.file.deletions}
+						</span>
 					</Show>
 				</text>
 			</box>
@@ -190,20 +201,26 @@ function computeWordDiffsForHunk(lines: DiffLine[]): LineWithWordDiff[] {
 	return result
 }
 
-function HunkSection(props: HunkSectionProps) {
-	const { colors } = useTheme()
+const HUNK_HEADER_COLORS = {
+	bg: "#161b22",
+	text: "#6e7681",
+	textFocused: "#58a6ff",
+}
 
+function HunkSection(props: HunkSectionProps) {
 	const linesWithWordDiff = createMemo(() =>
 		computeWordDiffsForHunk(props.hunk.lines),
 	)
 
 	return (
 		<box flexDirection="column">
-			<box backgroundColor={DIFF_BG.hunkHeader} paddingLeft={1}>
+			<box backgroundColor={HUNK_HEADER_COLORS.bg} paddingLeft={1}>
 				<text>
 					<span
 						style={{
-							fg: props.isCurrent ? colors().info : colors().textMuted,
+							fg: props.isCurrent
+								? HUNK_HEADER_COLORS.textFocused
+								: HUNK_HEADER_COLORS.text,
 						}}
 					>
 						{props.hunk.header}
@@ -306,11 +323,11 @@ function DiffLineView(props: DiffLineViewProps) {
 	const lineNumColor = createMemo(() => {
 		switch (props.line.type) {
 			case "deletion":
-				return colors().error
+				return LINE_NUM_COLORS.deletion
 			case "addition":
-				return colors().success
+				return LINE_NUM_COLORS.addition
 			default:
-				return colors().textMuted
+				return LINE_NUM_COLORS.context
 		}
 	})
 
@@ -328,9 +345,10 @@ function DiffLineView(props: DiffLineViewProps) {
 	return (
 		<box flexDirection="row" backgroundColor={lineBg()}>
 			<text wrapMode="none">
-				<span style={{ fg: bar().color }}>{bar().char}</span>{" "}
-				<span style={{ fg: lineNumColor() }}>{lineNum()}</span>
-				<span style={{ fg: colors().textMuted }}> │ </span>
+				<span style={{ fg: bar().color }}>{bar().char}</span>
+				<span style={{ fg: lineNumColor() }}> {lineNum()} </span>
+				<span style={{ fg: SEPARATOR_COLOR }}>│</span>
+				<span> </span>
 				<For each={tokens()}>
 					{(token) => (
 						<span

@@ -7,6 +7,12 @@ import {
 	getFileStatusIndicator,
 } from "../../diff"
 
+const STAT_COLORS = {
+	addition: "#3fb950",
+	deletion: "#f85149",
+}
+const SEPARATOR_COLOR = "#30363d"
+
 interface FileListProps {
 	files: FlattenedFile[]
 	activeFileId: FileId | null
@@ -38,31 +44,34 @@ export function FileList(props: FileListProps) {
 							onMouseDown={() => props.onSelectFile(file.fileId)}
 						>
 							<text wrapMode="none">
-								<span style={{ fg: statusColor }}>{indicator}</span>{" "}
+								<span style={{ fg: statusColor }}>{indicator}</span>
 								<span
 									style={{
 										fg: isActive() ? colors().primary : colors().text,
 									}}
 								>
+									{" "}
 									{file.name}
 								</span>
 								<Show when={file.prevName}>
 									<span style={{ fg: colors().textMuted }}>
-										{" "}
-										({file.prevName})
+										{" ← "}
+										{file.prevName}
 									</span>
 								</Show>
-								<span style={{ fg: colors().textMuted }}> | </span>
+								<span style={{ fg: SEPARATOR_COLOR }}> │ </span>
 								<Show when={file.additions > 0}>
-									<span style={{ fg: colors().success }}>
+									<span style={{ fg: STAT_COLORS.addition }}>
 										+{file.additions}
 									</span>
 								</Show>
 								<Show when={file.additions > 0 && file.deletions > 0}>
-									<span style={{ fg: colors().textMuted }}> </span>
+									<span> </span>
 								</Show>
 								<Show when={file.deletions > 0}>
-									<span style={{ fg: colors().error }}>-{file.deletions}</span>
+									<span style={{ fg: STAT_COLORS.deletion }}>
+										-{file.deletions}
+									</span>
 								</Show>
 							</text>
 						</box>
@@ -106,9 +115,10 @@ export function FileSummary(props: {
 			<span style={{ fg: colors().textMuted }}>
 				File {activeIndex()}/{totals().files}
 			</span>
-			{" | "}
-			<span style={{ fg: colors().success }}>+{totals().additions}</span>{" "}
-			<span style={{ fg: colors().error }}>-{totals().deletions}</span>
+			<span style={{ fg: SEPARATOR_COLOR }}> │ </span>
+			<span style={{ fg: STAT_COLORS.addition }}>+{totals().additions}</span>
+			<span> </span>
+			<span style={{ fg: STAT_COLORS.deletion }}>-{totals().deletions}</span>
 		</text>
 	)
 }

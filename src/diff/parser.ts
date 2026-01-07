@@ -20,6 +20,8 @@ export type {
 
 export interface ParseDiffOptions {
 	cwd?: string
+	/** Specific file paths to include in the diff */
+	paths?: string[]
 }
 
 /**
@@ -31,6 +33,11 @@ export async function fetchParsedDiff(
 	options: ParseDiffOptions = {},
 ): Promise<FileDiffMetadata[]> {
 	const args = ["diff", "-r", changeId, "--git", "--ignore-working-copy"]
+
+	// Add specific file paths if provided
+	if (options.paths && options.paths.length > 0) {
+		args.push(...options.paths)
+	}
 
 	const result = await execute(args, { cwd: options.cwd })
 

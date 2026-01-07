@@ -35,3 +35,4 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 # benchmark results (local only)
 bench-results.json
+bench-diff-results.json

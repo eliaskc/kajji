@@ -13,9 +13,10 @@ import type { Commit } from "../../commander/types"
 import { useCommand } from "../../context/command"
 import { useFocus } from "../../context/focus"
 import { useLayout } from "../../context/layout"
-import { type CommitDetails, useSync } from "../../context/sync"
+import { type CommitDetails, type ViewMode, useSync } from "../../context/sync"
 import { useTheme } from "../../context/theme"
 import { type FlattenedFile, fetchParsedDiff, flattenDiff } from "../../diff"
+import { getFilePaths } from "../../utils/file-tree"
 import { AnsiText } from "../AnsiText"
 import { Panel } from "../Panel"
 import { FileSummary, SplitDiffView, UnifiedDiffView } from "../diff"
@@ -219,6 +220,10 @@ export function MainArea() {
 		diffLoading,
 		diffError,
 		diffLineCount,
+		viewMode,
+		selectedFile,
+		bookmarkViewMode,
+		selectedBookmarkFile,
 	} = useSync()
 	const { mainAreaWidth } = useLayout()
 	const { colors } = useTheme()
@@ -303,25 +308,60 @@ export function MainArea() {
 		}
 	}
 
-	// Fetch parsed diff when commit changes and we're in custom mode
+	// Track current fetch to prevent stale updates
+	let currentFetchKey: string | null = null
+
+	// Fetch parsed diff when commit/file changes and we're in custom mode
 	createEffect(() => {
 		const commit = activeCommit()
 		const mode = renderMode()
+		const vMode = viewMode()
+		const bmMode = bookmarkViewMode()
+		const focusedPanel = focus.panel()
 
-		if (commit && mode === "custom") {
-			setParsedDiffLoading(true)
-			setParsedDiffError(null)
+		if (!commit || mode !== "custom") return
 
-			fetchParsedDiff(commit.changeId)
-				.then((files) => {
+		let paths: string[] | undefined
+
+		// Determine file paths based on context (mirrors sync.tsx logic)
+		if (focusedPanel === "refs" && bmMode === "files") {
+			const file = selectedBookmarkFile()
+			if (file) {
+				paths = file.node.isDirectory
+					? getFilePaths(file.node)
+					: [file.node.path]
+			}
+		} else if (vMode === "files") {
+			const file = selectedFile()
+			if (file) {
+				paths = file.node.isDirectory
+					? getFilePaths(file.node)
+					: [file.node.path]
+			}
+		}
+
+		// Generate cache key to prevent duplicate fetches
+		const fetchKey = `${commit.changeId}:${paths?.join(",") ?? "all"}`
+		if (fetchKey === currentFetchKey) return
+		currentFetchKey = fetchKey
+
+		setParsedDiffLoading(true)
+		setParsedDiffError(null)
+
+		fetchParsedDiff(commit.changeId, { paths })
+			.then((files) => {
+				// Only update if this is still the current fetch
+				if (currentFetchKey === fetchKey) {
 					setParsedFiles(flattenDiff(files))
 					setParsedDiffLoading(false)
-				})
-				.catch((err) => {
+				}
+			})
+			.catch((err) => {
+				if (currentFetchKey === fetchKey) {
 					setParsedDiffError(err.message)
 					setParsedDiffLoading(false)
-				})
-		}
+				}
+			})
 	})
 
 	createEffect(() => {
@@ -331,8 +371,7 @@ export function MainArea() {
 			setScrollTop(0)
 			setLimit(INITIAL_LIMIT)
 			scrollRef?.scrollTo(0)
-			// Clear parsed files and reset navigation when switching commits
-			setParsedFiles([])
+			// Reset navigation when switching commits (keep stale content for SWR)
 			setActiveFileIndex(0)
 			setActiveHunkIndex(0)
 		}
@@ -532,14 +571,17 @@ export function MainArea() {
 						</Show>
 					</Show>
 					<Show when={renderMode() === "custom"}>
-						<Show when={parsedDiffLoading()}>
-							<text fg={colors().textMuted}>Parsing diff...</text>
-						</Show>
 						<Show when={parsedDiffError()}>
 							<text fg={colors().error}>Error: {parsedDiffError()}</text>
 						</Show>
-						<Show when={!parsedDiffLoading() && !parsedDiffError()}>
+						<Show when={!parsedDiffError()}>
+							<Show when={parsedDiffLoading() && parsedFiles().length === 0}>
+								<text fg={colors().textMuted}>Parsing diff...</text>
+							</Show>
 							<Show when={parsedFiles().length > 0}>
+								<Show when={parsedDiffLoading()}>
+									<text fg={colors().textMuted}>Updating...</text>
+								</Show>
 								<FileSummary
 									files={parsedFiles()}
 									activeFileId={activeFileId()}

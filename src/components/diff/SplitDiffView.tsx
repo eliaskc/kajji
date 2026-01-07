@@ -20,18 +20,36 @@ import {
 } from "../../diff"
 
 const DIFF_BG = {
-	addition: "#12211E",
-	deletion: "#361815",
-	empty: "#1a1a1a",
-	hunkHeader: "#1a1a2e",
-	additionEmphasis: "#1a4a1a",
-	deletionEmphasis: "#4a1a1a",
+	addition: "#0d2818",
+	deletion: "#2d1215",
+	empty: "#161b22",
+	additionEmphasis: "#1a5a2a",
+	deletionEmphasis: "#5a1a1a",
 } as const
 
 const BAR_COLORS = {
-	addition: "#00cab1",
-	deletion: "#ff2e3f",
+	addition: "#3fb950",
+	deletion: "#f85149",
 } as const
+
+const LINE_NUM_COLORS = {
+	addition: "#3fb950",
+	deletion: "#f85149",
+	context: "#6e7681",
+} as const
+
+const SEPARATOR_COLOR = "#30363d"
+const FILE_HEADER_BG = "#1c2128"
+const STAT_COLORS = {
+	addition: "#3fb950",
+	deletion: "#f85149",
+}
+
+const HUNK_HEADER_COLORS = {
+	bg: "#161b22",
+	text: "#6e7681",
+	textFocused: "#58a6ff",
+}
 
 const BAR_CHAR = "▌"
 const EMPTY_STRIPE_CHAR = "╱"
@@ -97,33 +115,31 @@ function SplitFileSection(props: SplitFileSectionProps) {
 
 	return (
 		<box flexDirection="column">
-			<box
-				backgroundColor={colors().backgroundElement}
-				paddingLeft={1}
-				paddingRight={1}
-			>
+			<box backgroundColor={FILE_HEADER_BG} paddingLeft={1} paddingRight={1}>
 				<text>
 					<span style={{ fg: getFileStatusColor(props.file.type) }}>
 						{getFileStatusIndicator(props.file.type)}
-					</span>{" "}
-					<span style={{ fg: colors().text }}>{props.file.name}</span>
+					</span>
+					<span style={{ fg: colors().text }}> {props.file.name}</span>
 					<Show when={props.file.prevName}>
 						<span style={{ fg: colors().textMuted }}>
-							{" "}
-							← {props.file.prevName}
+							{" ← "}
+							{props.file.prevName}
 						</span>
 					</Show>
-					<span style={{ fg: colors().textMuted }}> │ </span>
+					<span style={{ fg: SEPARATOR_COLOR }}> │ </span>
 					<Show when={props.file.additions > 0}>
-						<span style={{ fg: colors().success }}>
+						<span style={{ fg: STAT_COLORS.addition }}>
 							+{props.file.additions}
 						</span>
 					</Show>
 					<Show when={props.file.additions > 0 && props.file.deletions > 0}>
-						<span style={{ fg: colors().textMuted }}> </span>
+						<span> </span>
 					</Show>
 					<Show when={props.file.deletions > 0}>
-						<span style={{ fg: colors().error }}>-{props.file.deletions}</span>
+						<span style={{ fg: STAT_COLORS.deletion }}>
+							-{props.file.deletions}
+						</span>
 					</Show>
 				</text>
 			</box>
@@ -154,17 +170,17 @@ interface SplitHunkSectionProps {
 }
 
 function SplitHunkSection(props: SplitHunkSectionProps) {
-	const { colors } = useTheme()
-
 	const alignedRows = createMemo(() => buildAlignedRows(props.hunk.lines))
 
 	return (
 		<box flexDirection="column">
-			<box backgroundColor={DIFF_BG.hunkHeader} paddingLeft={1}>
+			<box backgroundColor={HUNK_HEADER_COLORS.bg} paddingLeft={1}>
 				<text>
 					<span
 						style={{
-							fg: props.isCurrent ? colors().info : colors().textMuted,
+							fg: props.isCurrent
+								? HUNK_HEADER_COLORS.textFocused
+								: HUNK_HEADER_COLORS.text,
 						}}
 					>
 						{props.hunk.header}
@@ -328,17 +344,17 @@ function SplitRowView(props: SplitRowViewProps) {
 	)
 
 	const leftLineNumColor = createMemo(() => {
-		if (!props.row.left) return colors().textMuted
+		if (!props.row.left) return LINE_NUM_COLORS.context
 		return props.row.left.type === "deletion"
-			? colors().error
-			: colors().textMuted
+			? LINE_NUM_COLORS.deletion
+			: LINE_NUM_COLORS.context
 	})
 
 	const rightLineNumColor = createMemo(() => {
-		if (!props.row.right) return colors().textMuted
+		if (!props.row.right) return LINE_NUM_COLORS.context
 		return props.row.right.type === "addition"
-			? colors().success
-			: colors().textMuted
+			? LINE_NUM_COLORS.addition
+			: LINE_NUM_COLORS.context
 	})
 
 	const leftBar = createMemo(() => {
@@ -356,12 +372,17 @@ function SplitRowView(props: SplitRowViewProps) {
 	})
 
 	const emptyFill = createMemo(() => {
-		return EMPTY_STRIPE_CHAR.repeat(200)
+		return EMPTY_STRIPE_CHAR.repeat(500)
 	})
 
 	return (
 		<box flexDirection="row">
-			<box backgroundColor={leftBg()} flexGrow={1} flexBasis={0}>
+			<box
+				backgroundColor={leftBg()}
+				flexGrow={1}
+				flexBasis={0}
+				overflow="hidden"
+			>
 				<Show
 					when={props.row.left}
 					fallback={
@@ -371,11 +392,13 @@ function SplitRowView(props: SplitRowViewProps) {
 					}
 				>
 					<text wrapMode="none">
-						<span style={{ fg: leftBar()?.color }}>{leftBar()?.char}</span>{" "}
+						<span style={{ fg: leftBar()?.color }}>{leftBar()?.char}</span>
 						<span style={{ fg: leftLineNumColor() }}>
-							{formatLineNum(props.row.left?.oldLineNumber)}
+							{" "}
+							{formatLineNum(props.row.left?.oldLineNumber)}{" "}
 						</span>
-						<span style={{ fg: colors().backgroundElement }}>│ </span>
+						<span style={{ fg: SEPARATOR_COLOR }}>│</span>
+						<span> </span>
 						<For each={leftTokens()}>
 							{(token) => (
 								<span
@@ -392,7 +415,12 @@ function SplitRowView(props: SplitRowViewProps) {
 				</Show>
 			</box>
 			<box width={1} />
-			<box backgroundColor={rightBg()} flexGrow={1} flexBasis={0}>
+			<box
+				backgroundColor={rightBg()}
+				flexGrow={1}
+				flexBasis={0}
+				overflow="hidden"
+			>
 				<Show
 					when={props.row.right}
 					fallback={
@@ -402,11 +430,13 @@ function SplitRowView(props: SplitRowViewProps) {
 					}
 				>
 					<text wrapMode="none">
-						<span style={{ fg: rightBar()?.color }}>{rightBar()?.char}</span>{" "}
+						<span style={{ fg: rightBar()?.color }}>{rightBar()?.char}</span>
 						<span style={{ fg: rightLineNumColor() }}>
-							{formatLineNum(props.row.right?.newLineNumber)}
+							{" "}
+							{formatLineNum(props.row.right?.newLineNumber)}{" "}
 						</span>
-						<span style={{ fg: colors().backgroundElement }}>│ </span>
+						<span style={{ fg: SEPARATOR_COLOR }}>│</span>
+						<span> </span>
 						<For each={rightTokens()}>
 							{(token) => (
 								<span
