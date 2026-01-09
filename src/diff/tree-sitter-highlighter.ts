@@ -463,12 +463,41 @@ function getColorForNode(node: TreeSitterNode, parentType?: string): string {
 	return THEME.default
 }
 
+// Node types that should be colored as a whole (don't recurse into children)
+const TERMINAL_TYPES = new Set([
+	"string",
+	"string_literal",
+	"template_string",
+	"number",
+	"integer",
+	"float",
+	"comment",
+	"line_comment",
+	"block_comment",
+	"regex",
+	"true",
+	"false",
+	"null",
+	"undefined",
+])
+
 function collectTokens(
 	node: TreeSitterNode,
 	tokens: Array<{ start: number; end: number; color: string }>,
 	parentType?: string,
 ): void {
-	// Leaf nodes (no children) emit tokens
+	// Terminal semantic nodes - color as a whole, don't recurse
+	if (TERMINAL_TYPES.has(node.type)) {
+		const color = getColorForNode(node, parentType)
+		tokens.push({
+			start: node.startIndex,
+			end: node.endIndex,
+			color,
+		})
+		return
+	}
+
+	// Leaf nodes (no children) or unnamed nodes emit tokens
 	if (node.childCount === 0 || !node.isNamed) {
 		const color = getColorForNode(node, parentType)
 		tokens.push({

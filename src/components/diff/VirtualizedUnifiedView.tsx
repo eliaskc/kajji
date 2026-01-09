@@ -308,7 +308,7 @@ function DiffLineRow(props: DiffLineRowProps) {
 	const tokens = createMemo(
 		on(
 			() => scheduler?.version() ?? 0,
-			() => {
+			(version) => {
 				const content = props.row.content
 				const defaultColor = colors().text
 				const lang = language()
@@ -318,7 +318,7 @@ function DiffLineRow(props: DiffLineRowProps) {
 				}
 
 				const key = scheduler.makeKey(content, lang)
-				const cached = scheduler.store[key]
+				const cached = scheduler.getTokens(key)
 
 				if (cached) {
 					return cached.map((t) => ({

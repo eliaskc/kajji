@@ -1,82 +1,91 @@
 {
-	"name": "kajji",
-	"version": "0.2.0",
-	"description": "A terminal UI for Jujutsu: the rudder for your jj",
-	"type": "module",
-	"engines": {
-		"bun": ">=1.3.0"
-	},
-	"bin": {
-		"kajji": "./bin/kajji"
-	},
-	"files": ["bin", "script", "src"],
-	"scripts": {
-		"dev": "NODE_ENV=development bun --watch run src/index.tsx",
-		"profile": "bun run script/profile.ts",
-		"trace": "KAJJI_TRACE=1 bun run src/index.tsx",
-		"test": "bun test",
-		"test:bench": "bun test tests/bench/",
-		"test:syntax": "bun test tests/bench/syntax-highlighting.bench.test.ts",
-		"check": "tsc --noEmit",
-		"lint": "biome check .",
-		"lint:fix": "biome check --write ."
-	},
-	"devDependencies": {
-		"@biomejs/biome": "^1.9.4",
-		"@types/bun": "latest",
-		"@types/diff": "^8.0.0"
-	},
-	"peerDependencies": {
-		"typescript": "^5"
-	},
-	"dependencies": {
-		"@babel/core": "^7.28.5",
-		"@babel/preset-typescript": "^7.28.5",
-		"@opentui/core": "^0.1.68",
-		"@opentui/solid": "^0.1.68",
-		"@pierre/diffs": "^1.0.4",
-		"babel-preset-solid": "1.9.9",
-		"diff": "^8.0.2",
-		"fuzzysort": "^3.1.0",
-		"ghostty-opentui": "^1.3.11",
-		"solid-js": "1.9.9"
-	},
-	"optionalDependencies": {
-		"tree-sitter": "^0.22.0",
-		"tree-sitter-typescript": "^0.22.0",
-		"tree-sitter-javascript": "^0.22.0",
-		"tree-sitter-json": "^0.22.0",
-		"tree-sitter-css": "^0.22.0",
-		"tree-sitter-html": "^0.22.0",
-		"tree-sitter-python": "^0.22.0",
-		"tree-sitter-go": "^0.22.0",
-		"tree-sitter-rust": "^0.22.0",
-		"tree-sitter-bash": "^0.22.0",
-		"tree-sitter-c": "^0.22.0",
-		"tree-sitter-cpp": "^0.22.0",
-		"tree-sitter-java": "^0.22.0",
-		"tree-sitter-ruby": "^0.22.0",
-		"tree-sitter-yaml": "^0.7.0",
-		"tree-sitter-toml": "^0.6.0",
-		"tree-sitter-markdown": "^0.3.0"
-	},
-	"keywords": [
-		"jj",
-		"jujutsu",
-		"tui",
-		"terminal",
-		"cli",
-		"vcs",
-		"version-control"
-	],
-	"repository": {
-		"type": "git",
-		"url": "git+https://github.com/eliaskc/kajji.git"
-	},
-	"homepage": "https://github.com/eliaskc/kajji#readme",
-	"bugs": {
-		"url": "https://github.com/eliaskc/kajji/issues"
-	},
-	"author": "eliaskc",
-	"license": "MIT"
+  "name": "kajji",
+  "version": "0.2.0",
+  "description": "A terminal UI for Jujutsu: the rudder for your jj",
+  "type": "module",
+  "engines": {
+    "bun": ">=1.3.0"
+  },
+  "bin": {
+    "kajji": "./bin/kajji"
+  },
+  "files": ["bin", "script", "src"],
+  "scripts": {
+    "dev": "NODE_ENV=development bun --watch run src/index.tsx",
+    "profile": "bun run script/profile.ts",
+    "trace": "KAJJI_TRACE=1 bun run src/index.tsx",
+    "test": "bun test",
+    "test:bench": "bun test tests/bench/",
+    "test:syntax": "bun test tests/bench/syntax-highlighting.bench.test.ts",
+    "check": "tsc --noEmit",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write ."
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "@types/bun": "latest",
+    "@types/diff": "^8.0.0"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@babel/core": "^7.28.5",
+    "@babel/preset-typescript": "^7.28.5",
+    "@opentui/core": "^0.1.68",
+    "@opentui/solid": "^0.1.68",
+    "@pierre/diffs": "^1.0.4",
+    "babel-preset-solid": "1.9.9",
+    "diff": "^8.0.2",
+    "fuzzysort": "^3.1.0",
+    "ghostty-opentui": "^1.3.11",
+    "solid-js": "1.9.9"
+  },
+  "optionalDependencies": {
+    "tree-sitter": "^0.22.0",
+    "tree-sitter-typescript": "^0.23.2",
+    "tree-sitter-javascript": "^0.25.0",
+    "tree-sitter-json": "^0.24.8",
+    "tree-sitter-css": "^0.25.0",
+    "tree-sitter-html": "^0.23.2",
+    "tree-sitter-python": "^0.25.0",
+    "tree-sitter-go": "^0.25.0",
+    "tree-sitter-rust": "^0.24.0",
+    "tree-sitter-bash": "^0.25.1",
+    "tree-sitter-c": "^0.22.0",
+    "tree-sitter-cpp": "^0.22.0",
+    "tree-sitter-java": "^0.22.0",
+    "tree-sitter-ruby": "^0.22.0",
+    "tree-sitter-yaml": "^0.7.0",
+    "tree-sitter-toml": "^0.6.0",
+    "tree-sitter-markdown": "^0.3.0"
+  },
+  "keywords": [
+    "jj",
+    "jujutsu",
+    "tui",
+    "terminal",
+    "cli",
+    "vcs",
+    "version-control"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/eliaskc/kajji.git"
+  },
+  "homepage": "https://github.com/eliaskc/kajji#readme",
+  "bugs": {
+    "url": "https://github.com/eliaskc/kajji/issues"
+  },
+  "author": "eliaskc",
+  "license": "MIT",
+  "trustedDependencies": [
+    "tree-sitter-bash",
+    "tree-sitter-css",
+    "tree-sitter-go",
+    "tree-sitter-html",
+    "tree-sitter-javascript",
+    "tree-sitter-python",
+    "tree-sitter-rust"
+  ]
 }
