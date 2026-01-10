@@ -1,18 +1,39 @@
 # Startup: Non-jj Repo Detection
 
-**Status**: Planning
+**Status**: Implemented
 **Priority**: High
 **Goal**: Graceful handling when kajji is launched outside a jj repository
 
 ---
 
-## Current Behavior
+## Implementation Summary
 
-When not in a jj repo, kajji likely crashes or shows cryptic jj errors.
+**Files created:**
+- `src/utils/state.ts` — State file management (`~/.config/kajji/state.json`), recent repos tracking
+- `src/utils/repo-check.ts` — Repo detection (`.jj/`, `.git/`) and init functions
+- `src/components/StartupScreen.tsx` — Startup UI with two modes
+
+**Files modified:**
+- `src/index.tsx` — Root component conditionally renders StartupScreen or App
+- `src/context/sync.tsx` — Tracks repo on successful initial load
+
+**Decisions made:**
+- State location: `~/.config/kajji/state.json` (Option 1)
+- Recent repos: 10 max, sorted by last opened
+- Repo switching: Uses `setRepoPath()` + Solid reactivity (Option A, simplified)
+- Detection: Simple `.jj/` directory check (faster than `jj root` command)
 
 ---
 
-## Proposed Behavior
+## Original Planning
+
+### Previous Behavior
+
+When not in a jj repo, kajji crashed or showed cryptic jj errors.
+
+---
+
+### Proposed Behavior
 
 ### Detection Flow
 

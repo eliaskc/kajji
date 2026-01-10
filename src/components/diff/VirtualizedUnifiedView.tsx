@@ -5,6 +5,7 @@ import {
 	type FileId,
 	type FlattenedFile,
 	type HunkId,
+	type SyntaxToken,
 	flattenToRows,
 	getFileStatusColor,
 	getFileStatusIndicator,
@@ -15,7 +16,6 @@ import {
 	highlighterReady,
 	tokenVersion,
 	tokenizeLineSync,
-	type SyntaxToken,
 } from "../../diff"
 
 const DIFF_BG = {

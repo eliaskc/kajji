@@ -1,5 +1,5 @@
-import type { FlattenedFile } from "./parser"
 import type { FileId, HunkId } from "./identifiers"
+import type { FlattenedFile } from "./parser"
 
 export type DiffRowType =
 	| "file-header"

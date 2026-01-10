@@ -10,6 +10,8 @@ import {
 	useContext,
 } from "solid-js"
 import { type Bookmark, fetchBookmarks } from "../commander/bookmarks"
+import { getRepoPath } from "../repo"
+import { addRecentRepo } from "../utils/state"
 
 import { fetchFiles } from "../commander/files"
 import { fetchLog } from "../commander/log"
@@ -592,7 +594,10 @@ export function SyncProvider(props: { children: JSX.Element }) {
 			await globalLoading.run("Fetching...", async () => {
 				const result = await fetchLog()
 				setCommits(result)
-				if (isInitialLoad) setSelectedIndex(0)
+				if (isInitialLoad) {
+					setSelectedIndex(0)
+					addRecentRepo(getRepoPath())
+				}
 			})
 		} catch (e) {
 			setError(e instanceof Error ? e.message : "Failed to load log")

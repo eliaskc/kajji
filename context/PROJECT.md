@@ -119,9 +119,11 @@ Solved by replacing `<input>` with `<textarea>` using single-line keybindings (E
 ## Next Up
 
 1. **Startup: non-jj repo detection**
-   - [ ] Detect when not in a jj repo
-   - [ ] If `.git` found: suggest `jj git init`
-   - [ ] Otherwise: show recent jj repos or helpful message
+   - [x] Detect when not in a jj repo
+   - [x] If `.git` found: offer `jj git init` or `jj git init --colocate`
+   - [x] If no VCS: show recent jj repos + `jj init` option
+   - [x] Recent repos stored in `~/.config/kajji/state.json` (max 10, sorted by last opened)
+   - [x] Keyboard navigation: j/k, Tab to switch sections, 1-9 for quick repo select, Enter to execute
 
 2. **Diff virtualization fix** — spacer boxes at top when scrolling
    - [x] Root cause: commit header height varies (message length, file stats)

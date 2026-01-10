@@ -1,62 +1,62 @@
 {
-  "name": "kajji",
-  "version": "0.2.0",
-  "description": "A terminal UI for Jujutsu: the rudder for your jj",
-  "type": "module",
-  "engines": {
-    "bun": ">=1.3.0"
-  },
-  "bin": {
-    "kajji": "./bin/kajji"
-  },
-  "files": ["bin", "script", "src"],
-  "scripts": {
-    "dev": "NODE_ENV=development bun --watch run src/index.tsx",
-    "profile": "bun run script/profile.ts",
-    "trace": "KAJJI_TRACE=1 bun run src/index.tsx",
-    "test": "bun test",
-    "test:bench": "bun test tests/bench/",
-    "check": "tsc --noEmit",
-    "lint": "biome check .",
-    "lint:fix": "biome check --write ."
-  },
-  "devDependencies": {
-    "@biomejs/biome": "^1.9.4",
-    "@types/bun": "latest",
-    "@types/diff": "^8.0.0"
-  },
-  "peerDependencies": {
-    "typescript": "^5"
-  },
-  "dependencies": {
-    "@babel/core": "^7.28.5",
-    "@babel/preset-typescript": "^7.28.5",
-    "@opentui/core": "^0.1.68",
-    "@opentui/solid": "^0.1.68",
-    "@pierre/diffs": "^1.0.4",
-    "babel-preset-solid": "1.9.9",
-    "diff": "^8.0.2",
-    "fuzzysort": "^3.1.0",
-    "ghostty-opentui": "^1.3.11",
-    "solid-js": "1.9.9"
-  },
-  "keywords": [
-    "jj",
-    "jujutsu",
-    "tui",
-    "terminal",
-    "cli",
-    "vcs",
-    "version-control"
-  ],
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/eliaskc/kajji.git"
-  },
-  "homepage": "https://github.com/eliaskc/kajji#readme",
-  "bugs": {
-    "url": "https://github.com/eliaskc/kajji/issues"
-  },
-  "author": "eliaskc",
-  "license": "MIT"
+	"name": "kajji",
+	"version": "0.2.0",
+	"description": "A terminal UI for Jujutsu: the rudder for your jj",
+	"type": "module",
+	"engines": {
+		"bun": ">=1.3.0"
+	},
+	"bin": {
+		"kajji": "./bin/kajji"
+	},
+	"files": ["bin", "script", "src"],
+	"scripts": {
+		"dev": "NODE_ENV=development bun --watch run src/index.tsx",
+		"profile": "bun run script/profile.ts",
+		"trace": "KAJJI_TRACE=1 bun run src/index.tsx",
+		"test": "bun test",
+		"test:bench": "bun test tests/bench/",
+		"check": "tsc --noEmit",
+		"lint": "biome check .",
+		"lint:fix": "biome check --write ."
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^1.9.4",
+		"@types/bun": "latest",
+		"@types/diff": "^8.0.0"
+	},
+	"peerDependencies": {
+		"typescript": "^5"
+	},
+	"dependencies": {
+		"@babel/core": "^7.28.5",
+		"@babel/preset-typescript": "^7.28.5",
+		"@opentui/core": "^0.1.68",
+		"@opentui/solid": "^0.1.68",
+		"@pierre/diffs": "^1.0.4",
+		"babel-preset-solid": "1.9.9",
+		"diff": "^8.0.2",
+		"fuzzysort": "^3.1.0",
+		"ghostty-opentui": "^1.3.11",
+		"solid-js": "1.9.9"
+	},
+	"keywords": [
+		"jj",
+		"jujutsu",
+		"tui",
+		"terminal",
+		"cli",
+		"vcs",
+		"version-control"
+	],
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/eliaskc/kajji.git"
+	},
+	"homepage": "https://github.com/eliaskc/kajji#readme",
+	"bugs": {
+		"url": "https://github.com/eliaskc/kajji/issues"
+	},
+	"author": "eliaskc",
+	"license": "MIT"
 }

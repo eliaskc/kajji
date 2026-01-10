@@ -9,11 +9,20 @@ import {
 // Message types
 export type WorkerRequest =
 	| { type: "init" }
-	| { type: "tokenize"; id: number; content: string; language: SupportedLanguages }
+	| {
+			type: "tokenize"
+			id: number
+			content: string
+			language: SupportedLanguages
+	  }
 
 export type WorkerResponse =
 	| { type: "ready" }
-	| { type: "tokens"; id: number; tokens: Array<{ content: string; color?: string }> }
+	| {
+			type: "tokens"
+			id: number
+			tokens: Array<{ content: string; color?: string }>
+	  }
 	| { type: "error"; id: number; message: string }
 
 // Languages to load and warm up
