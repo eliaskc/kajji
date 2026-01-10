@@ -342,6 +342,8 @@ Agent-friendly CLI for operations jj doesn't expose non-interactively. TUI users
 - [ ] Toast notification with correct update command
 - [ ] State stored in `~/.config/kajji/state.json`
 
+**Next release (v0.3.0):** Ship auto-update and proper command log output (show raw jj output, not just errors — see UX Polish) with this release. Target after focus modes (#4 in Next Up), optionally large repo optimization (#3) and fuzzy search (#5).
+
 → [Detailed plan](./plans/release-flows.md)
 
 ## Git Remote Operations
