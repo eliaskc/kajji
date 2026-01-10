@@ -9,7 +9,11 @@
 	"bin": {
 		"kajji": "./bin/kajji"
 	},
-	"files": ["bin", "script", "src"],
+	"files": [
+		"bin",
+		"script",
+		"src"
+	],
 	"scripts": {
 		"dev": "NODE_ENV=development bun --watch run src/index.tsx",
 		"mock:error-stale": "NODE_ENV=development bun run src/index.tsx --mock=error-stale",
