@@ -1,9 +1,10 @@
 import type { ScrollBoxRenderable } from "@opentui/core"
-import { useKeyboard } from "@opentui/solid"
+import { useKeyboard, useRenderer } from "@opentui/solid"
 import {
 	For,
 	Show,
 	createEffect,
+	createMemo,
 	createSignal,
 	onCleanup,
 	onMount,
@@ -13,6 +14,115 @@ import { createDoubleClickDetector } from "../utils/double-click"
 import type { RecentRepo } from "../utils/state"
 import { formatRelativeTime } from "../utils/state"
 import { BorderBox } from "./BorderBox"
+
+function parseHex(hex: string) {
+	const h = hex.replace("#", "")
+	return {
+		r: Number.parseInt(h.slice(0, 2), 16),
+		g: Number.parseInt(h.slice(2, 4), 16),
+		b: Number.parseInt(h.slice(4, 6), 16),
+	}
+}
+
+function toHex(r: number, g: number, b: number) {
+	const clamp = (n: number) => Math.max(0, Math.min(255, Math.round(n)))
+	const hex = (n: number) => clamp(n).toString(16).padStart(2, "0")
+	return `#${hex(r)}${hex(g)}${hex(b)}`
+}
+
+function lerpColor(from: string, to: string, t: number) {
+	const f = parseHex(from)
+	const c = parseHex(to)
+	return toHex(f.r + (c.r - f.r) * t, f.g + (c.g - f.g) * t, f.b + (c.b - f.b) * t)
+}
+
+const directionalWaves = [
+	{ angle: 0.3, freq: 0.06, speed: 0.03, amp: 0.35, twist: 0.002 },
+	{ angle: 0.15, freq: 0.04, speed: -0.02, amp: 0.25, twist: -0.003 },
+	{ angle: 0.5, freq: 0.08, speed: 0.04, amp: 0.2, twist: 0.001 },
+]
+
+const radialWaves = [
+	{ freq: 0.1, speed: 0.025, amp: 0.3, drift: 0.008 },
+	{ freq: 0.07, speed: -0.02, amp: 0.25, drift: -0.005 },
+]
+
+function WaveBackground() {
+	const renderer = useRenderer()
+	const { colors } = useTheme()
+	const [tick, setTick] = createSignal(0)
+	const [dimensions, setDimensions] = createSignal({
+		width: renderer.width,
+		height: renderer.height,
+	})
+
+	onMount(() => {
+		const interval = setInterval(() => setTick((t) => t + 1), 16)
+		onCleanup(() => clearInterval(interval))
+
+		const handleResize = (w: number, h: number) => setDimensions({ width: w, height: h })
+		renderer.on("resize", handleResize)
+		onCleanup(() => renderer.off("resize", handleResize))
+	})
+
+	const getIntensity = (x: number, y: number, t: number, w: number, h: number) => {
+		let total = 0
+		let totalAmp = 0
+
+		for (const wave of directionalWaves) {
+			const a = wave.angle + Math.sin(t * wave.twist) * 0.3
+			const val = Math.sin((x * a + y) * wave.freq + t * wave.speed) * 0.5 + 0.5
+			total += val * wave.amp
+			totalAmp += wave.amp
+		}
+
+		for (const wave of radialWaves) {
+			const cx = w / 2 + Math.sin(t * wave.drift) * w * 0.3
+			const cy = h / 2 + Math.cos(t * wave.drift * 1.3) * h * 0.3
+			const dist = Math.sqrt((x - cx) ** 2 + ((y - cy) * 2) ** 2)
+			const val = Math.sin(dist * wave.freq - t * wave.speed) * 0.5 + 0.5
+			total += val * wave.amp
+			totalAmp += wave.amp
+		}
+
+		return Math.max(0.03, (total / totalAmp) ** 1.5)
+	}
+
+	const rows = createMemo(() => {
+		const { width, height } = dimensions()
+		const t = tick()
+		const bg = colors().background
+		const accent = colors().primary
+
+		const result: string[][] = []
+		for (let y = 0; y < height; y++) {
+			const row: string[] = []
+			for (let x = 0; x < width; x++) {
+				row.push(lerpColor(bg, accent, getIntensity(x, y, t, width, height) * 0.5))
+			}
+			result.push(row)
+		}
+		return result
+	})
+
+	return (
+		<box
+			position="absolute"
+			left={0}
+			top={0}
+			width={dimensions().width}
+			height={dimensions().height}
+		>
+			<For each={rows()}>
+				{(row) => (
+					<text>
+						<For each={row}>{(color) => <span style={{ fg: color }}>█</span>}</For>
+					</text>
+				)}
+			</For>
+		</box>
+	)
+}
 
 function KeyHint(props: { keys: string; label: string; last?: boolean }) {
 	const { colors, style } = useTheme()
@@ -63,15 +173,21 @@ function GitRepoScreen(props: GitRepoScreenProps) {
 
 	return (
 		<box
+			position="absolute"
+			left={0}
+			top={0}
+			width="100%"
+			height="100%"
 			flexGrow={1}
 			flexDirection="column"
 			justifyContent="center"
 			alignItems="center"
-			backgroundColor={colors().background}
 		>
 			{/* Message above modal */}
-			<text fg={colors().warning}>Not a jj repository</text>
-			<text fg={colors().textMuted}>
+			<text fg={colors().warning} bg={colors().background}>
+				Not a jj repository
+			</text>
+			<text fg={colors().textMuted} bg={colors().background}>
 				Git repository detected in this directory
 			</text>
 			<box height={1} />
@@ -123,7 +239,7 @@ function GitRepoScreen(props: GitRepoScreenProps) {
 
 			{/* Keybind hints */}
 			<box height={1} />
-			<text>
+			<text bg={colors().background}>
 				<KeyHint keys="j/k" label="select" />
 				<KeyHint keys="enter" label="run" />
 				<KeyHint keys="q" label="quit" last />
@@ -243,15 +359,21 @@ function NoVcsScreen(props: NoVcsScreenProps) {
 
 	return (
 		<box
+			position="absolute"
+			left={0}
+			top={0}
+			width="100%"
+			height="100%"
 			flexGrow={1}
 			flexDirection="column"
 			justifyContent="center"
 			alignItems="center"
-			backgroundColor={colors().background}
 		>
 			{/* Message above modals */}
-			<text fg={colors().warning}>Not a jj repository</text>
-			<text fg={colors().textMuted}>
+			<text fg={colors().warning} bg={colors().background}>
+				Not a jj repository
+			</text>
+			<text fg={colors().textMuted} bg={colors().background}>
 				No version control found in this directory
 			</text>
 			<box height={1} />
@@ -381,7 +503,7 @@ function NoVcsScreen(props: NoVcsScreenProps) {
 
 			{/* Keybind hints */}
 			<box height={1} />
-			<text>
+			<text bg={colors().background}>
 				<KeyHint keys="tab" label="switch" />
 				<KeyHint keys="j/k" label="select" />
 				<KeyHint keys="1-9" label="open" />
@@ -403,18 +525,23 @@ export interface StartupScreenProps {
 
 export function StartupScreen(props: StartupScreenProps) {
 	return (
-		<Show
-			when={props.hasGitRepo}
-			fallback={
-				<NoVcsScreen
-					recentRepos={props.recentRepos}
-					onSelectRepo={props.onSelectRepo}
-					onInit={props.onInitJj}
-					onQuit={props.onQuit}
-				/>
-			}
-		>
-			<GitRepoScreen onInit={props.onInitJjGit} onQuit={props.onQuit} />
-		</Show>
+		<box flexGrow={1} width="100%" height="100%">
+			{/* Wave background renders first (below content) */}
+			<WaveBackground />
+			{/* Content renders on top */}
+			<Show
+				when={props.hasGitRepo}
+				fallback={
+					<NoVcsScreen
+						recentRepos={props.recentRepos}
+						onSelectRepo={props.onSelectRepo}
+						onInit={props.onInitJj}
+						onQuit={props.onQuit}
+					/>
+				}
+			>
+				<GitRepoScreen onInit={props.onInitJjGit} onQuit={props.onQuit} />
+			</Show>
+		</box>
 	)
 }
