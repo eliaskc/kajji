@@ -1,4 +1,4 @@
-import type { ScrollBoxRenderable } from "@opentui/core"
+import type { BoxRenderable, ScrollBoxRenderable } from "@opentui/core"
 import {
 	For,
 	Show,
@@ -234,9 +234,11 @@ export function MainArea() {
 	const command = useCommand()
 
 	let scrollRef: ScrollBoxRenderable | undefined
+	let headerRef: BoxRenderable | undefined
 
 	const [scrollTop, setScrollTop] = createSignal(0)
 	const [viewportHeight, setViewportHeight] = createSignal(30)
+	const [headerHeight, setHeaderHeight] = createSignal(0)
 	const [limit, setLimit] = createSignal(INITIAL_LIMIT)
 	const [currentCommitId, setCurrentCommitId] = createSignal<string | null>(
 		null,
@@ -538,12 +540,15 @@ export function MainArea() {
 			if (scrollRef) {
 				const currentScroll = scrollRef.scrollTop ?? 0
 				const currentViewport = scrollRef.viewport?.height ?? 30
+				const currentHeaderHeight = headerRef?.height ?? 0
 				if (
 					currentScroll !== scrollTop() ||
-					currentViewport !== viewportHeight()
+					currentViewport !== viewportHeight() ||
+					currentHeaderHeight !== headerHeight()
 				) {
 					setViewportHeight(currentViewport)
 					setScrollTop(currentScroll)
+					setHeaderHeight(currentHeaderHeight)
 					loadMoreIfNeeded()
 				}
 			}
@@ -552,6 +557,12 @@ export function MainArea() {
 	})
 
 	const isFocused = () => focus.isPanel("detail")
+
+	// Adjust scrollTop for virtualization: subtract header height so virtualization
+	// calculates visible rows relative to diff content, not entire scrollbox
+	const adjustedScrollTop = createMemo(() =>
+		Math.max(0, scrollTop() - headerHeight()),
+	)
 
 	command.register(() => [
 		{
@@ -707,16 +718,18 @@ export function MainArea() {
 						},
 					}}
 				>
-					<Show when={activeCommit()}>
-						{(commit: () => Commit) => (
-							<CommitHeader
-								commit={commit()}
-								details={commitDetails()}
-								stats={diffStats()}
-								maxWidth={mainAreaWidth()}
-							/>
-						)}
-					</Show>
+					<box ref={headerRef} flexDirection="column" flexShrink={0}>
+						<Show when={activeCommit()}>
+							{(commit: () => Commit) => (
+								<CommitHeader
+									commit={commit()}
+									details={commitDetails()}
+									stats={diffStats()}
+									maxWidth={mainAreaWidth()}
+								/>
+							)}
+						</Show>
+					</box>
 					<Show when={renderMode() === "passthrough"}>
 						<Show when={ptyDiff()}>
 							<ghostty-terminal
@@ -747,7 +760,7 @@ export function MainArea() {
 										files={parsedFiles()}
 										activeFileId={null}
 										currentHunkId={activeHunkId()}
-										scrollTop={scrollTop()}
+										scrollTop={adjustedScrollTop()}
 										viewportHeight={viewportHeight()}
 									/>
 								</Show>
@@ -757,7 +770,7 @@ export function MainArea() {
 										activeFileId={null}
 										currentHunkId={activeHunkId()}
 										width={mainAreaWidth()}
-										scrollTop={scrollTop()}
+										scrollTop={adjustedScrollTop()}
 										viewportHeight={viewportHeight()}
 									/>
 								</Show>
