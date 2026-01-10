@@ -1,53 +1,20 @@
-# kajji
+![kajji ascii art](./assets/kajji.png)
 
-```
-██╗  ██╗ █████╗      ██╗     ██╗██╗
-██║ ██╔╝██╔══██╗     ██║     ██║██║
-█████╔╝ ███████║     ██║     ██║██║
-██╔═██╗ ██╔══██║██   ██║██   ██║██║
-██║  ██╗██║  ██║╚█████╔╝╚█████╔╝██║
-╚═╝  ╚═╝╚═╝  ╚═╝ ╚════╝  ╚════╝ ╚═╝
-```
+A simple [jj](https://github.com/martinvonz/jj) terminal UI with custom diff rendering. 
 
-> The rudder for your jj
+![normal mode](./assets/normal-mode.png)
 
-A simple terminal UI for [Jujutsu](https://github.com/martinvonz/jj), inspired by [lazygit](https://github.com/jesseduffield/lazygit). Built with [OpenTUI](https://github.com/sst/opentui) and [SolidJS](https://www.solidjs.com/).
+Reviewing local code has never been as prominent as it is today. Coding agents are writing line upon line, and your sorry eyes are the ones that need to trudge through it.
 
-![kajji screenshot](./assets/kajji.png)
+Kajji makes this new reality less painful with polished jj navigation and manipulation alongside Shiki-powered diff rendering with syntax highlighting and word-level diffs. To allow for jj's log to get the real estate it deserves when you're looking at the diff, while also allowing the width required for side-by-side diff rendering, kajji has two view modes: normal and diff. Switch with ctrl+x and try it out. 
 
-While learning jj I found myself coming back to lazygit to view diffs and traverse the changes I'd made quickly and easily, which has become increasingly important to me with the rise of coding agents. While there are existing jj TUIs, none quite scratched that lazygit itch.
+![diff mode](./assets/diff-mode.png)
 
-Kajji is my attempt to bring the simplicity and polish of lazygit to jj, while also leveraging coding agents effectively and building a TUI for the first time.
+Why build this? While learning jj I found myself coming back to lazygit to do this quickly and easily - the options for jj didn't quite scratch that lazygit itch of speed, simplicity and polish.
 
-> Disclaimer: almost all code in this project has been written by coding agents (primarily Claude Opus 4.5 through [OpenCode](https://github.com/sst/opencode)).
+Kajji is my attempt to bring the UX of lazygit to jj, while also aiming for top-class diff rendering and exploring leveraging coding agents effectively. I'm building this for myself first and foremost, but I hope it can be helpful to others too.
 
-## Principles
-
-- **Polish & simplicity** - Do less, but do it well.
-- **Intuitive UX** - Sensible defaults, consistent patterns.
-- **Snappy** - If it feels slow, it's a bug.
-
-## Features
-
-**Core jj operations:**
-- [x] View commit log with graph
-- [x] View diffs (difftastic, delta, etc.)
-- [x] New / edit / describe / squash / abandon
-- [x] Undo / redo with preview
-- [x] Bookmarks (create, delete, rename, move)
-- [x] Git fetch / push
-- [x] Operation log with restore
-- [ ] Rebase
-- [ ] Split
-- [ ] Conflict resolution
-
-**TUI polish:**
-- [x] Vim-style navigation (j/k, ctrl+u/d)
-- [x] Mouse support (click, double-click, scroll)
-- [x] Collapsible file tree with status colors
-- [x] Help palette with fuzzy search (`?`)
-- [ ] Multi-select for batch operations
-- [ ] Search and filter
+> Disclaimer: almost all code in this project has been written by coding agents (primarily Claude Opus 4.5 through [OpenCode](https://github.com/sst/opencode) (100% via API of course 😌)).
 
 ## Installation
 
@@ -79,12 +46,44 @@ bun install
 bun dev
 ```
 
+## Principles
+
+- **Polish & simplicity** - Do less, but do it well.
+- **Intuitive UX** - Sensible defaults, consistent patterns.
+- **Snappy** - If it feels slow, it's a bug.
+
+## Features
+
+**Core jj operations:**
+- [x] View commit log with graph
+- [x] View diffs with syntax highlighting and word-level emphasis
+- [x] New / edit / describe / squash / abandon
+- [x] Rebase with revision picker
+- [x] Split (suspends TUI for jj's native split)
+- [x] Undo / redo with preview
+- [x] Bookmarks (create, delete, rename, move)
+- [x] Git fetch / push
+- [x] Operation log with restore
+- [ ] Conflict resolution
+
+**TUI polish:**
+- [x] Vim-style navigation (j/k, ctrl+u/d)
+- [x] Mouse support (click, double-click, scroll)
+- [x] Collapsible file tree with status colors
+- [x] Help palette with fuzzy search (`?`)
+- [x] Focus modes for normal browsing vs diff viewing
+- [x] Recent repository switcher
+- [x] Automatic update notifications
+- [ ] Multi-select for batch operations
+- [ ] Search and filter
+
 ## Usage
 
 Run `kajji` in any jj repository:
 
 ```bash
-kajji
+kajji                    # current directory
+kajji /path/to/repo      # specific directory
 ```
 
 ### Keybindings
@@ -95,6 +94,8 @@ kajji
 | `Tab` | Cycle focus between panels |
 | `Enter` | Drill into commit / file |
 | `Escape` | Back / close modal |
+| `ctrl+x` | Toggle focus mode (normal / diff) |
+| `ctrl+o` | Open recent repository |
 | `?` | Show help with fuzzy search |
 | `q` | Quit |
 
@@ -107,6 +108,8 @@ kajji
 | `d` | Describe change |
 | `s` | Squash into parent |
 | `a` | Abandon change |
+| `r` | Rebase |
+| `S` | Split |
 | `u` / `U` | Undo / redo |
 | `f` / `F` | Git fetch / fetch all |
 | `p` / `P` | Git push / push all |

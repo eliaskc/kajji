@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.3.0
+
+### new
+- custom diff rendering with syntax highlighting, word-level diffs, and virtualization ([#3](../../pull/3))
+- focus modes: toggle between normal and diff (`ctrl+x`) with narrow log sidebar ([`e63774bc`](../../commit/e63774bc))
+- error screen for critical startup errors with auto-fix for stale working copy ([`6cb8596b`](../../commit/6cb8596b))
+- startup screen when not in a jj/git repository ([`e438f12a`](../../commit/e438f12a))
+- recent repository switcher modal (`ctrl+o`) ([`14ff9bf1`](../../commit/14ff9bf1))
+- commit header with jj native refLine (bookmarks, git_head, workspace) ([`615ae8b4`](../../commit/615ae8b4))
+- syntax highlighting for 16 additional languages ([`59aa5ad3`](../../commit/59aa5ad3))
+- CLI argument to specify directory (`kajji /path/to/repo`) ([`be4582a6`](../../commit/be4582a6))
+- animated ocean wave on startup screen ([`de5cebee`](../../commit/de5cebee))
+- automatic update checker with toast notifications
+
+### improved
+- perf: faster startup by disabling Shiki syntax warmup ([`196a840b`](../../commit/196a840b))
+
+### fixed
+- diff view contents now update on refresh ([`1634edf1`](../../commit/1634edf1))
+- perf: reduced flicker at diff top/bottom on scroll ([`98b6dc13`](../../commit/98b6dc13))
+- layout: blank spacer removed from top of diff when scrolling ([`53705b93`](../../commit/53705b93))
+- ux: commit header only shows in file tree view, not diff mode ([`7d9a9143`](../../commit/7d9a9143))
+
 ## 0.2.0
 
 ### new
