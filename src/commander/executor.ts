@@ -1,3 +1,4 @@
+import { getRepoPath } from "../repo"
 import { profile, profileMsg } from "../utils/profiler"
 
 export interface ExecuteResult {
@@ -21,7 +22,7 @@ export async function execute(
 	const endSpawn = profile("  spawn")
 
 	const proc = Bun.spawn(["jj", ...args], {
-		cwd: options.cwd,
+		cwd: options.cwd || getRepoPath(),
 		env: {
 			...process.env,
 			// Prevent jj from opening editors
@@ -78,7 +79,7 @@ export function executeStreaming(
 	const endTotal = profile(`executeStreaming [jj ${args[0]}]`)
 
 	const proc = Bun.spawn(["jj", ...args], {
-		cwd: options.cwd,
+		cwd: options.cwd || getRepoPath(),
 		env: {
 			...process.env,
 			JJ_EDITOR: "true",
@@ -172,7 +173,7 @@ export function executePTYStreaming(
 
 	const cols = options.cols || 120
 	const rows = options.rows || 50
-	const cwd = options.cwd || process.cwd()
+	const cwd = options.cwd || getRepoPath()
 
 	let cancelled = false
 	let stdout = ""

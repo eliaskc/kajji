@@ -1,3 +1,4 @@
+import { getRepoPath } from "../repo"
 import { type ExecuteResult, execute } from "./executor"
 
 export interface OperationResult extends ExecuteResult {
@@ -13,7 +14,7 @@ export async function jjSplitInteractive(
 	options?: InteractiveOptions,
 ): Promise<{ success: boolean; error?: string }> {
 	const args = ["split", "-r", revision]
-	const cwd = options?.cwd ?? process.cwd()
+	const cwd = options?.cwd ?? getRepoPath()
 
 	const proc = Bun.spawn(["jj", ...args], {
 		cwd,
