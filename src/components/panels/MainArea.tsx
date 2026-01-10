@@ -571,7 +571,10 @@ export function MainArea() {
 			keybind: "nav_page_up",
 			context: "detail",
 			type: "navigation",
-			onSelect: () => scrollRef?.scrollBy(-0.5, "viewport"),
+			onSelect: () => {
+				scrollRef?.scrollBy(-0.5, "viewport")
+				if (scrollRef) setScrollTop(scrollRef.scrollTop)
+			},
 		},
 		{
 			id: "detail.page_down",
@@ -581,6 +584,7 @@ export function MainArea() {
 			type: "navigation",
 			onSelect: () => {
 				scrollRef?.scrollBy(0.5, "viewport")
+				if (scrollRef) setScrollTop(scrollRef.scrollTop)
 				loadMoreIfNeeded()
 			},
 		},
