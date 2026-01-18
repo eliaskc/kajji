@@ -4,6 +4,7 @@ import {
 	For,
 	Show,
 	createEffect,
+	createMemo,
 	createSignal,
 	on,
 	onCleanup,
@@ -84,6 +85,10 @@ export function LogPanel() {
 		revsetError,
 		clearRevsetFilter,
 		loadLog,
+		loadMoreLog,
+		logHasMore,
+		logLimit,
+		logLoadingMore,
 	} = useSync()
 	const focus = useFocus()
 	const command = useCommand()
@@ -243,6 +248,11 @@ export function LogPanel() {
 
 	let scrollRef: ScrollBoxRenderable | undefined
 	const [scrollTop, setScrollTop] = createSignal(0)
+	const [logViewportHeight, setLogViewportHeight] = createSignal(30)
+
+	const logTotalLines = createMemo(() =>
+		commits().reduce((sum, commit) => sum + commit.lines.length, 0),
+	)
 
 	let opLogScrollRef: ScrollBoxRenderable | undefined
 	const [opLogScrollTop, setOpLogScrollTop] = createSignal(0)
@@ -258,7 +268,7 @@ export function LogPanel() {
 			}
 
 			const margin = 2
-			const viewportHeight = scrollRef.viewport?.height ?? 30
+			const viewportHeight = logViewportHeight()
 			const currentScrollTop = scrollTop()
 
 			const visibleStart = currentScrollTop
@@ -315,6 +325,28 @@ export function LogPanel() {
 		}),
 	)
 
+	onMount(() => {
+		const pollInterval = setInterval(() => {
+			if (!scrollRef) return
+			const currentScroll = scrollRef.scrollTop ?? 0
+			const currentViewport = scrollRef.viewport?.height ?? 30
+			if (currentScroll !== scrollTop()) {
+				setScrollTop(currentScroll)
+			}
+			if (currentViewport !== logViewportHeight()) {
+				setLogViewportHeight(currentViewport)
+			}
+
+			if (!logLoadingMore() && logHasMore()) {
+				const threshold = Math.max(0, logTotalLines() - 10)
+				if (currentScroll + currentViewport >= threshold) {
+					loadMoreLog()
+				}
+			}
+		}, 100)
+		onCleanup(() => clearInterval(pollInterval))
+	})
+
 	let filesScrollRef: ScrollBoxRenderable | undefined
 	const [filesScrollTop, setFilesScrollTop] = createSignal(0)
 
@@ -367,6 +399,16 @@ export function LogPanel() {
 		}
 	}
 
+	const selectNextCommit = () => {
+		if (logLoadingMore()) return
+		selectNext()
+		const list = commits()
+		const index = selectedIndex()
+		if (list.length - index <= 5 && logHasMore()) {
+			loadMoreLog()
+		}
+	}
+
 	const selectedOperation = () => opLogEntries()[opLogSelectedIndex()]
 
 	command.register(() => [
@@ -398,7 +440,7 @@ export function LogPanel() {
 			type: "navigation",
 			panel: "log",
 			visibility: "help-only",
-			onSelect: selectNext,
+			onSelect: selectNextCommit,
 		},
 		{
 			id: "log.revisions.prev",
@@ -835,6 +877,13 @@ export function LogPanel() {
 								})
 								const handleMouseDown = () => {
 									setSelectedIndex(index())
+									if (
+										!logLoadingMore() &&
+										commits().length - index() <= 5 &&
+										logHasMore()
+									) {
+										loadMoreLog()
+									}
 									handleClick()
 								}
 								const showSelection = () => isSelected() && isFocused()

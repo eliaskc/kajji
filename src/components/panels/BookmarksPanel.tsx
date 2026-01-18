@@ -11,6 +11,7 @@ import {
 	createSignal,
 	on,
 	onCleanup,
+	onMount,
 } from "solid-js"
 import {
 	jjBookmarkCreate,
@@ -55,6 +56,11 @@ export function BookmarksPanel() {
 	const {
 		commits,
 		bookmarks,
+		visibleBookmarks,
+		bookmarkLimit,
+		loadMoreBookmarks,
+		bookmarksHasMore,
+		bookmarksLoadingMore,
 		selectedBookmarkIndex,
 		setSelectedBookmarkIndex,
 		selectedBookmark,
@@ -67,6 +73,8 @@ export function BookmarksPanel() {
 		selectedBookmarkCommitIndex,
 		setSelectedBookmarkCommitIndex,
 		bookmarkCommitsLoading,
+		bookmarkCommitsHasMore,
+		loadMoreBookmarkCommits,
 		bookmarkFlatFiles,
 		selectedBookmarkFileIndex,
 		setSelectedBookmarkFileIndex,
@@ -105,6 +113,9 @@ export function BookmarksPanel() {
 
 	const isFocused = () => focus.isPanel("refs")
 	const localBookmarks = () => bookmarks().filter((b) => b.isLocal)
+	const visibleLocalBookmarks = createMemo(() =>
+		visibleBookmarks().filter((bookmark) => bookmark.isLocal),
+	)
 
 	const [filterMode, setFilterModeInternal] = createSignal(false)
 	const [filterQuery, setFilterQuery] = createSignal("")
@@ -125,9 +136,9 @@ export function BookmarksPanel() {
 
 	const filteredBookmarks = createMemo(() => {
 		const q = filterQuery().trim()
-		if (!q) return localBookmarks()
+		if (!q) return visibleLocalBookmarks()
 
-		const results = fuzzysort.go(q, localBookmarks(), {
+		const results = fuzzysort.go(q, visibleLocalBookmarks(), {
 			key: "name",
 			threshold: FUZZY_THRESHOLD,
 			limit: 100,
@@ -138,7 +149,11 @@ export function BookmarksPanel() {
 	const currentBookmarks = () =>
 		filterMode() && filterQuery().trim()
 			? filteredBookmarks()
-			: localBookmarks()
+			: visibleLocalBookmarks()
+
+	const listTotalRows = createMemo(() => currentBookmarks().length)
+	const listThreshold = createMemo(() => Math.max(0, listTotalRows() - 10))
+	const canPageBookmarks = createMemo(() => !filterMode() && bookmarksHasMore())
 
 	const currentSelectedIndex = () =>
 		filterMode() && filterQuery().trim()
@@ -252,6 +267,7 @@ export function BookmarksPanel() {
 	let filesScrollRef: ScrollBoxRenderable | undefined
 
 	const [listScrollTop, setListScrollTop] = createSignal(0)
+	const [listViewportHeight, setListViewportHeight] = createSignal(30)
 	const [commitsScrollTop, setCommitsScrollTop] = createSignal(0)
 	const [filesScrollTop, setFilesScrollTop] = createSignal(0)
 
@@ -270,6 +286,11 @@ export function BookmarksPanel() {
 			},
 		),
 	)
+
+	onCleanup(() => {
+		setListScrollTop(0)
+		setListViewportHeight(30)
+	})
 
 	createEffect(
 		on(selectedBookmarkCommitIndex, (index) => {
@@ -295,6 +316,27 @@ export function BookmarksPanel() {
 		}),
 	)
 
+	onMount(() => {
+		const pollInterval = setInterval(() => {
+			if (bookmarkViewMode() !== "list" || !listScrollRef) return
+			const currentScroll = listScrollRef.scrollTop ?? 0
+			const currentViewport = listScrollRef.viewport?.height ?? 30
+			if (currentScroll !== listScrollTop()) {
+				setListScrollTop(currentScroll)
+			}
+			if (currentViewport !== listViewportHeight()) {
+				setListViewportHeight(currentViewport)
+			}
+
+			if (!bookmarksLoadingMore() && canPageBookmarks()) {
+				if (currentScroll + currentViewport >= listThreshold()) {
+					loadMoreBookmarks()
+				}
+			}
+		}, 100)
+		onCleanup(() => clearInterval(pollInterval))
+	})
+
 	const title = () => {
 		const mode = bookmarkViewMode()
 		if (mode === "files") {
@@ -317,6 +359,16 @@ export function BookmarksPanel() {
 
 	const handleCommitsEnter = () => {
 		enterBookmarkFilesView()
+	}
+
+	const selectNextBookmarkCommitWithLoad = () => {
+		if (bookmarkCommitsLoading()) return
+		selectNextBookmarkCommit()
+		const list = bookmarkCommits()
+		const index = selectedBookmarkCommitIndex()
+		if (list.length - index <= 5 && bookmarkCommitsHasMore()) {
+			loadMoreBookmarkCommits()
+		}
 	}
 
 	const handleFilesEnter = () => {
@@ -416,7 +468,7 @@ export function BookmarksPanel() {
 					type: "navigation",
 					panel: "refs",
 					visibility: "help-only",
-					onSelect: selectNextBookmarkCommit,
+					onSelect: selectNextBookmarkCommitWithLoad,
 				},
 				{
 					id: "refs.revisions.prev",
@@ -1008,8 +1060,17 @@ export function BookmarksPanel() {
 										})
 										const handleMouseDown = () => {
 											setSelectedBookmarkCommitIndex(index())
+											if (
+												!bookmarkCommitsLoading() &&
+												bookmarkCommitsHasMore() &&
+												bookmarkCommits().length - index() <= 5
+											) {
+												loadMoreBookmarkCommits()
+											}
+
 											handleDoubleClick()
 										}
+
 										return (
 											<box
 												backgroundColor={

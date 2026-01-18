@@ -14,7 +14,7 @@ import { getRepoPath } from "../repo"
 import { addRecentRepo } from "../utils/state"
 
 import { fetchFiles } from "../commander/files"
-import { fetchLog } from "../commander/log"
+import { fetchLogPage } from "../commander/log"
 import {
 	fetchOpLogId,
 	jjAbandon,
@@ -58,7 +58,11 @@ interface SyncContextValue {
 	activeCommit: () => Commit | undefined
 	commitDetails: () => CommitDetails | null
 	loadLog: () => Promise<void>
+	loadMoreLog: () => Promise<void>
+	logHasMore: () => boolean
+	logLimit: () => number
 	loading: () => boolean
+	logLoadingMore: () => boolean
 	error: () => string | null
 
 	revsetFilter: () => string | null
@@ -85,6 +89,11 @@ interface SyncContextValue {
 	selectLastFile: () => void
 
 	bookmarks: () => Bookmark[]
+	visibleBookmarks: () => Bookmark[]
+	bookmarkLimit: () => number
+	loadMoreBookmarks: () => Promise<void>
+	bookmarksHasMore: () => boolean
+	bookmarksLoadingMore: () => boolean
 	selectedBookmarkIndex: () => number
 	setSelectedBookmarkIndex: (index: number) => void
 	bookmarksLoading: () => boolean
@@ -102,6 +111,9 @@ interface SyncContextValue {
 	selectedBookmarkCommitIndex: () => number
 	setSelectedBookmarkCommitIndex: (index: number) => void
 	bookmarkCommitsLoading: () => boolean
+	bookmarkCommitsHasMore: () => boolean
+	bookmarkCommitsLoadingMore: () => boolean
+	loadMoreBookmarkCommits: () => Promise<void>
 	selectedBookmarkCommit: () => Commit | undefined
 	bookmarkFileTree: () => FileTreeNode | null
 	bookmarkFlatFiles: () => FlatFileNode[]
@@ -138,6 +150,9 @@ export function SyncProvider(props: { children: JSX.Element }) {
 	const [selectedIndex, setSelectedIndex] = createSignal(0)
 	const [loading, setLoading] = createSignal(false)
 	const [error, setError] = createSignal<string | null>(null)
+	const [logLimit, setLogLimit] = createSignal(100)
+	const [logHasMore, setLogHasMore] = createSignal(true)
+	const [logLoadingMore, setLogLoadingMore] = createSignal(false)
 
 	const [viewMode, setViewMode] = createSignal<ViewMode>("log")
 	const [files, setFiles] = createSignal<FileChange[]>([])
@@ -153,6 +168,12 @@ export function SyncProvider(props: { children: JSX.Element }) {
 	const [selectedBookmarkIndex, setSelectedBookmarkIndex] = createSignal(0)
 	const [bookmarksLoading, setBookmarksLoading] = createSignal(false)
 	const [bookmarksError, setBookmarksError] = createSignal<string | null>(null)
+	const [bookmarkLimit, setBookmarkLimit] = createSignal(200)
+	const [bookmarksHasMore, setBookmarksHasMore] = createSignal(true)
+	const [bookmarksLoadingMore, setBookmarksLoadingMore] = createSignal(false)
+	const visibleBookmarks = createMemo(() =>
+		bookmarks().slice(0, bookmarkLimit()),
+	)
 
 	const [bookmarkViewMode, setBookmarkViewMode] =
 		createSignal<BookmarkViewMode>("list")
@@ -160,6 +181,10 @@ export function SyncProvider(props: { children: JSX.Element }) {
 	const [selectedBookmarkCommitIndex, setSelectedBookmarkCommitIndex] =
 		createSignal(0)
 	const [bookmarkCommitsLoading, setBookmarkCommitsLoading] =
+		createSignal(false)
+	const [bookmarkCommitsLimit, setBookmarkCommitsLimit] = createSignal(100)
+	const [bookmarkCommitsHasMore, setBookmarkCommitsHasMore] = createSignal(true)
+	const [bookmarkCommitsLoadingMore, setBookmarkCommitsLoadingMore] =
 		createSignal(false)
 	const [activeBookmarkName, setActiveBookmarkName] = createSignal<
 		string | null
@@ -179,8 +204,17 @@ export function SyncProvider(props: { children: JSX.Element }) {
 	)
 	const [refreshCounter, setRefreshCounter] = createSignal(0)
 
-	const [revsetFilter, setRevsetFilter] = createSignal<string | null>(null)
+	const [revsetFilter, setRevsetFilterSignal] = createSignal<string | null>(
+		null,
+	)
 	const [revsetError, setRevsetError] = createSignal<string | null>(null)
+
+	const setRevsetFilter = (revset: string | null) => {
+		setRevsetFilterSignal(revset)
+		setLogLimit(100)
+		setLogHasMore(true)
+		setLogLoadingMore(false)
+	}
 
 	const flatFiles = createMemo(() => {
 		const tree = fileTree()
@@ -227,8 +261,17 @@ export function SyncProvider(props: { children: JSX.Element }) {
 			if (bmMode === "commits" || bmMode === "files") {
 				const bookmarkName = activeBookmarkName()
 				if (bookmarkName) {
-					const result = await fetchLog({ revset: `::${bookmarkName}` })
-					setBookmarkCommits(result)
+					const result = await fetchLogPage({
+						revset: `::${bookmarkName}`,
+						limit: bookmarkCommitsLimit(),
+					})
+					setBookmarkCommits(result.commits)
+					setSelectedBookmarkCommitIndex((index) =>
+						result.commits.length === 0
+							? 0
+							: Math.min(index, result.commits.length - 1),
+					)
+					setBookmarkCommitsHasMore(result.hasMore)
 
 					if (bmMode === "files") {
 						const commit = selectedBookmarkCommit()
@@ -515,9 +558,15 @@ export function SyncProvider(props: { children: JSX.Element }) {
 		if (!bookmark) return
 
 		setBookmarkCommitsLoading(true)
+		setBookmarkCommitsLimit(100)
+		setBookmarkCommitsHasMore(true)
 		try {
-			const result = await fetchLog({ revset: `::${bookmark.name}` })
-			setBookmarkCommits(result)
+			const result = await fetchLogPage({
+				revset: `::${bookmark.name}`,
+				limit: 100,
+			})
+			setBookmarkCommits(result.commits)
+			setBookmarkCommitsHasMore(result.hasMore)
 			setSelectedBookmarkCommitIndex(0)
 			setActiveBookmarkName(bookmark.name)
 			setBookmarkViewMode("commits")
@@ -551,6 +600,33 @@ export function SyncProvider(props: { children: JSX.Element }) {
 		}
 	}
 
+	const loadMoreBookmarkCommits = async () => {
+		if (!bookmarkCommitsHasMore() || bookmarkCommitsLoadingMore()) return
+		const bookmarkName = activeBookmarkName()
+		if (!bookmarkName) return
+
+		setBookmarkCommitsLoadingMore(true)
+		const newLimit = bookmarkCommitsLimit() + 50
+		setBookmarkCommitsLimit(newLimit)
+		try {
+			const result = await fetchLogPage({
+				revset: `::${bookmarkName}`,
+				limit: newLimit,
+			})
+			setBookmarkCommits(result.commits)
+			setBookmarkCommitsHasMore(result.hasMore)
+			setSelectedBookmarkCommitIndex((index) =>
+				result.commits.length === 0
+					? 0
+					: Math.min(index, result.commits.length - 1),
+			)
+		} catch (e) {
+			console.error("Failed to load more bookmark commits:", e)
+		} finally {
+			setBookmarkCommitsLoadingMore(false)
+		}
+	}
+
 	const exitBookmarkView = () => {
 		const mode = bookmarkViewMode()
 		if (mode === "files") {
@@ -563,6 +639,8 @@ export function SyncProvider(props: { children: JSX.Element }) {
 		} else if (mode === "commits") {
 			setBookmarkViewMode("list")
 			setBookmarkCommits([])
+			setBookmarkCommitsLimit(100)
+			setBookmarkCommitsHasMore(true)
 			setSelectedBookmarkCommitIndex(0)
 			setActiveBookmarkName(null)
 			focus.setActiveContext("refs.bookmarks")
@@ -575,9 +653,20 @@ export function SyncProvider(props: { children: JSX.Element }) {
 		setBookmarksError(null)
 		try {
 			await globalLoading.run("Fetching...", async () => {
-				const result = await fetchBookmarks({ allRemotes: true })
+				const result = await fetchBookmarks()
 				setBookmarks(result)
-				if (isInitialLoad) setSelectedBookmarkIndex(0)
+				const localCount = result.filter((bookmark) => bookmark.isLocal).length
+				const limit = Math.min(bookmarkLimit(), localCount)
+				setBookmarkLimit(limit)
+				setBookmarksHasMore(localCount > limit)
+				setBookmarkLimit(limit)
+				if (isInitialLoad) {
+					setSelectedBookmarkIndex(0)
+				} else {
+					setSelectedBookmarkIndex((index) =>
+						result.length === 0 ? 0 : Math.min(index, result.length - 1),
+					)
+				}
 			})
 		} catch (e) {
 			setBookmarksError(
@@ -585,6 +674,29 @@ export function SyncProvider(props: { children: JSX.Element }) {
 			)
 		} finally {
 			if (isInitialLoad) setBookmarksLoading(false)
+		}
+	}
+
+	const loadMoreBookmarks = async () => {
+		if (!bookmarksHasMore() || bookmarksLoadingMore()) return
+		setBookmarksLoadingMore(true)
+		const newLimit = bookmarkLimit() + 200
+		setBookmarkLimit(newLimit)
+		try {
+			const result = bookmarks()
+			const localCount = result.filter((bookmark) => bookmark.isLocal).length
+			const limit = Math.min(newLimit, localCount)
+			setBookmarkLimit(limit)
+			setBookmarksHasMore(localCount > limit)
+			setSelectedBookmarkIndex((index) =>
+				result.length === 0 ? 0 : Math.min(index, result.length - 1),
+			)
+		} catch (e) {
+			setBookmarksError(
+				e instanceof Error ? e.message : "Failed to load bookmarks",
+			)
+		} finally {
+			setBookmarksLoadingMore(false)
 		}
 	}
 
@@ -597,7 +709,42 @@ export function SyncProvider(props: { children: JSX.Element }) {
 			setSelectedIndex(index)
 			return index
 		}
+
 		return null
+	}
+
+	const loadMoreLog = async () => {
+		if (!logHasMore() || logLoadingMore()) return
+		setLogLoadingMore(true)
+		const newLimit = logLimit() + 50
+		setLogLimit(newLimit)
+		const filter = revsetFilter()
+		try {
+			const result = await fetchLogPage(
+				filter ? { revset: filter, limit: newLimit } : { limit: newLimit },
+			)
+			setCommits(result.commits)
+			setLogHasMore(result.hasMore)
+			setSelectedIndex((index) =>
+				result.commits.length === 0
+					? 0
+					: Math.min(index, result.commits.length - 1),
+			)
+		} catch (e) {
+			const msg = e instanceof Error ? e.message : "Failed to load log"
+			if (filter) {
+				const firstLine =
+					msg
+						.split("\n")[0]
+						?.replace(/^jj log failed:\s*/i, "")
+						.replace(/^Error:\s*/i, "") || msg
+				setRevsetError(firstLine)
+			} else {
+				setError(msg)
+			}
+		} finally {
+			setLogLoadingMore(false)
+		}
 	}
 
 	const loadLog = async () => {
@@ -606,12 +753,19 @@ export function SyncProvider(props: { children: JSX.Element }) {
 		setError(null)
 		setRevsetError(null)
 		const filter = revsetFilter()
+		const limit = logLimit()
 		try {
 			await globalLoading.run("Fetching...", async () => {
-				const result = await fetchLog(filter ? { revset: filter } : undefined)
-				setCommits(result)
+				const result = await fetchLogPage(
+					filter ? { revset: filter, limit } : { limit },
+				)
+				setCommits(result.commits)
+				setLogHasMore(result.hasMore)
+				setLogLimit(limit)
 				setSelectedIndex((index) =>
-					result.length === 0 ? 0 : Math.min(index, result.length - 1),
+					result.commits.length === 0
+						? 0
+						: Math.min(index, result.commits.length - 1),
 				)
 				setRevsetError(null)
 				if (isInitialLoad) {
@@ -639,8 +793,11 @@ export function SyncProvider(props: { children: JSX.Element }) {
 	}
 
 	const clearRevsetFilter = () => {
-		setRevsetFilter(null)
+		setRevsetFilterSignal(null)
 		setRevsetError(null)
+		setLogLimit(100)
+		setLogHasMore(true)
+		setLogLoadingMore(false)
 		loadLog()
 	}
 
@@ -700,7 +857,11 @@ export function SyncProvider(props: { children: JSX.Element }) {
 		activeCommit,
 		commitDetails,
 		loadLog,
+		loadMoreLog,
+		logHasMore,
+		logLimit,
 		loading,
+		logLoadingMore,
 		error,
 
 		revsetFilter,
@@ -727,6 +888,11 @@ export function SyncProvider(props: { children: JSX.Element }) {
 		selectLastFile,
 
 		bookmarks,
+		visibleBookmarks,
+		bookmarkLimit,
+		loadMoreBookmarks,
+		bookmarksHasMore,
+		bookmarksLoadingMore,
 		selectedBookmarkIndex,
 		setSelectedBookmarkIndex,
 		bookmarksLoading,
@@ -744,6 +910,9 @@ export function SyncProvider(props: { children: JSX.Element }) {
 		selectedBookmarkCommitIndex,
 		setSelectedBookmarkCommitIndex,
 		bookmarkCommitsLoading,
+		bookmarkCommitsHasMore,
+		bookmarkCommitsLoadingMore,
+		loadMoreBookmarkCommits,
 		selectedBookmarkCommit,
 		bookmarkFileTree,
 		bookmarkFlatFiles,

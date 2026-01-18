@@ -1,5 +1,23 @@
-import { describe, expect, test } from "bun:test"
-import { parseLogOutput } from "../../../src/commander/log"
+import { beforeEach, describe, expect, mock, test } from "bun:test"
+
+const mockExecute = mock(() =>
+	Promise.resolve({
+		stdout: "",
+		stderr: "",
+		exitCode: 0,
+		success: true,
+	}),
+)
+
+mock.module("../../../src/commander/executor", () => ({
+	execute: mockExecute,
+}))
+
+import { fetchLogPage, parseLogOutput } from "../../../src/commander/log"
+
+beforeEach(() => {
+	mockExecute.mockClear()
+})
 
 // Template format: gutter + MARKER + changeId + MARKER + commitId + MARKER + immutable + MARKER + empty + MARKER + divergent + MARKER + description + MARKER + author + MARKER + email + MARKER + timestamp + MARKER + bookmarks + MARKER + gitHead + MARKER + workingCopies + MARKER + refLine
 // Total: 14 parts (13 markers)
@@ -127,5 +145,67 @@ describe("parseLogOutput", () => {
 		const commits = parseLogOutput(output)
 
 		expect(commits[0]?.workingCopies).toEqual(["default", "secondary"])
+	})
+})
+
+describe("fetchLogPage", () => {
+	test("uses limit + 1 to detect more results", async () => {
+		const output =
+			"○  __LJ__abc123__LJ__def456__LJ__false__LJ__false__LJ__false__LJ__commit one__LJ__Author__LJ__a@b.com__LJ__2025-01-01 12:00:00__LJ____LJ__false__LJ____LJ__abc123\n" +
+			"○  __LJ__ghi789__LJ__jkl012__LJ__false__LJ__false__LJ__false__LJ__commit two__LJ__Author__LJ__a@b.com__LJ__2025-01-01 12:01:00__LJ____LJ__false__LJ____LJ__ghi789\n" +
+			"○  __LJ__mno345__LJ__pqr678__LJ__false__LJ__false__LJ__false__LJ__commit three__LJ__Author__LJ__a@b.com__LJ__2025-01-01 12:02:00__LJ____LJ__false__LJ____LJ__mno345"
+
+		mockExecute.mockResolvedValueOnce({
+			stdout: output,
+			stderr: "",
+			exitCode: 0,
+			success: true,
+		})
+
+		const result = await fetchLogPage({ limit: 2 })
+
+		expect(mockExecute).toHaveBeenCalledWith(
+			[
+				"log",
+				"--color",
+				"always",
+				"--template",
+				expect.any(String),
+				"--limit",
+				"3",
+			],
+			{ cwd: undefined },
+		)
+		expect(result.commits).toHaveLength(2)
+		expect(result.hasMore).toBe(true)
+	})
+
+	test("does not set hasMore when result fits limit", async () => {
+		const output =
+			"○  __LJ__abc123__LJ__def456__LJ__false__LJ__false__LJ__false__LJ__commit one__LJ__Author__LJ__a@b.com__LJ__2025-01-01 12:00:00__LJ____LJ__false__LJ____LJ__abc123"
+
+		mockExecute.mockResolvedValueOnce({
+			stdout: output,
+			stderr: "",
+			exitCode: 0,
+			success: true,
+		})
+
+		const result = await fetchLogPage({ limit: 2 })
+
+		expect(mockExecute).toHaveBeenCalledWith(
+			[
+				"log",
+				"--color",
+				"always",
+				"--template",
+				expect.any(String),
+				"--limit",
+				"3",
+			],
+			{ cwd: undefined },
+		)
+		expect(result.commits).toHaveLength(1)
+		expect(result.hasMore).toBe(false)
 	})
 })

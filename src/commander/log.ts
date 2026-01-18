@@ -3,7 +3,6 @@ import type { Commit } from "./types"
 
 const MARKER = "__LJ__"
 
-// Strip ANSI escape codes from a string (for extracting clean metadata)
 // biome-ignore lint/suspicious/noControlCharactersInRegex: intentional ANSI escape sequence
 const stripAnsi = (str: string) => str.replace(/\x1b\[[0-9;]*m/g, "")
 
@@ -92,16 +91,38 @@ export function parseLogOutput(output: string): Commit[] {
 export interface FetchLogOptions {
 	cwd?: string
 	revset?: string
+	limit?: number
 }
 
-export async function fetchLog(options?: FetchLogOptions): Promise<Commit[]> {
-	const template = buildTemplate()
+export interface FetchLogPageResult {
+	commits: Commit[]
+	hasMore: boolean
+}
+
+function buildArgs(
+	options: FetchLogOptions | undefined,
+	template: string,
+	limit?: number,
+) {
 	const args = ["log", "--color", "always", "--template", template]
 
 	if (options?.revset) {
 		args.push("-r", options.revset)
 	}
 
+	if (limit) {
+		args.push("--limit", String(limit))
+	}
+
+	return args
+}
+
+async function executeLog(
+	options: FetchLogOptions | undefined,
+	limit?: number,
+): Promise<string> {
+	const template = buildTemplate()
+	const args = buildArgs(options, template, limit)
 	const result = await execute(args, {
 		cwd: options?.cwd,
 	})
@@ -116,5 +137,28 @@ export async function fetchLog(options?: FetchLogOptions): Promise<Commit[]> {
 		throw new Error(`jj log failed: ${result.stderr}`)
 	}
 
-	return parseLogOutput(result.stdout)
+	return result.stdout
+}
+
+export async function fetchLogPage(
+	options?: FetchLogOptions,
+): Promise<FetchLogPageResult> {
+	const limit = options?.limit
+	const raw = await executeLog(options, limit ? limit + 1 : undefined)
+	const commits = parseLogOutput(raw)
+
+	if (!limit) {
+		return { commits, hasMore: false }
+	}
+
+	if (commits.length > limit) {
+		return { commits: commits.slice(0, limit), hasMore: true }
+	}
+
+	return { commits, hasMore: false }
+}
+
+export async function fetchLog(options?: FetchLogOptions): Promise<Commit[]> {
+	const result = await fetchLogPage(options)
+	return result.commits
 }
