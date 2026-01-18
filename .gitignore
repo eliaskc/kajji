@@ -37,3 +37,6 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 bench-results.json
 bench-diff-results.json
 bench-syntax-results.json
+
+# opencode plans (local only)
+.opencode/plans
