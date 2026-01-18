@@ -81,6 +81,15 @@ export async function jjNew(revision: string): Promise<OperationResult> {
 	}
 }
 
+export async function jjNewBefore(revision: string): Promise<OperationResult> {
+	const args = ["new", "-B", revision]
+	const result = await execute(args)
+	return {
+		...result,
+		command: `jj ${args.join(" ")}`,
+	}
+}
+
 export async function jjEdit(
 	revision: string,
 	options?: { ignoreImmutable?: boolean },

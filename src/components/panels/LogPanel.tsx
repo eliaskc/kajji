@@ -20,6 +20,7 @@ import {
 	jjDescribe,
 	jjEdit,
 	jjNew,
+	jjNewBefore,
 	jjOpRestore,
 	jjRebase,
 	jjRestore,
@@ -472,6 +473,19 @@ export function LogPanel() {
 			onSelect: () => {
 				const commit = selectedCommit()
 				if (commit) runOperation("Creating...", () => jjNew(commit.changeId))
+			},
+		},
+		{
+			id: "log.revisions.new_before",
+			title: "new before",
+			keybind: "jj_new_before",
+			context: "log.revisions",
+			type: "action",
+			panel: "log",
+			onSelect: () => {
+				const commit = selectedCommit()
+				if (commit)
+					runOperation("Creating...", () => jjNewBefore(commit.changeId))
 			},
 		},
 		{

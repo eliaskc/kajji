@@ -27,6 +27,7 @@ import {
 	jjDescribe,
 	jjEdit,
 	jjNew,
+	jjNewBefore,
 	jjRebase,
 	jjRestore,
 	jjShowDescription,
@@ -511,6 +512,19 @@ export function BookmarksPanel() {
 						const commit = selectedBookmarkCommit()
 						if (commit)
 							runOperation("Creating...", () => jjNew(commit.changeId))
+					},
+				},
+				{
+					id: "refs.revisions.new_before",
+					title: "new before",
+					keybind: "jj_new_before",
+					context: "refs.revisions",
+					type: "action",
+					panel: "refs",
+					onSelect: () => {
+						const commit = selectedBookmarkCommit()
+						if (commit)
+							runOperation("Creating...", () => jjNewBefore(commit.changeId))
 					},
 				},
 				{

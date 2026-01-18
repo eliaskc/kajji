@@ -103,7 +103,7 @@ kajji /path/to/repo      # specific directory
 
 | Key | Action |
 | --- | ------ |
-| `n` | New change |
+| `n` / `N` | New change / new before |
 | `e` | Edit change |
 | `d` | Describe change |
 | `s` | Squash into parent |
