@@ -7,6 +7,7 @@ export interface FilterInputProps {
 	onInput: (value: string) => void
 	placeholder?: string
 	dividerPosition?: "above" | "below"
+	initialValue?: string
 }
 
 export function FilterInput(props: FilterInputProps) {
@@ -32,7 +33,7 @@ export function FilterInput(props: FilterInputProps) {
 						inputRef = r
 						props.ref?.(r)
 					}}
-					initialValue=""
+					initialValue={props.initialValue ?? ""}
 					placeholder={props.placeholder ?? "Filter"}
 					onContentChange={() => {
 						if (inputRef) {

@@ -61,6 +61,11 @@ interface SyncContextValue {
 	loading: () => boolean
 	error: () => string | null
 
+	revsetFilter: () => string | null
+	setRevsetFilter: (revset: string | null) => void
+	revsetError: () => string | null
+	clearRevsetFilter: () => void
+
 	viewMode: () => ViewMode
 	fileTree: () => FileTreeNode | null
 	flatFiles: () => FlatFileNode[]
@@ -173,6 +178,9 @@ export function SyncProvider(props: { children: JSX.Element }) {
 		null,
 	)
 	const [refreshCounter, setRefreshCounter] = createSignal(0)
+
+	const [revsetFilter, setRevsetFilter] = createSignal<string | null>(null)
+	const [revsetError, setRevsetError] = createSignal<string | null>(null)
 
 	const flatFiles = createMemo(() => {
 		const tree = fileTree()
@@ -596,20 +604,44 @@ export function SyncProvider(props: { children: JSX.Element }) {
 		const isInitialLoad = commits().length === 0
 		if (isInitialLoad) setLoading(true)
 		setError(null)
+		setRevsetError(null)
+		const filter = revsetFilter()
 		try {
 			await globalLoading.run("Fetching...", async () => {
-				const result = await fetchLog()
+				const result = await fetchLog(filter ? { revset: filter } : undefined)
 				setCommits(result)
+				setSelectedIndex((index) =>
+					result.length === 0 ? 0 : Math.min(index, result.length - 1),
+				)
+				setRevsetError(null)
 				if (isInitialLoad) {
 					setSelectedIndex(0)
 					addRecentRepo(getRepoPath())
 				}
 			})
 		} catch (e) {
-			setError(e instanceof Error ? e.message : "Failed to load log")
+			const msg = e instanceof Error ? e.message : "Failed to load log"
+			if (filter) {
+				// Revset error - preserve commits, show revset-specific error
+				// Strip prefixes like "jj log failed: Error: " to get clean message
+				const firstLine =
+					msg
+						.split("\n")[0]
+						?.replace(/^jj log failed:\s*/i, "")
+						.replace(/^Error:\s*/i, "") || msg
+				setRevsetError(firstLine)
+			} else {
+				setError(msg)
+			}
 		} finally {
 			if (isInitialLoad) setLoading(false)
 		}
+	}
+
+	const clearRevsetFilter = () => {
+		setRevsetFilter(null)
+		setRevsetError(null)
+		loadLog()
 	}
 
 	const enterFilesView = async () => {
@@ -670,6 +702,11 @@ export function SyncProvider(props: { children: JSX.Element }) {
 		loadLog,
 		loading,
 		error,
+
+		revsetFilter,
+		setRevsetFilter,
+		revsetError,
+		clearRevsetFilter,
 
 		viewMode,
 		fileTree,

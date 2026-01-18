@@ -1,12 +1,12 @@
-import type { ScrollBoxRenderable } from "@opentui/core"
-import { useRenderer } from "@opentui/solid"
+import type { ScrollBoxRenderable, TextareaRenderable } from "@opentui/core"
+import { useKeyboard, useRenderer } from "@opentui/solid"
 import {
 	For,
 	Show,
 	createEffect,
-	createMemo,
 	createSignal,
 	on,
+	onCleanup,
 	onMount,
 } from "solid-js"
 import { jjBookmarkCreate, jjBookmarkSet } from "../../commander/bookmarks"
@@ -31,12 +31,15 @@ import { useCommand } from "../../context/command"
 import { useCommandLog } from "../../context/commandlog"
 import { useDialog } from "../../context/dialog"
 import { useFocus } from "../../context/focus"
+import { useKeybind } from "../../context/keybind"
+import { useLayout } from "../../context/layout"
 import { useLoading } from "../../context/loading"
 import { useSync } from "../../context/sync"
 import { useTheme } from "../../context/theme"
 import type { Context } from "../../context/types"
 import { createDoubleClickDetector } from "../../utils/double-click"
 import { AnsiText } from "../AnsiText"
+import { FilterInput } from "../FilterInput"
 import { FilterableFileTree } from "../FilterableFileTree"
 import { Panel } from "../Panel"
 import { DescribeModal } from "../modals/DescribeModal"
@@ -76,12 +79,19 @@ export function LogPanel() {
 		selectNextFile,
 		selectPrevFile,
 		bookmarks,
+		revsetFilter,
+		setRevsetFilter,
+		revsetError,
+		clearRevsetFilter,
+		loadLog,
 	} = useSync()
 	const focus = useFocus()
 	const command = useCommand()
 	const commandLog = useCommandLog()
 	const dialog = useDialog()
 	const globalLoading = useLoading()
+	const keybind = useKeybind()
+	const layout = useLayout()
 	const { colors } = useTheme()
 
 	const [activeTab, setActiveTab] = createSignal<LogTab>("revisions")
@@ -91,8 +101,90 @@ export function LogPanel() {
 	const [opLogLimit, setOpLogLimit] = createSignal(50)
 	const [opLogHasMore, setOpLogHasMore] = createSignal(true)
 
+	// Revset filter mode state
+	const [filterMode, setFilterModeInternal] = createSignal(false)
+	const [filterQuery, setFilterQuery] = createSignal("")
+	let filterInputRef: TextareaRenderable | undefined
+
+	const setFilterMode = (value: boolean) => {
+		setFilterModeInternal(value)
+		command.setInputMode(value)
+	}
+
+	const errorContent = () => {
+		const err = revsetError()
+		if (err === null) return null
+		const width = Math.max(0, layout.terminalWidth() - 2)
+		const trimmed = err.length > width ? err.slice(0, width) : err
+		const padding = " ".repeat(Math.max(0, width - trimmed.length))
+		return trimmed + padding
+	}
+
+	onCleanup(() => {
+		command.setInputMode(false)
+	})
+
+	const activateFilter = () => {
+		// Pre-fill with existing filter
+		setFilterQuery(revsetFilter() ?? "")
+		setFilterMode(true)
+		queueMicrotask(() => {
+			filterInputRef?.focus()
+			filterInputRef?.gotoBufferEnd()
+		})
+	}
+
+	const cancelFilter = () => {
+		setFilterMode(false)
+		setFilterQuery("")
+	}
+
+	const applyFilter = async () => {
+		const query = filterQuery().trim()
+		if (query) {
+			setRevsetFilter(query)
+			await loadLog()
+			// Stay in filter mode if there was an error so user can fix it
+			if (revsetError()) {
+				queueMicrotask(() => {
+					filterInputRef?.focus()
+				})
+				return
+			}
+		} else if (revsetFilter()) {
+			// Clear filter if query is empty and there was a filter
+			clearRevsetFilter()
+		}
+		setFilterMode(false)
+	}
+
 	const isFocused = () => focus.isPanel("log")
 	const isFilesView = () => viewMode() === "files"
+
+	createEffect(() => {
+		if (activeTab() !== "revisions" || isFilesView()) {
+			if (filterMode()) {
+				setFilterMode(false)
+				setFilterQuery("")
+			}
+		}
+	})
+
+	// Keyboard handler for filter mode (input handling only)
+	useKeyboard((evt) => {
+		if (!isFocused() || activeTab() !== "revisions" || isFilesView()) return
+		if (!filterMode()) return
+
+		if (evt.name === "escape") {
+			evt.preventDefault()
+			evt.stopPropagation()
+			cancelFilter()
+		} else if (evt.name === "enter" || evt.name === "return") {
+			evt.preventDefault()
+			evt.stopPropagation()
+			applyFilter()
+		}
+	})
 
 	const tabs = () => (isFilesView() ? undefined : LOG_TABS)
 
@@ -589,6 +681,26 @@ export function LogPanel() {
 			},
 		},
 		{
+			id: "log.revisions.filter",
+			title: "filter",
+			keybind: "search",
+			context: "log.revisions",
+			type: "action",
+			panel: "log",
+			onSelect: activateFilter,
+		},
+		{
+			id: "log.revisions.clear_filter",
+			title: "clear filter",
+			keybind: "escape",
+			context: "log.revisions",
+			type: "action",
+			panel: "log",
+			visibility: "none",
+			enabled: () => !!revsetFilter(),
+			onSelect: clearRevsetFilter,
+		},
+		{
 			id: "log.oplog.restore",
 			title: "restore",
 			keybind: "jj_restore",
@@ -692,58 +804,111 @@ export function LogPanel() {
 	})
 
 	const renderLogContent = () => (
-		<>
+		<box flexDirection="column" flexGrow={1}>
 			<Show when={loading() && commits().length === 0}>
 				<text>Loading...</text>
 			</Show>
 			<Show when={error() && commits().length === 0}>
 				<text>Error: {error()}</text>
 			</Show>
-			<Show when={commits().length > 0}>
+			<Show when={commits().length > 0 || revsetFilter()}>
 				<scrollbox
 					ref={scrollRef}
 					flexGrow={1}
+					overflow="hidden"
 					scrollbarOptions={{ visible: false }}
 				>
-					<For each={commits()}>
-						{(commit, index) => {
-							const isSelected = () => index() === selectedIndex()
-							const handleClick = createDoubleClickDetector(() => {
-								setSelectedIndex(index())
-								enterFilesView()
-							})
-							const handleMouseDown = () => {
-								setSelectedIndex(index())
-								handleClick()
-							}
-							const showSelection = () => isSelected() && isFocused()
-							return (
-								<box onMouseDown={handleMouseDown}>
-									<For each={commit.lines}>
-										{(line) => (
-											<box
-												backgroundColor={
-													showSelection()
-														? colors().selectionBackground
-														: undefined
-												}
-												overflow="hidden"
-											>
-												<AnsiText
-													content={line}
-													bold={commit.isWorkingCopy}
-													wrapMode="none"
-												/>
-											</box>
-										)}
-									</For>
-								</box>
-							)
-						}}
-					</For>
+					<Show
+						when={commits().length > 0}
+						fallback={
+							<box paddingLeft={1}>
+								<text fg={colors().textMuted}>No matching revisions</text>
+							</box>
+						}
+					>
+						<For each={commits()}>
+							{(commit, index) => {
+								const isSelected = () => index() === selectedIndex()
+								const handleClick = createDoubleClickDetector(() => {
+									setSelectedIndex(index())
+									enterFilesView()
+								})
+								const handleMouseDown = () => {
+									setSelectedIndex(index())
+									handleClick()
+								}
+								const showSelection = () => isSelected() && isFocused()
+								return (
+									<box onMouseDown={handleMouseDown}>
+										<For each={commit.lines}>
+											{(line) => (
+												<box
+													backgroundColor={
+														showSelection()
+															? colors().selectionBackground
+															: undefined
+													}
+													overflow="hidden"
+												>
+													<AnsiText
+														content={line}
+														bold={commit.isWorkingCopy}
+														wrapMode="none"
+													/>
+												</box>
+											)}
+										</For>
+									</box>
+								)
+							}}
+						</For>
+					</Show>
 				</scrollbox>
 			</Show>
-		</>
+
+			{/* Revset filter display/input */}
+			<Show when={revsetFilter() || filterMode()}>
+				<box
+					flexDirection="column"
+					flexShrink={0}
+					backgroundColor={colors().background}
+				>
+					{/* Error line */}
+					<Show when={errorContent()}>
+						<text paddingLeft={1} fg={colors().error} wrapMode="none">
+							{errorContent()}
+						</text>
+					</Show>
+
+					{/* Divider */}
+					<box height={1} overflow="hidden">
+						<text fg={colors().textMuted} wrapMode="none">
+							{"─".repeat(200)}
+						</text>
+					</box>
+
+					{/* Filter input or read-only display */}
+					<Show
+						when={filterMode()}
+						fallback={
+							<box paddingLeft={1} height={1}>
+								<text fg={colors().textMuted}>/</text>
+								<text fg={colors().text}>{revsetFilter()}</text>
+							</box>
+						}
+					>
+						<FilterInput
+							ref={(r) => {
+								filterInputRef = r
+							}}
+							onInput={setFilterQuery}
+							initialValue={revsetFilter() ?? ""}
+							placeholder="Revset"
+						/>
+					</Show>
+				</box>
+			</Show>
+		</box>
 	)
 
 	const renderOpLogContent = () => (
