@@ -9,7 +9,11 @@ import {
 	onMount,
 	useContext,
 } from "solid-js"
-import { type Bookmark, fetchBookmarks } from "../commander/bookmarks"
+import {
+	type Bookmark,
+	fetchBookmarks,
+	fetchBookmarksStream,
+} from "../commander/bookmarks"
 import { getRepoPath } from "../repo"
 import { addRecentRepo } from "../utils/state"
 
@@ -237,6 +241,8 @@ export function SyncProvider(props: { children: JSX.Element }) {
 
 	let lastOpLogId: string | null = null
 	let isRefreshing = false
+	let bookmarksStreamHandle: ReturnType<typeof fetchBookmarksStream> | null =
+		null
 
 	const doFullRefresh = async () => {
 		if (isRefreshing) return
@@ -379,6 +385,7 @@ export function SyncProvider(props: { children: JSX.Element }) {
 			if (focusDebounceTimer) {
 				clearTimeout(focusDebounceTimer)
 			}
+			bookmarksStreamHandle?.cancel()
 		})
 	})
 
@@ -647,34 +654,54 @@ export function SyncProvider(props: { children: JSX.Element }) {
 		}
 	}
 
-	const loadBookmarks = async () => {
+	const loadBookmarks = (): Promise<void> => {
+		bookmarksStreamHandle?.cancel()
+		bookmarksStreamHandle = null
+
 		const isInitialLoad = bookmarks().length === 0
-		if (isInitialLoad) setBookmarksLoading(true)
-		setBookmarksError(null)
-		try {
-			await globalLoading.run("Fetching...", async () => {
-				const result = await fetchBookmarks()
-				setBookmarks(result)
-				const localCount = result.filter((bookmark) => bookmark.isLocal).length
-				const limit = Math.min(bookmarkLimit(), localCount)
-				setBookmarkLimit(limit)
-				setBookmarksHasMore(localCount > limit)
-				setBookmarkLimit(limit)
-				if (isInitialLoad) {
-					setSelectedBookmarkIndex(0)
-				} else {
-					setSelectedBookmarkIndex((index) =>
-						result.length === 0 ? 0 : Math.min(index, result.length - 1),
-					)
-				}
-			})
-		} catch (e) {
-			setBookmarksError(
-				e instanceof Error ? e.message : "Failed to load bookmarks",
-			)
-		} finally {
-			if (isInitialLoad) setBookmarksLoading(false)
+		if (isInitialLoad) {
+			setBookmarksLoading(true)
+			setBookmarks([])
 		}
+		setBookmarksError(null)
+
+		const updateBookmarkState = (result: Bookmark[]) => {
+			setBookmarks(result)
+			const localCount = result.filter((bookmark) => bookmark.isLocal).length
+			const limit = Math.min(bookmarkLimit(), localCount)
+			setBookmarkLimit(limit)
+			setBookmarksHasMore(localCount > limit)
+		}
+
+		return new Promise((resolve, reject) => {
+			bookmarksStreamHandle = fetchBookmarksStream(
+				{},
+				{
+					onBatch: (batch, _total) => {
+						updateBookmarkState(batch)
+					},
+					onComplete: (final) => {
+						updateBookmarkState(final)
+						if (isInitialLoad) {
+							setSelectedBookmarkIndex(0)
+						} else {
+							setSelectedBookmarkIndex((index) =>
+								final.length === 0 ? 0 : Math.min(index, final.length - 1),
+							)
+						}
+						setBookmarksLoading(false)
+						bookmarksStreamHandle = null
+						resolve()
+					},
+					onError: (error) => {
+						setBookmarksError(error.message)
+						setBookmarksLoading(false)
+						bookmarksStreamHandle = null
+						reject(error)
+					},
+				},
+			)
+		})
 	}
 
 	const loadMoreBookmarks = async () => {

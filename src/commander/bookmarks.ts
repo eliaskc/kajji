@@ -1,4 +1,4 @@
-import { execute } from "./executor"
+import { execute, executeStreaming } from "./executor"
 import type { OperationResult } from "./operations"
 
 export interface Bookmark {
@@ -37,6 +37,59 @@ export async function fetchBookmarks(
 	}
 
 	return parseBookmarkOutput(result.stdout)
+}
+
+export interface BookmarkStreamCallbacks {
+	onBatch: (bookmarks: Bookmark[], total: number) => void
+	onComplete: (bookmarks: Bookmark[]) => void
+	onError: (error: Error) => void
+}
+
+export function fetchBookmarksStream(
+	options: FetchBookmarksOptions,
+	callbacks: BookmarkStreamCallbacks,
+): { cancel: () => void } {
+	const args = ["bookmark", "list", "--sort", "committer-date-"]
+	if (options.allRemotes) {
+		args.push("--all-remotes")
+	}
+
+	let lastCount = 0
+
+	return executeStreaming(
+		args,
+		{ cwd: options.cwd },
+		{
+			onChunk: (content, lineCount) => {
+				const parsed = parseBookmarkOutput(content)
+				// Only emit if we have new bookmarks
+				if (parsed.length > lastCount) {
+					lastCount = parsed.length
+					callbacks.onBatch(parsed, parsed.length)
+				}
+			},
+			onComplete: (result) => {
+				const combinedOutput = result.stdout + result.stderr
+				if (/working copy is stale|stale working copy/i.test(combinedOutput)) {
+					callbacks.onError(
+						new Error(`The working copy is stale\n${combinedOutput}`),
+					)
+					return
+				}
+
+				if (!result.success) {
+					callbacks.onError(
+						new Error(`jj bookmark list failed: ${result.stderr}`),
+					)
+					return
+				}
+
+				const final = parseBookmarkOutput(result.stdout)
+				callbacks.onComplete(final)
+			},
+			onError: callbacks.onError,
+		},
+	)
 }
 
 export function parseBookmarkOutput(output: string): Bookmark[] {
