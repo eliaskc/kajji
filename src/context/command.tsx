@@ -36,6 +36,7 @@ export const { use: useCommand, provider: CommandProvider } =
 			const [registrations, setRegistrations] = createSignal<
 				Accessor<CommandOption[]>[]
 			>([])
+			const [inputMode, setInputMode] = createSignal(false)
 			const keybind = useKeybind()
 			const focus = useFocus()
 			const dialog = useDialog()
@@ -46,6 +47,7 @@ export const { use: useCommand, provider: CommandProvider } =
 
 			useKeyboard((evt) => {
 				const dialogOpen = dialog.isOpen()
+				const isInputMode = inputMode()
 				const activeCtx = focus.activeContext()
 				const activePanel = focus.panel()
 
@@ -53,7 +55,13 @@ export const { use: useCommand, provider: CommandProvider } =
 				let highestContextSpecificity = -1
 
 				for (const cmd of allCommands()) {
+					// Block all commands when dialog is open (except help)
 					if (dialogOpen && cmd.keybind !== "help") {
+						continue
+					}
+
+					// Block all commands when in input mode (e.g., filtering)
+					if (isInputMode) {
 						continue
 					}
 
@@ -100,6 +108,10 @@ export const { use: useCommand, provider: CommandProvider } =
 				},
 
 				all: allCommands,
+
+				// Input mode blocks all commands (for inline filtering, etc.)
+				setInputMode,
+				isInputMode: inputMode,
 			}
 		},
 	})

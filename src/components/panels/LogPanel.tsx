@@ -37,7 +37,7 @@ import { useTheme } from "../../context/theme"
 import type { Context } from "../../context/types"
 import { createDoubleClickDetector } from "../../utils/double-click"
 import { AnsiText } from "../AnsiText"
-import { FileTreeList } from "../FileTreeList"
+import { FilterableFileTree } from "../FilterableFileTree"
 import { Panel } from "../Panel"
 import { DescribeModal } from "../modals/DescribeModal"
 import { RevisionPickerModal } from "../modals/RevisionPickerModal"
@@ -785,7 +785,6 @@ export function LogPanel() {
 	)
 
 	const renderFilesContent = () => {
-		const commit = selectedCommit()
 		return (
 			<>
 				<Show when={filesLoading()}>
@@ -795,20 +794,17 @@ export function LogPanel() {
 					<text fg={colors().error}>Error: {filesError()}</text>
 				</Show>
 				<Show when={!filesLoading() && !filesError()}>
-					<scrollbox
-						ref={filesScrollRef}
-						flexGrow={1}
-						scrollbarOptions={{ visible: false }}
-					>
-						<FileTreeList
-							files={flatFiles}
-							selectedIndex={selectedFileIndex}
-							setSelectedIndex={setSelectedFileIndex}
-							collapsedPaths={collapsedPaths}
-							toggleFolder={toggleFolder}
-							isFocused={isFocused}
-						/>
-					</scrollbox>
+					<FilterableFileTree
+						files={flatFiles}
+						selectedIndex={selectedFileIndex}
+						setSelectedIndex={setSelectedFileIndex}
+						collapsedPaths={collapsedPaths}
+						toggleFolder={toggleFolder}
+						isFocused={isFocused}
+						scrollRef={(r) => {
+							filesScrollRef = r
+						}}
+					/>
 				</Show>
 			</>
 		)

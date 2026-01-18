@@ -1,13 +1,16 @@
-import type { ScrollBoxRenderable } from "@opentui/core"
-import { useRenderer } from "@opentui/solid"
+import type { ScrollBoxRenderable, TextareaRenderable } from "@opentui/core"
+import { useKeyboard, useRenderer } from "@opentui/solid"
+import fuzzysort from "fuzzysort"
 import {
 	For,
 	Match,
 	Show,
 	Switch,
 	createEffect,
+	createMemo,
 	createSignal,
 	on,
+	onCleanup,
 } from "solid-js"
 import {
 	jjBookmarkCreate,
@@ -33,11 +36,14 @@ import { useCommand } from "../../context/command"
 import { useCommandLog } from "../../context/commandlog"
 import { useDialog } from "../../context/dialog"
 import { useFocus } from "../../context/focus"
+import { useKeybind } from "../../context/keybind"
 import { useLoading } from "../../context/loading"
 import { useSync } from "../../context/sync"
 import { useTheme } from "../../context/theme"
 import { createDoubleClickDetector } from "../../utils/double-click"
-import { FileTreeList } from "../FileTreeList"
+import { FUZZY_THRESHOLD, scrollIntoView } from "../../utils/scroll"
+import { FilterInput } from "../FilterInput"
+import { FilterableFileTree } from "../FilterableFileTree"
 import { Panel } from "../Panel"
 import { BookmarkNameModal } from "../modals/BookmarkNameModal"
 import { DescribeModal } from "../modals/DescribeModal"
@@ -79,6 +85,7 @@ export function BookmarksPanel() {
 	} = useSync()
 	const focus = useFocus()
 	const command = useCommand()
+	const keybind = useKeybind()
 	const commandLog = useCommandLog()
 	const dialog = useDialog()
 	const globalLoading = useLoading()
@@ -99,6 +106,147 @@ export function BookmarksPanel() {
 	const isFocused = () => focus.isPanel("refs")
 	const localBookmarks = () => bookmarks().filter((b) => b.isLocal)
 
+	const [filterMode, setFilterModeInternal] = createSignal(false)
+	const [filterQuery, setFilterQuery] = createSignal("")
+	const [filterSelectedIndex, setFilterSelectedIndex] = createSignal(0)
+
+	let filterInputRef: TextareaRenderable | undefined
+
+	const setFilterMode = (value: boolean) => {
+		setFilterModeInternal(value)
+		command.setInputMode(value)
+	}
+
+	onCleanup(() => {
+		if (filterMode()) {
+			command.setInputMode(false)
+		}
+	})
+
+	const filteredBookmarks = createMemo(() => {
+		const q = filterQuery().trim()
+		if (!q) return localBookmarks()
+
+		const results = fuzzysort.go(q, localBookmarks(), {
+			key: "name",
+			threshold: FUZZY_THRESHOLD,
+			limit: 100,
+		})
+		return results.map((r) => r.obj)
+	})
+
+	const currentBookmarks = () =>
+		filterMode() && filterQuery().trim()
+			? filteredBookmarks()
+			: localBookmarks()
+
+	const currentSelectedIndex = () =>
+		filterMode() && filterQuery().trim()
+			? filterSelectedIndex()
+			: selectedBookmarkIndex()
+
+	createEffect(
+		on(
+			() => filterQuery(),
+			() => {
+				setFilterSelectedIndex(0)
+			},
+			{ defer: true },
+		),
+	)
+
+	createEffect(
+		on(
+			() => [filteredBookmarks().length, filterSelectedIndex()] as const,
+			([len, idx]) => {
+				if (!filterMode()) return
+				if (len > 0 && idx >= len) {
+					setFilterSelectedIndex(len - 1)
+				}
+			},
+			{ defer: true },
+		),
+	)
+
+	// Sync filter selection back to parent
+	createEffect(
+		on(
+			() => filterSelectedIndex(),
+			(idx) => {
+				if (!filterMode() || !filterQuery().trim()) return
+				const filtered = filteredBookmarks()
+				const selectedBookmarkItem = filtered[idx]
+				if (selectedBookmarkItem) {
+					const originalIndex = localBookmarks().findIndex(
+						(b) => b.name === selectedBookmarkItem.name,
+					)
+					if (originalIndex >= 0 && originalIndex !== selectedBookmarkIndex()) {
+						setSelectedBookmarkIndex(originalIndex)
+					}
+				}
+			},
+			{ defer: true },
+		),
+	)
+
+	const activateBookmarkFilter = () => {
+		setFilterMode(true)
+		setFilterSelectedIndex(0)
+		queueMicrotask(() => {
+			filterInputRef?.requestRender?.()
+			filterInputRef?.focus()
+		})
+	}
+
+	const clearBookmarkFilter = () => {
+		setFilterMode(false)
+		setFilterQuery("")
+		filterInputRef?.clear()
+	}
+
+	useKeyboard((evt) => {
+		if (!isFocused()) return
+		if (bookmarkViewMode() !== "list") return
+
+		if (!filterMode() && keybind.match("search", evt)) {
+			evt.preventDefault()
+			evt.stopPropagation()
+			activateBookmarkFilter()
+			return
+		}
+
+		if (filterMode()) {
+			if (evt.name === "escape") {
+				evt.preventDefault()
+				evt.stopPropagation()
+				clearBookmarkFilter()
+			} else if (evt.name === "down") {
+				evt.preventDefault()
+				evt.stopPropagation()
+				const max = currentBookmarks().length - 1
+				if (max >= 0) {
+					if (filterQuery().trim()) {
+						setFilterSelectedIndex((i) => Math.min(max, i + 1))
+					} else {
+						selectNextBookmark()
+					}
+				}
+			} else if (evt.name === "up") {
+				evt.preventDefault()
+				evt.stopPropagation()
+				if (filterQuery().trim()) {
+					setFilterSelectedIndex((i) => Math.max(0, i - 1))
+				} else {
+					selectPrevBookmark()
+				}
+			} else if (evt.name === "enter" || evt.name === "return") {
+				evt.preventDefault()
+				evt.stopPropagation()
+				handleListEnter()
+			}
+		}
+	})
+
 	let listScrollRef: ScrollBoxRenderable | undefined
 	let commitsScrollRef: ScrollBoxRenderable | undefined
 	let filesScrollRef: ScrollBoxRenderable | undefined
@@ -107,68 +255,43 @@ export function BookmarksPanel() {
 	const [commitsScrollTop, setCommitsScrollTop] = createSignal(0)
 	const [filesScrollTop, setFilesScrollTop] = createSignal(0)
 
-	const scrollIntoView = (
-		ref: ScrollBoxRenderable | undefined,
-		index: number,
-		scrollTop: number,
-		setScrollTop: (n: number) => void,
-		listLength: number,
-	) => {
-		if (!ref || listLength === 0) return
-		const margin = 2
-		const viewportHeight = ref.viewport?.height ?? 30
-
-		const visibleStart = scrollTop
-		const visibleEnd = scrollTop + viewportHeight - 1
-		const safeStart = visibleStart + margin
-		const safeEnd = visibleEnd - margin
-
-		let newScrollTop = scrollTop
-		if (index < safeStart) {
-			newScrollTop = Math.max(0, index - margin)
-		} else if (index > safeEnd) {
-			newScrollTop = Math.max(0, index - viewportHeight + margin + 1)
-		}
-
-		if (newScrollTop !== scrollTop) {
-			ref.scrollTo(newScrollTop)
-			setScrollTop(newScrollTop)
-		}
-	}
-
 	createEffect(
-		on(selectedBookmarkIndex, (index) => {
-			scrollIntoView(
-				listScrollRef,
-				index,
-				listScrollTop(),
-				setListScrollTop,
-				localBookmarks().length,
-			)
-		}),
+		on(
+			() => currentSelectedIndex(),
+			(index) => {
+				if (bookmarkViewMode() !== "list") return
+				scrollIntoView({
+					ref: listScrollRef,
+					index,
+					currentScrollTop: listScrollTop(),
+					listLength: currentBookmarks().length,
+					setScrollTop: setListScrollTop,
+				})
+			},
+		),
 	)
 
 	createEffect(
 		on(selectedBookmarkCommitIndex, (index) => {
-			scrollIntoView(
-				commitsScrollRef,
+			scrollIntoView({
+				ref: commitsScrollRef,
 				index,
-				commitsScrollTop(),
-				setCommitsScrollTop,
-				bookmarkCommits().length,
-			)
+				currentScrollTop: commitsScrollTop(),
+				listLength: bookmarkCommits().length,
+				setScrollTop: setCommitsScrollTop,
+			})
 		}),
 	)
 
 	createEffect(
 		on(selectedBookmarkFileIndex, (index) => {
-			scrollIntoView(
-				filesScrollRef,
+			scrollIntoView({
+				ref: filesScrollRef,
 				index,
-				filesScrollTop(),
-				setFilesScrollTop,
-				bookmarkFlatFiles().length,
-			)
+				currentScrollTop: filesScrollTop(),
+				listLength: bookmarkFlatFiles().length,
+				setScrollTop: setFilesScrollTop,
+			})
 		}),
 	)
 
@@ -185,6 +308,10 @@ export function BookmarksPanel() {
 	}
 
 	const handleListEnter = () => {
+		// Clear filter when leaving list view
+		if (filterMode()) {
+			clearBookmarkFilter()
+		}
 		enterBookmarkCommitsView()
 	}
 
@@ -243,6 +370,18 @@ export function BookmarksPanel() {
 					panel: "refs",
 					visibility: "help-only",
 					onSelect: exitBookmarkView,
+				},
+				{
+					id: "refs.files.filter",
+					title: "filter",
+					keybind: "search",
+					context: "refs.files",
+					type: "view",
+					panel: "refs",
+					visibility: "help-only",
+					onSelect: () => {
+						// Handled by FilterableFileTree
+					},
 				},
 				{
 					id: "refs.files.restore",
@@ -599,6 +738,16 @@ export function BookmarksPanel() {
 				onSelect: handleListEnter,
 			},
 			{
+				id: "refs.bookmarks.filter",
+				title: "filter",
+				keybind: "search",
+				context: "refs.bookmarks",
+				type: "view",
+				panel: "refs",
+				visibility: "help-only",
+				onSelect: activateBookmarkFilter,
+			},
+			{
 				id: "refs.bookmarks.create",
 				title: "create",
 				keybind: "bookmark_create",
@@ -755,46 +904,82 @@ export function BookmarksPanel() {
 							) : null
 						}
 					>
-						<scrollbox
-							ref={listScrollRef}
-							flexGrow={1}
-							scrollbarOptions={{ visible: false }}
-						>
-							<For each={localBookmarks()}>
-								{(bookmark, index) => {
-									const isSelected = () => index() === selectedBookmarkIndex()
-									const showSelection = () => isSelected() && isFocused()
-									const handleDoubleClick = createDoubleClickDetector(() => {
-										enterBookmarkCommitsView()
-									})
-									const handleMouseDown = () => {
-										setSelectedBookmarkIndex(index())
-										handleDoubleClick()
-									}
-									return (
-										<box
-											backgroundColor={
-												showSelection()
-													? colors().selectionBackground
-													: undefined
+						<box flexDirection="column" flexGrow={1}>
+							{/* Empty state - outside scrollbox */}
+							<Show
+								when={
+									currentBookmarks().length === 0 &&
+									filterMode() &&
+									filterQuery().trim()
+								}
+							>
+								<box paddingLeft={1} flexGrow={1}>
+									<text fg={colors().textMuted}>No matching bookmarks</text>
+								</box>
+							</Show>
+
+							{/* Bookmark list - only render scrollbox when we have bookmarks */}
+							<Show when={currentBookmarks().length > 0}>
+								<scrollbox
+									ref={listScrollRef}
+									flexGrow={1}
+									scrollbarOptions={{ visible: false }}
+								>
+									<For each={currentBookmarks()}>
+										{(bookmark, index) => {
+											const isSelected = () =>
+												index() === currentSelectedIndex()
+											const showSelection = () => isSelected() && isFocused()
+											const handleDoubleClick = createDoubleClickDetector(
+												() => {
+													enterBookmarkCommitsView()
+												},
+											)
+											const handleMouseDown = () => {
+												if (filterMode() && filterQuery().trim()) {
+													setFilterSelectedIndex(index())
+												} else {
+													setSelectedBookmarkIndex(index())
+												}
+												handleDoubleClick()
 											}
-											overflow="hidden"
-											onMouseDown={handleMouseDown}
-										>
-											<text>
-												<span style={{ fg: colors().primary }}>
-													{bookmark.name}
-												</span>
-												<span style={{ fg: colors().textMuted }}>
-													{" "}
-													{bookmark.changeId.slice(0, 8)}
-												</span>
-											</text>
-										</box>
-									)
-								}}
-							</For>
-						</scrollbox>
+											return (
+												<box
+													backgroundColor={
+														showSelection()
+															? colors().selectionBackground
+															: undefined
+													}
+													overflow="hidden"
+													onMouseDown={handleMouseDown}
+												>
+													<text>
+														<span style={{ fg: colors().primary }}>
+															{bookmark.name}
+														</span>
+														<span style={{ fg: colors().textMuted }}>
+															{" "}
+															{bookmark.changeId.slice(0, 8)}
+														</span>
+													</text>
+												</box>
+											)
+										}}
+									</For>
+								</scrollbox>
+							</Show>
+
+							{/* Filter input at bottom */}
+							<Show when={filterMode()}>
+								<FilterInput
+									ref={(r) => {
+										filterInputRef = r
+									}}
+									onInput={setFilterQuery}
+									dividerPosition="above"
+								/>
+							</Show>
+						</box>
 					</Show>
 				</Match>
 
@@ -867,25 +1052,17 @@ export function BookmarksPanel() {
 						<text fg={colors().textMuted}>Loading files...</text>
 					</Show>
 					<Show when={!bookmarkFilesLoading()}>
-						<Show
-							when={bookmarkFlatFiles().length > 0}
-							fallback={<text fg={colors().textMuted}>No files</text>}
-						>
-							<scrollbox
-								ref={filesScrollRef}
-								flexGrow={1}
-								scrollbarOptions={{ visible: false }}
-							>
-								<FileTreeList
-									files={bookmarkFlatFiles}
-									selectedIndex={selectedBookmarkFileIndex}
-									setSelectedIndex={setSelectedBookmarkFileIndex}
-									collapsedPaths={bookmarkCollapsedPaths}
-									toggleFolder={toggleBookmarkFolder}
-									isFocused={isFocused}
-								/>
-							</scrollbox>
-						</Show>
+						<FilterableFileTree
+							files={bookmarkFlatFiles}
+							selectedIndex={selectedBookmarkFileIndex}
+							setSelectedIndex={setSelectedBookmarkFileIndex}
+							collapsedPaths={bookmarkCollapsedPaths}
+							toggleFolder={toggleBookmarkFolder}
+							isFocused={isFocused}
+							scrollRef={(r) => {
+								filesScrollRef = r
+							}}
+						/>
 					</Show>
 				</Match>
 			</Switch>

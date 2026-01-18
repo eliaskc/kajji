@@ -9,6 +9,7 @@ import { For, Show, createEffect, createMemo, createSignal } from "solid-js"
 import type { Bookmark } from "../../commander/bookmarks"
 import { useDialog } from "../../context/dialog"
 import { useTheme } from "../../context/theme"
+import { FUZZY_THRESHOLD, scrollIntoView } from "../../utils/scroll"
 import { BorderBox } from "../BorderBox"
 
 const SINGLE_LINE_KEYBINDINGS = [
@@ -40,28 +41,24 @@ export function SetBookmarkModal(props: SetBookmarkModalProps) {
 	let inputRef: TextareaRenderable | undefined
 	let scrollRef: ScrollBoxRenderable | undefined
 
-	// Filter bookmarks with fuzzy search
 	const filteredBookmarks = createMemo(() => {
 		const q = query().trim()
 		if (!q) return props.bookmarks
 
 		const results = fuzzysort.go(q, props.bookmarks, {
 			key: "name",
-			threshold: -500, // Stricter threshold
+			threshold: FUZZY_THRESHOLD,
 			limit: 50,
 		})
 		return results.map((r) => r.obj)
 	})
 
-	// Show create option when: input non-empty AND no exact match
 	const showCreateOption = createMemo(() => {
 		const q = query().trim()
 		if (!q) return false
 		return !props.bookmarks.some((b) => b.name === q)
 	})
 
-	// Unified list: bookmarks first, then create option (if shown)
-	// Using a single array ensures correct ordering
 	const listItems = createMemo((): ListItem[] => {
 		const items: ListItem[] = filteredBookmarks().map((b) => ({
 			type: "bookmark" as const,
@@ -78,17 +75,14 @@ export function SetBookmarkModal(props: SetBookmarkModalProps) {
 		return items
 	})
 
-	// Total items count
 	const totalItems = createMemo(() => listItems().length)
 
-	// Is create option currently selected?
 	const isCreateSelected = createMemo(() => {
 		const items = listItems()
 		const item = items[selectedIndex()]
 		return item?.type === "create"
 	})
 
-	// Get selected bookmark (null if create option selected or nothing)
 	const selectedBookmark = createMemo(() => {
 		const items = listItems()
 		const item = items[selectedIndex()]
@@ -96,14 +90,12 @@ export function SetBookmarkModal(props: SetBookmarkModalProps) {
 		return null
 	})
 
-	// Placeholder: show selected bookmark name, or default
 	const placeholder = createMemo(() => {
 		const bookmark = selectedBookmark()
 		if (bookmark) return bookmark.name
 		return `push-${props.changeId.slice(0, 8)}`
 	})
 
-	// Clamp selection when list changes
 	createEffect(() => {
 		const total = totalItems()
 		if (total === 0) {
@@ -113,7 +105,6 @@ export function SetBookmarkModal(props: SetBookmarkModalProps) {
 		}
 	})
 
-	// Auto-select create option when it's the only item
 	createEffect(() => {
 		const items = listItems()
 		if (items.length === 1 && items[0]?.type === "create") {
@@ -121,38 +112,14 @@ export function SetBookmarkModal(props: SetBookmarkModalProps) {
 		}
 	})
 
-	// Scroll selected item into view
-	const scrollToIndex = (index: number) => {
-		if (!scrollRef || totalItems() === 0) return
-
-		const margin = 2
-		const refAny = scrollRef as unknown as Record<string, unknown>
-		const viewportHeight =
-			(typeof refAny.height === "number" ? refAny.height : null) ??
-			(typeof refAny.rows === "number" ? refAny.rows : null) ??
-			10
-		const currentScrollTop = scrollTop()
-
-		const visibleStart = currentScrollTop
-		const visibleEnd = currentScrollTop + viewportHeight - 1
-		const safeStart = visibleStart + margin
-		const safeEnd = visibleEnd - margin
-
-		let newScrollTop = currentScrollTop
-		if (index < safeStart) {
-			newScrollTop = Math.max(0, index - margin)
-		} else if (index > safeEnd) {
-			newScrollTop = Math.max(0, index - viewportHeight + margin + 1)
-		}
-
-		if (newScrollTop !== currentScrollTop) {
-			scrollRef.scrollTo(newScrollTop)
-			setScrollTop(newScrollTop)
-		}
-	}
-
 	createEffect(() => {
-		scrollToIndex(selectedIndex())
+		scrollIntoView({
+			ref: scrollRef,
+			index: selectedIndex(),
+			currentScrollTop: scrollTop(),
+			listLength: totalItems(),
+			setScrollTop,
+		})
 	})
 
 	const selectPrev = () => {
@@ -189,7 +156,6 @@ export function SetBookmarkModal(props: SetBookmarkModalProps) {
 		}
 	}
 
-	// Only use arrow keys for navigation (not j/k - they block typing)
 	useKeyboard((evt) => {
 		if (evt.name === "escape") {
 			evt.preventDefault()
@@ -209,16 +175,7 @@ export function SetBookmarkModal(props: SetBookmarkModalProps) {
 	const hasBookmarks = () => props.bookmarks.length > 0
 	const showPlaceholderText = () => !query().trim() && !hasBookmarks()
 
-	// Fixed list height
 	const LIST_HEIGHT = 10
-
-	// Generate a stable key for each item
-	const getItemKey = (item: ListItem): string => {
-		if (item.type === "bookmark") {
-			return `bookmark:${item.bookmark.name}`
-		}
-		return `create:${item.name}`
-	}
 
 	return (
 		<BorderBox
@@ -235,10 +192,10 @@ export function SetBookmarkModal(props: SetBookmarkModalProps) {
 					<textarea
 						ref={(r) => {
 							inputRef = r
-							setTimeout(() => {
+							queueMicrotask(() => {
 								r.requestRender?.()
 								r.focus()
-							}, 1)
+							})
 						}}
 						initialValue=""
 						placeholder={placeholder()}
@@ -246,7 +203,6 @@ export function SetBookmarkModal(props: SetBookmarkModalProps) {
 							if (inputRef) {
 								setQuery(inputRef.plainText)
 								setError(null)
-								// Reset selection to first item when typing
 								setSelectedIndex(0)
 							}
 						}}
