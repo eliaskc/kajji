@@ -18,7 +18,7 @@ export interface FetchBookmarksOptions {
 export async function fetchBookmarks(
 	options: FetchBookmarksOptions = {},
 ): Promise<Bookmark[]> {
-	const args = ["bookmark", "list"]
+	const args = ["bookmark", "list", "--sort", "committer-date-"]
 
 	if (options.allRemotes) {
 		args.push("--all-remotes")
