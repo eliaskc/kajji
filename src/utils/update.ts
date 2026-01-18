@@ -5,7 +5,7 @@ import { readState, writeState } from "./state"
 
 const GITHUB_RELEASES_URL =
 	"https://api.github.com/repos/eliaskc/kajji/releases/latest"
-const UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000
+const UPDATE_CHECK_INTERVAL_MS = 12 * 60 * 60 * 1000
 
 export type PackageManager =
 	| "npm"
