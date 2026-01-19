@@ -1,4 +1,6 @@
-# Check Dependency Releases
+---
+description: Check for useful updates in key TUI dependencies
+---
 
 Check for useful updates in key TUI dependencies.
 

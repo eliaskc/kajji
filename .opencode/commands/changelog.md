@@ -1,4 +1,6 @@
-# Changelog Skill
+---
+description: Generate release notes and update CHANGELOG.md
+---
 
 Generate release notes and update CHANGELOG.md.
 

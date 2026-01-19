@@ -1,6 +1,8 @@
-# Update Project Documentation
+---
+description: Update project documentation after completing work
+---
 
-When working on this project, keep documentation in sync with changes. This skill should be triggered after completing significant work.
+Update project documentation to reflect recent changes.
 
 ## Key Documents
 
@@ -23,11 +25,6 @@ Check these files and update as needed:
   - Add new patterns discovered during implementation
   - Update architecture notes if structure changes
   - Add useful commands or workflows
-
-### This Skill
-- **`.opencode/skill/update-docs/SKILL.md`** — This file
-  - Update if documentation structure changes
-  - Add new key documents if created
 
 ## When to Update
 
