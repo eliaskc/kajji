@@ -6,17 +6,13 @@
  * version: patch | minor | major | x.y.z (optional, defaults to package.json)
  *
  * Prerequisites:
- * - No uncommitted changes (except CHANGELOG.md)
- * - HEAD matches origin/main
  * - CHANGELOG.md updated (use /changelog skill first)
  *
  * This script:
  * 1. Bumps version in package.json
- * 2. Commits package.json + CHANGELOG.md
- * 3. Creates git tag and pushes
- * 4. Builds binaries
- * 5. Publishes to npm
- * 6. Creates GitHub release
+ * 2. Builds binaries
+ * 3. Publishes to npm
+ * 4. Creates GitHub release
  */
 
 import { execSync } from "node:child_process"
@@ -50,26 +46,10 @@ function run(
 
 const gitStatus = run("git status --porcelain", { canFail: true })
 const changedFiles = gitStatus.split("\n").filter(Boolean)
-const nonChangelogChanges = changedFiles.filter(
-	(line) => !line.endsWith("CHANGELOG.md"),
-)
-if (nonChangelogChanges.length > 0) {
-	console.error(
-		"Error: You have uncommitted changes (other than CHANGELOG.md).",
-	)
-	console.error("Commit or stash them before releasing.\n")
-	console.error(nonChangelogChanges.join("\n"))
-	process.exit(1)
-}
-
-const localHead = run("git rev-parse HEAD", { canFail: true })
-const remoteMain = run("git rev-parse origin/main", { canFail: true })
-if (localHead !== remoteMain) {
-	console.error("Error: Local HEAD is not pushed to origin/main.")
-	console.error(`  Local:  ${localHead}`)
-	console.error(`  Remote: ${remoteMain}`)
-	console.error("\nPush your changes first: git push origin main")
-	process.exit(1)
+if (changedFiles.length > 0) {
+	console.warn("Warning: releasing with uncommitted changes:")
+	console.warn(changedFiles.join("\n"))
+	console.warn("Release will continue without committing or pushing.\n")
 }
 
 const latestTag = run("git tag --sort=-version:refname | head -1", {
@@ -134,16 +114,7 @@ if (newVersion !== currentVersion) {
 	writeFileSync("package.json", updatedPackageJson)
 }
 
-console.log("Committing release...")
-run("git add package.json CHANGELOG.md")
-run(`git commit -m "release: v${newVersion}"`)
-
-console.log("Creating git tag...")
-run(`git tag v${newVersion}`)
-
-console.log("Pushing to origin...")
-run("git push origin main")
-run(`git push origin v${newVersion}`)
+console.log("Skipping commit, tag, and push (local release only)...")
 
 console.log("\nBuilding binaries...")
 run("bun run script/build.ts", { inherit: true })
