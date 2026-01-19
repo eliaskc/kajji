@@ -5,7 +5,14 @@
  * Platforms: darwin-arm64, darwin-x64, linux-x64, linux-arm64
  */
 
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { execSync } from "node:child_process"
+import {
+	existsSync,
+	mkdirSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs"
 import { dirname, join } from "node:path"
 import solidPlugin from "../node_modules/@opentui/solid/scripts/solid-plugin"
 
@@ -33,6 +40,24 @@ if (targetArg && targets.length === 0) {
 		`Available: ${allTargets.map((t) => `${t.os}-${t.arch}`).join(", ")}`,
 	)
 	process.exit(1)
+}
+
+// Ensure cross-platform OpenTUI packages are installed
+// Bun respects os/cpu constraints so we need npm --force for cross-compilation
+// Install ALL target platforms at once (npm --force can remove other cross-platform packages)
+const coreVersion = pkg.dependencies["@opentui/core"]
+const missingPlatforms = targets.filter(
+	(t) => !existsSync(`node_modules/@opentui/core-${t.os}-${t.arch}`),
+)
+if (missingPlatforms.length > 0) {
+	const packages = targets
+		.map((t) => `@opentui/core-${t.os}-${t.arch}@${coreVersion}`)
+		.join(" ")
+	console.log("Installing cross-platform dependencies...")
+	execSync(`npm install --no-save --force ${packages}`, {
+		stdio: "inherit",
+	})
+	console.log()
 }
 
 rmSync("dist", { recursive: true, force: true })
