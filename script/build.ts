@@ -79,7 +79,7 @@ for (const target of targets) {
 		const bunTarget = `bun-${target.os}-${target.arch}`
 
 		const result = await Bun.build({
-			entrypoints: ["./src/index.tsx"],
+			entrypoints: ["./src/index.tsx", "./src/diff/syntax-worker.ts"],
 			minify: true,
 			sourcemap: "none",
 			plugins: [solidPlugin],

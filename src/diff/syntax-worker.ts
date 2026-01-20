@@ -1,10 +1,38 @@
 declare const self: Worker
 
-import {
-	type DiffsHighlighter,
-	type SupportedLanguages,
-	getSharedHighlighter,
-} from "@pierre/diffs"
+import type { SupportedLanguages } from "@pierre/diffs"
+import { createHighlighter, createJavaScriptRegexEngine, type Highlighter } from "shiki"
+import ayuDark from "@shikijs/themes/ayu-dark"
+import bash from "@shikijs/langs/bash"
+import c from "@shikijs/langs/c"
+import cpp from "@shikijs/langs/cpp"
+import css from "@shikijs/langs/css"
+import dockerfile from "@shikijs/langs/dockerfile"
+import elixir from "@shikijs/langs/elixir"
+import go from "@shikijs/langs/go"
+import haskell from "@shikijs/langs/haskell"
+import hcl from "@shikijs/langs/hcl"
+import html from "@shikijs/langs/html"
+import java from "@shikijs/langs/java"
+import javascript from "@shikijs/langs/javascript"
+import json from "@shikijs/langs/json"
+import jsx from "@shikijs/langs/jsx"
+import kotlin from "@shikijs/langs/kotlin"
+import lua from "@shikijs/langs/lua"
+import markdown from "@shikijs/langs/markdown"
+import objectiveC from "@shikijs/langs/objective-c"
+import php from "@shikijs/langs/php"
+import python from "@shikijs/langs/python"
+import ruby from "@shikijs/langs/ruby"
+import rust from "@shikijs/langs/rust"
+import scala from "@shikijs/langs/scala"
+import sql from "@shikijs/langs/sql"
+import swift from "@shikijs/langs/swift"
+import toml from "@shikijs/langs/toml"
+import tsx from "@shikijs/langs/tsx"
+import typescript from "@shikijs/langs/typescript"
+import yaml from "@shikijs/langs/yaml"
+import zig from "@shikijs/langs/zig"
 
 // Message types
 export type WorkerRequest =
@@ -25,60 +53,61 @@ export type WorkerResponse =
 	  }
 	| { type: "error"; id: number; message: string }
 
-// Languages to load and warm up
-const COMMON_LANGS: SupportedLanguages[] = [
-	// Web/JS ecosystem
-	"typescript",
-	"tsx",
-	"javascript",
-	"jsx",
-	"json",
-	"html",
-	"css",
-	// Config/docs
-	"markdown",
-	"yaml",
-	"toml",
-	"bash",
-	// Systems languages
-	"c",
-	"cpp",
-	"rust",
-	"go",
-	"zig",
-	// JVM/mobile
-	"java",
-	"kotlin",
-	"scala",
-	"swift",
-	"objective-c",
-	// Scripting
-	"python",
-	"ruby",
-	"php",
-	"lua",
-	"elixir",
-	// Functional
-	"haskell",
-	// Data/infra
-	"sql",
-	"dockerfile",
-	"hcl",
-]
-
 // Note: We previously had warmup code that pre-tokenized sample code for each language.
 // Testing showed it didn't noticeably improve first-highlight latency, but it did delay
 // the "ready" signal, making the first file's highlights appear slower. Removed.
 
-let highlighter: DiffsHighlighter | null = null
+const LANG_MODULES = [
+	typescript,
+	tsx,
+	javascript,
+	jsx,
+	json,
+	html,
+	css,
+	markdown,
+	yaml,
+	toml,
+	bash,
+	c,
+	cpp,
+	rust,
+	go,
+	zig,
+	java,
+	kotlin,
+	scala,
+	swift,
+	objectiveC,
+	python,
+	ruby,
+	php,
+	lua,
+	elixir,
+	haskell,
+	sql,
+	dockerfile,
+	hcl,
+]
+
+let highlighter: Highlighter | null = null
 
 async function init() {
-	highlighter = await getSharedHighlighter({
-		themes: ["ayu-dark"],
-		langs: COMMON_LANGS,
-	})
+	try {
+		highlighter = await createHighlighter({
+			themes: [ayuDark],
+			langs: LANG_MODULES.flat(),
+			engine: createJavaScriptRegexEngine(),
+		})
 
-	self.postMessage({ type: "ready" } satisfies WorkerResponse)
+		self.postMessage({ type: "ready" } satisfies WorkerResponse)
+	} catch (error) {
+		self.postMessage({
+			type: "error",
+			id: -1,
+			message: error instanceof Error ? error.message : String(error),
+		} satisfies WorkerResponse)
+	}
 }
 
 function tokenize(id: number, content: string, language: SupportedLanguages) {

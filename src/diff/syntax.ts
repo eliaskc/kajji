@@ -70,9 +70,34 @@ export function initHighlighter(): void {
 	if (worker) return
 
 	// Create worker using Bun's worker support
-	worker = new Worker(new URL("./syntax-worker.ts", import.meta.url), {
-		type: "module",
-	})
+	try {
+		const isBundled = import.meta.url.includes("/$bunfs/")
+		const workerPaths = isBundled
+			? [
+					"./diff/syntax-worker.js",
+					"./src/diff/syntax-worker.js",
+					"./syntax-worker.js",
+				]
+			: ["./syntax-worker.ts"]
+		let workerSpec: string | null = null
+		for (const workerPath of workerPaths) {
+			try {
+				workerSpec =
+					import.meta.resolve?.(workerPath) ??
+					new URL(workerPath, import.meta.url).href
+				break
+			} catch {
+			}
+		}
+		if (!workerSpec) {
+			throw new Error("Unable to resolve syntax worker path")
+		}
+		worker = new Worker(workerSpec, {
+			type: "module",
+		})
+	} catch (error) {
+		return
+	}
 
 	worker.onmessage = handleWorkerMessage
 	worker.onerror = (err) => {
