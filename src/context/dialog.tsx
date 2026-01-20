@@ -8,6 +8,8 @@ import {
 	onCleanup,
 	onMount,
 } from "solid-js"
+import { BorderBox } from "../components/BorderBox"
+import { DialogHints } from "../components/DialogHints"
 import { createSimpleContext } from "./helper"
 import { useTheme } from "./theme"
 
@@ -46,8 +48,7 @@ function ConfirmDialogContent(props: {
 	})
 
 	return (
-		<box
-			flexDirection="column"
+		<BorderBox
 			border
 			borderStyle={style().panel.borderStyle}
 			borderColor={colors().borderFocused}
@@ -56,7 +57,7 @@ function ConfirmDialogContent(props: {
 			width="50%"
 		>
 			<text fg={colors().text}>{props.message}</text>
-		</box>
+		</BorderBox>
 	)
 }
 
@@ -170,7 +171,8 @@ export const { use: useDialog, provider: DialogProvider } = createSimpleContext(
 
 function DialogBackdrop(props: { onClose: () => void; children: JSX.Element }) {
 	const renderer = useRenderer()
-	const { style } = useTheme()
+	const { colors, style } = useTheme()
+	const dialog = useDialog()
 	const [dimensions, setDimensions] = createSignal({
 		width: renderer.width,
 		height: renderer.height,
@@ -186,6 +188,9 @@ function DialogBackdrop(props: { onClose: () => void; children: JSX.Element }) {
 
 	const overlayColor = () =>
 		RGBA.fromInts(0, 0, 0, style().dialog.overlayOpacity)
+	const overlayWidth = () =>
+		dimensions().width - (style().adaptToTerminal ? 0 : 2)
+	const overlayHeight = () => Math.max(0, dimensions().height)
 
 	return (
 		<box
@@ -193,13 +198,28 @@ function DialogBackdrop(props: { onClose: () => void; children: JSX.Element }) {
 			left={0}
 			top={0}
 			width={dimensions().width}
-			height={dimensions().height}
+			height={overlayHeight()}
 			backgroundColor={overlayColor()}
 			flexDirection="column"
 			justifyContent="center"
 			alignItems="center"
 		>
-			{props.children}
+			<box flexDirection="column" alignItems="center" width={overlayWidth()}>
+				{props.children}
+				<Show when={dialog.hints().length > 0}>
+					<box
+						border
+						borderStyle={style().panel.borderStyle}
+						borderColor={colors().border}
+						backgroundColor={colors().background}
+						paddingLeft={2}
+						paddingRight={2}
+						alignItems="center"
+					>
+						<DialogHints />
+					</box>
+				</Show>
+			</box>
 		</box>
 	)
 }

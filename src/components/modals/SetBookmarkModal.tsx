@@ -184,6 +184,7 @@ export function SetBookmarkModal(props: SetBookmarkModalProps) {
 			borderColor={colors().borderFocused}
 			backgroundColor={colors().background}
 			width="60%"
+			maxWidth={90}
 			topLeft={<text fg={colors().borderFocused}>{props.title}</text>}
 		>
 			<box flexDirection="column">

@@ -69,7 +69,7 @@ export function DescribeModal(props: DescribeModalProps) {
 		focusedField() === "body" ? colors().borderFocused : colors().border
 
 	return (
-		<box flexDirection="column" width="60%" gap={0}>
+		<box flexDirection="column" width="60%" maxWidth={90} gap={0}>
 			<BorderBox
 				border
 				borderStyle={style().panel.borderStyle}

@@ -12,7 +12,7 @@ export const opencodeTheme: Theme = {
 		text: "#eeeeee",
 		textMuted: "#808080",
 
-		border: "#eeeeee",
+		border: "#808080",
 		borderFocused: "#eeeeee",
 
 		selectionBackground: "#1e1e1e",
@@ -47,6 +47,6 @@ export const opencodeTheme: Theme = {
 		dialog: {
 			overlayOpacity: 150,
 		},
-		adaptToTerminal: false,
+		adaptToTerminal: true,
 	},
 }

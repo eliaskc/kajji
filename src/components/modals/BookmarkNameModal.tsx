@@ -115,7 +115,12 @@ export function BookmarkNameModal(props: BookmarkNameModalProps) {
 		focusedField() === "picker" ? colors().borderFocused : colors().border
 
 	return (
-		<box flexDirection="column" width={props.width ?? "60%"} gap={0}>
+		<box
+			flexDirection="column"
+			width={props.width ?? "60%"}
+			maxWidth={90}
+			gap={0}
+		>
 			<BorderBox
 				border
 				borderStyle={style().panel.borderStyle}

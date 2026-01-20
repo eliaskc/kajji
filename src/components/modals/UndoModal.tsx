@@ -61,6 +61,7 @@ export function UndoModal(props: UndoModalProps) {
 			borderColor={colors().borderFocused}
 			backgroundColor={colors().background}
 			width="60%"
+			maxWidth={90}
 			topLeft={<text fg={colors().text}>{title()}</text>}
 			bottomRight={hints()}
 			paddingLeft={1}

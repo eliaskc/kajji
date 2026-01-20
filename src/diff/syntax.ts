@@ -86,8 +86,7 @@ export function initHighlighter(): void {
 					import.meta.resolve?.(workerPath) ??
 					new URL(workerPath, import.meta.url).href
 				break
-			} catch {
-			}
+			} catch {}
 		}
 		if (!workerSpec) {
 			throw new Error("Unable to resolve syntax worker path")

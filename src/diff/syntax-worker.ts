@@ -1,8 +1,6 @@
 declare const self: Worker
 
 import type { SupportedLanguages } from "@pierre/diffs"
-import { createHighlighter, createJavaScriptRegexEngine, type Highlighter } from "shiki"
-import ayuDark from "@shikijs/themes/ayu-dark"
 import bash from "@shikijs/langs/bash"
 import c from "@shikijs/langs/c"
 import cpp from "@shikijs/langs/cpp"
@@ -33,6 +31,12 @@ import tsx from "@shikijs/langs/tsx"
 import typescript from "@shikijs/langs/typescript"
 import yaml from "@shikijs/langs/yaml"
 import zig from "@shikijs/langs/zig"
+import ayuDark from "@shikijs/themes/ayu-dark"
+import {
+	type Highlighter,
+	createHighlighter,
+	createJavaScriptRegexEngine,
+} from "shiki"
 
 // Message types
 export type WorkerRequest =

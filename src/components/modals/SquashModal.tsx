@@ -80,7 +80,12 @@ export function SquashModal(props: SquashModalProps) {
 	const title = () => `Squash ${props.source.changeId.slice(0, 8)} into`
 
 	return (
-		<box flexDirection="column" width={props.width ?? "60%"} gap={0}>
+		<box
+			flexDirection="column"
+			width={props.width ?? "60%"}
+			maxWidth={90}
+			gap={0}
+		>
 			<BorderBox
 				border
 				borderStyle={style().panel.borderStyle}

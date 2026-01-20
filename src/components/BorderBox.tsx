@@ -18,6 +18,7 @@ interface BorderBoxProps {
 	flexGrow?: number
 	flexDirection?: "row" | "column"
 	width?: Dimension
+	maxWidth?: Dimension
 	height?: Dimension
 	padding?: number
 	paddingLeft?: number
@@ -66,10 +67,11 @@ export function BorderBox(props: BorderBoxProps) {
 	if (!hasOverlays()) {
 		return (
 			<box
-				flexDirection={props.flexDirection ?? "column"}
-				flexGrow={props.flexGrow}
-				width={props.width}
-				height={props.height}
+			flexDirection={props.flexDirection ?? "column"}
+			flexGrow={props.flexGrow}
+			width={props.width}
+			maxWidth={props.maxWidth}
+			height={props.height}
 				border={props.border}
 				borderStyle={props.borderStyle}
 				borderColor={props.borderColor}
@@ -94,6 +96,7 @@ export function BorderBox(props: BorderBoxProps) {
 			flexDirection="column"
 			flexGrow={props.flexGrow}
 			width={props.width}
+			maxWidth={props.maxWidth}
 			height={props.height}
 			onMouseDown={props.onMouseDown}
 		>
@@ -103,9 +106,10 @@ export function BorderBox(props: BorderBoxProps) {
 			<Show when={props.bottomRight}>{() => renderCorner("bottomRight")}</Show>
 
 			<box
-				flexDirection={props.flexDirection ?? "column"}
-				flexGrow={1}
-				border={props.border}
+			flexDirection={props.flexDirection ?? "column"}
+			flexGrow={1}
+			maxWidth={props.maxWidth}
+			border={props.border}
 				borderStyle={props.borderStyle}
 				borderColor={props.borderColor}
 				backgroundColor={props.backgroundColor}

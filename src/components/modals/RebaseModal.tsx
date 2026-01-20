@@ -89,7 +89,12 @@ export function RebaseModal(props: RebaseModalProps) {
 	const title = () => `Rebase ${props.source.changeId.slice(0, 8)} onto`
 
 	return (
-		<box flexDirection="column" width={props.width ?? "60%"} gap={0}>
+		<box
+			flexDirection="column"
+			width={props.width ?? "60%"}
+			maxWidth={90}
+			gap={0}
+		>
 			<BorderBox
 				border
 				borderStyle={style().panel.borderStyle}
