@@ -644,7 +644,7 @@ export function MainArea() {
 			keybind: "toggle_diff_style",
 			context: "detail",
 			type: "view",
-			visibility: "help-only",
+			visibility: "status-only",
 			onSelect: () => {
 				setViewStyle((s) => (s === "unified" ? "split" : "unified"))
 			},
@@ -655,7 +655,7 @@ export function MainArea() {
 			keybind: "toggle_diff_wrap",
 			context: "detail",
 			type: "view",
-			visibility: "help-only",
+			visibility: "status-only",
 			onSelect: () => {
 				setWrapEnabled((enabled) => !enabled)
 			},
