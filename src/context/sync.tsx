@@ -18,7 +18,7 @@ import { getRepoPath } from "../repo"
 import { addRecentRepo } from "../utils/state"
 
 import { fetchFiles } from "../commander/files"
-import { fetchLogPage } from "../commander/log"
+import { fetchLogPage, streamLogPage } from "../commander/log"
 import {
 	fetchOpLogId,
 	jjAbandon,
@@ -37,7 +37,6 @@ import {
 } from "../utils/file-tree"
 import { useFocus } from "./focus"
 import { useLayout } from "./layout"
-import { useLoading } from "./loading"
 
 import { profile, profileMsg } from "../utils/profiler"
 
@@ -149,7 +148,6 @@ export function SyncProvider(props: { children: JSX.Element }) {
 	const renderer = useRenderer()
 	const focus = useFocus()
 	const layout = useLayout()
-	const globalLoading = useLoading()
 	const [commits, setCommits] = createSignal<Commit[]>([])
 	const [selectedIndex, setSelectedIndex] = createSignal(0)
 	const [loading, setLoading] = createSignal(false)
@@ -241,16 +239,37 @@ export function SyncProvider(props: { children: JSX.Element }) {
 
 	let lastOpLogId: string | null = null
 	let isRefreshing = false
+	let refreshQueued = false
 	let bookmarksStreamHandle: ReturnType<typeof fetchBookmarksStream> | null =
 		null
+	let logStreamHandle: { cancel: () => void } | null = null
+	let logStreamToken = 0
+	let logStreamResolve: (() => void) | null = null
+	let logStreamReject: ((error: Error) => void) | null = null
+
+	const cancelLogStream = () => {
+		logStreamHandle?.cancel()
+		logStreamHandle = null
+		const resolve = logStreamResolve
+		logStreamResolve = null
+		logStreamReject = null
+		resolve?.()
+	}
 
 	const doFullRefresh = async () => {
-		if (isRefreshing) return
+		if (isRefreshing) {
+			refreshQueued = true
+			return
+		}
 		isRefreshing = true
 		setRefreshCounter((c) => c + 1)
 
 		try {
 			await Promise.all([loadLog(), loadBookmarks()])
+			const currentOpLogId = await fetchOpLogId()
+			if (currentOpLogId) {
+				lastOpLogId = currentOpLogId
+			}
 
 			if (viewMode() === "files") {
 				const commit = selectedCommit()
@@ -293,6 +312,10 @@ export function SyncProvider(props: { children: JSX.Element }) {
 			}
 		} finally {
 			isRefreshing = false
+			if (refreshQueued) {
+				refreshQueued = false
+				doFullRefresh()
+			}
 		}
 	}
 
@@ -386,6 +409,7 @@ export function SyncProvider(props: { children: JSX.Element }) {
 				clearTimeout(focusDebounceTimer)
 			}
 			bookmarksStreamHandle?.cancel()
+			cancelLogStream()
 		})
 	})
 
@@ -659,6 +683,7 @@ export function SyncProvider(props: { children: JSX.Element }) {
 		bookmarksStreamHandle = null
 
 		const isInitialLoad = bookmarks().length === 0
+		const previousBookmarks = bookmarks()
 		if (isInitialLoad) {
 			setBookmarksLoading(true)
 			setBookmarks([])
@@ -678,7 +703,41 @@ export function SyncProvider(props: { children: JSX.Element }) {
 				{},
 				{
 					onBatch: (batch, _total) => {
-						updateBookmarkState(batch)
+						if (batch.length === 0) return
+						if (
+							previousBookmarks.length === 0 ||
+							batch.length >= previousBookmarks.length
+						) {
+							updateBookmarkState(batch)
+							return
+						}
+						const batchKeys = new Set(
+							batch.map(
+								(bookmark) =>
+									`${bookmark.isLocal ? "local" : "remote"}:${bookmark.remote ?? ""}:${bookmark.name}`,
+							),
+						)
+						const previousIndex = new Map<string, number>()
+						for (const [index, bookmark] of previousBookmarks.entries()) {
+							const key = `${bookmark.isLocal ? "local" : "remote"}:${bookmark.remote ?? ""}:${bookmark.name}`
+							previousIndex.set(key, index)
+						}
+						const lastBatch = batch[batch.length - 1]
+						const lastBatchKey = lastBatch
+							? `${lastBatch.isLocal ? "local" : "remote"}:${lastBatch.remote ?? ""}:${lastBatch.name}`
+							: null
+						const lastBatchIndex = lastBatchKey
+							? (previousIndex.get(lastBatchKey) ?? -1)
+							: -1
+						const merged = batch.concat(
+							previousBookmarks.filter((bookmark) => {
+								const key = `${bookmark.isLocal ? "local" : "remote"}:${bookmark.remote ?? ""}:${bookmark.name}`
+								const index = previousIndex.get(key) ?? -1
+								if (lastBatchIndex >= 0 && index <= lastBatchIndex) return false
+								return !batchKeys.has(key)
+							}),
+						)
+						updateBookmarkState(merged)
 					},
 					onComplete: (final) => {
 						updateBookmarkState(final)
@@ -742,36 +801,63 @@ export function SyncProvider(props: { children: JSX.Element }) {
 
 	const loadMoreLog = async () => {
 		if (!logHasMore() || logLoadingMore()) return
+		cancelLogStream()
 		setLogLoadingMore(true)
 		const newLimit = logLimit() + 50
 		setLogLimit(newLimit)
 		const filter = revsetFilter()
-		try {
-			const result = await fetchLogPage(
+		const minLength = commits().length
+		const token = logStreamToken + 1
+		logStreamToken = token
+		return new Promise<void>((resolve, reject) => {
+			logStreamResolve = resolve
+			logStreamReject = reject
+			logStreamHandle = streamLogPage(
 				filter ? { revset: filter, limit: newLimit } : { limit: newLimit },
+				{
+					onBatch: (batch) => {
+						if (token !== logStreamToken) return
+						if (batch.length >= minLength) {
+							setCommits(batch)
+						}
+					},
+					onComplete: (result) => {
+						if (token !== logStreamToken) return
+						setCommits(result.commits)
+						setLogHasMore(result.hasMore)
+						setSelectedIndex((index) =>
+							result.commits.length === 0
+								? 0
+								: Math.min(index, result.commits.length - 1),
+						)
+						setLogLoadingMore(false)
+						logStreamHandle = null
+						logStreamResolve = null
+						logStreamReject = null
+						resolve()
+					},
+					onError: (error) => {
+						if (token !== logStreamToken) return
+						const msg = error.message || "Failed to load log"
+						if (filter) {
+							const firstLine =
+								msg
+									.split("\n")[0]
+									?.replace(/^jj log failed:\s*/i, "")
+									.replace(/^Error:\s*/i, "") || msg
+							setRevsetError(firstLine)
+						} else {
+							setError(msg)
+						}
+						setLogLoadingMore(false)
+						logStreamHandle = null
+						logStreamResolve = null
+						logStreamReject = null
+						reject(error)
+					},
+				},
 			)
-			setCommits(result.commits)
-			setLogHasMore(result.hasMore)
-			setSelectedIndex((index) =>
-				result.commits.length === 0
-					? 0
-					: Math.min(index, result.commits.length - 1),
-			)
-		} catch (e) {
-			const msg = e instanceof Error ? e.message : "Failed to load log"
-			if (filter) {
-				const firstLine =
-					msg
-						.split("\n")[0]
-						?.replace(/^jj log failed:\s*/i, "")
-						.replace(/^Error:\s*/i, "") || msg
-				setRevsetError(firstLine)
-			} else {
-				setError(msg)
-			}
-		} finally {
-			setLogLoadingMore(false)
-		}
+		})
 	}
 
 	const loadLog = async () => {
@@ -781,48 +867,90 @@ export function SyncProvider(props: { children: JSX.Element }) {
 		setRevsetError(null)
 		const filter = revsetFilter()
 		const limit = logLimit()
-		try {
-			await globalLoading.run("Fetching...", async () => {
-				const result = await fetchLogPage(
-					filter ? { revset: filter, limit } : { limit },
-				)
-				setCommits(result.commits)
-				setLogHasMore(result.hasMore)
-				setLogLimit(limit)
-				setSelectedIndex((index) =>
-					result.commits.length === 0
-						? 0
-						: Math.min(index, result.commits.length - 1),
-				)
-				setRevsetError(null)
-				if (isInitialLoad) {
-					setSelectedIndex(0)
-					addRecentRepo(getRepoPath())
-				}
-			})
-		} catch (e) {
-			const msg = e instanceof Error ? e.message : "Failed to load log"
-			if (filter) {
-				// Revset error - preserve commits, show revset-specific error
-				// Strip prefixes like "jj log failed: Error: " to get clean message
-				const firstLine =
-					msg
-						.split("\n")[0]
-						?.replace(/^jj log failed:\s*/i, "")
-						.replace(/^Error:\s*/i, "") || msg
-				setRevsetError(firstLine)
-			} else {
-				setError(msg)
-			}
-		} finally {
-			if (isInitialLoad) setLoading(false)
-		}
+		const previousCommits = commits()
+		const token = logStreamToken + 1
+		logStreamToken = token
+		cancelLogStream()
+		return new Promise<void>((resolve, reject) => {
+			logStreamResolve = resolve
+			logStreamReject = reject
+			logStreamHandle = streamLogPage(
+				filter ? { revset: filter, limit } : { limit },
+				{
+					onBatch: (batch) => {
+						if (token !== logStreamToken) return
+						if (batch.length === 0) return
+						const baseCommits = commits()
+						if (
+							baseCommits.length === 0 ||
+							batch.length >= baseCommits.length
+						) {
+							setCommits(batch)
+						} else {
+							const batchIds = new Set(batch.map((commit) => commit.changeId))
+							const batchHasWorkingCopy = batch.some(
+								(commit) => commit.isWorkingCopy,
+							)
+							const merged = batch.concat(
+								baseCommits.filter((commit) => {
+									if (batchIds.has(commit.changeId)) return false
+									if (batchHasWorkingCopy && commit.isWorkingCopy) return false
+									return true
+								}),
+							)
+							setCommits(merged)
+						}
+						if (isInitialLoad) setLoading(false)
+					},
+					onComplete: (result) => {
+						if (token !== logStreamToken) return
+						setCommits(result.commits)
+						setLogHasMore(result.hasMore)
+						setLogLimit(limit)
+						setSelectedIndex((index) =>
+							result.commits.length === 0
+								? 0
+								: Math.min(index, result.commits.length - 1),
+						)
+						setRevsetError(null)
+						if (isInitialLoad) {
+							setSelectedIndex(0)
+							addRecentRepo(getRepoPath())
+						}
+						setLoading(false)
+						logStreamHandle = null
+						logStreamResolve = null
+						logStreamReject = null
+						resolve()
+					},
+					onError: (error) => {
+						if (token !== logStreamToken) return
+						const msg = error.message || "Failed to load log"
+						if (filter) {
+							const firstLine =
+								msg
+									.split("\n")[0]
+									?.replace(/^jj log failed:\s*/i, "")
+									.replace(/^Error:\s*/i, "") || msg
+							setRevsetError(firstLine)
+						} else {
+							setError(msg)
+						}
+						if (isInitialLoad) setLoading(false)
+						logStreamHandle = null
+						logStreamResolve = null
+						logStreamReject = null
+						reject(error)
+					},
+				},
+			)
+		})
 	}
 
 	const clearRevsetFilter = () => {
 		setRevsetFilterSignal(null)
 		setRevsetError(null)
-		setLogLimit(100)
+		setLogLimit(50)
 		setLogHasMore(true)
 		setLogLoadingMore(false)
 		loadLog()

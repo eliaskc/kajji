@@ -1,4 +1,5 @@
-import { execute } from "./executor"
+import { execute, executeStreaming } from "./executor"
+import type { ExecuteResult } from "./executor"
 import type { Commit } from "./types"
 
 const MARKER = "__LJ__"
@@ -88,6 +89,75 @@ export function parseLogOutput(output: string): Commit[] {
 	return commits
 }
 
+interface LogStreamState {
+	buffer: string
+	current: Commit | null
+}
+
+function parseLogLine(line: string, state: LogStreamState): Commit | null {
+	if (line.includes(MARKER)) {
+		const parts = line.split(MARKER)
+		if (parts.length >= 14) {
+			const completed = state.current
+			const gutter = parts[0] ?? ""
+			const bookmarksRaw = stripAnsi(parts[10] ?? "")
+			const workingCopiesRaw = stripAnsi(parts[12] ?? "")
+			state.current = {
+				changeId: stripAnsi(parts[1] ?? ""),
+				commitId: stripAnsi(parts[2] ?? ""),
+				immutable: stripAnsi(parts[3] ?? "") === "true",
+				empty: stripAnsi(parts[4] ?? "") === "true",
+				divergent: stripAnsi(parts[5] ?? "") === "true",
+				description: stripAnsi(parts[6] ?? ""),
+				author: stripAnsi(parts[7] ?? ""),
+				authorEmail: stripAnsi(parts[8] ?? ""),
+				timestamp: stripAnsi(parts[9] ?? ""),
+				bookmarks: bookmarksRaw ? bookmarksRaw.split(",") : [],
+				gitHead: stripAnsi(parts[11] ?? "") === "true",
+				workingCopies: workingCopiesRaw ? workingCopiesRaw.split(",") : [],
+				isWorkingCopy: gutter.includes("@"),
+				refLine: parts[13] ?? "",
+				lines: [gutter + (parts[13] ?? "")],
+			}
+			return completed
+		}
+	}
+
+	if (state.current && line.trim() !== "") {
+		state.current.lines.push(line)
+	}
+
+	return null
+}
+
+function consumeLogChunk(chunk: string, state: LogStreamState): Commit[] {
+	state.buffer += chunk
+	const lines = state.buffer.split("\n")
+	state.buffer = lines.pop() ?? ""
+
+	const completed: Commit[] = []
+	for (const line of lines) {
+		const finished = parseLogLine(line, state)
+		if (finished) completed.push(finished)
+	}
+
+	return completed
+}
+
+function finalizeLogStream(state: LogStreamState): Commit[] {
+	const completed: Commit[] = []
+	if (state.buffer) {
+		const finished = parseLogLine(state.buffer, state)
+		if (finished) completed.push(finished)
+		state.buffer = ""
+	}
+	if (state.current) {
+		completed.push(state.current)
+		state.current = null
+	}
+	return completed
+}
+
 export interface FetchLogOptions {
 	cwd?: string
 	revset?: string
@@ -97,6 +167,12 @@ export interface FetchLogOptions {
 export interface FetchLogPageResult {
 	commits: Commit[]
 	hasMore: boolean
+}
+
+export interface StreamLogPageCallbacks {
+	onBatch: (commits: Commit[]) => void
+	onComplete: (result: FetchLogPageResult) => void
+	onError: (error: Error) => void
 }
 
 function buildArgs(
@@ -156,6 +232,88 @@ export async function fetchLogPage(
 	}
 
 	return { commits, hasMore: false }
+}
+
+export function streamLogPage(
+	options: FetchLogOptions | undefined,
+	callbacks: StreamLogPageCallbacks,
+): { cancel: () => void } {
+	const limit = options?.limit
+	const template = buildTemplate()
+	const args = buildArgs(options, template, limit ? limit + 1 : undefined)
+	const state: LogStreamState = { buffer: "", current: null }
+	const commits: Commit[] = []
+	const maxCommits = limit ? limit + 1 : Number.POSITIVE_INFINITY
+
+	let pending = false
+	let flushTimer: ReturnType<typeof setTimeout> | null = null
+
+	const flush = () => {
+		flushTimer = null
+		if (!pending) return
+		pending = false
+		const visible = limit ? commits.slice(0, limit) : commits
+		callbacks.onBatch(visible)
+	}
+
+	const scheduleFlush = () => {
+		if (!flushTimer) {
+			flushTimer = setTimeout(flush, 25)
+		}
+	}
+
+	const appendCommits = (newCommits: Commit[]) => {
+		if (newCommits.length === 0) return
+		let appended = false
+		for (const commit of newCommits) {
+			if (commits.length >= maxCommits) continue
+			commits.push(commit)
+			appended = true
+		}
+		if (appended) {
+			pending = true
+			scheduleFlush()
+		}
+	}
+
+	return executeStreaming(
+		args,
+		{ cwd: options?.cwd },
+		{
+			onChunk: (_content: string, _lineCount: number, chunk: string) => {
+				appendCommits(consumeLogChunk(chunk, state))
+			},
+			onComplete: (result: ExecuteResult) => {
+				if (flushTimer) {
+					clearTimeout(flushTimer)
+					flushTimer = null
+				}
+				const combinedOutput = result.stdout + result.stderr
+				if (/working copy is stale|stale working copy/i.test(combinedOutput)) {
+					callbacks.onError(
+						new Error(`The working copy is stale\n${combinedOutput}`),
+					)
+					return
+				}
+				if (!result.success) {
+					callbacks.onError(new Error(`jj log failed: ${result.stderr}`))
+					return
+				}
+
+				appendCommits(finalizeLogStream(state))
+				const hasMore = limit ? commits.length > limit : false
+				const visible = limit ? commits.slice(0, limit) : commits
+				callbacks.onComplete({ commits: visible, hasMore })
+			},
+			onError: (error) => {
+				if (flushTimer) {
+					clearTimeout(flushTimer)
+					flushTimer = null
+				}
+				callbacks.onError(error)
+			},
+		},
+	)
 }
 
 export async function fetchLog(options?: FetchLogOptions): Promise<Commit[]> {

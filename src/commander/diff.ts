@@ -80,7 +80,7 @@ export function streamDiff(
 		args,
 		{ cwd: options.cwd, env },
 		{
-			onChunk: (content, lineCount) => {
+			onChunk: (content, lineCount, _chunk) => {
 				if (firstUpdate) {
 					endFirstChunk(`${lineCount} lines`)
 					firstUpdate = false
@@ -103,4 +103,3 @@ export function streamDiff(
 		},
 	)
 }
-

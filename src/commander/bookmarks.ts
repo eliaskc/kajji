@@ -60,7 +60,7 @@ export function fetchBookmarksStream(
 		args,
 		{ cwd: options.cwd },
 		{
-			onChunk: (content, lineCount) => {
+			onChunk: (content, lineCount, _chunk) => {
 				const parsed = parseBookmarkOutput(content)
 				// Only emit if we have new bookmarks
 				if (parsed.length > lastCount) {

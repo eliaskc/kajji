@@ -66,7 +66,7 @@ export async function executeWithColor(
 }
 
 export interface StreamingExecuteCallbacks {
-	onChunk: (content: string, lineCount: number) => void
+	onChunk: (content: string, lineCount: number, chunk: string) => void
 	onComplete: (result: ExecuteResult) => void
 	onError: (error: Error) => void
 }
@@ -117,7 +117,7 @@ export function executeStreaming(
 					`  chunk #${chunkCount}: ${chunk.length} bytes, ${newLines} lines, total ${lineCount} lines`,
 				)
 
-				callbacks.onChunk(stdout, lineCount)
+				callbacks.onChunk(stdout, lineCount, chunk)
 
 				await new Promise((r) => setImmediate(r))
 			}
@@ -153,4 +153,3 @@ export function executeStreaming(
 		},
 	}
 }
-
