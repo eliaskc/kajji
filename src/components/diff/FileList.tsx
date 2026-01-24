@@ -1,11 +1,11 @@
-import { For, Show, createMemo } from "solid-js"
+import { For, Show } from "solid-js"
 import { useTheme } from "../../context/theme"
 import {
 	type FileId,
 	type FlattenedFile,
-	getFileStatusColor,
 	getFileStatusIndicator,
 } from "../../diff"
+import { getDiffStatusKey, getStatusColor } from "../../utils/status-colors"
 
 const STAT_COLORS = {
 	addition: "#3fb950",
@@ -32,7 +32,10 @@ export function FileList(props: FileListProps) {
 				{(file) => {
 					const isActive = () => file.fileId === props.activeFileId
 					const indicator = getFileStatusIndicator(file.type)
-					const statusColor = getFileStatusColor(file.type)
+					const statusColor = getStatusColor(
+						getDiffStatusKey(file.type),
+						colors(),
+					)
 
 					return (
 						<box
@@ -82,43 +85,5 @@ export function FileList(props: FileListProps) {
 				<text fg={colors().textMuted}>No files</text>
 			</Show>
 		</box>
-	)
-}
-
-/**
- * Compact file summary for header display.
- */
-export function FileSummary(props: {
-	files: FlattenedFile[]
-	activeFileId: FileId | null
-}) {
-	const { colors } = useTheme()
-
-	const totals = createMemo(() => {
-		let additions = 0
-		let deletions = 0
-		for (const file of props.files) {
-			additions += file.additions
-			deletions += file.deletions
-		}
-		return { additions, deletions, files: props.files.length }
-	})
-
-	const activeIndex = createMemo(() => {
-		if (!props.activeFileId) return 0
-		const idx = props.files.findIndex((f) => f.fileId === props.activeFileId)
-		return idx >= 0 ? idx + 1 : 0
-	})
-
-	return (
-		<text>
-			<span style={{ fg: colors().textMuted }}>
-				File {activeIndex()}/{totals().files}
-			</span>
-			<span style={{ fg: SEPARATOR_COLOR }}> │ </span>
-			<span style={{ fg: STAT_COLORS.addition }}>+{totals().additions}</span>
-			<span> </span>
-			<span style={{ fg: STAT_COLORS.deletion }}>-{totals().deletions}</span>
-		</text>
 	)
 }

@@ -66,7 +66,7 @@ export function parseDiffString(diffString: string): FileDiffMetadata[] {
 /**
  * Diff line type for rendering.
  */
-export type DiffLineType = "context" | "addition" | "deletion" | "hunk-header"
+export type DiffLineType = "context" | "addition" | "deletion"
 
 /**
  * A single line in a diff, flattened for rendering.
@@ -86,9 +86,12 @@ export interface DiffLine {
  */
 export interface FlattenedHunk {
 	hunkId: HunkId
-	header: string
 	context?: string // function name, etc.
 	lines: DiffLine[]
+	oldStart: number
+	oldLines: number
+	newStart: number
+	newLines: number
 }
 
 /**
@@ -102,14 +105,6 @@ export interface FlattenedFile {
 	hunks: FlattenedHunk[]
 	additions: number
 	deletions: number
-}
-
-/**
- * Format a hunk header for display.
- */
-export function formatHunkHeader(hunk: Hunk): string {
-	const context = hunk.hunkContext ? ` ${hunk.hunkContext}` : ""
-	return `@@ -${hunk.deletionStart},${hunk.deletionLines} +${hunk.additionStart},${hunk.additionLines} @@${context}`
 }
 
 /**
@@ -160,9 +155,12 @@ export function flattenHunk(file: FileDiffMetadata, hunk: Hunk): FlattenedHunk {
 
 	return {
 		hunkId: id,
-		header: formatHunkHeader(hunk),
 		context: hunk.hunkContext,
 		lines,
+		oldStart: hunk.deletionStart,
+		oldLines: hunk.deletionLines,
+		newStart: hunk.additionStart,
+		newLines: hunk.additionLines,
 	}
 }
 
@@ -211,23 +209,6 @@ export function getFileStatusIndicator(type: FileDiffMetadata["type"]): string {
 			return "R"
 		default:
 			return "M"
-	}
-}
-
-/**
- * Get file status color.
- */
-export function getFileStatusColor(type: FileDiffMetadata["type"]): string {
-	switch (type) {
-		case "new":
-			return "#98c379" // green
-		case "deleted":
-			return "#e06c75" // red
-		case "rename-pure":
-		case "rename-changed":
-			return "#d19a66" // orange
-		default:
-			return "#61afef" // blue
 	}
 }
 

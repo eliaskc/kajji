@@ -11,8 +11,6 @@ import type {
 } from "../../diff"
 import {
 	computeWordDiff,
-	getFileStatusColor,
-	getFileStatusIndicator,
 	getLanguage,
 	getLineNumWidth,
 	getMaxLineNumber,
@@ -42,8 +40,10 @@ const LINE_NUM_COLORS = {
 } as const
 
 const SEPARATOR_COLOR = "#30363d"
-const FILE_HEADER_BG = "#1c2128"
-const HUNK_HEADER_BG = "#161b22"
+const GAP_ROW_BG = "#161b22"
+const GAP_PATTERN_CHAR = "╱"
+const GAP_PATTERN_COLOR = "#2a2a2a"
+const GAP_PATTERN_REPEAT = 200
 
 const STAT_COLORS = {
 	addition: "#3fb950",
@@ -55,7 +55,7 @@ const EMPTY_STRIPE_CHAR = "╱"
 const EMPTY_STRIPE_COLOR = "#2a2a2a"
 const RIGHT_PADDING = 3
 
-type SplitRowType = "file-header" | "hunk-header" | "content"
+type SplitRowType = "file-header" | "file-gap" | "gap" | "content"
 
 interface SplitRow {
 	type: SplitRowType
@@ -66,7 +66,7 @@ interface SplitRow {
 	right: DiffLine | null
 	leftWordDiff?: WordDiffSegment[]
 	rightWordDiff?: WordDiffSegment[]
-	hunkHeader?: string
+	gapLines?: number
 	rowIndex: number
 }
 
@@ -74,7 +74,7 @@ function flattenToSplitRows(files: FlattenedFile[]): SplitRow[] {
 	const rows: SplitRow[] = []
 	let rowIndex = 0
 
-	for (const file of files) {
+	for (const [fileIndex, file] of files.entries()) {
 		rows.push({
 			type: "file-header",
 			fileId: file.fileId,
@@ -85,17 +85,43 @@ function flattenToSplitRows(files: FlattenedFile[]): SplitRow[] {
 			rowIndex: rowIndex++,
 		})
 
+		let prevHunk = null as FlattenedFile["hunks"][number] | null
 		for (const hunk of file.hunks) {
-			rows.push({
-				type: "hunk-header",
-				fileId: file.fileId,
-				hunkId: hunk.hunkId,
-				fileName: file.name,
-				left: null,
-				right: null,
-				hunkHeader: hunk.header,
-				rowIndex: rowIndex++,
-			})
+			if (!prevHunk) {
+				const gapOld = hunk.oldStart - 1
+				const gapNew = hunk.newStart - 1
+				const gapLines = Math.max(gapOld, gapNew)
+				if (gapLines > 0) {
+					rows.push({
+						type: "gap",
+						fileId: file.fileId,
+						hunkId: null,
+						fileName: file.name,
+						left: null,
+						right: null,
+						gapLines,
+						rowIndex: rowIndex++,
+					})
+				}
+			} else {
+				const prevOldEnd = prevHunk.oldStart + prevHunk.oldLines
+				const prevNewEnd = prevHunk.newStart + prevHunk.newLines
+				const gapOld = hunk.oldStart - prevOldEnd
+				const gapNew = hunk.newStart - prevNewEnd
+				const gapLines = Math.max(gapOld, gapNew)
+				if (gapLines > 0) {
+					rows.push({
+						type: "gap",
+						fileId: file.fileId,
+						hunkId: null,
+						fileName: file.name,
+						left: null,
+						right: null,
+						gapLines,
+						rowIndex: rowIndex++,
+					})
+				}
+			}
 
 			const alignedRows = buildAlignedRows(hunk.lines)
 			for (const aligned of alignedRows) {
@@ -111,6 +137,20 @@ function flattenToSplitRows(files: FlattenedFile[]): SplitRow[] {
 					rowIndex: rowIndex++,
 				})
 			}
+
+			prevHunk = hunk
+		}
+
+		if (fileIndex < files.length - 1) {
+			rows.push({
+				type: "file-gap",
+				fileId: file.fileId,
+				hunkId: null,
+				fileName: file.name,
+				left: null,
+				right: null,
+				rowIndex: rowIndex++,
+			})
 		}
 	}
 
@@ -197,7 +237,7 @@ interface VirtualizedSplitViewProps {
 }
 
 type WrappedSplitRow =
-	| { type: "file-header" | "hunk-header"; row: SplitRow }
+	| { type: "file-header" | "gap" | "file-gap"; row: SplitRow }
 	| {
 			type: "content"
 			row: SplitRow
@@ -325,64 +365,61 @@ function VirtualizedSplitRow(props: VirtualizedSplitRowProps) {
 	if (props.row.type === "file-header") {
 		const stats = props.fileStats.get(props.row.row.fileId)
 		return (
-			<box backgroundColor={FILE_HEADER_BG} paddingLeft={1} paddingRight={1}>
-				<text>
-					<span
-						style={{
-							fg: getFileStatusColor(
-								(stats?.type ?? "change") as
-									| "change"
-									| "rename-pure"
-									| "rename-changed"
-									| "new"
-									| "deleted",
-							),
-						}}
-					>
-						{getFileStatusIndicator(
-							(stats?.type ?? "change") as
-								| "change"
-								| "rename-pure"
-								| "rename-changed"
-								| "new"
-								| "deleted",
-						)}
-					</span>
-					<span style={{ fg: colors().text }}> {props.row.row.fileName}</span>
-					<Show when={stats?.prevName}>
-						<span style={{ fg: colors().textMuted }}>
-							{" ← "}
-							{stats?.prevName}
-						</span>
+			<box paddingRight={1}>
+				<box flexDirection="row" justifyContent="space-between" flexGrow={1}>
+					<text>
+						<span style={{ fg: "#ffffff" }}>{props.row.row.fileName}</span>
+						<Show when={stats?.prevName}>
+							<span style={{ fg: colors().textMuted }}>
+								{" ← "}
+								{stats?.prevName}
+							</span>
+						</Show>
+					</text>
+					<Show when={stats && (stats.additions > 0 || stats.deletions > 0)}>
+						<text>
+							<Show when={stats && stats.additions > 0}>
+								<span style={{ fg: STAT_COLORS.addition }}>
+									+{stats?.additions}
+								</span>
+							</Show>
+							<Show when={stats && stats.additions > 0 && stats.deletions > 0}>
+								<span> </span>
+							</Show>
+							<Show when={stats && stats.deletions > 0}>
+								<span style={{ fg: STAT_COLORS.deletion }}>
+									-{stats?.deletions}
+								</span>
+							</Show>
+						</text>
 					</Show>
-					<span style={{ fg: SEPARATOR_COLOR }}> │ </span>
-					<Show when={stats && stats.additions > 0}>
-						<span style={{ fg: STAT_COLORS.addition }}>
-							+{stats?.additions}
-						</span>
-					</Show>
-					<Show when={stats && stats.additions > 0 && stats.deletions > 0}>
-						<span> </span>
-					</Show>
-					<Show when={stats && stats.deletions > 0}>
-						<span style={{ fg: STAT_COLORS.deletion }}>
-							-{stats?.deletions}
-						</span>
-					</Show>
+				</box>
+			</box>
+		)
+	}
+
+	if (props.row.type === "gap") {
+		const gutterWidth = props.lineNumWidth + 2
+		const ellipsis = "···"
+		const pattern = GAP_PATTERN_CHAR.repeat(GAP_PATTERN_REPEAT)
+		const gutterPattern = GAP_PATTERN_CHAR.repeat(
+			Math.max(0, gutterWidth - ellipsis.length),
+		)
+		return (
+			<box backgroundColor={GAP_ROW_BG} overflow="hidden">
+				<text wrapMode="none">
+					<span style={{ fg: GAP_PATTERN_COLOR }}>{gutterPattern}</span>
+					<span style={{ fg: colors().textMuted }}>{ellipsis}</span>
+					<span style={{ fg: GAP_PATTERN_COLOR }}>{pattern}</span>
 				</text>
 			</box>
 		)
 	}
 
-	if (props.row.type === "hunk-header") {
-		const isCurrent = props.row.row.hunkId === props.currentHunkId
+	if (props.row.type === "file-gap") {
 		return (
-			<box backgroundColor={HUNK_HEADER_BG} paddingLeft={1}>
-				<text>
-					<span style={{ fg: isCurrent ? "#58a6ff" : "#6e7681" }}>
-						{props.row.row.hunkHeader}
-					</span>
-				</text>
+			<box paddingLeft={1}>
+				<text> </text>
 			</box>
 		)
 	}
@@ -657,7 +694,11 @@ function buildWrappedSplitRows(
 	const width = Math.max(1, wrapWidth)
 
 	for (const row of rows) {
-		if (row.type === "file-header" || row.type === "hunk-header") {
+		if (
+			row.type === "file-header" ||
+			row.type === "gap" ||
+			row.type === "file-gap"
+		) {
 			result.push({ type: row.type, row })
 			continue
 		}

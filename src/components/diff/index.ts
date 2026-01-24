@@ -1,3 +1,3 @@
-export { FileList, FileSummary } from "./FileList"
+export { FileList } from "./FileList"
 export { VirtualizedSplitView } from "./VirtualizedSplitView"
 export { VirtualizedUnifiedView } from "./VirtualizedUnifiedView"

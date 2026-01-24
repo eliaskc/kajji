@@ -3,7 +3,8 @@ import type { FlattenedFile } from "./parser"
 
 export type DiffRowType =
 	| "file-header"
-	| "hunk-header"
+	| "file-gap"
+	| "gap"
 	| "context"
 	| "addition"
 	| "deletion"
@@ -18,14 +19,14 @@ export interface DiffRow {
 	side: "LEFT" | "RIGHT" | null
 	rowIndex: number
 	fileName: string
-	hunkHeader?: string
+	gapLines?: number
 }
 
 export function flattenToRows(files: FlattenedFile[]): DiffRow[] {
 	const rows: DiffRow[] = []
 	let rowIndex = 0
 
-	for (const file of files) {
+	for (const [fileIndex, file] of files.entries()) {
 		rows.push({
 			type: "file-header",
 			content: file.name,
@@ -36,21 +37,47 @@ export function flattenToRows(files: FlattenedFile[]): DiffRow[] {
 			fileName: file.name,
 		})
 
+		let prevHunk = null as FlattenedFile["hunks"][number] | null
 		for (const hunk of file.hunks) {
-			rows.push({
-				type: "hunk-header",
-				content: hunk.header,
-				fileId: file.fileId,
-				hunkId: hunk.hunkId,
-				side: null,
-				rowIndex: rowIndex++,
-				fileName: file.name,
-				hunkHeader: hunk.header,
-			})
+			if (!prevHunk) {
+				const gapOld = hunk.oldStart - 1
+				const gapNew = hunk.newStart - 1
+				const gapLines = Math.max(gapOld, gapNew)
+				if (gapLines > 0) {
+					rows.push({
+						type: "gap",
+						content: "",
+						fileId: file.fileId,
+						hunkId: null,
+						side: null,
+						rowIndex: rowIndex++,
+						fileName: file.name,
+						gapLines,
+					})
+				}
+			} else {
+				const prevOldEnd = prevHunk.oldStart + prevHunk.oldLines
+				const prevNewEnd = prevHunk.newStart + prevHunk.newLines
+				const gapOld = hunk.oldStart - prevOldEnd
+				const gapNew = hunk.newStart - prevNewEnd
+				const gapLines = Math.max(gapOld, gapNew)
+				if (gapLines > 0) {
+					rows.push({
+						type: "gap",
+						content: "",
+						fileId: file.fileId,
+						hunkId: null,
+						side: null,
+						rowIndex: rowIndex++,
+						fileName: file.name,
+						gapLines,
+					})
+				}
+			}
 
 			for (const line of hunk.lines) {
 				rows.push({
-					type: line.type === "hunk-header" ? "hunk-header" : line.type,
+					type: line.type,
 					content: line.content,
 					fileId: file.fileId,
 					hunkId: hunk.hunkId,
@@ -66,6 +93,20 @@ export function flattenToRows(files: FlattenedFile[]): DiffRow[] {
 					fileName: file.name,
 				})
 			}
+
+			prevHunk = hunk
+		}
+
+		if (fileIndex < files.length - 1) {
+			rows.push({
+				type: "file-gap",
+				content: "",
+				fileId: file.fileId,
+				hunkId: null,
+				side: null,
+				rowIndex: rowIndex++,
+				fileName: file.name,
+			})
 		}
 	}
 
@@ -93,7 +134,13 @@ export function getVisibleRange(
 }
 
 export function findRowIndexByHunkId(rows: DiffRow[], hunkId: HunkId): number {
-	return rows.findIndex((r) => r.hunkId === hunkId && r.type === "hunk-header")
+	return rows.findIndex(
+		(r) =>
+			r.hunkId === hunkId &&
+			r.type !== "file-header" &&
+			r.type !== "gap" &&
+			r.type !== "file-gap",
+	)
 }
 
 export function findRowIndexByFileId(rows: DiffRow[], fileId: FileId): number {

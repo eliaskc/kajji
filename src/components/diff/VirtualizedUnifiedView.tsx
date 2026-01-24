@@ -8,8 +8,6 @@ import {
 	type HunkId,
 	type SyntaxToken,
 	flattenToRows,
-	getFileStatusColor,
-	getFileStatusIndicator,
 	getLanguage,
 	getLineNumWidth,
 	getMaxLineNumber,
@@ -24,7 +22,6 @@ const DIFF_BG = {
 	deletion: "#2d1215",
 	additionEmphasis: "#1a5a2a",
 	deletionEmphasis: "#5a1a1a",
-	hunkHeader: "#161620",
 } as const
 
 const BAR_COLORS = {
@@ -40,8 +37,10 @@ const LINE_NUM_COLORS = {
 
 const BAR_CHAR = "▌"
 const SEPARATOR_COLOR = "#30363d"
-const FILE_HEADER_BG = "#1c2128"
-const HUNK_HEADER_BG = "#161b22"
+const GAP_ROW_BG = "#161b22"
+const GAP_PATTERN_CHAR = "╱"
+const GAP_PATTERN_COLOR = "#2a2a2a"
+const GAP_PATTERN_REPEAT = 200
 const RIGHT_PADDING = 2
 
 const STAT_COLORS = {
@@ -62,7 +61,7 @@ interface VirtualizedUnifiedViewProps {
 }
 
 type WrappedRow =
-	| { type: "file-header" | "hunk-header"; row: DiffRow }
+	| { type: "file-header" | "gap" | "file-gap"; row: DiffRow }
 	| {
 			type: "content"
 			row: DiffRow
@@ -174,68 +173,61 @@ function VirtualizedRow(props: VirtualizedRowProps) {
 	if (props.row.type === "file-header") {
 		const stats = props.fileStats.get(props.row.row.fileId)
 		return (
-			<box backgroundColor={FILE_HEADER_BG} paddingLeft={1} paddingRight={1}>
-				<text>
-					<span
-						style={{
-							fg: getFileStatusColor(
-								(stats?.type ?? "change") as
-									| "change"
-									| "rename-pure"
-									| "rename-changed"
-									| "new"
-									| "deleted",
-							),
-						}}
-					>
-						{getFileStatusIndicator(
-							(stats?.type ?? "change") as
-								| "change"
-								| "rename-pure"
-								| "rename-changed"
-								| "new"
-								| "deleted",
-						)}
-					</span>
-					<span style={{ fg: colors().text }}> {props.row.row.content}</span>
-					<Show when={stats?.prevName}>
-						<span style={{ fg: colors().textMuted }}>
-							{" ← "}
-							{stats?.prevName}
-						</span>
+			<box paddingRight={1}>
+				<box flexDirection="row" justifyContent="space-between" flexGrow={1}>
+					<text>
+						<span style={{ fg: "#ffffff" }}>{props.row.row.content}</span>
+						<Show when={stats?.prevName}>
+							<span style={{ fg: colors().textMuted }}>
+								{" ← "}
+								{stats?.prevName}
+							</span>
+						</Show>
+					</text>
+					<Show when={stats && (stats.additions > 0 || stats.deletions > 0)}>
+						<text>
+							<Show when={stats && stats.additions > 0}>
+								<span style={{ fg: STAT_COLORS.addition }}>
+									+{stats?.additions}
+								</span>
+							</Show>
+							<Show when={stats && stats.additions > 0 && stats.deletions > 0}>
+								<span> </span>
+							</Show>
+							<Show when={stats && stats.deletions > 0}>
+								<span style={{ fg: STAT_COLORS.deletion }}>
+									-{stats?.deletions}
+								</span>
+							</Show>
+						</text>
 					</Show>
-					<span style={{ fg: SEPARATOR_COLOR }}> │ </span>
-					<Show when={stats && stats.additions > 0}>
-						<span style={{ fg: STAT_COLORS.addition }}>
-							+{stats?.additions}
-						</span>
-					</Show>
-					<Show when={stats && stats.additions > 0 && stats.deletions > 0}>
-						<span> </span>
-					</Show>
-					<Show when={stats && stats.deletions > 0}>
-						<span style={{ fg: STAT_COLORS.deletion }}>
-							-{stats?.deletions}
-						</span>
-					</Show>
+				</box>
+			</box>
+		)
+	}
+
+	if (props.row.type === "gap") {
+		const gutterWidth = props.lineNumWidth + 2
+		const ellipsis = "···"
+		const pattern = GAP_PATTERN_CHAR.repeat(GAP_PATTERN_REPEAT)
+		const gutterPattern = GAP_PATTERN_CHAR.repeat(
+			Math.max(0, gutterWidth - ellipsis.length),
+		)
+		return (
+			<box backgroundColor={GAP_ROW_BG} overflow="hidden">
+				<text wrapMode="none">
+					<span style={{ fg: GAP_PATTERN_COLOR }}>{gutterPattern}</span>
+					<span style={{ fg: colors().textMuted }}>{ellipsis}</span>
+					<span style={{ fg: GAP_PATTERN_COLOR }}>{pattern}</span>
 				</text>
 			</box>
 		)
 	}
 
-	if (props.row.type === "hunk-header") {
-		const isCurrent = props.row.row.hunkId === props.currentHunkId
+	if (props.row.type === "file-gap") {
 		return (
-			<box backgroundColor={HUNK_HEADER_BG} paddingLeft={1}>
-				<text>
-					<span
-						style={{
-							fg: isCurrent ? "#58a6ff" : "#6e7681",
-						}}
-					>
-						{props.row.row.content}
-					</span>
-				</text>
+			<box paddingLeft={1}>
+				<text> </text>
 			</box>
 		)
 	}
@@ -360,7 +352,11 @@ function buildWrappedRows(
 	const width = Math.max(1, wrapWidth)
 
 	for (const row of rows) {
-		if (row.type === "file-header" || row.type === "hunk-header") {
+		if (
+			row.type === "file-header" ||
+			row.type === "gap" ||
+			row.type === "file-gap"
+		) {
 			result.push({ type: row.type, row })
 			continue
 		}

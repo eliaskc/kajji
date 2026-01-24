@@ -30,11 +30,7 @@ import {
 import { getFilePaths } from "../../utils/file-tree"
 import { AnsiText } from "../AnsiText"
 import { Panel } from "../Panel"
-import {
-	FileSummary,
-	VirtualizedSplitView,
-	VirtualizedUnifiedView,
-} from "../diff"
+import { VirtualizedSplitView, VirtualizedUnifiedView } from "../diff"
 
 type DiffViewStyle = "unified" | "split"
 
@@ -181,7 +177,6 @@ function MinimalCommitHeader(props: {
 				<text>{"    "}</text>
 				<AnsiText content={subject()} wrapMode="none" />
 			</box>
-			<text> </text>
 		</box>
 	)
 }
@@ -252,7 +247,6 @@ function CommitHeader(props: {
 					</box>
 				)}
 			</Show>
-			<text> </text>
 		</box>
 	)
 }
@@ -783,10 +777,6 @@ export function MainArea() {
 					<Show when={!parsedDiffError()}>
 						<Show when={parsedFiles().length > 0}>
 							<box flexDirection="column">
-								<FileSummary
-									files={parsedFiles()}
-									activeFileId={activeFileId()}
-								/>
 								<Show when={viewStyle() === "unified"}>
 									<VirtualizedUnifiedView
 										files={parsedFiles()}

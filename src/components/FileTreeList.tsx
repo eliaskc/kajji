@@ -3,6 +3,7 @@ import { useFocus } from "../context/focus"
 import { useTheme } from "../context/theme"
 import { createDoubleClickDetector } from "../utils/double-click"
 import type { FlatFileNode } from "../utils/file-tree"
+import { type FileStatus, getStatusColor } from "../utils/status-colors"
 
 const STATUS_CHARS: Record<string, string> = {
 	added: "A",
@@ -25,14 +26,6 @@ export function FileTreeList(props: FileTreeListProps) {
 	const focus = useFocus()
 	const { colors } = useTheme()
 
-	const statusColors = () => ({
-		added: colors().success,
-		modified: colors().warning,
-		deleted: colors().error,
-		renamed: colors().info,
-		copied: colors().info,
-	})
-
 	return (
 		<For each={props.files()}>
 			{(item, index) => {
@@ -47,9 +40,7 @@ export function FileTreeList(props: FileTreeListProps) {
 					? (STATUS_CHARS[node.status] ?? " ")
 					: " "
 				const statusColor = node.status
-					? (statusColors()[
-							node.status as keyof ReturnType<typeof statusColors>
-						] ?? colors().text)
+					? getStatusColor(node.status as FileStatus, colors())
 					: colors().text
 
 				const handleDoubleClick = createDoubleClickDetector(() => {
