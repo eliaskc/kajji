@@ -22,8 +22,8 @@
 		"mock:whats-new": "NODE_ENV=development bun run src/index.tsx --mock=whats-new",
 		"profile": "bun run script/profile.ts",
 		"trace": "KAJJI_TRACE=1 bun run src/index.tsx",
-		"test": "bun test",
-		"test:bench": "bun test tests/bench/",
+		"test": "bun test tests/unit",
+		"test:bench": "bun test tests/bench/*.bench.ts",
 		"check": "tsc --noEmit",
 		"lint": "biome check .",
 		"lint:fix": "biome check --write ."
