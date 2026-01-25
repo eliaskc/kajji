@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.1
+
+### fixed
+- ux: what's new screen shows with wave background instead of as modal overlay ([`c725500f`](../../commit/c725500f))
+
 ## 0.6.0
 
 ### new
