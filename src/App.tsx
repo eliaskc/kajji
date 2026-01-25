@@ -26,7 +26,11 @@ import { LoadingProvider, useLoading } from "./context/loading"
 import { SyncProvider, useSync } from "./context/sync"
 import { ThemeProvider, useTheme } from "./context/theme"
 import { setRepoPath } from "./repo"
-import { getChangesSince, parseChangelog } from "./utils/changelog"
+import {
+	getChangesSince,
+	isMajorOrMinorUpdate,
+	parseChangelog,
+} from "./utils/changelog"
 import type { VersionBlock } from "./utils/changelog"
 import { isCriticalStartupError, parseJjError } from "./utils/error-parser"
 import { readState, writeState } from "./utils/state"
@@ -92,7 +96,8 @@ function AppContent() {
 		} else if (
 			!state.whatsNewDisabled &&
 			currentVersion !== "0.0.0" &&
-			state.lastSeenVersion !== currentVersion
+			state.lastSeenVersion !== currentVersion &&
+			isMajorOrMinorUpdate(currentVersion, state.lastSeenVersion)
 		) {
 			const newChanges = getChangesSince(allBlocks, state.lastSeenVersion)
 
