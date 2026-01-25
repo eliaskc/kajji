@@ -135,6 +135,7 @@ function AppContent() {
 			keybind: "quit",
 			context: "global",
 			type: "action",
+			visibility: "help-only",
 			onSelect: () => {
 				renderer.destroy()
 				process.exit(0)
@@ -208,7 +209,7 @@ function AppContent() {
 		},
 		{
 			id: "global.help",
-			title: "help",
+			title: "commands",
 			keybind: "help",
 			context: "global",
 			type: "action",
@@ -254,11 +255,10 @@ function AppContent() {
 		},
 		{
 			id: "global.toggle_focus_mode",
-			title: "toggle focus mode",
+			title: "view",
 			keybind: "toggle_focus_mode",
 			context: "global",
 			type: "action",
-			visibility: "help-only",
 			onSelect: () => layout.toggleFocusMode(),
 		},
 		{

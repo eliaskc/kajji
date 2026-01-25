@@ -72,7 +72,7 @@ export const DEFAULT_KEYBINDS: KeybindConfig = {
 	nav_up: "k,up",
 	nav_page_up: "ctrl+u",
 	nav_page_down: "ctrl+d",
-	help: "?",
+	help: "ctrl+p,?",
 	refresh: "ctrl+r",
 	enter: "enter",
 	escape: "escape",

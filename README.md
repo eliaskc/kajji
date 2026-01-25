@@ -96,7 +96,7 @@ kajji /path/to/repo      # specific directory
 | `Escape` | Back / close modal |
 | `ctrl+x` | Toggle focus mode (normal / diff) |
 | `ctrl+o` | Open recent repository |
-| `?` | Show help with fuzzy search |
+| `ctrl+p` | Show commands (or `?`) |
 | `q` | Quit |
 
 ### Operations

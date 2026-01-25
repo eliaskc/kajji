@@ -526,6 +526,7 @@ export function BookmarksPanel() {
 					context: "refs.revisions",
 					type: "action",
 					panel: "refs",
+					visibility: "help-only",
 					onSelect: () => {
 						const commit = selectedBookmarkCommit()
 						if (commit)
@@ -539,6 +540,7 @@ export function BookmarksPanel() {
 					context: "refs.revisions",
 					type: "action",
 					panel: "refs",
+					visibility: "help-only",
 					onSelect: async () => {
 						const commit = selectedBookmarkCommit()
 						if (!commit) return
@@ -658,6 +660,7 @@ export function BookmarksPanel() {
 					context: "refs.revisions",
 					type: "action",
 					panel: "refs",
+					visibility: "help-only",
 					onSelect: async () => {
 						const commit = selectedBookmarkCommit()
 						if (!commit) return
@@ -739,6 +742,7 @@ export function BookmarksPanel() {
 					context: "refs.revisions",
 					type: "action",
 					panel: "refs",
+					visibility: "help-only",
 					onSelect: async () => {
 						const commit = selectedBookmarkCommit()
 						if (!commit) return
@@ -771,6 +775,7 @@ export function BookmarksPanel() {
 					context: "refs.revisions",
 					type: "action",
 					panel: "refs",
+					visibility: "help-only",
 					onSelect: () => {
 						const commit = selectedBookmarkCommit()
 						if (!commit) return
@@ -910,6 +915,7 @@ export function BookmarksPanel() {
 				context: "refs.bookmarks",
 				type: "action",
 				panel: "refs",
+				visibility: "help-only",
 				onSelect: () => {
 					const bookmark = selectedBookmark()
 					if (!bookmark) return
@@ -939,6 +945,7 @@ export function BookmarksPanel() {
 				context: "refs.bookmarks",
 				type: "action",
 				panel: "refs",
+				visibility: "help-only",
 				onSelect: async () => {
 					const bookmark = selectedBookmark()
 					if (!bookmark) return
@@ -959,6 +966,7 @@ export function BookmarksPanel() {
 				context: "refs.bookmarks",
 				type: "action",
 				panel: "refs",
+				visibility: "help-only",
 				onSelect: () => {
 					const bookmark = selectedBookmark()
 					if (!bookmark) return

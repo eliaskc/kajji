@@ -587,6 +587,7 @@ export function LogPanel() {
 			context: "log.revisions",
 			type: "action",
 			panel: "log",
+			visibility: "help-only",
 			onSelect: () => {
 				const commit = selectedCommit()
 				if (commit)
@@ -600,6 +601,7 @@ export function LogPanel() {
 			context: "log.revisions",
 			type: "action",
 			panel: "log",
+			visibility: "help-only",
 			onSelect: async () => {
 				const commit = selectedCommit()
 				if (!commit) return
@@ -786,6 +788,7 @@ export function LogPanel() {
 			context: "log.revisions",
 			type: "action",
 			panel: "log",
+			visibility: "help-only",
 			onSelect: async () => {
 				const commit = selectedCommit()
 				if (!commit) return
@@ -868,6 +871,7 @@ export function LogPanel() {
 			context: "log.revisions",
 			type: "action",
 			panel: "log",
+			visibility: "help-only",
 			onSelect: async () => {
 				const commit = selectedCommit()
 				if (!commit) return
@@ -901,6 +905,7 @@ export function LogPanel() {
 			context: "log.revisions",
 			type: "action",
 			panel: "log",
+			visibility: "help-only",
 			onSelect: () => {
 				const commit = selectedCommit()
 				if (!commit) return
@@ -940,6 +945,7 @@ export function LogPanel() {
 			context: "log.revisions",
 			type: "action",
 			panel: "log",
+			visibility: "help-only",
 			onSelect: activateFilter,
 		},
 		{
