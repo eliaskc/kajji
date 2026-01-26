@@ -13,6 +13,7 @@ Follow the Boy Scout rule:
 - **Typecheck**: `bun check` (tsc --noEmit)
 - **Lint**: `bun lint` (biome check)
 - **Lint fix**: `bun lint:fix` (biome check --write)
+- **CLI**: `bun cli <command>` (runs CLI commands, e.g., `bun cli comment list -r @`)
 
 ## OpenTUI Documentation
 

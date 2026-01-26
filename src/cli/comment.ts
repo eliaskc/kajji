@@ -547,6 +547,9 @@ export const commentCommand = defineCommand({
 				}
 				if (updated) {
 					writeComments(repoRoot, state)
+					console.log(
+						`Deleted ${formatCount(removedCount, "comment")} from ${removedLabel}`,
+					)
 				}
 			},
 		}),
