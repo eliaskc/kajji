@@ -1166,6 +1166,7 @@ export function BookmarksPanel() {
 							collapsedPaths={bookmarkCollapsedPaths}
 							toggleFolder={toggleBookmarkFolder}
 							isFocused={isFocused}
+							focusContext="refs.files"
 							scrollRef={(r) => {
 								filesScrollRef = r
 							}}

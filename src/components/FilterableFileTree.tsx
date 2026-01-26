@@ -12,6 +12,7 @@ import {
 import { useCommand } from "../context/command"
 import { useKeybind } from "../context/keybind"
 import { useTheme } from "../context/theme"
+import type { Context } from "../context/types"
 import type { FlatFileNode } from "../utils/file-tree"
 import { FUZZY_THRESHOLD, scrollIntoView } from "../utils/scroll"
 import { FileTreeList } from "./FileTreeList"
@@ -24,6 +25,7 @@ export interface FilterableFileTreeProps {
 	collapsedPaths: () => Set<string>
 	toggleFolder: (path: string) => void
 	isFocused?: () => boolean
+	focusContext?: Context
 	scrollRef?: (ref: ScrollBoxRenderable) => void
 }
 
@@ -239,6 +241,7 @@ export function FilterableFileTree(props: FilterableFileTreeProps) {
 						collapsedPaths={props.collapsedPaths}
 						toggleFolder={props.toggleFolder}
 						isFocused={props.isFocused}
+						focusContext={props.focusContext}
 					/>
 				</scrollbox>
 			</Show>

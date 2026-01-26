@@ -1,6 +1,7 @@
 import { For, Show } from "solid-js"
 import { useFocus } from "../context/focus"
 import { useTheme } from "../context/theme"
+import type { Context } from "../context/types"
 import { createDoubleClickDetector } from "../utils/double-click"
 import type { FlatFileNode } from "../utils/file-tree"
 import { type FileStatus, getStatusColor } from "../utils/status-colors"
@@ -20,6 +21,7 @@ export interface FileTreeListProps {
 	collapsedPaths: () => Set<string>
 	toggleFolder: (path: string) => void
 	isFocused?: () => boolean
+	focusContext?: Context
 }
 
 export function FileTreeList(props: FileTreeListProps) {
@@ -54,6 +56,9 @@ export function FileTreeList(props: FileTreeListProps) {
 
 				const handleMouseDown = (e: { stopPropagation: () => void }) => {
 					e.stopPropagation()
+					if (props.focusContext) {
+						focus.setActiveContext(props.focusContext)
+					}
 					if (isBinary()) return
 					props.setSelectedIndex(index())
 					handleDoubleClick()

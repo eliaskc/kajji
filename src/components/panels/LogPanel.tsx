@@ -1257,6 +1257,7 @@ export function LogPanel() {
 						collapsedPaths={collapsedPaths}
 						toggleFolder={toggleFolder}
 						isFocused={isFocused}
+						focusContext="log.files"
 						scrollRef={(r) => {
 							filesScrollRef = r
 						}}
