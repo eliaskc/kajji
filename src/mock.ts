@@ -6,6 +6,7 @@ export type MockMode =
 	| "update-success"
 	| "update-failed"
 	| "logo"
+	| "wave"
 	| "whats-new"
 
 export let mockMode: MockMode = null

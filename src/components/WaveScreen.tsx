@@ -11,13 +11,18 @@ const KAJJI_ASCII = `██╗  ██╗ █████╗      ██╗     
 
 const TAGLINE = " The rudder for your jj "
 
-export function LogoScreen() {
+export interface WaveScreenProps {
+	showLogo?: boolean
+}
+
+export function WaveScreen(props: WaveScreenProps) {
 	const { colors } = useTheme()
+	const showLogo = () => props.showLogo ?? true
 
 	return (
 		<box flexGrow={1} width="100%" height="100%">
 			<WaveBackground peakOpacity={0.6} />
-			<Show when={true}>
+			<Show when={showLogo()}>
 				<box
 					position="absolute"
 					left={0}

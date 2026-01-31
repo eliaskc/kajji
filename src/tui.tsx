@@ -5,8 +5,8 @@ import { Show, createSignal } from "solid-js"
 import { App } from "./App"
 import { jjWorkspaceUpdateStale } from "./commander/operations"
 import { ErrorScreen } from "./components/ErrorScreen"
-import { LogoScreen } from "./components/LogoScreen"
 import { StartupScreen } from "./components/StartupScreen"
+import { WaveScreen } from "./components/WaveScreen"
 import { WhatsNewScreen } from "./components/WhatsNewScreen"
 import { ThemeProvider } from "./context/theme"
 import { initHighlighter } from "./diff"
@@ -30,10 +30,11 @@ extend({ "ghostty-terminal": GhosttyTerminalRenderable })
 initHighlighter()
 
 export async function runTui(args: string[]): Promise<void> {
+	const isDev = Bun.env.NODE_ENV === "development"
 	let mockWhatsNewVersion: string | null = null
 
 	for (const arg of args) {
-		if (arg.startsWith("--mock=")) {
+		if (isDev && arg.startsWith("--mock=")) {
 			const value = arg.slice(7)
 			// Handle whats-new:version format
 			if (value.startsWith("whats-new")) {
@@ -50,6 +51,7 @@ export async function runTui(args: string[]): Promise<void> {
 					"update-success",
 					"update-failed",
 					"logo",
+					"wave",
 				].includes(value)
 			) {
 				setMockMode(value as MockMode)
@@ -114,11 +116,11 @@ export async function runTui(args: string[]): Promise<void> {
 			process.exit(0)
 		}
 
-		// Mock logo screen
-		if (mockMode === "logo") {
+		// Mock wave/logo screen
+		if (mockMode === "logo" || mockMode === "wave") {
 			return (
 				<ThemeProvider>
-					<LogoScreen />
+					<WaveScreen showLogo={mockMode === "logo"} />
 				</ThemeProvider>
 			)
 		}
