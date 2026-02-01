@@ -37,6 +37,7 @@ import {
 import { useCommand } from "../../context/command"
 import { useCommandLog } from "../../context/commandlog"
 import { useDialog } from "../../context/dialog"
+import { useDimmer } from "../../context/dimmer"
 import { useFocus } from "../../context/focus"
 import { useKeybind } from "../../context/keybind"
 import { useLoading } from "../../context/loading"
@@ -105,6 +106,7 @@ export function LogPanel() {
 	const focus = useFocus()
 	const command = useCommand()
 	const commandLog = useCommandLog()
+	const dimmer = useDimmer()
 	const dialog = useDialog()
 	const globalLoading = useLoading()
 	const keybind = useKeybind()
@@ -138,6 +140,15 @@ export function LogPanel() {
 
 	onCleanup(() => {
 		command.setInputMode(false)
+		dimmer.clear("log", "filter-log")
+	})
+
+	createEffect(() => {
+		if (filterMode()) {
+			dimmer.activate("log", "filter-log")
+		} else {
+			dimmer.clear("log", "filter-log")
+		}
 	})
 
 	const activateFilter = () => {

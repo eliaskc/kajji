@@ -22,6 +22,7 @@ import type { OperationResult } from "../../commander/operations"
 import { useCommand } from "../../context/command"
 import { useCommandLog } from "../../context/commandlog"
 import { useDialog } from "../../context/dialog"
+import { useDimmer } from "../../context/dimmer"
 import { useFocus } from "../../context/focus"
 import { useKeybind } from "../../context/keybind"
 import { useLoading } from "../../context/loading"
@@ -61,6 +62,7 @@ export function BookmarksPanel() {
 	const command = useCommand()
 	const keybind = useKeybind()
 	const commandLog = useCommandLog()
+	const dimmer = useDimmer()
 	const dialog = useDialog()
 	const globalLoading = useLoading()
 	const { colors } = useTheme()
@@ -107,6 +109,15 @@ export function BookmarksPanel() {
 	onCleanup(() => {
 		if (filterMode()) {
 			command.setInputMode(false)
+		}
+		dimmer.clear("refs", "filter-bookmarks")
+	})
+
+	createEffect(() => {
+		if (filterMode()) {
+			dimmer.activate("refs", "filter-bookmarks")
+		} else {
+			dimmer.clear("refs", "filter-bookmarks")
 		}
 	})
 

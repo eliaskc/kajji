@@ -19,6 +19,7 @@ import { UndoModal } from "./components/modals/UndoModal"
 import { CommandProvider, useCommand } from "./context/command"
 import { CommandLogProvider, useCommandLog } from "./context/commandlog"
 import { DialogContainer, DialogProvider, useDialog } from "./context/dialog"
+import { DimmerProvider } from "./context/dimmer"
 import { FocusProvider, type Panel, useFocus } from "./context/focus"
 import { KeybindProvider } from "./context/keybind"
 import { LayoutProvider, useLayout } from "./context/layout"
@@ -502,19 +503,21 @@ export function App() {
 		<ThemeProvider>
 			<FocusProvider>
 				<LayoutProvider>
-					<LoadingProvider>
-						<SyncProvider>
-							<KeybindProvider>
-								<CommandLogProvider>
-									<DialogProvider>
-										<CommandProvider>
-											<AppContent />
-										</CommandProvider>
-									</DialogProvider>
-								</CommandLogProvider>
-							</KeybindProvider>
-						</SyncProvider>
-					</LoadingProvider>
+					<DimmerProvider>
+						<LoadingProvider>
+							<SyncProvider>
+								<KeybindProvider>
+									<CommandLogProvider>
+										<DialogProvider>
+											<CommandProvider>
+												<AppContent />
+											</CommandProvider>
+										</DialogProvider>
+									</CommandLogProvider>
+								</KeybindProvider>
+							</SyncProvider>
+						</LoadingProvider>
+					</DimmerProvider>
 				</LayoutProvider>
 			</FocusProvider>
 		</ThemeProvider>
