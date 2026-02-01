@@ -633,7 +633,8 @@ export function BookmarksPanel() {
 												</box>
 												<Show when={!isDeleted()}>
 													<box flexGrow={1} overflow="hidden">
-														<AnsiText
+														<text
+															fg={colors().textMuted}
 															content={
 																bookmark.descriptionDisplay ||
 																bookmark.description
