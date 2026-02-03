@@ -45,6 +45,7 @@ export type KeybindConfigKey =
 	| "bookmark_forget"
 	| "bookmark_set"
 	| "bookmark_move"
+	| "bookmark_toggle_remote"
 	| "toggle_diff_style"
 	| "toggle_diff_wrap"
 	| "diff_scroll_left"
@@ -54,6 +55,7 @@ export type KeybindConfigKey =
 	| "nav_prev_file"
 	| "nav_next_file"
 	| "open_recent"
+	| "open"
 	| "toggle_focus_mode"
 	| "search"
 
@@ -95,10 +97,11 @@ export const DEFAULT_KEYBINDS: KeybindConfig = {
 	jj_git_push_all: "P",
 	bookmark_create: "c",
 	bookmark_delete: "d",
-	bookmark_rename: "r",
+	bookmark_rename: "R",
 	bookmark_forget: "x",
 	bookmark_set: "b",
 	bookmark_move: "m",
+	bookmark_toggle_remote: "r",
 	toggle_diff_style: "v",
 	toggle_diff_wrap: "w",
 	diff_scroll_left: "h,left",
@@ -108,6 +111,7 @@ export const DEFAULT_KEYBINDS: KeybindConfig = {
 	nav_prev_file: "{",
 	nav_next_file: "}",
 	open_recent: "ctrl+o",
+	open: "o",
 	toggle_focus_mode: "ctrl+x",
 	search: "/",
 }

@@ -12,13 +12,19 @@ import {
 	onMount,
 } from "solid-js"
 import {
+	type Bookmark,
 	jjBookmarkCreate,
 	jjBookmarkDelete,
 	jjBookmarkForget,
 	jjBookmarkRename,
 	jjBookmarkSet,
 } from "../../commander/bookmarks"
-import type { OperationResult } from "../../commander/operations"
+import { ghBrowseCommit, ghPrCreateWeb } from "../../commander/github"
+import {
+	type OperationResult,
+	jjGitPushBookmark,
+	jjIsInTrunk,
+} from "../../commander/operations"
 import { useCommand } from "../../context/command"
 import { useCommandLog } from "../../context/commandlog"
 import { useDialog } from "../../context/dialog"
@@ -40,6 +46,9 @@ export function BookmarksPanel() {
 	const {
 		commits,
 		bookmarks,
+		remoteBookmarks,
+		remoteBookmarksLoading,
+		remoteBookmarksError,
 		visibleBookmarks,
 		loadMoreBookmarks,
 		bookmarksHasMore,
@@ -79,8 +88,71 @@ export function BookmarksPanel() {
 		}
 	}
 
+	const openForBookmark = async (bookmark: Bookmark) => {
+		if (!bookmark.changeId) {
+			commandLog.addEntry({
+				command: "open",
+				success: false,
+				exitCode: 1,
+				stdout: "",
+				stderr: "Bookmark has no target change",
+			})
+			return
+		}
+
+		try {
+			if (await jjIsInTrunk(bookmark.commitId)) {
+				const browseResult = await globalLoading.run("Opening...", () =>
+					ghBrowseCommit(bookmark.commitId),
+				)
+				commandLog.addEntry(browseResult)
+				return
+			}
+		} catch {
+			// fall through to PR open
+		}
+
+		let needsPush = false
+		if (!remoteBookmarksLoading() && !remoteBookmarksError()) {
+			const remote = remoteBookmarks().find(
+				(b) => !b.isLocal && b.name === bookmark.name,
+			)
+			needsPush = !remote?.changeId || remote.changeId !== bookmark.changeId
+		}
+
+		if (needsPush) {
+			const confirmed = await dialog.confirm({
+				message: `Bookmark "${bookmark.name}" isn't pushed. Push before opening PR?`,
+			})
+			if (!confirmed) return
+			const pushResult = await globalLoading.run("Pushing...", () =>
+				jjGitPushBookmark(bookmark.name),
+			)
+			commandLog.addEntry(pushResult)
+			if (!pushResult.success) return
+			await refresh()
+		}
+
+		const prResult = await globalLoading.run("Opening...", () =>
+			ghPrCreateWeb(bookmark.name),
+		)
+		commandLog.addEntry(prResult)
+	}
+
 	const isFocused = () => focus.isPanel("refs")
 	const localBookmarks = () => bookmarks().filter((b) => b.isLocal)
+	const remoteBookmarkNames = createMemo(() => {
+		const names = new Set<string>()
+		for (const bookmark of remoteBookmarks()) {
+			if (!bookmark.isLocal) {
+				names.add(bookmark.name)
+			}
+		}
+		return names
+	})
+	const canSplitByUntracked = createMemo(
+		() => !remoteBookmarksLoading() && !remoteBookmarksError(),
+	)
 
 	const activeLocalBookmarks = createMemo(() =>
 		visibleBookmarks().filter((b) => b.isLocal && b.changeId),
@@ -88,6 +160,18 @@ export function BookmarksPanel() {
 	const deletedLocalBookmarks = createMemo(() =>
 		visibleBookmarks().filter((b) => b.isLocal && !b.changeId),
 	)
+	const localOnlyBookmarks = createMemo(() =>
+		activeLocalBookmarks().filter((b) => !remoteBookmarkNames().has(b.name)),
+	)
+	const trackedLocalBookmarks = createMemo(() =>
+		activeLocalBookmarks().filter((b) => remoteBookmarkNames().has(b.name)),
+	)
+	const remoteOnlyBookmarks = createMemo(() => {
+		const localNames = new Set(localBookmarks().map((b) => b.name))
+		return remoteBookmarks().filter(
+			(b) => !b.isLocal && !localNames.has(b.name),
+		)
+	})
 
 	const visibleLocalBookmarks = createMemo(() => [
 		...activeLocalBookmarks(),
@@ -98,6 +182,8 @@ export function BookmarksPanel() {
 	const [filterQuery, setFilterQuery] = createSignal("")
 	const [appliedFilter, setAppliedFilter] = createSignal("")
 	const [filterSelectedIndex, setFilterSelectedIndex] = createSignal(0)
+	const [showRemoteOnly, setShowRemoteOnly] = createSignal(false)
+	const [remoteSelectedIndex, setRemoteSelectedIndex] = createSignal(0)
 
 	let filterInputRef: TextareaRenderable | undefined
 
@@ -130,9 +216,12 @@ export function BookmarksPanel() {
 
 	const filteredBookmarks = createMemo(() => {
 		const q = activeFilterQuery().trim()
-		if (!q) return visibleLocalBookmarks()
+		const source = showRemoteOnly()
+			? remoteOnlyBookmarks()
+			: visibleLocalBookmarks()
+		if (!q) return source
 
-		const results = fuzzysort.go(q, visibleLocalBookmarks(), {
+		const results = fuzzysort.go(q, source, {
 			key: "name",
 			threshold: FUZZY_THRESHOLD,
 			limit: 100,
@@ -140,16 +229,43 @@ export function BookmarksPanel() {
 		return results.map((r) => r.obj)
 	})
 
-	const currentBookmarks = () =>
-		hasActiveFilter() ? filteredBookmarks() : visibleLocalBookmarks()
+	const displayBookmarks = createMemo(() => {
+		if (hasActiveFilter()) return filteredBookmarks()
+		if (showRemoteOnly()) return remoteOnlyBookmarks()
+		if (!canSplitByUntracked()) return visibleLocalBookmarks()
+		return [
+			...localOnlyBookmarks(),
+			...trackedLocalBookmarks(),
+			...deletedLocalBookmarks(),
+		]
+	})
 
-	const listTotalRows = createMemo(() => currentBookmarks().length)
+	const currentBookmarks = () => displayBookmarks()
+
+	const listTotalRows = createMemo(() => displayBookmarks().length)
 	const canPageBookmarks = createMemo(
-		() => !hasActiveFilter() && bookmarksHasMore(),
+		() => !showRemoteOnly() && !hasActiveFilter() && bookmarksHasMore(),
 	)
 
-	const currentSelectedIndex = () =>
-		hasActiveFilter() ? filterSelectedIndex() : selectedBookmarkIndex()
+	const displaySelectedIndex = createMemo(() => {
+		if (hasActiveFilter()) return filterSelectedIndex()
+		if (showRemoteOnly()) return remoteSelectedIndex()
+		const selected = selectedBookmark()
+		if (!selected) return 0
+		const idx = displayBookmarks().findIndex((b) => b.name === selected.name)
+		return idx >= 0 ? idx : 0
+	})
+
+	const currentSelectedIndex = () => displaySelectedIndex()
+	const localOnlySeparatorIndex = createMemo(() => localOnlyBookmarks().length)
+	const showUntrackedSeparator = createMemo(
+		() =>
+			!hasActiveFilter() &&
+			!showRemoteOnly() &&
+			canSplitByUntracked() &&
+			localOnlyBookmarks().length > 0 &&
+			trackedLocalBookmarks().length + deletedLocalBookmarks().length > 0,
+	)
 
 	createEffect(
 		on(
@@ -184,6 +300,7 @@ export function BookmarksPanel() {
 				] as const,
 			([active, filtered, idx]) => {
 				if (!active) return
+				if (showRemoteOnly()) return
 				const selectedBookmarkItem = filtered[idx]
 				if (!selectedBookmarkItem) return
 				const originalIndex = localBookmarks().findIndex(
@@ -198,20 +315,44 @@ export function BookmarksPanel() {
 	)
 
 	const selectNextBookmarkInView = () => {
-		const max = currentBookmarks().length - 1
+		const max = displayBookmarks().length - 1
 		if (max < 0) return
 		if (hasActiveFilter()) {
 			setFilterSelectedIndex((i) => Math.min(max, i + 1))
-		} else {
-			selectNextBookmark()
+			return
+		}
+		if (showRemoteOnly()) {
+			setRemoteSelectedIndex((i) => Math.min(max, i + 1))
+			return
+		}
+		const nextIndex = Math.min(max, displaySelectedIndex() + 1)
+		const nextBookmark = displayBookmarks()[nextIndex]
+		if (!nextBookmark) return
+		const localIndex = localBookmarks().findIndex(
+			(b) => b.name === nextBookmark.name,
+		)
+		if (localIndex >= 0) {
+			setSelectedBookmarkIndex(localIndex)
 		}
 	}
 
 	const selectPrevBookmarkInView = () => {
 		if (hasActiveFilter()) {
 			setFilterSelectedIndex((i) => Math.max(0, i - 1))
-		} else {
-			selectPrevBookmark()
+			return
+		}
+		if (showRemoteOnly()) {
+			setRemoteSelectedIndex((i) => Math.max(0, i - 1))
+			return
+		}
+		const prevIndex = Math.max(0, displaySelectedIndex() - 1)
+		const prevBookmark = displayBookmarks()[prevIndex]
+		if (!prevBookmark) return
+		const localIndex = localBookmarks().findIndex(
+			(b) => b.name === prevBookmark.name,
+		)
+		if (localIndex >= 0) {
+			setSelectedBookmarkIndex(localIndex)
 		}
 	}
 
@@ -262,6 +403,14 @@ export function BookmarksPanel() {
 			return
 		}
 
+		if (!filterMode() && keybind.match("bookmark_toggle_remote", evt)) {
+			evt.preventDefault()
+			evt.stopPropagation()
+			setShowRemoteOnly((prev) => !prev)
+			setRemoteSelectedIndex(0)
+			return
+		}
+
 		if (!filterMode() && keybind.match("search", evt)) {
 			evt.preventDefault()
 			evt.stopPropagation()
@@ -282,7 +431,7 @@ export function BookmarksPanel() {
 					if (filterQuery().trim()) {
 						setFilterSelectedIndex((i) => Math.min(max, i + 1))
 					} else {
-						selectNextBookmark()
+						selectNextBookmarkInView()
 					}
 				}
 			} else if (evt.name === "up") {
@@ -291,7 +440,7 @@ export function BookmarksPanel() {
 				if (filterQuery().trim()) {
 					setFilterSelectedIndex((i) => Math.max(0, i - 1))
 				} else {
-					selectPrevBookmark()
+					selectPrevBookmarkInView()
 				}
 			} else if (evt.name === "enter" || evt.name === "return") {
 				evt.preventDefault()
@@ -351,9 +500,14 @@ export function BookmarksPanel() {
 		onCleanup(() => clearInterval(pollInterval))
 	})
 
-	const title = () => "Bookmarks"
+	const title = () => (showRemoteOnly() ? "Bookmarks (Remote)" : "Bookmarks")
+	const hasVisibleBookmarks = () =>
+		showRemoteOnly()
+			? remoteOnlyBookmarks().length > 0
+			: localBookmarks().length > 0
 
 	const handleListEnter = () => {
+		if (showRemoteOnly()) return
 		const bookmark = selectedBookmark()
 		if (!bookmark) return
 		setPreviousRevsetFilter(revsetFilter())
@@ -395,6 +549,20 @@ export function BookmarksPanel() {
 			onSelect: handleListEnter,
 		},
 		{
+			id: "refs.bookmarks.open",
+			title: "open",
+			keybind: "open",
+			context: "refs.bookmarks",
+			type: "action",
+			panel: "refs",
+			onSelect: () => {
+				if (showRemoteOnly()) return
+				const bookmark = selectedBookmark()
+				if (!bookmark) return
+				openForBookmark(bookmark)
+			},
+		},
+		{
 			id: "refs.bookmarks.filter",
 			title: "filter",
 			keybind: "search",
@@ -405,6 +573,19 @@ export function BookmarksPanel() {
 			onSelect: activateBookmarkFilter,
 		},
 		{
+			id: "refs.bookmarks.toggle_remote",
+			title: "toggle remote-only",
+			keybind: "bookmark_toggle_remote",
+			context: "refs.bookmarks",
+			type: "view",
+			panel: "refs",
+			visibility: "help-only",
+			onSelect: () => {
+				setShowRemoteOnly((prev) => !prev)
+				setRemoteSelectedIndex(0)
+			},
+		},
+		{
 			id: "refs.bookmarks.create",
 			title: "create",
 			keybind: "bookmark_create",
@@ -412,6 +593,7 @@ export function BookmarksPanel() {
 			type: "action",
 			panel: "refs",
 			onSelect: () => {
+				if (showRemoteOnly()) return
 				const workingCopy = commits().find((c) => c.isWorkingCopy)
 				dialog.open(
 					() => (
@@ -444,6 +626,7 @@ export function BookmarksPanel() {
 			type: "action",
 			panel: "refs",
 			onSelect: async () => {
+				if (showRemoteOnly()) return
 				const bookmark = selectedBookmark()
 				if (!bookmark) return
 				const currentIndex = selectedBookmarkIndex()
@@ -470,6 +653,7 @@ export function BookmarksPanel() {
 			panel: "refs",
 			visibility: "help-only",
 			onSelect: () => {
+				if (showRemoteOnly()) return
 				const bookmark = selectedBookmark()
 				if (!bookmark) return
 				dialog.open(
@@ -500,6 +684,7 @@ export function BookmarksPanel() {
 			panel: "refs",
 			visibility: "help-only",
 			onSelect: async () => {
+				if (showRemoteOnly()) return
 				const bookmark = selectedBookmark()
 				if (!bookmark) return
 				const confirmed = await dialog.confirm({
@@ -521,6 +706,7 @@ export function BookmarksPanel() {
 			panel: "refs",
 			visibility: "help-only",
 			onSelect: () => {
+				if (showRemoteOnly()) return
 				const bookmark = selectedBookmark()
 				if (!bookmark) return
 				dialog.open(
@@ -551,10 +737,12 @@ export function BookmarksPanel() {
 				<text fg={colors().error}>Error: {bookmarksError()}</text>
 			</Show>
 			<Show
-				when={localBookmarks().length > 0}
+				when={hasVisibleBookmarks()}
 				fallback={
 					!bookmarksLoading() && !bookmarksError() ? (
-						<text fg={colors().textMuted}>No bookmarks</text>
+						<text fg={colors().textMuted}>
+							{showRemoteOnly() ? "No remote-only bookmarks" : "No bookmarks"}
+						</text>
 					) : null
 				}
 			>
@@ -583,68 +771,97 @@ export function BookmarksPanel() {
 									const handleMouseDown = () => {
 										if (hasActiveFilter()) {
 											setFilterSelectedIndex(index())
+										} else if (showRemoteOnly()) {
+											setRemoteSelectedIndex(index())
 										} else {
-											setSelectedBookmarkIndex(index())
+											const localIndex = localBookmarks().findIndex(
+												(b) => b.name === bookmark.name,
+											)
+											if (localIndex >= 0) {
+												setSelectedBookmarkIndex(localIndex)
+											}
 										}
 										handleDoubleClick()
 									}
 									const isDeleted = () => !bookmark.changeId
 									return (
-										<box
-											backgroundColor={
-												showSelection()
-													? colors().selectionBackground
-													: isActive()
-														? colors().backgroundElement
-														: undefined
-											}
-											overflow="hidden"
-											onMouseDown={handleMouseDown}
-										>
-											<box flexDirection="row" flexGrow={1} overflow="hidden">
-												<box flexDirection="row" flexShrink={0}>
-													<Show
-														when={!isDeleted()}
-														fallback={
-															<text fg={colors().error} wrapMode="none">
-																{"–deleted "}
-															</text>
-														}
-													>
-														<AnsiText
-															content={
-																bookmark.changeIdDisplay || bookmark.changeId
+										<>
+											<Show
+												when={
+													showUntrackedSeparator() &&
+													index() === localOnlySeparatorIndex()
+												}
+											>
+												<box height={1} overflow="hidden">
+													<text fg={colors().textMuted} wrapMode="none">
+														{"─".repeat(200)}
+													</text>
+												</box>
+											</Show>
+											<box
+												backgroundColor={
+													showSelection()
+														? colors().selectionBackground
+														: isActive()
+															? colors().backgroundElement
+															: undefined
+												}
+												overflow="hidden"
+												onMouseDown={handleMouseDown}
+											>
+												<box flexDirection="row" flexGrow={1} overflow="hidden">
+													<box flexDirection="row" flexShrink={0}>
+														<Show
+															when={!isDeleted()}
+															fallback={
+																<text fg={colors().error} wrapMode="none">
+																	{"–deleted "}
+																</text>
 															}
+														>
+															<AnsiText
+																content={
+																	bookmark.changeIdDisplay || bookmark.changeId
+																}
+																wrapMode="none"
+															/>
+															<text fg={colors().textMuted} wrapMode="none">
+																{" "}
+															</text>
+														</Show>
+														<AnsiText
+															content={bookmark.nameDisplay || bookmark.name}
 															wrapMode="none"
 														/>
-														<text fg={colors().textMuted} wrapMode="none">
-															{" "}
-														</text>
-													</Show>
-													<AnsiText
-														content={bookmark.nameDisplay || bookmark.name}
-														wrapMode="none"
-													/>
+														<Show when={!isDeleted()}>
+															<text fg={colors().textMuted} wrapMode="none">
+																{" "}
+															</text>
+														</Show>
+														<Show when={showRemoteOnly() && bookmark.remote}>
+															<text fg={colors().textMuted} wrapMode="none">
+																@{bookmark.remote}
+															</text>
+															<text fg={colors().textMuted} wrapMode="none">
+																{" "}
+															</text>
+														</Show>
+													</box>
 													<Show when={!isDeleted()}>
-														<text fg={colors().textMuted} wrapMode="none">
-															{" "}
-														</text>
+														<box flexGrow={1} overflow="hidden">
+															<text
+																fg={colors().textMuted}
+																content={
+																	bookmark.descriptionDisplay ||
+																	bookmark.description
+																}
+																wrapMode="none"
+															/>
+														</box>
 													</Show>
 												</box>
-												<Show when={!isDeleted()}>
-													<box flexGrow={1} overflow="hidden">
-														<text
-															fg={colors().textMuted}
-															content={
-																bookmark.descriptionDisplay ||
-																bookmark.description
-															}
-															wrapMode="none"
-														/>
-													</box>
-												</Show>
 											</box>
-										</box>
+										</>
 									)
 								}}
 							</For>

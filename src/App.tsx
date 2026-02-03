@@ -41,7 +41,15 @@ import changelogContent from "../CHANGELOG.md" with { type: "text" }
 
 function AppContent() {
 	const renderer = useRenderer()
-	const { loadLog, loadBookmarks, refresh, error, loading, commits } = useSync()
+	const {
+		loadLog,
+		loadBookmarks,
+		loadRemoteBookmarks,
+		refresh,
+		error,
+		loading,
+		commits,
+	} = useSync()
 	const focus = useFocus()
 	const command = useCommand()
 	const dialog = useDialog()
@@ -117,6 +125,7 @@ function AppContent() {
 	onMount(() => {
 		loadLog()
 		loadBookmarks()
+		loadRemoteBookmarks()
 		checkForUpdates()
 
 		const state = readState()
