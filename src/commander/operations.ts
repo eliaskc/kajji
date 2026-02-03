@@ -443,6 +443,28 @@ export async function jjGitPush(options?: {
 	}
 }
 
+export async function jjGitPushBookmark(
+	bookmark: string,
+): Promise<OperationResult> {
+	const args = ["git", "push", "--bookmark", bookmark]
+	const result = await execute(args)
+	return {
+		...result,
+		command: `jj ${args.join(" ")}`,
+	}
+}
+
+export async function jjGitPushChange(
+	changeId: string,
+): Promise<OperationResult> {
+	const args = ["git", "push", "--change", changeId]
+	const result = await execute(args)
+	return {
+		...result,
+		command: `jj ${args.join(" ")}`,
+	}
+}
+
 export async function jjRestore(
 	paths: string[],
 	revision?: string,
@@ -457,6 +479,21 @@ export async function jjRestore(
 		...result,
 		command: `jj ${args.join(" ")}`,
 	}
+}
+
+export async function jjIsInTrunk(revision: string): Promise<boolean> {
+	const result = await execute([
+		"log",
+		"-r",
+		`${revision} & ::trunk()`,
+		"--no-graph",
+		"--ignore-working-copy",
+		"-T",
+		"change_id",
+	])
+
+	if (!result.success) return false
+	return result.stdout.trim().length > 0
 }
 
 export interface DiffStats {

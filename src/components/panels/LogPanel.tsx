@@ -14,7 +14,12 @@ import {
 	onCleanup,
 	onMount,
 } from "solid-js"
-import { jjBookmarkCreate, jjBookmarkSet } from "../../commander/bookmarks"
+import {
+	type Bookmark,
+	jjBookmarkCreate,
+	jjBookmarkSet,
+} from "../../commander/bookmarks"
+import { ghBrowseCommit, ghPrCreateWeb } from "../../commander/github"
 import {
 	type OpLogEntry,
 	type OperationResult,
@@ -23,6 +28,9 @@ import {
 	jjAbandon,
 	jjDescribe,
 	jjEdit,
+	jjGitPushBookmark,
+	jjGitPushChange,
+	jjIsInTrunk,
 	jjNew,
 	jjNewBefore,
 	jjOpRestore,
@@ -90,7 +98,11 @@ export function LogPanel() {
 		selectNextFile,
 		selectPrevFile,
 		bookmarks,
+		remoteBookmarks,
+		remoteBookmarksLoading,
+		remoteBookmarksError,
 		revsetFilter,
+		loadBookmarks,
 		setRevsetFilter,
 		revsetError,
 		clearRevsetFilter,
@@ -294,6 +306,120 @@ export function LogPanel() {
 			refresh()
 			loadOpLog()
 		}
+	}
+
+	const findLocalBookmark = (name: string) =>
+		bookmarks().find((b) => b.isLocal && b.name === name)
+
+	const openForBookmark = async (bookmark: Bookmark) => {
+		if (!bookmark.changeId) {
+			commandLog.addEntry({
+				command: "open",
+				success: false,
+				exitCode: 1,
+				stdout: "",
+				stderr: "Bookmark has no target change",
+			})
+			return
+		}
+
+		try {
+			if (await jjIsInTrunk(bookmark.commitId)) {
+				const browseResult = await globalLoading.run("Opening...", () =>
+					ghBrowseCommit(bookmark.commitId),
+				)
+				commandLog.addEntry(browseResult)
+				return
+			}
+		} catch {
+			// fall through to PR open
+		}
+
+		let needsPush = false
+		if (!remoteBookmarksLoading() && !remoteBookmarksError()) {
+			const remote = remoteBookmarks().find(
+				(b) => !b.isLocal && b.name === bookmark.name,
+			)
+			needsPush = !remote?.changeId || remote.changeId !== bookmark.changeId
+		}
+
+		if (needsPush) {
+			const confirmed = await dialog.confirm({
+				message: `Bookmark "${bookmark.name}" isn't pushed. Push before opening PR?`,
+			})
+			if (!confirmed) return
+			const pushResult = await globalLoading.run("Pushing...", () =>
+				jjGitPushBookmark(bookmark.name),
+			)
+			commandLog.addEntry(pushResult)
+			if (!pushResult.success) return
+			await refresh()
+		}
+
+		const prResult = await globalLoading.run("Opening...", () =>
+			ghPrCreateWeb(bookmark.name),
+		)
+		commandLog.addEntry(prResult)
+	}
+
+	const openForCommit = async () => {
+		const commit = selectedCommit()
+		if (!commit) return
+
+		try {
+			if (await jjIsInTrunk(commit.commitId)) {
+				const browseResult = await globalLoading.run("Opening...", () =>
+					ghBrowseCommit(commit.commitId),
+				)
+				commandLog.addEntry(browseResult)
+				return
+			}
+		} catch {
+			// fall through to PR open
+		}
+
+		let bookmark = commit.bookmarks[0]
+		if (!bookmark) {
+			const confirmed = await dialog.confirm({
+				message: "No bookmark for this change. Push it to create one?",
+			})
+			if (!confirmed) return
+			const pushResult = await globalLoading.run("Pushing...", () =>
+				jjGitPushChange(commit.changeId),
+			)
+			commandLog.addEntry(pushResult)
+			if (!pushResult.success) return
+			await refresh()
+			await loadBookmarks()
+			bookmark = bookmarks().find(
+				(b) => b.isLocal && b.changeId === commit.changeId,
+			)?.name
+		}
+
+		if (!bookmark) {
+			commandLog.addEntry({
+				command: "open",
+				success: false,
+				exitCode: 1,
+				stdout: "",
+				stderr: "No local bookmark found for this change",
+			})
+			return
+		}
+
+		const localBookmark = findLocalBookmark(bookmark)
+		if (!localBookmark) {
+			commandLog.addEntry({
+				command: "open",
+				success: false,
+				exitCode: 1,
+				stdout: "",
+				stderr: `Bookmark "${bookmark}" not found locally`,
+			})
+			return
+		}
+
+		await openForBookmark(localBookmark)
 	}
 
 	let scrollRef: ScrollBoxRenderable | undefined
@@ -909,6 +1035,15 @@ export function LogPanel() {
 			},
 		},
 		{
+			id: "log.revisions.open",
+			title: "open",
+			keybind: "open",
+			context: "log.revisions",
+			type: "action",
+			panel: "log",
+			onSelect: openForCommit,
+		},
+		{
 			id: "log.revisions.abandon",
 			title: "abandon",
 			keybind: "jj_abandon",
@@ -1000,7 +1135,6 @@ export function LogPanel() {
 			type: "action",
 			panel: "log",
 			visibility: "none",
-			enabled: () => !!revsetFilter(),
 			onSelect: handleClearFilter,
 		},
 		{

@@ -99,6 +99,9 @@ interface SyncContextValue {
 	selectLastFile: () => void
 
 	bookmarks: () => Bookmark[]
+	remoteBookmarks: () => Bookmark[]
+	remoteBookmarksLoading: () => boolean
+	remoteBookmarksError: () => string | null
 	visibleBookmarks: () => Bookmark[]
 	bookmarkLimit: () => number
 	loadMoreBookmarks: () => Promise<void>
@@ -110,6 +113,7 @@ interface SyncContextValue {
 	bookmarksError: () => string | null
 	selectedBookmark: () => Bookmark | undefined
 	loadBookmarks: () => Promise<void>
+	loadRemoteBookmarks: () => Promise<void>
 	selectPrevBookmark: () => void
 	selectNextBookmark: () => void
 	selectFirstBookmark: () => void
@@ -144,9 +148,15 @@ export function SyncProvider(props: { children: JSX.Element }) {
 	const [filesError, setFilesError] = createSignal<string | null>(null)
 
 	const [bookmarks, setBookmarks] = createSignal<Bookmark[]>([])
+	const [remoteBookmarks, setRemoteBookmarks] = createSignal<Bookmark[]>([])
 	const [selectedBookmarkIndex, setSelectedBookmarkIndex] = createSignal(0)
 	const [bookmarksLoading, setBookmarksLoading] = createSignal(false)
 	const [bookmarksError, setBookmarksError] = createSignal<string | null>(null)
+	const [remoteBookmarksLoading, setRemoteBookmarksLoading] =
+		createSignal(false)
+	const [remoteBookmarksError, setRemoteBookmarksError] = createSignal<
+		string | null
+	>(null)
 	const [bookmarkLimit, setBookmarkLimit] = createSignal(100)
 	const [bookmarksHasMore, setBookmarksHasMore] = createSignal(true)
 	const [bookmarksLoadingMore, setBookmarksLoadingMore] = createSignal(false)
@@ -281,7 +291,7 @@ export function SyncProvider(props: { children: JSX.Element }) {
 		setRefreshCounter((c) => c + 1)
 
 		try {
-			await Promise.all([loadLog(), loadBookmarks()])
+			await Promise.all([loadLog(), loadBookmarks(), loadRemoteBookmarks()])
 			const currentOpLogId = await fetchOpLogId()
 			if (currentOpLogId) {
 				lastOpLogId = currentOpLogId
@@ -622,6 +632,22 @@ export function SyncProvider(props: { children: JSX.Element }) {
 		}
 	}
 
+	const loadRemoteBookmarks = async (): Promise<void> => {
+		if (remoteBookmarksLoading()) return
+		setRemoteBookmarksLoading(true)
+		setRemoteBookmarksError(null)
+		try {
+			const result = await fetchBookmarks({ allRemotes: true })
+			setRemoteBookmarks(result)
+		} catch (e) {
+			setRemoteBookmarksError(
+				e instanceof Error ? e.message : "Failed to load remote bookmarks",
+			)
+		} finally {
+			setRemoteBookmarksLoading(false)
+		}
+	}
+
 	const jumpToBookmarkCommit = (): number | null => {
 		const bookmark = selectedBookmark()
 		if (!bookmark) return null
@@ -878,6 +904,9 @@ export function SyncProvider(props: { children: JSX.Element }) {
 		selectLastFile,
 
 		bookmarks,
+		remoteBookmarks,
+		remoteBookmarksLoading,
+		remoteBookmarksError,
 		visibleBookmarks,
 		bookmarkLimit,
 		loadMoreBookmarks,
@@ -889,6 +918,7 @@ export function SyncProvider(props: { children: JSX.Element }) {
 		bookmarksError,
 		selectedBookmark,
 		loadBookmarks,
+		loadRemoteBookmarks,
 		selectPrevBookmark,
 		selectNextBookmark,
 		selectFirstBookmark,
