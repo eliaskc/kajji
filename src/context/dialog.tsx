@@ -23,6 +23,7 @@ interface DialogState {
 	render: () => JSX.Element
 	onClose?: () => void
 	hints?: DialogHint[]
+	title?: string
 }
 
 interface ConfirmOptions {
@@ -83,7 +84,12 @@ export const { use: useDialog, provider: DialogProvider } = createSimpleContext(
 
 			const open = (
 				render: () => JSX.Element,
-				options?: { id?: string; onClose?: () => void; hints?: DialogHint[] },
+				options?: {
+					id?: string
+					onClose?: () => void
+					hints?: DialogHint[]
+					title?: string
+				},
 			) => {
 				setStack((s) => [
 					...s,
@@ -92,6 +98,7 @@ export const { use: useDialog, provider: DialogProvider } = createSimpleContext(
 						render,
 						onClose: options?.onClose,
 						hints: options?.hints,
+						title: options?.title,
 					},
 				])
 			}
@@ -99,13 +106,22 @@ export const { use: useDialog, provider: DialogProvider } = createSimpleContext(
 			const toggle = (
 				id: string,
 				render: () => JSX.Element,
-				options?: { onClose?: () => void; hints?: DialogHint[] },
+				options?: {
+					onClose?: () => void
+					hints?: DialogHint[]
+					title?: string
+				},
 			) => {
 				const current = stack().at(-1)
 				if (current?.id === id) {
 					close()
 				} else {
-					open(render, { id, onClose: options?.onClose, hints: options?.hints })
+					open(render, {
+						id,
+						onClose: options?.onClose,
+						hints: options?.hints,
+						title: options?.title,
+					})
 				}
 			}
 
@@ -146,6 +162,7 @@ export const { use: useDialog, provider: DialogProvider } = createSimpleContext(
 				isOpen: () => stack().length > 0,
 				current: () => stack().at(-1),
 				hints: () => stack().at(-1)?.hints ?? [],
+				title: () => stack().at(-1)?.title,
 				setHints: (hints: DialogHint[]) => {
 					setStack((s) => {
 						if (s.length === 0) return s
@@ -211,7 +228,7 @@ function DialogBackdrop(props: { onClose: () => void; children: JSX.Element }) {
 				gap={1}
 			>
 				{props.children}
-				<FooterHints hints={dialog.hints()} boxed />
+				<FooterHints hints={dialog.hints()} boxed title={dialog.title()} />
 			</box>
 		</box>
 	)

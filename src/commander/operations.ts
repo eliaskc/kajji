@@ -94,6 +94,57 @@ export async function jjNewBefore(revision: string): Promise<OperationResult> {
 	}
 }
 
+export async function jjNewAfter(revision: string): Promise<OperationResult> {
+	const args = ["new", "-A", revision]
+	const result = await execute(args)
+	return {
+		...result,
+		command: `jj ${args.join(" ")}`,
+	}
+}
+
+export async function jjDuplicate(revision: string): Promise<OperationResult> {
+	const args = ["duplicate", revision]
+	const result = await execute(args)
+	return {
+		...result,
+		command: `jj ${args.join(" ")}`,
+	}
+}
+
+export async function jjResolveInteractive(options?: {
+	revision?: string
+	paths?: string[]
+	tool?: string
+	cwd?: string
+}): Promise<{ success: boolean; error?: string }> {
+	const args = ["resolve"]
+	if (options?.revision) {
+		args.push("-r", options.revision)
+	}
+	if (options?.tool) {
+		args.push("--tool", options.tool)
+	}
+	if (options?.paths?.length) {
+		args.push(...options.paths)
+	}
+
+	const cwd = options?.cwd ?? getRepoPath()
+	const proc = Bun.spawn(["jj", ...args], {
+		cwd,
+		stdin: "inherit",
+		stdout: "inherit",
+		stderr: "inherit",
+	})
+
+	const exitCode = await proc.exited
+	return {
+		success: exitCode === 0,
+		error:
+			exitCode !== 0 ? `jj resolve exited with code ${exitCode}` : undefined,
+	}
+}
+
 export async function jjEdit(
 	revision: string,
 	options?: { ignoreImmutable?: boolean },

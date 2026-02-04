@@ -69,7 +69,7 @@ export function RebaseModal(props: RebaseModalProps) {
 			evt.preventDefault()
 			evt.stopPropagation()
 			executeRebase({ skipEmptied: true })
-		} else if (evt.name === "a") {
+		} else if (evt.name === "A") {
 			evt.preventDefault()
 			evt.stopPropagation()
 			executeRebase({ targetMode: "insertAfter" })

@@ -1,5 +1,6 @@
 import { For, Show } from "solid-js"
 import { useTheme } from "../context/theme"
+import { BorderBox } from "./BorderBox"
 
 export interface FooterHint {
 	key: string
@@ -9,6 +10,8 @@ export interface FooterHint {
 interface FooterHintsProps {
 	hints: FooterHint[]
 	boxed?: boolean
+	title?: string
+	borderColor?: string
 }
 
 export function FooterHints(props: FooterHintsProps) {
@@ -53,17 +56,21 @@ export function FooterHints(props: FooterHintsProps) {
 	return (
 		<Show when={props.hints.length > 0}>
 			<Show when={props.boxed} fallback={content()}>
-				<box
+				<BorderBox
 					border
 					borderStyle={style().panel.borderStyle}
-					borderColor={colors().textMuted}
+					borderColor={props.borderColor ?? colors().borderFocused}
 					backgroundColor={colors().background}
 					paddingLeft={2}
 					paddingRight={2}
-					alignItems="center"
+					topLeft={
+						props.title ? (
+							<text fg={colors().borderFocused}>{props.title}</text>
+						) : undefined
+					}
 				>
 					{content()}
-				</box>
+				</BorderBox>
 			</Show>
 		</Show>
 	)

@@ -25,11 +25,13 @@ export type KeybindConfigKey =
 	| "prev_tab"
 	| "next_tab"
 	| "jj_new"
-	| "jj_new_before"
+	| "jj_new_options"
 	| "jj_edit"
 	| "jj_describe"
 	| "jj_squash"
 	| "jj_abandon"
+	| "jj_duplicate"
+	| "jj_resolve"
 	| "jj_undo"
 	| "jj_redo"
 	| "jj_restore"
@@ -81,11 +83,13 @@ export const DEFAULT_KEYBINDS: KeybindConfig = {
 	prev_tab: "[,h,left",
 	next_tab: "],l,right",
 	jj_new: "n",
-	jj_new_before: "N",
+	jj_new_options: "N",
 	jj_edit: "e",
 	jj_describe: "d",
 	jj_squash: "s",
 	jj_abandon: "a",
+	jj_duplicate: "D",
+	jj_resolve: "R",
 	jj_undo: "u",
 	jj_redo: "U",
 	jj_restore: "r",

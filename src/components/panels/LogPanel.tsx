@@ -27,14 +27,17 @@ import {
 	isImmutableError,
 	jjAbandon,
 	jjDescribe,
+	jjDuplicate,
 	jjEdit,
 	jjGitPushBookmark,
 	jjGitPushChange,
 	jjIsInTrunk,
 	jjNew,
+	jjNewAfter,
 	jjNewBefore,
 	jjOpRestore,
 	jjRebase,
+	jjResolveInteractive,
 	jjRestore,
 	jjShowDescription,
 	jjSplitInteractive,
@@ -61,6 +64,7 @@ import {
 } from "../FilterableFileTree"
 import { Panel } from "../Panel"
 import { DescribeModal } from "../modals/DescribeModal"
+import { NewChangeModal } from "../modals/NewChangeModal"
 import { RebaseModal } from "../modals/RebaseModal"
 import { SetBookmarkModal } from "../modals/SetBookmarkModal"
 import { SquashModal } from "../modals/SquashModal"
@@ -751,17 +755,80 @@ export function LogPanel() {
 			},
 		},
 		{
-			id: "log.revisions.new_before",
-			title: "new before",
-			keybind: "jj_new_before",
+			id: "log.revisions.new_menu",
+			title: "new menu",
+			keybind: "jj_new_options",
 			context: "log.revisions",
 			type: "action",
 			panel: "log",
 			visibility: "help-only",
 			onSelect: () => {
 				const commit = selectedCommit()
-				if (commit)
-					runOperation("Creating...", () => jjNewBefore(commit.changeId))
+				if (!commit) return
+				dialog.open(
+					() => (
+						<NewChangeModal
+							onNew={() =>
+								runOperation("Creating...", () => jjNew(commit.changeId))
+							}
+							onNewAfter={() =>
+								runOperation("Creating...", () => jjNewAfter(commit.changeId))
+							}
+							onNewBefore={() =>
+								runOperation("Creating...", () => jjNewBefore(commit.changeId))
+							}
+						/>
+					),
+					{
+						id: "new-menu",
+						title: `New at ${commit.changeId.slice(0, 8)}`,
+						hints: [
+							{ key: "a", label: "after" },
+							{ key: "b", label: "before" },
+						],
+					},
+				)
+			},
+		},
+		{
+			id: "log.revisions.duplicate",
+			title: "duplicate",
+			keybind: "jj_duplicate",
+			context: "log.revisions",
+			type: "action",
+			panel: "log",
+			visibility: "help-only",
+			onSelect: () => {
+				const commit = selectedCommit()
+				if (!commit) return
+				runOperation("Duplicating...", () => jjDuplicate(commit.changeId))
+			},
+		},
+		{
+			id: "log.revisions.resolve",
+			title: "resolve",
+			keybind: "jj_resolve",
+			context: "log.revisions",
+			type: "action",
+			panel: "log",
+			visibility: "help-only",
+			onSelect: async () => {
+				const commit = selectedCommit()
+				if (!commit) return
+				renderer.suspend?.()
+				const result = await jjResolveInteractive({
+					revision: commit.changeId,
+				})
+				renderer.resume?.()
+				commandLog.addEntry({
+					command: `jj resolve -r ${commit.changeId}`,
+					success: result.success,
+					exitCode: result.success ? 0 : 1,
+					stdout: "",
+					stderr: result.error ?? "",
+				})
+				refresh()
+				loadOpLog()
 			},
 		},
 		{
@@ -943,7 +1010,7 @@ export function LogPanel() {
 							{ key: "s", label: "descendants" },
 							{ key: "b", label: "branch" },
 							{ key: "e", label: "skip emptied" },
-							{ key: "a", label: "insert after" },
+							{ key: "A", label: "insert after" },
 							{ key: "B", label: "insert before" },
 							{ key: "enter", label: "rebase" },
 						],
