@@ -21,6 +21,9 @@ const dryRun = args.includes("--dry-run")
 const tagArg = args.find((_, i) => args[i - 1] === "--tag")
 const tag = tagArg || "latest"
 
+const maxPublishAttempts = 3
+const baseRetryDelayMs = 1000
+
 console.log(
 	`Publishing kajji v${version} (tag: ${tag})${dryRun ? " [DRY RUN]" : ""}\n`,
 )
@@ -34,6 +37,62 @@ const platforms = [
 	{ os: "linux", arch: "arm64" },
 ]
 
+const failures: string[] = []
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+const isPublished = async (name: string) => {
+	try {
+		const published = (
+			await $`npm view ${name}@${version} version`.text()
+		).trim()
+		return published === version
+	} catch {
+		return false
+	}
+}
+
+const isRetryable = (error: unknown) => {
+	const message = String(error ?? "").toLowerCase()
+	const retryable = [
+		"ssl",
+		"tls",
+		"bad record mac",
+		"econnreset",
+		"etimedout",
+		"eai_again",
+		"socket hang up",
+		"network",
+		"timeout",
+		"enotfound",
+		"502",
+		"503",
+		"504",
+	]
+	return retryable.some((term) => message.includes(term))
+}
+
+const publishWithRetry = async (name: string, tgz: string, cwd: string) => {
+	for (let attempt = 1; attempt <= maxPublishAttempts; attempt += 1) {
+		try {
+			await $`npm publish ${tgz} --access public --tag ${tag}`.cwd(cwd)
+			return true
+		} catch (error) {
+			if (attempt === maxPublishAttempts || !isRetryable(error)) {
+				console.error(`  -> failed ${name}@${version}`)
+				console.error(String(error))
+				return false
+			}
+			const delay = baseRetryDelayMs * 2 ** (attempt - 1)
+			console.warn(
+				`  -> retrying ${name}@${version} in ${delay}ms (attempt ${attempt + 1}/${maxPublishAttempts})`,
+			)
+			await sleep(delay)
+		}
+	}
+	return false
+}
+
 for (const { os, arch } of platforms) {
 	const name = `kajji-${os}-${arch}`
 	const distDir = `dist/${name}`
@@ -46,9 +105,17 @@ for (const { os, arch } of platforms) {
 	console.log(`Publishing ${name}...`)
 
 	if (!dryRun) {
+		if (await isPublished(name)) {
+			console.log(`  -> already published ${name}@${version}`)
+			continue
+		}
 		await $`bun pm pack`.cwd(distDir).quiet()
 		const tgz = (await $`ls *.tgz`.cwd(distDir).text()).trim()
-		await $`npm publish ${tgz} --access public --tag ${tag}`.cwd(distDir)
+		const published = await publishWithRetry(name, tgz, distDir)
+		if (!published) {
+			failures.push(name)
+			continue
+		}
 	}
 
 	console.log(`  -> published ${name}@${version}`)
@@ -93,7 +160,18 @@ console.log("Publishing kajji wrapper...")
 if (!dryRun) {
 	await $`bun pm pack`.cwd(wrapperDir).quiet()
 	const tgz = (await $`ls *.tgz`.cwd(wrapperDir).text()).trim()
-	await $`npm publish ${tgz} --access public --tag ${tag}`.cwd(wrapperDir)
+	if (await isPublished("kajji")) {
+		console.log(`  -> already published kajji@${version}`)
+	} else if (failures.length > 0) {
+		console.error(
+			`Skipping wrapper publish due to failed platform publishes: ${failures.join(", ")}`,
+		)
+	} else {
+		const published = await publishWithRetry("kajji", tgz, wrapperDir)
+		if (!published) {
+			failures.push("kajji")
+		}
+	}
 }
 
 console.log(`  -> published kajji@${version}`)
@@ -121,3 +199,7 @@ console.log(`  2. git push origin v${version}`)
 console.log(
 	`  3. gh release create v${version} dist/*.tar.gz dist/*.zip --title "v${version}"`,
 )
+
+if (failures.length > 0) {
+	throw new Error(`Publish failed for: ${failures.join(", ")}`)
+}

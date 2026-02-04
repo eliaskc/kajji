@@ -131,10 +131,20 @@ const match = changelog.match(versionPattern)
 const releaseNotes = match ? match[1].trim() : `Release v${newVersion}`
 const notesFile = `/tmp/kajji-release-notes-${newVersion}.md`
 writeFileSync(notesFile, releaseNotes)
-run(
-	`gh release create v${newVersion} dist/*.tar.gz dist/*.zip --title "v${newVersion}" --notes-file ${notesFile}`,
-)
-run(`gh release edit v${newVersion} --prerelease=false`)
+const existingRelease = run(`gh release view v${newVersion} --json tagName`, {
+	canFail: true,
+})
+if (existingRelease) {
+	run(`gh release upload v${newVersion} dist/*.tar.gz dist/*.zip --clobber`)
+	run(
+		`gh release edit v${newVersion} --notes-file ${notesFile} --prerelease=false`,
+	)
+} else {
+	run(
+		`gh release create v${newVersion} dist/*.tar.gz dist/*.zip --title "v${newVersion}" --notes-file ${notesFile}`,
+	)
+	run(`gh release edit v${newVersion} --prerelease=false`)
+}
 
 console.log(`
 ${"=".repeat(60)}
