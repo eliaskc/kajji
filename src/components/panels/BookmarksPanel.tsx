@@ -22,8 +22,11 @@ import {
 import { ghBrowseCommit, ghPrCreateWeb } from "../../commander/github"
 import {
 	type OperationResult,
+	isImmutableError,
+	jjEdit,
 	jjGitPushBookmark,
 	jjIsInTrunk,
+	jjNew,
 } from "../../commander/operations"
 import { useCommand } from "../../context/command"
 import { useCommandLog } from "../../context/commandlog"
@@ -560,6 +563,69 @@ export function BookmarksPanel() {
 				const bookmark = selectedBookmark()
 				if (!bookmark) return
 				openForBookmark(bookmark)
+			},
+		},
+		{
+			id: "refs.bookmarks.new",
+			title: "new",
+			keybind: "jj_new",
+			context: "refs.bookmarks",
+			type: "action",
+			panel: "refs",
+			onSelect: () => {
+				if (showRemoteOnly()) return
+				const bookmark = selectedBookmark()
+				if (!bookmark) return
+				if (!bookmark.changeId) {
+					commandLog.addEntry({
+						command: `jj new ${bookmark.name}`,
+						success: false,
+						exitCode: 1,
+						stdout: "",
+						stderr: "Bookmark has no target change",
+					})
+					return
+				}
+				runOperation("Creating...", () => jjNew(bookmark.name))
+			},
+		},
+		{
+			id: "refs.bookmarks.edit",
+			title: "edit",
+			keybind: "jj_edit",
+			context: "refs.bookmarks",
+			type: "action",
+			panel: "refs",
+			onSelect: async () => {
+				if (showRemoteOnly()) return
+				const bookmark = selectedBookmark()
+				if (!bookmark) return
+				if (!bookmark.changeId) {
+					commandLog.addEntry({
+						command: `jj edit ${bookmark.name}`,
+						success: false,
+						exitCode: 1,
+						stdout: "",
+						stderr: "Bookmark has no target change",
+					})
+					return
+				}
+				const result = await jjEdit(bookmark.name)
+				if (isImmutableError(result)) {
+					const confirmed = await dialog.confirm({
+						message: "Commit is immutable. Edit anyway?",
+					})
+					if (confirmed) {
+						await runOperation("Editing...", () =>
+							jjEdit(bookmark.name, { ignoreImmutable: true }),
+						)
+					}
+				} else {
+					commandLog.addEntry(result)
+					if (result.success) {
+						refresh()
+					}
+				}
 			},
 		},
 		{
