@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.8.0
+
+### new
+- open PR or browse commit on GitHub (`o`) — pushes first if needed ([`a0f86bd`](../../commit/a0f86bd))
+- new after/before modal supports `-A` flag for inserting after target ([`70cb91b`](../../commit/70cb91b))
+- new/edit keybinds (`n`/`e`) work in bookmarks panel ([`809e3b7`](../../commit/809e3b7))
+
+### improved
+- ux: other panels dim during filtering for visual focus ([`4080fea`](../../commit/4080fea))
+
+### fixed
+- ux: commit description dimmed in bookmarks panel for better contrast ([`bd61faf`](../../commit/bd61faf))
+
 ## 0.7.0
 
 ### new

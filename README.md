@@ -118,6 +118,7 @@ kajji comment delete -r @ --all -y
 | `Escape`  | Back / close modal                |
 | `ctrl+x`  | Toggle focus mode (normal / diff) |
 | `ctrl+o`  | Open recent repository            |
+| `o`       | Open commit/PR on GitHub          |
 | `w`       | Toggle line wrapping in diff      |
 | `v`       | Toggle split / unified diff       |
 | `ctrl+p`  | Show commands (or `?`)            |
