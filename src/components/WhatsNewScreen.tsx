@@ -48,7 +48,8 @@ export function WhatsNewScreen(props: WhatsNewScreenProps) {
 						borderStyle={style().panel.borderStyle}
 						borderColor={colors().borderFocused}
 						backgroundColor={colors().background}
-						width={70}
+						width="80%"
+						maxWidth={80}
 						topLeft={<text fg={colors().borderFocused}>What's New</text>}
 					>
 						<scrollbox maxHeight={20} padding={1}>
