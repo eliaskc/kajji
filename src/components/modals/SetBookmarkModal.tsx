@@ -20,12 +20,14 @@ const SINGLE_LINE_KEYBINDINGS = [
 interface SetBookmarkModalProps {
 	title: string
 	bookmarks: Bookmark[]
+	currentRevisionBookmarks?: Bookmark[]
 	changeId: string
 	onMove: (bookmark: Bookmark) => void
 	onCreate: (name: string) => void
 }
 
 type ListItem =
+	| { type: "current"; bookmark: Bookmark }
 	| { type: "bookmark"; bookmark: Bookmark }
 	| { type: "create"; name: string }
 
@@ -60,10 +62,19 @@ export function SetBookmarkModal(props: SetBookmarkModalProps) {
 	})
 
 	const listItems = createMemo((): ListItem[] => {
-		const items: ListItem[] = filteredBookmarks().map((b) => ({
-			type: "bookmark" as const,
-			bookmark: b,
-		}))
+		const items: ListItem[] = (props.currentRevisionBookmarks ?? []).map(
+			(b) => ({
+				type: "current" as const,
+				bookmark: b,
+			}),
+		)
+
+		items.push(
+			...filteredBookmarks().map((b) => ({
+				type: "bookmark" as const,
+				bookmark: b,
+			})),
+		)
 
 		if (showCreateOption()) {
 			items.push({
@@ -76,6 +87,14 @@ export function SetBookmarkModal(props: SetBookmarkModalProps) {
 	})
 
 	const totalItems = createMemo(() => listItems().length)
+
+	const firstSelectableIndex = createMemo(() => {
+		const items = listItems()
+		for (let i = 0; i < items.length; i++) {
+			if (items[i]?.type !== "current") return i
+		}
+		return -1
+	})
 
 	const isCreateSelected = createMemo(() => {
 		const items = listItems()
@@ -90,6 +109,11 @@ export function SetBookmarkModal(props: SetBookmarkModalProps) {
 		return null
 	})
 
+	const isSelectableIndex = (index: number) => {
+		const item = listItems()[index]
+		return item?.type === "bookmark" || item?.type === "create"
+	}
+
 	const placeholder = createMemo(() => {
 		const bookmark = selectedBookmark()
 		if (bookmark) return bookmark.name
@@ -98,10 +122,17 @@ export function SetBookmarkModal(props: SetBookmarkModalProps) {
 
 	createEffect(() => {
 		const total = totalItems()
-		if (total === 0) {
+		const firstSelectable = firstSelectableIndex()
+		if (total === 0 || firstSelectable === -1) {
 			setSelectedIndex(0)
-		} else if (selectedIndex() >= total) {
-			setSelectedIndex(Math.max(0, total - 1))
+			return
+		}
+		if (selectedIndex() >= total) {
+			setSelectedIndex(firstSelectable)
+			return
+		}
+		if (!isSelectableIndex(selectedIndex())) {
+			setSelectedIndex(firstSelectable)
 		}
 	})
 
@@ -123,13 +154,25 @@ export function SetBookmarkModal(props: SetBookmarkModalProps) {
 	})
 
 	const selectPrev = () => {
-		setSelectedIndex((i) => Math.max(0, i - 1))
+		const current = selectedIndex()
+		for (let i = current - 1; i >= 0; i--) {
+			if (isSelectableIndex(i)) {
+				setSelectedIndex(i)
+				return
+			}
+		}
 	}
 
 	const selectNext = () => {
 		const max = totalItems() - 1
 		if (max < 0) return
-		setSelectedIndex((i) => Math.min(max, i + 1))
+		const current = selectedIndex()
+		for (let i = current + 1; i <= max; i++) {
+			if (isSelectableIndex(i)) {
+				setSelectedIndex(i)
+				return
+			}
+		}
 	}
 
 	const handleSubmit = () => {
@@ -204,7 +247,8 @@ export function SetBookmarkModal(props: SetBookmarkModalProps) {
 							if (inputRef) {
 								setQuery(inputRef.plainText)
 								setError(null)
-								setSelectedIndex(0)
+								const nextIndex = firstSelectableIndex()
+								setSelectedIndex(nextIndex >= 0 ? nextIndex : 0)
 							}
 						}}
 						onSubmit={handleSubmit}
@@ -243,6 +287,16 @@ export function SetBookmarkModal(props: SetBookmarkModalProps) {
 						<For each={listItems()}>
 							{(item, index) => {
 								const isSelected = () => index() === selectedIndex()
+								if (item.type === "current") {
+									return (
+										<box paddingLeft={1} paddingRight={1}>
+											<text fg={colors().textMuted} wrapMode="none">
+												{item.bookmark.name}{" "}
+												{item.bookmark.changeId.slice(0, 8)}
+											</text>
+										</box>
+									)
+								}
 
 								if (item.type === "bookmark") {
 									const bookmark = item.bookmark

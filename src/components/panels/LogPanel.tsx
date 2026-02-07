@@ -1220,6 +1220,14 @@ export function LogPanel() {
 			onSelect: async () => {
 				const commit = selectedCommit()
 				if (!commit) return
+				const selectedShortChangeId = commit.changeId.slice(0, 8)
+				const localBookmarks = bookmarks().filter((b) => b.isLocal)
+				const currentRevisionBookmarks = localBookmarks.filter((b) =>
+					b.changeId
+						.split(",")
+						.map((id) => id.trim().slice(0, 8))
+						.includes(selectedShortChangeId),
+				)
 				let nearestHeadBookmarkNames: string[] = []
 				try {
 					nearestHeadBookmarkNames = await fetchNearestAncestorBookmarkNames(
@@ -1228,8 +1236,14 @@ export function LogPanel() {
 				} catch {
 					nearestHeadBookmarkNames = []
 				}
-				const localBookmarks = sortBookmarksByProximity(
-					bookmarks().filter((b) => b.isLocal),
+				const moveTargetBookmarks = sortBookmarksByProximity(
+					localBookmarks.filter(
+						(b) =>
+							!b.changeId
+								.split(",")
+								.map((id) => id.trim().slice(0, 8))
+								.includes(selectedShortChangeId),
+					),
 					commits(),
 					commit.changeId,
 					nearestHeadBookmarkNames,
@@ -1238,7 +1252,8 @@ export function LogPanel() {
 					() => (
 						<SetBookmarkModal
 							title={`Set bookmark on ${commit.changeId.slice(0, 8)}`}
-							bookmarks={localBookmarks}
+							bookmarks={moveTargetBookmarks}
+							currentRevisionBookmarks={currentRevisionBookmarks}
 							changeId={commit.changeId}
 							onMove={(bookmark) => {
 								runOperation("Moving bookmark...", () =>
