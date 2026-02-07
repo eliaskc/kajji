@@ -20,6 +20,7 @@ export interface FileTreeListProps {
 	setSelectedIndex: (index: number) => void
 	collapsedPaths: () => Set<string>
 	toggleFolder: (path: string) => void
+	showTree?: () => boolean
 	isFocused?: () => boolean
 	focusContext?: Context
 }
@@ -33,11 +34,13 @@ export function FileTreeList(props: FileTreeListProps) {
 			{(item, index) => {
 				const isSelected = () => index() === props.selectedIndex()
 				const node = item.node
+				const isTree = props.showTree?.() ?? true
 				const indent = "  ".repeat(item.visualDepth)
 				const isCollapsed = props.collapsedPaths().has(node.path)
 				const isBinary = () => Boolean(node.isBinary)
 
 				const icon = node.isDirectory ? (isCollapsed ? "▶" : "▼") : " "
+				const displayName = isTree ? node.name : node.path
 
 				const statusChar = node.status
 					? (STATUS_CHARS[node.status] ?? " ")
@@ -77,13 +80,15 @@ export function FileTreeList(props: FileTreeListProps) {
 					>
 						<text wrapMode="none">
 							<span style={{ fg: colors().textMuted }}>{indent}</span>
-							<span
-								style={{
-									fg: node.isDirectory ? colors().info : colors().textMuted,
-								}}
-							>
-								{icon}{" "}
-							</span>
+							<Show when={isTree}>
+								<span
+									style={{
+										fg: node.isDirectory ? colors().info : colors().textMuted,
+									}}
+								>
+									{icon}{" "}
+								</span>
+							</Show>
 							<Show when={!node.isDirectory}>
 								<span style={{ fg: statusColor }}>{statusChar} </span>
 							</Show>
@@ -96,7 +101,7 @@ export function FileTreeList(props: FileTreeListProps) {
 											: colors().text,
 								}}
 							>
-								{node.name}
+								{displayName}
 							</span>
 							<Show when={isBinary()}>
 								<span style={{ fg: colors().textMuted }}> (binary)</span>

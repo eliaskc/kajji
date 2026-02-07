@@ -164,6 +164,8 @@ export function LogPanel() {
 		filesError,
 		collapsedPaths,
 		toggleFolder,
+		showTree,
+		toggleShowTree,
 		selectNextFile,
 		selectPrevFile,
 		bookmarks,
@@ -1403,6 +1405,15 @@ export function LogPanel() {
 				}
 			},
 		},
+		{
+			id: "log.files.toggle_tree",
+			title: "toggle file tree/list",
+			keybind: "toggle_file_tree",
+			context: "log.files",
+			type: "view",
+			panel: "log",
+			onSelect: toggleShowTree,
+		},
 	])
 
 	createEffect(() => {
@@ -1608,6 +1619,7 @@ export function LogPanel() {
 						setSelectedIndex={setSelectedFileIndex}
 						collapsedPaths={collapsedPaths}
 						toggleFolder={toggleFolder}
+						showTree={showTree}
 						isFocused={isFocused}
 						focusContext="log.files"
 						filterApiRef={(api) => {

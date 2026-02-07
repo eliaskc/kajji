@@ -30,10 +30,12 @@ import {
 	jjSquash,
 } from "../commander/operations"
 import type { Commit, FileChange } from "../commander/types"
+import { readConfig } from "../config"
 import {
 	type FileTreeNode,
 	type FlatFileNode,
 	buildFileTree,
+	flattenFlat,
 	flattenTree,
 } from "../utils/file-tree"
 import { useFocus } from "./focus"
@@ -88,6 +90,8 @@ interface SyncContextValue {
 	filesError: () => string | null
 	selectedFile: () => FlatFileNode | undefined
 
+	showTree: () => boolean
+	toggleShowTree: () => void
 	enterFilesView: () => Promise<void>
 	exitFilesView: () => void
 	toggleFolder: (path: string) => void
@@ -144,6 +148,7 @@ export function SyncProvider(props: { children: JSX.Element }) {
 	)
 	const [filesLoading, setFilesLoading] = createSignal(false)
 	const [filesError, setFilesError] = createSignal<string | null>(null)
+	const [showTree, setShowTree] = createSignal(readConfig().files.showTree)
 
 	const [bookmarks, setBookmarks] = createSignal<Bookmark[]>([])
 	const [remoteBookmarks, setRemoteBookmarks] = createSignal<Bookmark[]>([])
@@ -211,7 +216,7 @@ export function SyncProvider(props: { children: JSX.Element }) {
 	const flatFiles = createMemo(() => {
 		const tree = fileTree()
 		if (!tree) return []
-		return flattenTree(tree, collapsedPaths())
+		return showTree() ? flattenTree(tree, collapsedPaths()) : flattenFlat(tree)
 	})
 
 	const selectedFile = () => {
@@ -893,6 +898,8 @@ export function SyncProvider(props: { children: JSX.Element }) {
 		filesError,
 		selectedFile,
 
+		showTree,
+		toggleShowTree: () => setShowTree((v) => !v),
 		enterFilesView,
 		exitFilesView,
 		toggleFolder,

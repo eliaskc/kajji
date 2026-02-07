@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test"
 import type { FileChange } from "../../../src/commander/types"
 import {
 	buildFileTree,
+	flattenFlat,
 	flattenTree,
 	getFilePaths,
 } from "../../../src/utils/file-tree"
@@ -123,6 +124,48 @@ describe("flattenTree", () => {
 		expect(srcUtils?.visualDepth).toBe(0)
 		expect(file?.visualDepth).toBe(1)
 		expect(root?.visualDepth).toBe(0)
+	})
+})
+
+describe("flattenFlat", () => {
+	it("returns only files, no directories", () => {
+		const files: FileChange[] = [
+			{ path: "src/a.ts", status: "added" },
+			{ path: "src/b.ts", status: "modified" },
+		]
+		const tree = buildFileTree(files)
+		const flat = flattenFlat(tree)
+
+		expect(flat).toHaveLength(2)
+		expect(flat.every((f) => !f.node.isDirectory)).toBe(true)
+	})
+
+	it("all items have visualDepth 0", () => {
+		const files: FileChange[] = [
+			{ path: "src/utils/deep/file.ts", status: "added" },
+			{ path: "root.ts", status: "added" },
+		]
+		const tree = buildFileTree(files)
+		const flat = flattenFlat(tree)
+
+		expect(flat.every((f) => f.visualDepth === 0)).toBe(true)
+	})
+
+	it("sorts by full path", () => {
+		const files: FileChange[] = [
+			{ path: "z.ts", status: "added" },
+			{ path: "a/b.ts", status: "added" },
+			{ path: "a/a.ts", status: "added" },
+		]
+		const tree = buildFileTree(files)
+		const flat = flattenFlat(tree)
+
+		expect(flat.map((f) => f.node.path)).toEqual(["a/a.ts", "a/b.ts", "z.ts"])
+	})
+
+	it("handles empty tree", () => {
+		const tree = buildFileTree([])
+		expect(flattenFlat(tree)).toEqual([])
 	})
 })
 

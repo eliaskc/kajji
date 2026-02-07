@@ -48,6 +48,7 @@ export type KeybindConfigKey =
 	| "bookmark_set"
 	| "bookmark_move"
 	| "bookmark_toggle_remote"
+	| "toggle_file_tree"
 	| "toggle_diff_style"
 	| "toggle_diff_wrap"
 	| "diff_scroll_left"
@@ -106,6 +107,7 @@ export const DEFAULT_KEYBINDS: KeybindConfig = {
 	bookmark_set: "b",
 	bookmark_move: "m",
 	bookmark_toggle_remote: "r",
+	toggle_file_tree: "-",
 	toggle_diff_style: "v",
 	toggle_diff_wrap: "w",
 	diff_scroll_left: "h,left",

@@ -25,6 +25,7 @@ export interface FilterableFileTreeProps {
 	setSelectedIndex: (index: number) => void
 	collapsedPaths: () => Set<string>
 	toggleFolder: (path: string) => void
+	showTree?: () => boolean
 	isFocused?: () => boolean
 	focusContext?: Context
 	scrollRef?: (ref: ScrollBoxRenderable) => void
@@ -322,6 +323,7 @@ export function FilterableFileTree(props: FilterableFileTreeProps) {
 						setSelectedIndex={handleSetSelectedIndex}
 						collapsedPaths={props.collapsedPaths}
 						toggleFolder={props.toggleFolder}
+						showTree={props.showTree}
 						isFocused={props.isFocused}
 						focusContext={props.focusContext}
 					/>

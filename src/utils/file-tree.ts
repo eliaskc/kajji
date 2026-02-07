@@ -132,6 +132,23 @@ export function flattenTree(
 	return result
 }
 
+export function flattenFlat(root: FileTreeNode): FlatFileNode[] {
+	const result: FlatFileNode[] = []
+
+	function collect(node: FileTreeNode): void {
+		if (!node.isDirectory) {
+			result.push({ node, visualDepth: 0 })
+		}
+		for (const child of node.children) {
+			collect(child)
+		}
+	}
+
+	collect(root)
+	result.sort((a, b) => a.node.path.localeCompare(b.node.path))
+	return result
+}
+
 export function countVisibleNodes(
 	root: FileTreeNode,
 	collapsedPaths: Set<string>,
