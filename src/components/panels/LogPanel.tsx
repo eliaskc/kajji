@@ -16,6 +16,7 @@ import {
 } from "solid-js"
 import {
 	type Bookmark,
+	fetchNearestAncestorBookmarkNames,
 	jjBookmarkCreate,
 	jjBookmarkSet,
 } from "../../commander/bookmarks"
@@ -76,6 +77,70 @@ const LOG_TABS: Array<{ id: LogTab; label: string; context: Context }> = [
 	{ id: "revisions", label: "Revisions", context: "log.revisions" },
 	{ id: "oplog", label: "Oplog", context: "log.oplog" },
 ]
+
+function sortBookmarksByProximity(
+	bookmarks: Bookmark[],
+	orderedCommits: Array<{ changeId: string }>,
+	targetChangeId: string,
+	nearestHeadBookmarkNames: string[] = [],
+): Bookmark[] {
+	const nearestHeadRank = new Map(
+		nearestHeadBookmarkNames.map((name, index) => [name, index]),
+	)
+	const toShortChangeId = (changeId: string) => changeId.trim().slice(0, 8)
+	const commitIndexByShortChangeId = new Map(
+		orderedCommits.map((commit, index) => [
+			toShortChangeId(commit.changeId),
+			index,
+		]),
+	)
+	const targetIndex = commitIndexByShortChangeId.get(
+		toShortChangeId(targetChangeId),
+	)
+	if (targetIndex === undefined) return bookmarks
+
+	return bookmarks
+		.map((bookmark, originalIndex) => {
+			const headRank = nearestHeadRank.get(bookmark.name)
+			if (headRank !== undefined) {
+				return {
+					bookmark,
+					originalIndex,
+					group: -1,
+					distance: headRank,
+				}
+			}
+			const bookmarkIndices = bookmark.changeId
+				.split(",")
+				.map((id) => commitIndexByShortChangeId.get(toShortChangeId(id)))
+				.filter((index): index is number => index !== undefined)
+			const bookmarkIndex = bookmarkIndices.length
+				? Math.min(...bookmarkIndices)
+				: undefined
+			if (bookmarkIndex === undefined) {
+				return {
+					bookmark,
+					originalIndex,
+					group: 2,
+					distance: Number.POSITIVE_INFINITY,
+				}
+			}
+			const delta = bookmarkIndex - targetIndex
+			return {
+				bookmark,
+				originalIndex,
+				group: delta >= 0 ? 0 : 1,
+				distance: Math.abs(delta),
+			}
+		})
+		.sort(
+			(a, b) =>
+				a.group - b.group ||
+				a.distance - b.distance ||
+				a.originalIndex - b.originalIndex,
+		)
+		.map((entry) => entry.bookmark)
+}
 
 export function LogPanel() {
 	const renderer = useRenderer()
@@ -1152,10 +1217,23 @@ export function LogPanel() {
 			type: "action",
 			panel: "log",
 			visibility: "help-only",
-			onSelect: () => {
+			onSelect: async () => {
 				const commit = selectedCommit()
 				if (!commit) return
-				const localBookmarks = bookmarks().filter((b) => b.isLocal)
+				let nearestHeadBookmarkNames: string[] = []
+				try {
+					nearestHeadBookmarkNames = await fetchNearestAncestorBookmarkNames(
+						commit.changeId,
+					)
+				} catch {
+					nearestHeadBookmarkNames = []
+				}
+				const localBookmarks = sortBookmarksByProximity(
+					bookmarks().filter((b) => b.isLocal),
+					commits(),
+					commit.changeId,
+					nearestHeadBookmarkNames,
+				)
 				dialog.open(
 					() => (
 						<SetBookmarkModal

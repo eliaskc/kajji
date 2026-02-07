@@ -232,3 +232,18 @@ export async function jjBookmarkSet(
 		command: `jj ${args.join(" ")}`,
 	}
 }
+
+export async function fetchNearestAncestorBookmarkNames(
+	revision: string,
+): Promise<string[]> {
+	const revset = `heads(::${revision} & bookmarks())`
+	const args = ["bookmark", "list", "-r", revset, "--template", 'name ++ "\\n"']
+	const result = await execute(args)
+	if (!result.success) {
+		throw new Error(`jj bookmark list failed: ${result.stderr}`)
+	}
+	return result.stdout
+		.split("\n")
+		.map((line) => line.trim())
+		.filter((line) => line.length > 0)
+}
