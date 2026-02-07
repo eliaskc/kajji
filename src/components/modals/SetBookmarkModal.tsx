@@ -55,9 +55,13 @@ export function SetBookmarkModal(props: SetBookmarkModalProps) {
 		return results.map((r) => r.obj)
 	})
 
+	const defaultCreateName = createMemo(
+		() => `push-${props.changeId.slice(0, 8)}`,
+	)
+
 	const showCreateOption = createMemo(() => {
 		const q = query().trim()
-		if (!q) return false
+		if (!q) return props.bookmarks.length === 0
 		return !props.bookmarks.some((b) => b.name === q)
 	})
 
@@ -79,7 +83,7 @@ export function SetBookmarkModal(props: SetBookmarkModalProps) {
 		if (showCreateOption()) {
 			items.push({
 				type: "create" as const,
-				name: query().trim(),
+				name: query().trim() || defaultCreateName(),
 			})
 		}
 
@@ -117,7 +121,7 @@ export function SetBookmarkModal(props: SetBookmarkModalProps) {
 	const placeholder = createMemo(() => {
 		const bookmark = selectedBookmark()
 		if (bookmark) return bookmark.name
-		return `push-${props.changeId.slice(0, 8)}`
+		return defaultCreateName()
 	})
 
 	createEffect(() => {
@@ -179,7 +183,7 @@ export function SetBookmarkModal(props: SetBookmarkModalProps) {
 		setError(null)
 
 		if (isCreateSelected()) {
-			const name = query().trim()
+			const name = query().trim() || defaultCreateName()
 			if (!name) {
 				setError("Name cannot be empty")
 				return
@@ -216,7 +220,8 @@ export function SetBookmarkModal(props: SetBookmarkModalProps) {
 	})
 
 	const hasBookmarks = () => props.bookmarks.length > 0
-	const showPlaceholderText = () => !query().trim() && !hasBookmarks()
+	const showPlaceholderText = () =>
+		!query().trim() && !hasBookmarks() && totalItems() === 0
 
 	const LIST_HEIGHT = 10
 
