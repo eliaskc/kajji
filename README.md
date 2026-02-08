@@ -79,6 +79,8 @@ bun dev
 - [x] Recent repository switcher
 - [x] Automatic update notifications
 - [x] Revset filtering and fuzzy search
+- [x] JSONC config with live reload and schema autocomplete
+- [x] Open files in editor from file view (`e`/`E`)
 - [ ] Multi-select for batch operations
 
 ## Usage

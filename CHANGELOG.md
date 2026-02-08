@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.9.0
+
+### new
+- open files in editor (`e` selected, `E` all changed) from file view ([`da89379d`](../../commit/da89379d), [#22](../../issues/22))
+- jj diff formatter mode (`-` toggle) as alternative to built-in renderer ([`104d2db3`](../../commit/104d2db3), [#75](../../issues/75))
+- config system with JSONC support, Zod schema validation, and live reload ([`f39c7b35`](../../commit/f39c7b35), [`92ce595b`](../../commit/92ce595b), [#72](../../issues/72))
+- flat file list toggle (`-`) alongside tree view ([`ac7fbc3f`](../../commit/ac7fbc3f), [#68](../../issues/68))
+
+### improved
+- ux: bookmark move targets ranked by revision proximity with nearest ancestor head pinned first ([`7cc18e3c`](../../commit/7cc18e3c), [#69](../../issues/69))
+- ux: set-bookmark modal shows current-revision bookmarks as context, excludes already-targeting bookmarks ([`f01cd5e7`](../../commit/f01cd5e7))
+- ux: default "create" target always available in set-bookmark modal ([`23c0f1ad`](../../commit/23c0f1ad))
+
+### fixed
+- divergent commits handled correctly using commit ID instead of change ID ([`70b49551`](../../commit/70b49551), [#78](../../issues/78))
+- shift-key handlers in rebase and squash modals not triggering ([`31fbc032`](../../commit/31fbc032), [#70](../../issues/70))
+- scrollbar visibility in normal mode and diff panel overflow ([`8205de89`](../../commit/8205de89), [`9edf97fa`](../../commit/9edf97fa))
+- toaster disabled due to blocking mouse interaction in main UI ([`7f6b8207`](../../commit/7f6b8207))
+- layout: auto diff layout switches based on diff panel width instead of terminal width ([`3237bf23`](../../commit/3237bf23))
+- layout: what's new modal sizing ([`19578866`](../../commit/19578866))
+
 ## 0.8.0
 
 ### new
