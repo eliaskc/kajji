@@ -60,6 +60,8 @@ export type KeybindConfigKey =
 	| "nav_next_file"
 	| "open_recent"
 	| "open"
+	| "open_editor"
+	| "open_editor_all"
 	| "toggle_focus_mode"
 	| "search"
 
@@ -120,6 +122,8 @@ export const DEFAULT_KEYBINDS: KeybindConfig = {
 	nav_next_file: "}",
 	open_recent: "ctrl+o",
 	open: "o",
+	open_editor: "e",
+	open_editor_all: "E",
 	toggle_focus_mode: "ctrl+x",
 	search: "/",
 }

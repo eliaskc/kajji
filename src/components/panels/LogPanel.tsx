@@ -1,3 +1,4 @@
+import { resolve } from "node:path"
 import type {
 	MouseEvent,
 	ScrollBoxRenderable,
@@ -57,7 +58,10 @@ import { useLoading } from "../../context/loading"
 import { useSync } from "../../context/sync"
 import { useTheme } from "../../context/theme"
 import type { Context } from "../../context/types"
+import { getRepoPath } from "../../repo"
 import { createDoubleClickDetector } from "../../utils/double-click"
+import { openInEditor, shouldSuspendForEditor } from "../../utils/editor"
+import type { FileTreeNode } from "../../utils/file-tree"
 import { AnsiText } from "../AnsiText"
 import { FilterInput } from "../FilterInput"
 import {
@@ -157,6 +161,7 @@ export function LogPanel() {
 		enterFilesView,
 		exitFilesView,
 		viewMode,
+		fileTree,
 		refresh,
 		flatFiles,
 		selectedFileIndex,
@@ -758,6 +763,53 @@ export function LogPanel() {
 	}
 
 	const selectedOperation = () => opLogEntries()[opLogSelectedIndex()]
+
+	const toAbsolutePath = (path: string) => resolve(getRepoPath(), path)
+
+	const collectOpenablePaths = (node: FileTreeNode): string[] => {
+		const paths: string[] = []
+		const stack: FileTreeNode[] = [node]
+		while (stack.length > 0) {
+			const current = stack.pop()
+			if (!current) continue
+			if (!current.isDirectory && current.status !== "deleted") {
+				paths.push(toAbsolutePath(current.path))
+			}
+			for (const child of current.children) {
+				stack.push(child)
+			}
+		}
+		return paths
+	}
+
+	const openPathsInEditor = async (paths: string[]) => {
+		const uniquePaths = [...new Set(paths)]
+		if (uniquePaths.length === 0) {
+			commandLog.addEntry({
+				command: "open editor",
+				success: false,
+				exitCode: 1,
+				stdout: "",
+				stderr: "No openable files in this commit",
+			})
+			return
+		}
+
+		const shouldSuspend = shouldSuspendForEditor()
+		if (shouldSuspend) renderer.suspend?.()
+		try {
+			const result = await openInEditor(uniquePaths, { cwd: getRepoPath() })
+			commandLog.addEntry({
+				...result,
+				stdout: "",
+				stderr: result.success
+					? ""
+					: `Editor exited with code ${result.exitCode}`,
+			})
+		} finally {
+			if (shouldSuspend) renderer.resume?.()
+		}
+	}
 
 	command.register(() => [
 		{
@@ -1417,6 +1469,60 @@ export function LogPanel() {
 				if (confirmed) {
 					await runOperation("Restoring...", () => jjRestore([node.path]))
 				}
+			},
+		},
+		{
+			id: "log.files.open_editor",
+			title: "open in editor",
+			keybind: "open_editor",
+			context: "log.files",
+			type: "action",
+			panel: "log",
+			onSelect: async () => {
+				const file = flatFiles()[selectedFileIndex()]
+				if (!file || file.node.isDirectory) {
+					commandLog.addEntry({
+						command: "open editor",
+						success: false,
+						exitCode: 1,
+						stdout: "",
+						stderr: "Select a file to open",
+					})
+					return
+				}
+				if (file.node.status === "deleted") {
+					commandLog.addEntry({
+						command: "open editor",
+						success: false,
+						exitCode: 1,
+						stdout: "",
+						stderr: `Cannot open deleted file: ${file.node.path}`,
+					})
+					return
+				}
+				await openPathsInEditor([toAbsolutePath(file.node.path)])
+			},
+		},
+		{
+			id: "log.files.open_editor_all",
+			title: "open all in editor",
+			keybind: "open_editor_all",
+			context: "log.files",
+			type: "action",
+			panel: "log",
+			onSelect: async () => {
+				const tree = fileTree()
+				if (!tree) {
+					commandLog.addEntry({
+						command: "open editor",
+						success: false,
+						exitCode: 1,
+						stdout: "",
+						stderr: "No files available",
+					})
+					return
+				}
+				await openPathsInEditor(collectOpenablePaths(tree))
 			},
 		},
 		{

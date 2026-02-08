@@ -46,6 +46,7 @@ import {
 	parseChangelog,
 } from "./utils/changelog"
 import type { VersionBlock } from "./utils/changelog"
+import { openInEditor, shouldSuspendForEditor } from "./utils/editor"
 import { isCriticalStartupError, parseJjError } from "./utils/error-parser"
 import { readState, writeState } from "./utils/state"
 import { checkForUpdates, getCurrentVersion } from "./utils/update"
@@ -303,13 +304,13 @@ function AppContent() {
 			visibility: "help-only",
 			onSelect: async () => {
 				const configPath = createDefaultConfig()
-				const editor = process.env.EDITOR || process.env.VISUAL || "vi"
-				renderer.suspend?.()
-				const proc = Bun.spawn([editor, configPath], {
-					stdio: ["inherit", "inherit", "inherit"],
-				})
-				await proc.exited
-				renderer.resume?.()
+				const shouldSuspend = shouldSuspendForEditor()
+				if (shouldSuspend) renderer.suspend?.()
+				try {
+					await openInEditor([configPath])
+				} finally {
+					if (shouldSuspend) renderer.resume?.()
+				}
 				reloadConfig()
 			},
 		},
