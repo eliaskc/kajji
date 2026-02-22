@@ -26,11 +26,14 @@ export interface DialogSize {
 }
 
 export const DIALOG_SIZE = {
-	confirm: { maxWidth: 48 } satisfies DialogSize,
-	confirmWide: { maxWidth: 64 } satisfies DialogSize,
-	confirmExtraWide: { maxWidth: 80 } satisfies DialogSize,
-	form: { width: "60%" as Dimension, maxWidth: 90 } satisfies DialogSize,
-	describe: { width: "80%" as Dimension, maxWidth: 64 } satisfies DialogSize,
+	confirm: { width: "90%" as Dimension, maxWidth: 48 } satisfies DialogSize,
+	confirmWide: { width: "90%" as Dimension, maxWidth: 64 } satisfies DialogSize,
+	confirmExtraWide: {
+		width: "90%" as Dimension,
+		maxWidth: 80,
+	} satisfies DialogSize,
+	form: { width: "90%" as Dimension, maxWidth: 90 } satisfies DialogSize,
+	describe: { width: "90%" as Dimension, maxWidth: 64 } satisfies DialogSize,
 	picker: { width: "90%" as Dimension, maxWidth: 100 } satisfies DialogSize,
 } as const
 

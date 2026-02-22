@@ -61,8 +61,8 @@ import { checkForUpdates, getCurrentVersion } from "./utils/update"
 import changelogContent from "../CHANGELOG.md" with { type: "text" }
 
 const GIT_ACTION_MENU_DIALOG = {
-	width: "45%" as const,
-	maxWidth: 54,
+	width: "90%" as const,
+	maxWidth: 48,
 }
 
 function AppContent() {
