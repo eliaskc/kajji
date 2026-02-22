@@ -149,7 +149,7 @@ Not yet wired from config ([#16](https://github.com/eliaskc/kajji/issues/16)):
 | `Escape`  | Back / close modal                |
 | `ctrl+x`  | Toggle focus mode (normal / diff) |
 | `ctrl+o`  | Open recent repository            |
-| `o`       | Open commit/PR on GitHub          |
+| `o` / `O` | Open commit/PR on GitHub (prompt / direct) |
 | `-`       | Toggle tree/list (Files) or jj formatter (Detail) |
 | `w`       | Toggle line wrapping in diff (built-in renderer) |
 | `v`       | Toggle split / unified diff (built-in renderer) |
@@ -168,8 +168,10 @@ Not yet wired from config ([#16](https://github.com/eliaskc/kajji/issues/16)):
 | `r`       | Rebase                  |
 | `S`       | Split                   |
 | `u` / `U` | Undo / redo             |
-| `f` / `F` | Git fetch / fetch all   |
-| `p` / `P` | Git push / push all     |
+| `f`       | Git fetch               |
+| `F`       | Git fetch options       |
+| `p`       | Git push                |
+| `P`       | Git push options        |
 
 ### Bookmarks
 

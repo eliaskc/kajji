@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.10.0
+
+### new
+- push/fetch action menus (`P`/`F`) with context-aware options for --all, --tracked, --deleted, --dry-run, and per-revision --change/--bookmark ([`eb3590e7`](../../commit/eb3590e7), [#4](../../issues/4))
+- `--allow-backwards` confirmation for bookmark moves ([`a3af0656`](../../commit/a3af0656))
+
+### improved
+- layout: flat design language — colored title bars, centralized dialog chrome, styled segment titles, dialog size presets ([#80](../../pull/80))
+- ux: squash and rebase options show jj flag descriptions for clarity ([`b88200fc`](../../commit/b88200fc), [`eb3590e7`](../../commit/eb3590e7))
+- ux: `o` prompts before opening, `O` opens PR/commit directly ([`31b1c173`](../../commit/31b1c173))
+
+### fixed
+- layout: modal sizes adapt to terminal dimensions ([`d682570e`](../../commit/d682570e))
+- ux: immutable rebase confirmation shows correct source revision ([`2bdd7091`](../../commit/2bdd7091))
+- perf: terminal background color cached for faster boot color adaptation ([`15cbef8f`](../../commit/15cbef8f))
+- open PR works directly after creating new bookmark ([`580dd3b3`](../../commit/580dd3b3))
+
 ## 0.9.0
 
 ### new
