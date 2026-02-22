@@ -72,14 +72,7 @@ describe("fetchDiff", () => {
 		await fetchDiff("testchange")
 
 		expect(mockExecute).toHaveBeenCalledWith(
-			[
-				"diff",
-				"-r",
-				"testchange",
-				"--color",
-				"always",
-				"--ignore-working-copy",
-			],
+			["diff", "-r", "testchange", "--color", "always"],
 			{ cwd: undefined, env: {} },
 		)
 	})
@@ -95,7 +88,7 @@ describe("fetchDiff", () => {
 		await fetchDiff("abc123", { cwd: "/custom/path" })
 
 		expect(mockExecute).toHaveBeenCalledWith(
-			["diff", "-r", "abc123", "--color", "always", "--ignore-working-copy"],
+			["diff", "-r", "abc123", "--color", "always"],
 			{ cwd: "/custom/path", env: {} },
 		)
 	})
@@ -111,7 +104,7 @@ describe("fetchDiff", () => {
 		await fetchDiff("abc123", { columns: 80 })
 
 		expect(mockExecute).toHaveBeenCalledWith(
-			["diff", "-r", "abc123", "--color", "always", "--ignore-working-copy"],
+			["diff", "-r", "abc123", "--color", "always"],
 			{ cwd: undefined, env: { COLUMNS: "80" } },
 		)
 	})
@@ -158,15 +151,7 @@ describe("fetchDiff", () => {
 		await fetchDiff("abc123", { paths: ["src/file.ts"] })
 
 		expect(mockExecute).toHaveBeenCalledWith(
-			[
-				"diff",
-				"-r",
-				"abc123",
-				"--color",
-				"always",
-				"--ignore-working-copy",
-				'file:"src/file.ts"',
-			],
+			["diff", "-r", "abc123", "--color", "always", 'file:"src/file.ts"'],
 			{ cwd: undefined, env: {} },
 		)
 	})
@@ -188,7 +173,6 @@ describe("fetchDiff", () => {
 				"abc123",
 				"--color",
 				"always",
-				"--ignore-working-copy",
 				'file:"src/a.ts"',
 				'file:"src/b.ts"',
 				'file:"src/c.ts"',

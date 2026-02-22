@@ -122,14 +122,7 @@ async function readFileLinesAtRevision(
 	revision: string,
 	filePath: string,
 ): Promise<string[]> {
-	const result = await execute([
-		"file",
-		"show",
-		"-r",
-		revision,
-		"--ignore-working-copy",
-		filePath,
-	])
+	const result = await execute(["file", "show", "-r", revision, filePath])
 	if (!result.success) {
 		throw new Error(result.stderr.trim() || `Unable to read ${filePath}`)
 	}

@@ -54,7 +54,6 @@ export async function fetchBookmarks(
 		"list",
 		"--sort",
 		"committer-date-",
-		"--ignore-working-copy",
 		"--template",
 		BOOKMARK_TEMPLATE,
 	]
@@ -95,7 +94,6 @@ export function fetchBookmarksStream(
 		"list",
 		"--sort",
 		"committer-date-",
-		"--ignore-working-copy",
 		"--template",
 		BOOKMARK_TEMPLATE,
 	]
@@ -249,15 +247,7 @@ export async function fetchNearestAncestorBookmarkNames(
 	revision: string,
 ): Promise<string[]> {
 	const revset = `heads(::${revision} & bookmarks())`
-	const args = [
-		"bookmark",
-		"list",
-		"-r",
-		revset,
-		"--ignore-working-copy",
-		"--template",
-		'name ++ "\\n"',
-	]
+	const args = ["bookmark", "list", "-r", revset, "--template", 'name ++ "\\n"']
 	const result = await execute(args)
 	if (!result.success) {
 		throw new Error(`jj bookmark list failed: ${result.stderr}`)

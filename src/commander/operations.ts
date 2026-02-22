@@ -315,7 +315,6 @@ export async function jjShowDescription(
 		"-r",
 		revision,
 		"--no-graph",
-		"--ignore-working-copy",
 		"-T",
 		"description",
 	])
@@ -345,19 +344,10 @@ export async function jjShowDescriptionStyled(
 			"--no-graph",
 			"--color",
 			"always",
-			"--ignore-working-copy",
 			"-T",
 			styledTemplate,
 		]),
-		execute([
-			"log",
-			"-r",
-			revision,
-			"--no-graph",
-			"--ignore-working-copy",
-			"-T",
-			"description",
-		]),
+		execute(["log", "-r", revision, "--no-graph", "-T", "description"]),
 	])
 
 	const subject = subjectResult.success ? subjectResult.stdout.trim() : ""
@@ -387,7 +377,7 @@ export async function jjAbandon(
 }
 
 export async function fetchOpLog(limit?: number): Promise<string[]> {
-	const args = ["op", "log", "--color", "always", "--ignore-working-copy"]
+	const args = ["op", "log", "--color", "always"]
 	if (limit) {
 		args.push("--limit", String(limit))
 	}
@@ -412,7 +402,6 @@ export async function fetchOpLogId(): Promise<string> {
 		"--limit",
 		"1",
 		"--no-graph",
-		"--ignore-working-copy",
 		"-T",
 		"self.id()",
 	])
@@ -539,7 +528,6 @@ export async function jjIsInTrunk(revision: string): Promise<boolean> {
 		"-r",
 		`${revision} & ::trunk()`,
 		"--no-graph",
-		"--ignore-working-copy",
 		"-T",
 		"change_id",
 	])
@@ -556,13 +544,7 @@ export interface DiffStats {
 }
 
 export async function jjDiffStats(revision: string): Promise<DiffStats> {
-	const result = await execute([
-		"diff",
-		"--stat",
-		"-r",
-		revision,
-		"--ignore-working-copy",
-	])
+	const result = await execute(["diff", "--stat", "-r", revision])
 
 	if (!result.success) {
 		return { files: [], totalFiles: 0, totalInsertions: 0, totalDeletions: 0 }
@@ -631,7 +613,6 @@ export async function jjCommitDetails(
 		"--no-graph",
 		"--color",
 		"always",
-		"--ignore-working-copy",
 		"-T",
 		`${styledSubjectTemplate} ++ "${DETAILS_SEPARATOR}" ++ description`,
 	])

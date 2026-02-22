@@ -15,7 +15,6 @@ export async function fetchRevisions(revset: string): Promise<RevisionInfo[]> {
 		"-r",
 		revset,
 		"--no-graph",
-		"--ignore-working-copy",
 		"-T",
 		template,
 	])

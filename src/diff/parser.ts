@@ -36,7 +36,7 @@ export async function fetchParsedDiff(
 	revision: string,
 	options: ParseDiffOptions = {},
 ): Promise<DiffFile[]> {
-	const args = ["diff", "-r", revision, "--git", "--ignore-working-copy"]
+	const args = ["diff", "-r", revision, "--git"]
 
 	// Add specific file paths if provided
 	if (options.paths && options.paths.length > 0) {

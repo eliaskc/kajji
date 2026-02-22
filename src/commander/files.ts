@@ -64,21 +64,9 @@ export function parseFileSummary(output: string): FileChange[] {
 	return files
 }
 
-export interface FetchFilesOptions {
-	ignoreWorkingCopy?: boolean
-}
-
-export async function fetchFiles(
-	revision: string,
-	options: FetchFilesOptions = {},
-): Promise<FileChange[]> {
+export async function fetchFiles(revision: string): Promise<FileChange[]> {
 	const summaryArgs = ["diff", "--summary", "-r", revision]
 	const binaryArgs = ["diff", "--git", "-r", revision]
-
-	if (options.ignoreWorkingCopy) {
-		summaryArgs.push("--ignore-working-copy")
-		binaryArgs.push("--ignore-working-copy")
-	}
 
 	const [summaryResult, binaryResult] = await Promise.all([
 		execute(summaryArgs),

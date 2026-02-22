@@ -309,9 +309,7 @@ export function SyncProvider(props: { children: JSX.Element }) {
 			if (viewMode() === "files") {
 				const commit = selectedCommit()
 				if (commit) {
-					const result = await fetchFiles(getRevisionId(commit), {
-						ignoreWorkingCopy: true,
-					})
+					const result = await fetchFiles(getRevisionId(commit))
 					setFiles(result)
 					setFileTree(buildFileTree(result))
 				}
@@ -824,9 +822,7 @@ export function SyncProvider(props: { children: JSX.Element }) {
 		setFilesLoading(true)
 		setFilesError(null)
 		try {
-			const result = await fetchFiles(getRevisionId(commit), {
-				ignoreWorkingCopy: true,
-			})
+			const result = await fetchFiles(getRevisionId(commit))
 			setFiles(result)
 			const tree = buildFileTree(result)
 			setFileTree(tree)

@@ -19,6 +19,7 @@ import {
 	jjDescribe,
 	jjEdit,
 	jjRebase,
+	jjShowDescription,
 	jjShowDescriptionStyled,
 	jjSquash,
 	parseOpLog,
@@ -488,6 +489,44 @@ describe("jjAbandon", () => {
 })
 
 describe("jjShowDescriptionStyled", () => {
+	test("does not pass --ignore-working-copy (guard)", async () => {
+		mockExecute.mockClear()
+		mockExecute
+			.mockResolvedValueOnce({
+				stdout: "subject",
+				stderr: "",
+				exitCode: 0,
+				success: true,
+			})
+			.mockResolvedValueOnce({
+				stdout: "subject\n\nbody",
+				stderr: "",
+				exitCode: 0,
+				success: true,
+			})
+
+		await jjShowDescriptionStyled("abc123")
+
+		expect(mockExecute).toHaveBeenNthCalledWith(1, [
+			"log",
+			"-r",
+			"abc123",
+			"--no-graph",
+			"--color",
+			"always",
+			"-T",
+			expect.any(String),
+		])
+		expect(mockExecute).toHaveBeenNthCalledWith(2, [
+			"log",
+			"-r",
+			"abc123",
+			"--no-graph",
+			"-T",
+			"description",
+		])
+	})
+
 	test("parses subject and body from multi-line description", async () => {
 		mockExecute
 			.mockResolvedValueOnce({
@@ -593,5 +632,28 @@ describe("jjShowDescriptionStyled", () => {
 
 		expect(result.subject).toBe("")
 		expect(result.body).toBe("")
+	})
+})
+
+describe("jjShowDescription", () => {
+	test("does not pass --ignore-working-copy (guard)", async () => {
+		mockExecute.mockClear()
+		mockExecute.mockResolvedValueOnce({
+			stdout: "subject\n\nbody",
+			stderr: "",
+			exitCode: 0,
+			success: true,
+		})
+
+		await jjShowDescription("abc123")
+
+		expect(mockExecute).toHaveBeenCalledWith([
+			"log",
+			"-r",
+			"abc123",
+			"--no-graph",
+			"-T",
+			"description",
+		])
 	})
 })

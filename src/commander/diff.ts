@@ -20,14 +20,7 @@ export async function fetchDiff(
 		env.COLUMNS = String(options.columns)
 	}
 
-	const args = [
-		"diff",
-		"-r",
-		changeId,
-		"--color",
-		"always",
-		"--ignore-working-copy",
-	]
+	const args = ["diff", "-r", changeId, "--color", "always"]
 
 	if (options.paths && options.paths.length > 0) {
 		args.push(...toFilesetArgs(options.paths))
@@ -61,14 +54,7 @@ export function streamDiff(
 		env.COLUMNS = String(options.columns)
 	}
 
-	const args = [
-		"diff",
-		"-r",
-		changeId,
-		"--color",
-		"always",
-		"--ignore-working-copy",
-	]
+	const args = ["diff", "-r", changeId, "--color", "always"]
 
 	if (options.paths && options.paths.length > 0) {
 		args.push(...toFilesetArgs(options.paths))
