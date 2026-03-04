@@ -23,7 +23,7 @@ import { truncatePathMiddle } from "../../utils/path-truncate"
 const DIFF_BG = {
 	addition: "#0d2818",
 	deletion: "#2d1215",
-	empty: "#161b22",
+	empty: undefined,
 	additionEmphasis: "#1a5a2a",
 	deletionEmphasis: "#5a1a1a",
 } as const
