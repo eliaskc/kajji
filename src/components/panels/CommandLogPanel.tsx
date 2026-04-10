@@ -84,7 +84,7 @@ export function CommandLogPanel() {
 						},
 					}}
 				>
-					<box flexDirection="column" paddingRight={1}>
+					<box flexDirection="column">
 						<Show
 							when={commandLog.entries().length > 0}
 							fallback={

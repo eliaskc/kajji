@@ -26,7 +26,7 @@ export function FilterInput(props: FilterInputProps) {
 	return (
 		<>
 			<Show when={props.dividerPosition === "above"}>{divider()}</Show>
-			<box paddingX={1} height={1}>
+			<box height={1}>
 				<text fg={colors().textMuted}>/</text>
 				<textarea
 					ref={(r) => {

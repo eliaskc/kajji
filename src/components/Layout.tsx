@@ -13,10 +13,8 @@ import { MainArea } from "./panels/MainArea"
 function VerticalDivider() {
 	const { colors } = useTheme()
 	return (
-		<box flexDirection="row" paddingLeft={1} paddingRight={1} overflow="hidden">
-			<box width={1} overflow="hidden">
-				<text fg={colors().backgroundElement}>{"│\n".repeat(300)}</text>
-			</box>
+		<box width={1} overflow="hidden">
+			<text fg={colors().backgroundElement}>{"│\n".repeat(300)}</text>
 		</box>
 	)
 }
@@ -110,7 +108,6 @@ export function LayoutGrid() {
 			backgroundColor={colors().background}
 			paddingTop={0}
 			paddingBottom={0}
-			paddingX={1}
 			gap={0}
 		>
 			<Switch>

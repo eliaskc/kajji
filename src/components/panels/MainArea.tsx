@@ -941,7 +941,7 @@ export function MainArea() {
 					horizontalScrollbarOptions={{ visible: false }}
 					onMouseScroll={handleHorizontalScroll}
 				>
-					<box flexDirection="column" paddingRight={1}>
+					<box flexDirection="column">
 						<box ref={headerRef} flexDirection="column" flexShrink={0}>
 							<Show when={activeCommit()}>
 								{(commit: () => Commit) => (

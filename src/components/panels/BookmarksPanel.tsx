@@ -855,7 +855,7 @@ export function BookmarksPanel() {
 			>
 				<box flexDirection="column" flexGrow={1}>
 					<Show when={currentBookmarks().length === 0 && hasActiveFilter()}>
-						<box paddingLeft={1} flexGrow={1}>
+						<box flexGrow={1}>
 							<text fg={colors().textMuted}>No matching bookmarks</text>
 						</box>
 					</Show>
@@ -985,7 +985,7 @@ export function BookmarksPanel() {
 											{"─".repeat(200)}
 										</text>
 									</box>
-									<box paddingLeft={1} height={1}>
+									<box height={1}>
 										<text fg={colors().textMuted}>/</text>
 										<text fg={colors().text}>{appliedFilter()}</text>
 									</box>

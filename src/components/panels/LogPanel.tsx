@@ -1757,7 +1757,7 @@ export function LogPanel() {
 					<Show
 						when={commits().length > 0}
 						fallback={
-							<box paddingLeft={1}>
+							<box>
 								<text fg={colors().textMuted}>No matching revisions</text>
 							</box>
 						}
@@ -1826,7 +1826,7 @@ export function LogPanel() {
 				>
 					{/* Error line */}
 					<Show when={errorContent()}>
-						<box paddingX={1} height={1} overflow="hidden">
+						<box height={1} overflow="hidden">
 							<text fg={colors().error} wrapMode="none">
 								{errorContent()}
 							</text>
@@ -1844,7 +1844,7 @@ export function LogPanel() {
 					<Show
 						when={filterMode()}
 						fallback={
-							<box paddingLeft={1} height={1}>
+							<box height={1}>
 								<text fg={colors().textMuted}>/</text>
 								<text fg={colors().text}>{revsetFilter()}</text>
 							</box>
