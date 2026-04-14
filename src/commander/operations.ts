@@ -389,7 +389,7 @@ export async function jjAbandon(
 }
 
 export async function fetchOpLog(limit?: number): Promise<string[]> {
-	const args = ["op", "log", "--color", "always"]
+	const args = ["op", "log", "--color", "always", "--ignore-working-copy"]
 	if (limit) {
 		args.push("--limit", String(limit))
 	}
@@ -409,6 +409,7 @@ export async function fetchOpLogId(): Promise<string> {
 		"--limit",
 		"1",
 		"--no-graph",
+		"--ignore-working-copy",
 		"-T",
 		"self.id()",
 	])

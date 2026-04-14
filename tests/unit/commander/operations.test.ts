@@ -179,6 +179,7 @@ describe("refresh state helpers", () => {
 	})
 
 	test("fetchRefreshState returns both operation and working copy ids", async () => {
+		mockExecute.mockClear()
 		mockExecute
 			.mockResolvedValueOnce({
 				stdout: "op123\n",
@@ -195,6 +196,27 @@ describe("refresh state helpers", () => {
 
 		const result = await fetchRefreshState()
 
+		expect(mockExecute).toHaveBeenCalledTimes(2)
+		expect(mockExecute).toHaveBeenCalledWith([
+			"op",
+			"log",
+			"--limit",
+			"1",
+			"--no-graph",
+			"--ignore-working-copy",
+			"-T",
+			"self.id()",
+		])
+		expect(mockExecute).toHaveBeenCalledWith([
+			"log",
+			"--limit",
+			"1",
+			"--no-graph",
+			"-r",
+			"@",
+			"-T",
+			"commit_id",
+		])
 		expect(result).toEqual({
 			operationId: "op123",
 			workingCopyCommitId: "wc456",
