@@ -1,7 +1,7 @@
 # OpenTUI Reference
 
 > Framework: [@opentui/solid](https://github.com/sst/opentui)
-> Last validated: 2026-02-01
+> Last validated: 2026-04-19 (0.1.100)
 
 ---
 
