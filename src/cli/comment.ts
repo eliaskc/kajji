@@ -273,7 +273,7 @@ export const commentCommand = defineCommand({
 					if (!target) {
 						throw new Error(`Hunk not found: ${hunk}`)
 					}
-					const anchor = buildHunkAnchor(hunk, target.filePath, target.hunk)
+					const anchor = buildHunkAnchor(hunk, target.file, target.hunk)
 					const comment = createCommentEntry({
 						message,
 						author,

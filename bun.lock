@@ -8,7 +8,7 @@
         "@babel/preset-typescript": "^7.28.5",
         "@opentui/core": "0.1.81",
         "@opentui/solid": "0.1.81",
-        "@pierre/diffs": "^1.0.11",
+        "@pierre/diffs": "^1.1.16",
         "babel-preset-solid": "1.9.9",
         "citty": "^0.2.0",
         "diff": "^8.0.2",
@@ -190,7 +190,9 @@
 
     "@opentui/solid": ["@opentui/solid@0.1.81", "", { "dependencies": { "@babel/core": "7.28.0", "@babel/preset-typescript": "7.27.1", "@opentui/core": "0.1.81", "babel-plugin-module-resolver": "5.0.2", "babel-preset-solid": "1.9.9", "s-js": "^0.4.9" }, "peerDependencies": { "solid-js": "1.9.9" } }, "sha512-QRjS0wPuIhBRdY8tpG3yprCM4ZnOxWWHTuaZ4hhia2wFZygf7Ome6EuZnLXmtuOQjkjCwu0if8Yik6toc6QylA=="],
 
-    "@pierre/diffs": ["@pierre/diffs@1.0.11", "", { "dependencies": { "@shikijs/core": "^3.0.0", "@shikijs/engine-javascript": "^3.0.0", "@shikijs/transformers": "^3.0.0", "diff": "8.0.3", "hast-util-to-html": "9.0.5", "lru_map": "0.4.1", "shiki": "^3.0.0" }, "peerDependencies": { "react": "^18.3.1 || ^19.0.0", "react-dom": "^18.3.1 || ^19.0.0" } }, "sha512-j6zIEoyImQy1HfcJqbrDwP0O5I7V2VNXAaw53FqQ+SykRfaNwABeZHs9uibXO4supaXPmTx6LEH9Lffr03e1Tw=="],
+    "@pierre/diffs": ["@pierre/diffs@1.1.16", "", { "dependencies": { "@pierre/theme": "0.0.28", "@shikijs/transformers": "^3.0.0", "diff": "8.0.3", "hast-util-to-html": "9.0.5", "lru_map": "0.4.1", "shiki": "^3.0.0" }, "peerDependencies": { "react": "^18.3.1 || ^19.0.0", "react-dom": "^18.3.1 || ^19.0.0" } }, "sha512-p6kaS1Psx6469Qx+gtO6nV1XVe3DMlNBy1kpkZlgelxIuGUfNQNKm0WkxMBwRxyeWRaXXGRxpe6BaQTO/tsukg=="],
+
+    "@pierre/theme": ["@pierre/theme@0.0.28", "", {}, "sha512-1j/H/fECBuc9dEvntdWI+l435HZapw+RCJTlqCA6BboQ5TjlnE005j/ROWutXIs8aq5OAc82JI2Kwk4A1WWBgw=="],
 
     "@shikijs/core": ["@shikijs/core@3.21.0", "", { "dependencies": { "@shikijs/types": "3.21.0", "@shikijs/vscode-textmate": "^10.0.2", "@types/hast": "^3.0.4", "hast-util-to-html": "^9.0.5" } }, "sha512-AXSQu/2n1UIQekY8euBJlvFYZIw0PHY63jUzGbrOma4wPxzznJXTXkri+QcHeBNaFxiiOljKxxJkVSoB3PjbyA=="],
 

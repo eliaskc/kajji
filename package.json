@@ -35,7 +35,7 @@
 		"@babel/preset-typescript": "^7.28.5",
 		"@opentui/core": "0.1.81",
 		"@opentui/solid": "0.1.81",
-		"@pierre/diffs": "^1.0.11",
+		"@pierre/diffs": "^1.1.16",
 		"babel-preset-solid": "1.9.9",
 		"citty": "^0.2.0",
 		"diff": "^8.0.2",

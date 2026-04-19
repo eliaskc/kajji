@@ -14,6 +14,7 @@ export interface HunkIndexEntry {
 	newStart: number
 	newCount: number
 	contextLines: string[]
+	file: DiffFile
 	hunk: Hunk
 }
 
@@ -24,13 +25,18 @@ interface LineCandidate {
 	contextLines: string[]
 }
 
-export function getContextLines(hunk: Hunk, maxLines = 5): string[] {
+export function getContextLines(
+	file: DiffFile,
+	hunk: Hunk,
+	maxLines = 5,
+): string[] {
 	const lines: string[] = []
 	for (const content of hunk.hunkContent) {
 		if (content.type !== "context") continue
-		for (const line of content.lines) {
+		for (let i = 0; i < content.lines; i++) {
 			if (lines.length >= maxLines) return lines
-			lines.push(line.trim())
+			const raw = file.additionLines[content.additionLineIndex + i] ?? ""
+			lines.push(raw.trim())
 		}
 	}
 	return lines
@@ -38,20 +44,20 @@ export function getContextLines(hunk: Hunk, maxLines = 5): string[] {
 
 export function buildHunkAnchor(
 	id: string,
-	filePath: string,
+	file: DiffFile,
 	hunk: Hunk,
 ): CommentAnchorHunk {
 	return {
 		id,
 		type: "hunk",
-		filePath,
+		filePath: file.name,
 		lineRange: {
 			oldStart: hunk.deletionStart,
 			oldCount: hunk.deletionLines,
 			newStart: hunk.additionStart,
 			newCount: hunk.additionLines,
 		},
-		contextLines: getContextLines(hunk),
+		contextLines: getContextLines(file, hunk),
 		comments: [],
 	}
 }
@@ -70,7 +76,8 @@ export function buildHunkIndex(files: DiffFile[]): HunkIndexEntry[] {
 				oldCount: hunk.deletionLines,
 				newStart: hunk.additionStart,
 				newCount: hunk.additionLines,
-				contextLines: getContextLines(hunk),
+				contextLines: getContextLines(file, hunk),
+				file,
 				hunk,
 			})
 		}
@@ -113,10 +120,11 @@ function buildLineCandidates(files: DiffFile[]): Map<string, LineCandidate[]> {
 
 			for (const content of hunk.hunkContent) {
 				if (content.type === "context") {
-					for (const line of content.lines) {
+					for (let i = 0; i < content.lines; i++) {
+						const raw = file.additionLines[content.additionLineIndex + i] ?? ""
 						lines.push({
 							type: "context",
-							content: line,
+							content: raw,
 							oldLineNumber: oldLine,
 							newLineNumber: newLine,
 						})
@@ -126,19 +134,21 @@ function buildLineCandidates(files: DiffFile[]): Map<string, LineCandidate[]> {
 					continue
 				}
 
-				for (const line of content.deletions) {
+				for (let i = 0; i < content.deletions; i++) {
+					const raw = file.deletionLines[content.deletionLineIndex + i] ?? ""
 					lines.push({
 						type: "deletion",
-						content: line,
+						content: raw,
 						oldLineNumber: oldLine,
 					})
 					oldLine += 1
 				}
 
-				for (const line of content.additions) {
+				for (let i = 0; i < content.additions; i++) {
+					const raw = file.additionLines[content.additionLineIndex + i] ?? ""
 					lines.push({
 						type: "addition",
-						content: line,
+						content: raw,
 						newLineNumber: newLine,
 					})
 					newLine += 1

@@ -32,6 +32,7 @@ import typescript from "@shikijs/langs/typescript"
 import yaml from "@shikijs/langs/yaml"
 import zig from "@shikijs/langs/zig"
 import ayuDark from "@shikijs/themes/ayu-dark"
+import type { BundledLanguage } from "shiki"
 import {
 	type Highlighter,
 	createHighlighter,
@@ -136,8 +137,11 @@ function tokenize(id: number, content: string, language: SupportedLanguages) {
 			return
 		}
 
+		// @pierre/diffs 1.1+ widened SupportedLanguages to include custom
+		// string languages. We only pass loaded bundled languages here (guarded
+		// above), so the cast is safe.
 		const result = highlighter.codeToTokens(content, {
-			lang: language,
+			lang: language as BundledLanguage,
 			theme: "ayu-dark",
 		})
 

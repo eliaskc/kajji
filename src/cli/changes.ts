@@ -49,23 +49,29 @@ function mapStatus(type: DiffFile["type"]): FileStatus {
 	}
 }
 
-function buildHunkDiff(hunk: DiffFile["hunks"][number]): string {
+function buildHunkDiff(
+	file: DiffFile,
+	hunk: DiffFile["hunks"][number],
+): string {
 	const header = `@@ -${hunk.deletionStart},${hunk.deletionLines} +${hunk.additionStart},${hunk.additionLines} @@${hunk.hunkContext ? ` ${hunk.hunkContext}` : ""}`
 	const lines: string[] = [header]
 	const normalizeLine = (line: string) => line.replace(/[\r\n]+$/g, "")
 
 	for (const content of hunk.hunkContent) {
 		if (content.type === "context") {
-			for (const line of content.lines) {
+			for (let i = 0; i < content.lines; i++) {
+				const line = file.additionLines[content.additionLineIndex + i] ?? ""
 				lines.push(` ${normalizeLine(line)}`)
 			}
 			continue
 		}
 
-		for (const line of content.deletions) {
+		for (let i = 0; i < content.deletions; i++) {
+			const line = file.deletionLines[content.deletionLineIndex + i] ?? ""
 			lines.push(`-${normalizeLine(line)}`)
 		}
-		for (const line of content.additions) {
+		for (let i = 0; i < content.additions; i++) {
+			const line = file.additionLines[content.additionLineIndex + i] ?? ""
 			lines.push(`+${normalizeLine(line)}`)
 		}
 	}
@@ -119,7 +125,7 @@ export const changesCommand = defineCommand({
 						newCount: hunk.additionLines,
 						added: hunk.additionCount,
 						removed: hunk.deletionCount,
-						diff: input.diff ? buildHunkDiff(hunk) : undefined,
+						diff: input.diff ? buildHunkDiff(file, hunk) : undefined,
 					}
 				})
 

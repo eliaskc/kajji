@@ -148,14 +148,16 @@ export function flattenHunk(file: FileDiffMetadata, hunk: Hunk): FlattenedHunk {
 	let oldLine = hunk.deletionStart
 	let newLine = hunk.additionStart
 
+	// @pierre/diffs 1.1+ stores line strings on the file, with hunk content
+	// segments holding counts + indices into file.deletionLines/additionLines.
 	for (const content of hunk.hunkContent) {
 		if (content.type === "context") {
 			const ctx = content as ContextContent
-			for (const line of ctx.lines) {
-				const normalized = expandTabs(line)
+			for (let i = 0; i < ctx.lines; i++) {
+				const raw = file.additionLines[ctx.additionLineIndex + i] ?? ""
 				lines.push({
 					type: "context",
-					content: normalized,
+					content: expandTabs(raw),
 					oldLineNumber: oldLine++,
 					newLineNumber: newLine++,
 					hunkId: id,
@@ -165,22 +167,22 @@ export function flattenHunk(file: FileDiffMetadata, hunk: Hunk): FlattenedHunk {
 			const change = content as ChangeContent
 
 			// Deletions first (old side)
-			for (const line of change.deletions) {
-				const normalized = expandTabs(line)
+			for (let i = 0; i < change.deletions; i++) {
+				const raw = file.deletionLines[change.deletionLineIndex + i] ?? ""
 				lines.push({
 					type: "deletion",
-					content: normalized,
+					content: expandTabs(raw),
 					oldLineNumber: oldLine++,
 					hunkId: id,
 				})
 			}
 
 			// Then additions (new side)
-			for (const line of change.additions) {
-				const normalized = expandTabs(line)
+			for (let i = 0; i < change.additions; i++) {
+				const raw = file.additionLines[change.additionLineIndex + i] ?? ""
 				lines.push({
 					type: "addition",
-					content: normalized,
+					content: expandTabs(raw),
 					newLineNumber: newLine++,
 					hunkId: id,
 				})
