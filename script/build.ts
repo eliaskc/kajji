@@ -103,6 +103,23 @@ for (const target of targets) {
 		const { chmod } = await import("node:fs/promises")
 		await chmod(outfile, 0o755)
 
+		// Ad-hoc sign darwin binaries.
+		// Bun <=1.3.11's compile step produced linker-signed binaries
+		// automatically; 1.3.12 regressed and emits unsigned binaries which
+		// macOS Sonoma+ SIGKILLs on launch. codesign --remove-signature first
+		// because Bun still writes an empty LC_CODE_SIGNATURE stub that breaks
+		// a direct re-sign with "invalid or unsupported format for signature".
+		if (target.os === "darwin" && process.platform === "darwin") {
+			execSync(`codesign --remove-signature ${outfile}`, { stdio: "pipe" })
+			execSync(`codesign --force --deep --sign - ${outfile}`, {
+				stdio: "pipe",
+			})
+			const sigInfo = execSync(`codesign -dv ${outfile} 2>&1`).toString()
+			if (!/Signature=adhoc/.test(sigInfo)) {
+				throw new Error(`codesign did not apply adhoc signature to ${outfile}`)
+			}
+		}
+
 		const platformPkg = {
 			name,
 			version,
