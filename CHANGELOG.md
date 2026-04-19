@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.10.3
+
+Supersedes 0.10.2. 0.10.2 macOS binaries were SIGKILLed at launch because Bun 1.3.12 stopped emitting ad-hoc linker signatures during `--compile`, and macOS Sonoma+ rejects unsigned downloads via the `com.apple.provenance` xattr. 0.10.3 is otherwise functionally equivalent to what 0.10.2 was meant to be.
+
+### improved
+- layout: remove padding to increase space for content ([`ea05169`](../../commit/ea05169))
+
+### fixed
+- build: ad-hoc sign darwin binaries so macOS Sonoma+ does not SIGKILL them ([`2ab48e3e`](../../commit/2ab48e3e))
+- ux: global keybinds no longer trigger in input fields, so `?` and other shortcuts can be typed in modals like revision describe ([`579aef7`](../../commit/579aef7))
+- detect working copy changes in polling refresh for `@` ([#88](../../pull/88))
+- theming: match color on `///` pattern between gap and deleted lines ([`7c4043c`](../../commit/7c4043c))
+
 ## 0.10.1
 
 ### fixed

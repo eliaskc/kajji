@@ -1,6 +1,6 @@
 {
 	"name": "kajji",
-	"version": "0.10.1",
+	"version": "0.10.3",
 	"description": "A terminal UI for Jujutsu: the rudder for your jj",
 	"type": "module",
 	"engines": {
