@@ -176,11 +176,11 @@ if (!dryRun) {
 		const published = await publishWithRetry("kajji", tgz, wrapperDir)
 		if (!published) {
 			failures.push("kajji")
+		} else {
+			console.log(`  -> published kajji@${version}`)
 		}
 	}
 }
-
-console.log(`  -> published kajji@${version}`)
 
 console.log("\nCreating GitHub release archives...")
 
@@ -199,12 +199,18 @@ for (const { os, arch } of platforms) {
 }
 
 console.log("\nDone! Release artifacts in dist/")
-console.log("\nNext steps:")
-console.log(`  1. git tag v${version}`)
-console.log(`  2. git push origin v${version}`)
-console.log(
-	`  3. gh release create v${version} dist/*.tar.gz dist/*.zip --title "v${version}"`,
-)
+
+// In CI (skipBuild=true) the workflow takes over from here: tagging, pushing,
+// and creating the GitHub release. Only print local-flow next steps when this
+// script is the entire release.
+if (!skipBuild) {
+	console.log("\nNext steps:")
+	console.log(`  1. git tag v${version}`)
+	console.log(`  2. git push origin v${version}`)
+	console.log(
+		`  3. gh release create v${version} dist/*.tar.gz dist/*.zip --title "v${version}"`,
+	)
+}
 
 if (failures.length > 0) {
 	throw new Error(`Publish failed for: ${failures.join(", ")}`)
