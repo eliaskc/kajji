@@ -1,0 +1,322 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Version bump (patch | minor | major | x.y.z). Leave empty to let the agent decide."
+        required: false
+        default: ""
+      model:
+        description: "pi model id (provider/model)"
+        required: false
+        default: "opencode/claude-sonnet-4-5"
+      pi_version:
+        description: "Pin a specific @mariozechner/pi-coding-agent version (default: latest)"
+        required: false
+        default: "latest"
+  pull_request:
+    types: [closed]
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Manual trigger: run pi to write CHANGELOG.md + bump package.json,
+  # then open a PR. Maintainer reviews and merges.
+  # ---------------------------------------------------------------------------
+  draft-release-pr:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Install pi
+        run: |
+          if [[ "${{ inputs.pi_version }}" == "latest" ]]; then
+            npm install -g @mariozechner/pi-coding-agent
+          else
+            npm install -g @mariozechner/pi-coding-agent@${{ inputs.pi_version }}
+          fi
+          pi --version
+
+      - name: Capture pre-state
+        id: pre
+        run: |
+          echo "old_version=$(jq -r .version package.json)" >> "$GITHUB_OUTPUT"
+          echo "old_changelog_sha=$(sha256sum CHANGELOG.md | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
+      - name: Run pi to generate changelog and bump version
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PI_OFFLINE: "0"
+        run: |
+          set -euo pipefail
+          # Pass the bump arg as positional ($1) to the prompt template.
+          # Quoted so an empty bump arrives as an empty string and the prompt
+          # treats it as "agent decides".
+          pi -p \
+            --model "${{ inputs.model }}" \
+            --tools read,bash,edit,write,grep,find,ls \
+            --no-skills \
+            --no-context-files \
+            --no-extensions \
+            --no-session \
+            @.github/workflows/release-notes-prompt.md "${{ inputs.bump }}"
+
+      - name: Verify pi did its job
+        id: post
+        run: |
+          set -euo pipefail
+          NEW_VERSION=$(jq -r .version package.json)
+          OLD_VERSION="${{ steps.pre.outputs.old_version }}"
+          NEW_CHANGELOG_SHA=$(sha256sum CHANGELOG.md | cut -d' ' -f1)
+          OLD_CHANGELOG_SHA="${{ steps.pre.outputs.old_changelog_sha }}"
+
+          if [[ "$NEW_VERSION" == "$OLD_VERSION" ]]; then
+            echo "::error::Agent did not bump version in package.json (still $OLD_VERSION)"
+            exit 1
+          fi
+
+          if [[ "$NEW_CHANGELOG_SHA" == "$OLD_CHANGELOG_SHA" ]]; then
+            echo "::error::Agent did not update CHANGELOG.md"
+            exit 1
+          fi
+
+          if ! grep -q "^## ${NEW_VERSION}\$" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md is missing a section for ${NEW_VERSION}"
+            exit 1
+          fi
+
+          # Make sure the agent didn't accidentally touch other files.
+          UNEXPECTED=$(git status --porcelain | awk '{print $2}' \
+            | grep -vE '^(package\.json|CHANGELOG\.md)$' || true)
+          if [[ -n "$UNEXPECTED" ]]; then
+            echo "::warning::Agent modified unexpected files:"
+            echo "$UNEXPECTED"
+            # Revert anything outside the allowlist so the PR stays scoped.
+            for f in $UNEXPECTED; do
+              git checkout -- "$f" 2>/dev/null || rm -f "$f"
+            done
+          fi
+
+          echo "version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Show diff
+        run: |
+          echo "::group::package.json diff"
+          git --no-pager diff -- package.json || true
+          echo "::endgroup::"
+          echo "::group::CHANGELOG.md diff"
+          git --no-pager diff -- CHANGELOG.md || true
+          echo "::endgroup::"
+
+      - name: Extract release notes for PR body
+        id: notes
+        run: |
+          set -euo pipefail
+          NOTES=$(bun run script/extract-release-notes.ts "${{ steps.post.outputs.version }}")
+          {
+            echo "notes<<RELEASE_NOTES_EOF"
+            echo "$NOTES"
+            echo "RELEASE_NOTES_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Open release PR
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: release/v${{ steps.post.outputs.version }}
+          delete-branch: true
+          commit-message: "release: v${{ steps.post.outputs.version }}"
+          title: "release: v${{ steps.post.outputs.version }}"
+          labels: release
+          body: |
+            Auto-generated release PR for **v${{ steps.post.outputs.version }}**.
+
+            - Generated by `pi` using model `${{ inputs.model }}`
+            - Bump input: `${{ inputs.bump || '(agent-decided)' }}`
+            - Triggered by @${{ github.actor }}
+
+            ---
+
+            ${{ steps.notes.outputs.notes }}
+
+            ---
+
+            **Merge this PR to publish.** On merge with the `release` label:
+            1. Tag `v${{ steps.post.outputs.version }}` is created and pushed
+            2. Binaries are built for darwin-{arm64,x64} and linux-{x64,arm64}
+            3. Packages are published to npm
+            4. A GitHub release is created with these notes and binary archives
+
+  # ---------------------------------------------------------------------------
+  # When the release PR is merged: tag the merge commit and push the tag.
+  # The tag push triggers the build/publish jobs below.
+  # ---------------------------------------------------------------------------
+  tag-on-merge:
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.merged == true &&
+      contains(github.event.pull_request.labels.*.name, 'release')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create and push tag
+        run: |
+          set -euo pipefail
+          VERSION=$(jq -r .version package.json)
+          TAG="v$VERSION"
+
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "::error::Tag $TAG already exists"
+            exit 1
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "Release $TAG"
+          git push origin "$TAG"
+          echo "Pushed tag $TAG"
+
+  # ---------------------------------------------------------------------------
+  # On tag push (vX.Y.Z): build platform binaries on native runners.
+  # ---------------------------------------------------------------------------
+  build:
+    if: startsWith(github.ref, 'refs/tags/v')
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - target: darwin-arm64
+            runner: macos-14
+          - target: darwin-x64
+            runner: macos-15-intel
+          - target: linux-x64
+            runner: ubuntu-latest
+          - target: linux-arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - run: bun install
+
+      - name: Build binary
+        run: bun run script/build.ts --target ${{ matrix.target }}
+
+      - name: Upload platform package
+        uses: actions/upload-artifact@v4
+        with:
+          name: kajji-${{ matrix.target }}
+          path: dist/kajji-${{ matrix.target }}
+          if-no-files-found: error
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # On tag push: gather all artifacts, publish to npm, create GH release.
+  # ---------------------------------------------------------------------------
+  publish:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+
+      - run: bun install
+
+      - name: Download all platform artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Reassemble dist/
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          for dir in artifacts/kajji-*; do
+            target=$(basename "$dir")
+            mkdir -p "dist/$target"
+            cp -r "$dir"/. "dist/$target"/
+            chmod +x "dist/$target/bin/kajji" || true
+          done
+          ls -la dist/
+
+      - name: Verify tag matches package.json
+        run: |
+          set -euo pipefail
+          TAG_VERSION="${GITHUB_REF#refs/tags/v}"
+          PKG_VERSION=$(jq -r .version package.json)
+          if [[ "$TAG_VERSION" != "$PKG_VERSION" ]]; then
+            echo "::error::Tag v$TAG_VERSION does not match package.json version $PKG_VERSION"
+            exit 1
+          fi
+          echo "version=$PKG_VERSION"
+
+      - name: Publish to npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          SKIP_BUILD: "1"
+        run: bun run script/publish.ts --skip-build
+
+      - name: Extract release notes
+        id: notes
+        run: |
+          set -euo pipefail
+          VERSION=$(jq -r .version package.json)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          bun run script/extract-release-notes.ts "$VERSION" > /tmp/release-notes.md
+          echo "::group::Release notes"
+          cat /tmp/release-notes.md
+          echo "::endgroup::"
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.notes.outputs.version }}
+          name: v${{ steps.notes.outputs.version }}
+          body_path: /tmp/release-notes.md
+          prerelease: false
+          files: |
+            dist/kajji-darwin-arm64.zip
+            dist/kajji-darwin-x64.zip
+            dist/kajji-linux-x64.tar.gz
+            dist/kajji-linux-arm64.tar.gz

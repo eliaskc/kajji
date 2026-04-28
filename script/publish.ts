@@ -18,6 +18,8 @@ const version = pkg.version
 
 const args = process.argv.slice(2)
 const dryRun = args.includes("--dry-run")
+const skipBuild =
+	args.includes("--skip-build") || process.env.SKIP_BUILD === "1"
 const tagArg = args.find((_, i) => args[i - 1] === "--tag")
 const tag = tagArg || "latest"
 
@@ -28,7 +30,11 @@ console.log(
 	`Publishing kajji v${version} (tag: ${tag})${dryRun ? " [DRY RUN]" : ""}\n`,
 )
 
-const { binaries } = await import("./build.ts")
+if (!skipBuild) {
+	// Side-effect import: re-runs the build. Used for the local release flow.
+	// In CI we pre-build per platform on native runners and pass --skip-build.
+	await import("./build.ts")
+}
 
 const platforms = [
 	{ os: "darwin", arch: "arm64" },
