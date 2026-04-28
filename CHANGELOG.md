@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.11.1
+
+### fixed
+- ux: "what's new" screen updated to match flat design language ([`423d55a`](../../commit/423d55a))
+- build: publish script no longer logs "published" on failure or prints local next-steps in ci ([`03c1d79`](../../commit/03c1d79))
+
 ## 0.11.0
 
 ### new
