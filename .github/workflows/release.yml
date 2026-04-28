@@ -8,9 +8,9 @@ on:
         required: false
         default: ""
       model:
-        description: "pi model id (provider/model)"
+        description: "pi model id (provider/model[:thinking]). Defaults to claude-sonnet-4-6 — top prose quality + adaptive reasoning. Alternatives: opencode/kimi-k2.5 (cheap), opencode/gpt-5.4-mini (fast)."
         required: false
-        default: "opencode/claude-sonnet-4-5"
+        default: "opencode/claude-sonnet-4-6"
       pi_version:
         description: "Pin a specific @mariozechner/pi-coding-agent version (default: latest)"
         required: false
