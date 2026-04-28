@@ -71,9 +71,9 @@ import {
 	type FilterableFileTreeApi,
 } from "../FilterableFileTree"
 import { Panel } from "../Panel"
+import { ActionMenuModal } from "../modals/ActionMenuModal"
 import { BookmarkNameModal } from "../modals/BookmarkNameModal"
 import { DescribeModal } from "../modals/DescribeModal"
-import { NewChangeModal } from "../modals/NewChangeModal"
 import { RebaseModal } from "../modals/RebaseModal"
 import { SetBookmarkModal } from "../modals/SetBookmarkModal"
 import { SquashModal } from "../modals/SquashModal"
@@ -972,22 +972,6 @@ export function LogPanel() {
 			},
 		},
 		{
-			id: "log.revisions.new_no_verify",
-			title: "new without hooks",
-			keybind: "jj_new_no_verify",
-			context: "log.revisions",
-			type: "action",
-			panel: "log",
-			visibility: "help-only",
-			onSelect: () => {
-				const commit = selectedCommit()
-				if (commit)
-					runOperation("Creating...", (options) =>
-						jjNew(getRevisionId(commit), { ...options, verify: false }),
-					)
-			},
-		},
-		{
 			id: "log.revisions.new_menu",
 			title: "new menu",
 			keybind: "jj_new_options",
@@ -998,37 +982,57 @@ export function LogPanel() {
 			onSelect: () => {
 				const commit = selectedCommit()
 				if (!commit) return
+				const revision = getRevisionId(commit)
 				dialog.open(
 					() => (
-						<NewChangeModal
-							onNew={() =>
-								runOperation("Creating...", (options) =>
-									jjNew(getRevisionId(commit), options),
-								)
-							}
-							onNewAfter={() =>
-								runOperation("Creating...", (options) =>
-									jjNewAfter(getRevisionId(commit), options),
-								)
-							}
-							onNewBefore={() =>
-								runOperation("Creating...", (options) =>
-									jjNewBefore(getRevisionId(commit), options),
-								)
-							}
+						<ActionMenuModal
+							options={[
+								{
+									key: "n",
+									label: "new",
+									detail: "run hooks",
+									onSelect: () =>
+										runOperation("Creating...", (options) =>
+											jjNew(revision, options),
+										),
+								},
+								{
+									key: "v",
+									label: "new --no-verify",
+									detail: "skip hooks",
+									onSelect: () =>
+										runOperation("Creating...", (options) =>
+											jjNew(revision, { ...options, verify: false }),
+										),
+								},
+								{
+									key: "a",
+									label: "new --after",
+									onSelect: () =>
+										runOperation("Creating...", (options) =>
+											jjNewAfter(revision, options),
+										),
+								},
+								{
+									key: "b",
+									label: "new --before",
+									onSelect: () =>
+										runOperation("Creating...", (options) =>
+											jjNewBefore(revision, options),
+										),
+								},
+							]}
 						/>
 					),
 					{
 						id: "new-menu",
 						title: [
 							{ text: "New", style: "action" },
-							" at ",
+							" options at ",
 							{ text: commit.changeId.slice(0, 8), style: "target" },
 						],
-						hints: [
-							{ key: "a", label: "after" },
-							{ key: "b", label: "before" },
-						],
+						...DIALOG_SIZE.confirm,
+						hints: [{ key: "enter", label: "run" }],
 					},
 				)
 			},

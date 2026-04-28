@@ -604,33 +604,6 @@ export function BookmarksPanel() {
 			},
 		},
 		{
-			id: "refs.bookmarks.new_no_verify",
-			title: "new without hooks",
-			keybind: "jj_new_no_verify",
-			context: "refs.bookmarks",
-			type: "action",
-			panel: "refs",
-			visibility: "help-only",
-			onSelect: () => {
-				if (showRemoteOnly()) return
-				const bookmark = selectedBookmark()
-				if (!bookmark) return
-				if (!bookmark.changeId) {
-					commandLog.addEntry({
-						command: `jj new ${bookmark.name}`,
-						success: false,
-						exitCode: 1,
-						stdout: "",
-						stderr: "Bookmark has no target change",
-					})
-					return
-				}
-				runOperation("Creating...", (options) =>
-					jjNew(bookmark.name, { ...options, verify: false }),
-				)
-			},
-		},
-		{
 			id: "refs.bookmarks.edit",
 			title: "edit",
 			keybind: "jj_edit",
