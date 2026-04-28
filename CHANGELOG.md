@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.11.0
+
+### new
+- binary files are selectable in the file tree, show a matrix-style rain placeholder in the detail pane, and are grouped into a compact footer in full-revision diffs ([`8819f02`](../../commit/8819f02))
+- `jj new` pre-hook support configurable via config file ([`c812aa2`](../../commit/c812aa2))
+- command log panel streams output in real time ([`0b64b81`](../../commit/0b64b81))
+
+### improved
+- ux: new/push/fetch action menus show full jj command with dimmed prefix and secondary detail (e.g. "run hooks") moved to the right of the keybind ([`dae1853`](../../commit/dae1853))
+- ux: `--no-verify` new moved into the `N` action menu alongside `--after`/`--before`; standalone `ctrl+n` removed ([`0a5f878`](../../commit/0a5f878))
+
 ## 0.10.3
 
 Supersedes 0.10.2. 0.10.2 macOS binaries were SIGKILLed at launch because Bun 1.3.12 stopped emitting ad-hoc linker signatures during `--compile`, and macOS Sonoma+ rejects unsigned downloads via the `com.apple.provenance` xattr. 0.10.3 is otherwise functionally equivalent to what 0.10.2 was meant to be.
