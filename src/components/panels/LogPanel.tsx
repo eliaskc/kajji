@@ -525,6 +525,14 @@ export function LogPanel() {
 			evt.preventDefault()
 			evt.stopPropagation()
 			cancelFilter()
+		} else if (evt.name === "down") {
+			evt.preventDefault()
+			evt.stopPropagation()
+			selectGroupedCommitByOffset(1)
+		} else if (evt.name === "up") {
+			evt.preventDefault()
+			evt.stopPropagation()
+			selectGroupedCommitByOffset(-1)
 		} else if (evt.name === "enter" || evt.name === "return") {
 			evt.preventDefault()
 			evt.stopPropagation()
