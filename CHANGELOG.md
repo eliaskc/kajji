@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.12.0
+
+### new
+- light/dark theme modes ([`fb2dabf`](../../commit/fb2dabf))
+- panel focus mode expands the active panel while keeping all panels visible; replaces diff mode ([`b846aa3`](../../commit/b846aa3))
+- auto-update progress shown in status bar with pause/resume controls ([`e89cabe`](../../commit/e89cabe), [`f34ac80`](../../commit/f34ac80))
+- rename bookmarks with `r`; current bookmark shown in status bar ([`5050676`](../../commit/5050676))
+- grouped live revset filtering ([`ef8a7e7`](../../commit/ef8a7e7))
+- repo root shown in file tree ([`e6dd9cf`](../../commit/e6dd9cf))
+
+### improved
+- ux: command log progress is animated ([`1617601`](../../commit/1617601))
+- ux: up/down navigates rev selection during log filtering ([`e660dbc`](../../commit/e660dbc))
+- ux: panels remain at full opacity while filtering ([`904275e`](../../commit/904275e))
+- ux: log filter keybind shown in status bar ([`95ccf82`](../../commit/95ccf82))
+- ux: status bar keybind labels shortened ([`9de0553`](../../commit/9de0553))
+- ux: inactive log and file selections remain visible ([`0085d36`](../../commit/0085d36))
+
+### fixed
+- layout: bookmarks stay compact in focus mode ([`03a7a3d`](../../commit/03a7a3d))
+- layout: version indicator stays compact after update ([`3b8d0a5`](../../commit/3b8d0a5))
+- ux: command log status prefixes removed ([`545eece`](../../commit/545eece))
+- ux: setup screens aligned with modal actions ([`23e2c5e`](../../commit/23e2c5e))
+- ux: command log uses loading indicator ([`3617c1e`](../../commit/3617c1e))
+- working copy file changes can be discarded ([`7c4dd75`](../../commit/7c4dd75))
+- theming: diff summary text, syntax colors, and stripe colors are theme-aware ([`2514b56`](../../commit/2514b56), [`e3efea2`](../../commit/e3efea2), [`7d3f908`](../../commit/7d3f908), [`8851e43`](../../commit/8851e43))
+- theming: light mode wave background and ANSI text contrast corrected ([`c8aab8e`](../../commit/c8aab8e), [`fd7e96e`](../../commit/fd7e96e))
+
 ## 0.11.1
 
 ### fixed
