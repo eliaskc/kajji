@@ -97,8 +97,8 @@ export function FilterableFileTree(props: FilterableFileTreeProps) {
 		})
 		const matchingPaths = new Set(results.map((r) => r.obj.node.path))
 
-		// Include parent folders so tree structure is preserved
-		const pathsToShow = new Set<string>()
+		// Include root and parent folders so tree structure is preserved
+		const pathsToShow = new Set<string>([""])
 		for (const path of matchingPaths) {
 			pathsToShow.add(path)
 			const parts = path.split("/")

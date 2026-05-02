@@ -1,5 +1,7 @@
+import { basename } from "node:path"
 import { describe, expect, it } from "bun:test"
 import type { FileChange } from "../../../src/commander/types"
+import { getRepoPath } from "../../../src/repo"
 import {
 	buildFileTree,
 	flattenFlat,
@@ -7,11 +9,14 @@ import {
 	getFilePaths,
 } from "../../../src/utils/file-tree"
 
+const repoRootName = basename(getRepoPath()) || getRepoPath()
+
 describe("buildFileTree", () => {
 	it("builds tree from single file", () => {
 		const files: FileChange[] = [{ path: "file.ts", status: "added" }]
 		const tree = buildFileTree(files)
 
+		expect(tree.name).toBe(repoRootName)
 		expect(tree.children).toHaveLength(1)
 		expect(tree.children[0]?.name).toBe("file.ts")
 		expect(tree.children[0]?.isDirectory).toBe(false)
@@ -90,10 +95,11 @@ describe("flattenTree", () => {
 		const tree = buildFileTree(files)
 		const flat = flattenTree(tree, new Set())
 
-		expect(flat).toHaveLength(3)
-		expect(flat[0]?.node.name).toBe("src")
-		expect(flat[1]?.node.name).toBe("a.ts")
-		expect(flat[2]?.node.name).toBe("b.ts")
+		expect(flat).toHaveLength(4)
+		expect(flat[0]?.node.name).toBe(repoRootName)
+		expect(flat[1]?.node.name).toBe("src")
+		expect(flat[2]?.node.name).toBe("a.ts")
+		expect(flat[3]?.node.name).toBe("b.ts")
 	})
 
 	it("respects collapsed paths", () => {
@@ -105,8 +111,9 @@ describe("flattenTree", () => {
 		const collapsed = new Set(["src"])
 		const flat = flattenTree(tree, collapsed)
 
-		expect(flat).toHaveLength(1)
-		expect(flat[0]?.node.name).toBe("src")
+		expect(flat).toHaveLength(2)
+		expect(flat[0]?.node.name).toBe(repoRootName)
+		expect(flat[1]?.node.name).toBe("src")
 	})
 
 	it("calculates correct visual depth", () => {
@@ -121,9 +128,9 @@ describe("flattenTree", () => {
 		const file = flat.find((f) => f.node.name === "file.ts")
 		const root = flat.find((f) => f.node.name === "root.ts")
 
-		expect(srcUtils?.visualDepth).toBe(0)
-		expect(file?.visualDepth).toBe(1)
-		expect(root?.visualDepth).toBe(0)
+		expect(srcUtils?.visualDepth).toBe(1)
+		expect(file?.visualDepth).toBe(2)
+		expect(root?.visualDepth).toBe(1)
 	})
 })
 

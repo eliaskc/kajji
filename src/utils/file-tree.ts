@@ -1,4 +1,6 @@
+import { basename } from "node:path"
 import type { FileChange, FileStatus } from "../commander/types"
+import { getRepoPath } from "../repo"
 
 export interface FileTreeNode {
 	name: string
@@ -91,8 +93,9 @@ function compressTreeRecursive(node: FileTreeNode): void {
 }
 
 export function buildFileTree(files: FileChange[]): FileTreeNode {
+	const rootName = basename(getRepoPath()) || getRepoPath()
 	const root: FileTreeNode = {
-		name: "",
+		name: rootName,
 		path: "",
 		isDirectory: true,
 		children: [],
@@ -117,13 +120,11 @@ export function flattenTree(
 	const result: FlatFileNode[] = []
 
 	function traverse(node: FileTreeNode, visualDepth: number): void {
-		if (node.path) {
-			result.push({ node, visualDepth })
-		}
+		result.push({ node, visualDepth })
 
 		if (node.isDirectory && !collapsedPaths.has(node.path)) {
 			for (const child of node.children) {
-				traverse(child, node.path ? visualDepth + 1 : visualDepth)
+				traverse(child, visualDepth + 1)
 			}
 		}
 	}
