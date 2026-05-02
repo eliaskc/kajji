@@ -34,7 +34,7 @@ export function StatusBar() {
 		) {
 			setAnimationTick((index) => index + 1)
 		}
-	}, 140)
+	}, 200)
 	onCleanup(() => clearInterval(timer))
 
 	const relevantCommands = createMemo(() => {
@@ -84,9 +84,7 @@ export function StatusBar() {
 
 	const versionText = () => {
 		const state = update.state()
-		if (state.status === "success" && state.version)
-			return `updated v${state.version}`
-		if (state.status === "failure") return "update failed"
+		if (state.status === "success" && state.version) return `v${state.version}*`
 		return `v${getCurrentVersion()}`
 	}
 

@@ -41,7 +41,6 @@ export const { use: useUpdate, provider: UpdateProvider } = createSimpleContext(
 				setSuccess: (version: string) => {
 					clearResetTimer()
 					setState({ status: "success", version, completedAt: new Date() })
-					resetTimer = setTimeout(() => setState({ status: "idle" }), 2000)
 				},
 				setFailure: (version: string) => {
 					clearResetTimer()
