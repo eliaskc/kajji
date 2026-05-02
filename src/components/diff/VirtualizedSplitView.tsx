@@ -371,7 +371,6 @@ interface VirtualizedSplitRowProps {
 }
 
 function VirtualizedSplitRow(props: VirtualizedSplitRowProps) {
-	const { colors } = useTheme()
 	const { colors, mode } = useTheme()
 	const gapPatternColor = () =>
 		mode() === "light" ? colors().border : GAP_PATTERN_COLOR
@@ -393,7 +392,7 @@ function VirtualizedSplitRow(props: VirtualizedSplitRowProps) {
 			<box paddingRight={1}>
 				<box flexDirection="row" justifyContent="space-between" flexGrow={1}>
 					<text wrapMode="none">
-						<span style={{ fg: "#ffffff" }}>{headerText}</span>
+						<span style={{ fg: colors().text }}>{headerText}</span>
 					</text>
 					<Show when={stats?.isBinary}>
 						<text>

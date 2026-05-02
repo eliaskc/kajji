@@ -127,16 +127,18 @@ function FileStats(props: { stats: DiffStats; maxWidth: number }) {
 				}}
 			</For>
 			<text>
-				{s().totalFiles} file{s().totalFiles !== 1 ? "s" : ""} changed
+				<span style={{ fg: colors().text }}>
+					{s().totalFiles} file{s().totalFiles !== 1 ? "s" : ""} changed
+				</span>
 				<Show when={s().totalInsertions > 0}>
-					{", "}
+					<span style={{ fg: colors().text }}>{", "}</span>
 					<span style={{ fg: colors().success }}>
 						{s().totalInsertions} insertion
 						{s().totalInsertions !== 1 ? "s" : ""}(+)
 					</span>
 				</Show>
 				<Show when={s().totalDeletions > 0}>
-					{", "}
+					<span style={{ fg: colors().text }}>{", "}</span>
 					<span style={{ fg: colors().error }}>
 						{s().totalDeletions} deletion
 						{s().totalDeletions !== 1 ? "s" : ""}(-)
@@ -254,7 +256,7 @@ function CommitHeader(props: {
 						<text> </text>
 						<For each={lines()}>
 							{(line) => (
-								<text>
+								<text fg={colors().text}>
 									{"    "}
 									{line}
 								</text>
