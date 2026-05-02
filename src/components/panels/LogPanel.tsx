@@ -1573,7 +1573,6 @@ export function LogPanel() {
 			context: "log.revisions",
 			type: "action",
 			panel: "log",
-			visibility: "help-only",
 			onSelect: activateFilter,
 		},
 		{
