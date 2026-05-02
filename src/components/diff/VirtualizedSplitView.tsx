@@ -458,7 +458,7 @@ interface TokenWithEmphasis extends SyntaxToken {
 }
 
 function SplitContentRow(props: SplitContentRowProps) {
-	const { colors, syntaxTheme } = useTheme()
+	const { colors, mode, syntaxTheme } = useTheme()
 
 	const language = createMemo(() => getLanguage(props.row.row.fileName))
 
@@ -598,6 +598,8 @@ function SplitContentRow(props: SplitContentRowProps) {
 	const emptyFill = createMemo(() =>
 		EMPTY_STRIPE_CHAR.repeat(props.columnWidth),
 	)
+	const emptyStripeColor = () =>
+		mode() === "light" ? colors().border : EMPTY_STRIPE_COLOR
 
 	return (
 		<box flexDirection="row">
@@ -611,7 +613,7 @@ function SplitContentRow(props: SplitContentRowProps) {
 					when={hasLeftLine()}
 					fallback={
 						<text wrapMode="none">
-							<span style={{ fg: EMPTY_STRIPE_COLOR }}>{emptyFill()}</span>
+							<span style={{ fg: emptyStripeColor() }}>{emptyFill()}</span>
 						</text>
 					}
 				>
@@ -657,7 +659,7 @@ function SplitContentRow(props: SplitContentRowProps) {
 					when={hasRightLine()}
 					fallback={
 						<text wrapMode="none">
-							<span style={{ fg: EMPTY_STRIPE_COLOR }}>{emptyFill()}</span>
+							<span style={{ fg: emptyStripeColor() }}>{emptyFill()}</span>
 						</text>
 					}
 				>
