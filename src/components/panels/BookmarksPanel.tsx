@@ -735,7 +735,6 @@ export function BookmarksPanel() {
 			context: "refs.bookmarks",
 			type: "action",
 			panel: "refs",
-			visibility: "help-only",
 			onSelect: () => {
 				if (showRemoteOnly()) return
 				const bookmark = selectedBookmark()
