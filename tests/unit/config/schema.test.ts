@@ -12,6 +12,7 @@ describe("ConfigSchema", () => {
 		expect(config.diff.useJjFormatter).toBe(false)
 		expect(config.ui.showFileTree).toBe(true)
 		expect(config.whatsNewDisabled).toBe(false)
+		expect(config.autoUpdatesDisabled).toBe(false)
 		expect(config.hooks).toEqual({})
 	})
 
@@ -45,7 +46,14 @@ describe("ConfigSchema", () => {
 	test("existing config with only whatsNewDisabled still works", () => {
 		const config = ConfigSchema.parse({ whatsNewDisabled: true })
 		expect(config.whatsNewDisabled).toBe(true)
+		expect(config.autoUpdatesDisabled).toBe(false)
 		expect(config.ui.theme).toBe("kajji")
+	})
+
+	test("autoUpdatesDisabled can be configured", () => {
+		const config = ConfigSchema.parse({ autoUpdatesDisabled: true })
+		expect(config.autoUpdatesDisabled).toBe(true)
+		expect(config.whatsNewDisabled).toBe(false)
 	})
 
 	test("$schema field is preserved", () => {

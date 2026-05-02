@@ -1,5 +1,6 @@
 import { join } from "node:path"
 import { $ } from "bun"
+import { readConfig } from "../config"
 import { readState, writeState } from "./state"
 
 const GITHUB_RELEASES_URL =
@@ -214,6 +215,11 @@ export function checkForUpdates(callbacks: UpdateCallbacks = {}): void {
 			}
 
 			if (Bun.env.NODE_ENV === "development") return
+
+			if (readConfig().autoUpdatesDisabled) {
+				callbacks.onUpdateSkipped?.("auto-updates disabled")
+				return
+			}
 
 			if (shouldSkipCheck()) {
 				callbacks.onUpdateSkipped?.("checked recently")

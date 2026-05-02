@@ -97,6 +97,11 @@
 			"default": false,
 			"description": "Disable the what's new screen on updates",
 			"type": "boolean"
+		},
+		"autoUpdatesDisabled": {
+			"default": false,
+			"description": "Disable automatic update checks and installs",
+			"type": "boolean"
 		}
 	},
 	"description": "kajji configuration",

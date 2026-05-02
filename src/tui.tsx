@@ -155,6 +155,7 @@ export async function runTui(args: string[]): Promise<void> {
 						changes={newChanges.length > 0 ? newChanges : allBlocks.slice(0, 1)}
 						onClose={handleQuit}
 						onDisable={handleQuit}
+						onDisableAutoUpdates={handleQuit}
 					/>
 				</ThemeProvider>
 			)

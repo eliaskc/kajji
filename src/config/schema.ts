@@ -111,6 +111,11 @@ export const ConfigSchema = z
 			.boolean()
 			.default(false)
 			.describe("Disable the what's new screen on updates"),
+
+		autoUpdatesDisabled: z
+			.boolean()
+			.default(false)
+			.describe("Disable automatic update checks and installs"),
 	})
 	.describe("kajji configuration")
 

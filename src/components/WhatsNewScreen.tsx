@@ -1,6 +1,6 @@
 import { TextAttributes } from "@opentui/core"
 import { useKeyboard } from "@opentui/solid"
-import { For } from "solid-js"
+import { For, createSignal } from "solid-js"
 import { useTheme } from "../context/theme"
 import type { VersionBlock } from "../utils/changelog"
 import { FooterHints } from "./FooterHints"
@@ -10,20 +10,70 @@ interface WhatsNewScreenProps {
 	changes: VersionBlock[]
 	onClose: () => void
 	onDisable: () => void
+	onDisableAutoUpdates?: () => void
 }
 
 export function WhatsNewScreen(props: WhatsNewScreenProps) {
 	const { colors } = useTheme()
+	const [confirmAction, setConfirmAction] = createSignal<
+		"disable-whats-new" | "disable-auto-updates" | null
+	>(null)
+
+	const footerHints = () => {
+		const action = confirmAction()
+		if (action === "disable-whats-new") {
+			return [
+				{ key: "d", label: "confirm don't show again" },
+				{ key: "esc", label: "cancel" },
+			]
+		}
+		if (action === "disable-auto-updates") {
+			return [
+				{ key: "u", label: "confirm disable auto-updates" },
+				{ key: "esc", label: "cancel" },
+			]
+		}
+		return [
+			{ key: "d", label: "don't show again" },
+			...(props.onDisableAutoUpdates
+				? [{ key: "u", label: "disable auto-updates" }]
+				: []),
+			{ key: "enter", label: "dismiss" },
+		]
+	}
 
 	useKeyboard((evt) => {
-		if (["return", "enter", "escape", "q"].includes(evt.name ?? "")) {
+		const name = evt.name ?? ""
+		const action = confirmAction()
+		if (action) {
+			if (name === "escape") {
+				evt.preventDefault()
+				evt.stopPropagation()
+				setConfirmAction(null)
+			} else if (name === "d" && action === "disable-whats-new") {
+				evt.preventDefault()
+				evt.stopPropagation()
+				props.onDisable()
+			} else if (name === "u" && action === "disable-auto-updates") {
+				evt.preventDefault()
+				evt.stopPropagation()
+				props.onDisableAutoUpdates?.()
+			}
+			return
+		}
+
+		if (["return", "enter", "escape", "q"].includes(name)) {
 			evt.preventDefault()
 			evt.stopPropagation()
 			props.onClose()
-		} else if (evt.name === "d") {
+		} else if (name === "d") {
 			evt.preventDefault()
 			evt.stopPropagation()
-			props.onDisable()
+			setConfirmAction("disable-whats-new")
+		} else if (name === "u" && props.onDisableAutoUpdates) {
+			evt.preventDefault()
+			evt.stopPropagation()
+			setConfirmAction("disable-auto-updates")
 		}
 	})
 
@@ -69,12 +119,7 @@ export function WhatsNewScreen(props: WhatsNewScreenProps) {
 							)}
 						</For>
 					</scrollbox>
-					<FooterHints
-						hints={[
-							{ key: "d", label: "don't show again" },
-							{ key: "enter", label: "dismiss" },
-						]}
-					/>
+					<FooterHints hints={footerHints()} />
 				</box>
 			</box>
 		</box>

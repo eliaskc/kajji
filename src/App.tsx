@@ -681,6 +681,17 @@ function AppContent() {
 						lastSeenVersion: getCurrentVersion(),
 					})
 				}}
+				onDisableAutoUpdates={() => {
+					setWhatsNewChanges(null)
+					writeConfig({
+						...readConfig(),
+						autoUpdatesDisabled: true,
+					})
+					writeState({
+						...readState(),
+						lastSeenVersion: getCurrentVersion(),
+					})
+				}}
 			/>
 		</Show>
 	)
