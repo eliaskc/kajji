@@ -146,6 +146,9 @@ export function RevisionPicker(props: RevisionPickerProps) {
 									>
 										<AnsiText
 											content={line}
+											defaultFg={
+												isSelected() ? colors().selectionText : undefined
+											}
 											bold={commit.isWorkingCopy}
 											wrapMode="none"
 										/>

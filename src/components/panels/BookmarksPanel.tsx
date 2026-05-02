@@ -936,6 +936,11 @@ export function BookmarksPanel() {
 																content={
 																	bookmark.changeIdDisplay || bookmark.changeId
 																}
+																defaultFg={
+																	showSelection()
+																		? colors().selectionText
+																		: undefined
+																}
 																wrapMode="none"
 															/>
 															<text fg={colors().textMuted} wrapMode="none">
@@ -944,6 +949,11 @@ export function BookmarksPanel() {
 														</Show>
 														<AnsiText
 															content={bookmark.nameDisplay || bookmark.name}
+															defaultFg={
+																showSelection()
+																	? colors().selectionText
+																	: undefined
+															}
 															wrapMode="none"
 														/>
 														<Show when={!isDeleted()}>

@@ -2,6 +2,8 @@ import type { MouseEvent } from "@opentui/core"
 import type { TerminalLine } from "ghostty-opentui"
 import { ptyToJson } from "ghostty-opentui"
 import { For, Show, createEffect, createMemo } from "solid-js"
+import { useTheme } from "../context/theme"
+import { resolveAnsiForeground } from "../theme/ansi"
 import { profile } from "../utils/profiler"
 
 type AnsiSpan = {
@@ -22,6 +24,7 @@ interface AnsiTextProps {
 	bold?: boolean
 	wrapMode?: "none" | "char" | "word"
 	maxLines?: number
+	defaultFg?: string
 	onTotalLines?: (total: number) => void
 	onMouseScroll?: (event: MouseEvent) => void
 	cropStart?: number
@@ -29,6 +32,17 @@ interface AnsiTextProps {
 }
 
 export function AnsiText(props: AnsiTextProps) {
+	const { colors, mode } = useTheme()
+
+	const resolveFg = (fg: string | null | undefined): string =>
+		resolveAnsiForeground({
+			fg,
+			mode: mode(),
+			text: colors().text,
+			textMuted: colors().textMuted,
+			defaultFg: props.defaultFg,
+		})
+
 	const allLines = createMemo(() => {
 		if (!props.content) return [] as AnsiLine[]
 		const endParse = profile("ptyToJson parse")
@@ -92,7 +106,7 @@ export function AnsiText(props: AnsiTextProps) {
 				{(span) => (
 					<span
 						style={{
-							fg: span.fg ?? undefined,
+							fg: resolveFg(span.fg),
 							bg: span.bg ?? undefined,
 						}}
 					>

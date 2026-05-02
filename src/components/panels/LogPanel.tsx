@@ -1831,6 +1831,11 @@ export function LogPanel() {
 												>
 													<AnsiText
 														content={line}
+														defaultFg={
+															showSelection()
+																? colors().selectionText
+																: undefined
+														}
 														bold={commit.isWorkingCopy}
 														wrapMode="none"
 														onMouseScroll={createHorizontalScrollHandler(
@@ -1929,6 +1934,9 @@ export function LogPanel() {
 									>
 										<AnsiText
 											content={line}
+											defaultFg={
+												showSelection() ? colors().selectionText : undefined
+											}
 											wrapMode="none"
 											onMouseScroll={createHorizontalScrollHandler(
 												opLogScrollLeft,
