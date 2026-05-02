@@ -1,4 +1,5 @@
 import { execute, executeStreaming, executeWithColor } from "./executor"
+import type { OperationRunOptions } from "./observer"
 import type { OperationResult } from "./operations"
 
 const BOOKMARK_MARKER = "__BJ__"
@@ -178,13 +179,16 @@ export function parseBookmarkOutput(output: string): Bookmark[] {
 
 export async function jjBookmarkCreate(
 	name: string,
-	options?: { revision?: string },
+	options?: { revision?: string } & OperationRunOptions,
 ): Promise<OperationResult> {
 	const args = ["bookmark", "create", name]
 	if (options?.revision) {
 		args.push("-r", options.revision)
 	}
-	const result = await execute(args)
+	const result = await execute(args, {
+		observer: options?.observer,
+		command: `jj ${args.join(" ")}`,
+	})
 	return {
 		...result,
 		command: `jj ${args.join(" ")}`,
@@ -224,13 +228,16 @@ export async function jjBookmarkForget(name: string): Promise<OperationResult> {
 export async function jjBookmarkSet(
 	name: string,
 	revision: string,
-	options?: { allowBackwards?: boolean },
+	options?: { allowBackwards?: boolean } & OperationRunOptions,
 ): Promise<OperationResult> {
 	const args = ["bookmark", "set", name, "-r", revision]
 	if (options?.allowBackwards) {
 		args.push("--allow-backwards")
 	}
-	const result = await execute(args)
+	const result = await execute(args, {
+		observer: options?.observer,
+		command: `jj ${args.join(" ")}`,
+	})
 	return {
 		...result,
 		command: `jj ${args.join(" ")}`,

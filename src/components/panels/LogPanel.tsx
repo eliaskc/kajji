@@ -56,7 +56,6 @@ import { useCommandLog } from "../../context/commandlog"
 import { DIALOG_SIZE, useDialog } from "../../context/dialog"
 import { useFocus } from "../../context/focus"
 import { useKeybind } from "../../context/keybind"
-import { useLoading } from "../../context/loading"
 import { useSync } from "../../context/sync"
 import { useTheme } from "../../context/theme"
 import type { Context } from "../../context/types"
@@ -241,7 +240,6 @@ export function LogPanel() {
 	const command = useCommand()
 	const commandLog = useCommandLog()
 	const dialog = useDialog()
-	const globalLoading = useLoading()
 	const keybind = useKeybind()
 	const { colors } = useTheme()
 
@@ -549,12 +547,10 @@ export function LogPanel() {
 		const isInitialLoad = opLogEntries().length === 0
 		if (isInitialLoad) setOpLogLoading(true)
 		try {
-			await globalLoading.run("Loading...", async () => {
-				const lines = await fetchOpLog(effectiveLimit)
-				const entries = parseOpLog(lines)
-				setOpLogEntries(entries)
-				setOpLogHasMore(entries.length >= effectiveLimit)
-			})
+			const lines = await fetchOpLog(effectiveLimit)
+			const entries = parseOpLog(lines)
+			setOpLogEntries(entries)
+			setOpLogHasMore(entries.length >= effectiveLimit)
 		} catch (e) {
 			console.error("Failed to load op log:", e)
 		} finally {
@@ -590,9 +586,7 @@ export function LogPanel() {
 		}) => Promise<OperationResult>,
 	) => {
 		const observer = commandLog.observer()
-		const result = await globalLoading.run(text, () =>
-			withCommandObserver(observer, () => op({ observer })),
-		)
+		const result = await withCommandObserver(observer, () => op({ observer }))
 		commandLog.addEntry(result)
 		if (result.success) {
 			await refresh()
@@ -607,9 +601,11 @@ export function LogPanel() {
 		revision: string,
 		options?: { allowBackwards?: boolean },
 	): Promise<OperationResult> => {
-		const result = await globalLoading.run("Moving bookmark...", () =>
-			jjBookmarkSet(bookmarkName, revision, options),
-		)
+		const observer = commandLog.observer()
+		const result = await jjBookmarkSet(bookmarkName, revision, {
+			...options,
+			observer,
+		})
 		commandLog.addEntry(result)
 		if (result.success) {
 			refresh()
@@ -645,24 +641,22 @@ export function LogPanel() {
 		commit: Commit,
 		bookmarkName: string,
 	) => {
-		const createResult = await globalLoading.run("Creating bookmark...", () =>
-			jjBookmarkCreate(bookmarkName, { revision: getRevisionId(commit) }),
-		)
+		const observer = commandLog.observer()
+		const createResult = await jjBookmarkCreate(bookmarkName, {
+			revision: getRevisionId(commit),
+			observer,
+		})
 		commandLog.addEntry(createResult)
 		if (!createResult.success) return
 
-		const pushResult = await globalLoading.run("Pushing...", () =>
-			jjGitPushBookmark(bookmarkName),
-		)
+		const pushResult = await jjGitPushBookmark(bookmarkName, { observer })
 		commandLog.addEntry(pushResult)
 		if (!pushResult.success) return
 
 		await refresh()
 		await loadBookmarks()
 
-		const prResult = await globalLoading.run("Opening...", () =>
-			ghPrCreateWeb(bookmarkName),
-		)
+		const prResult = await ghPrCreateWeb(bookmarkName, { observer })
 		commandLog.addEntry(prResult)
 	}
 
@@ -702,9 +696,10 @@ export function LogPanel() {
 
 		try {
 			if (await jjIsInTrunk(bookmark.commitId)) {
-				const browseResult = await globalLoading.run("Opening...", () =>
-					ghBrowseCommit(bookmark.commitId),
-				)
+				const observer = commandLog.observer()
+				const browseResult = await ghBrowseCommit(bookmark.commitId, {
+					observer,
+				})
 				commandLog.addEntry(browseResult)
 				return
 			}
@@ -734,17 +729,15 @@ export function LogPanel() {
 				})
 				if (!confirmed) return
 			}
-			const pushResult = await globalLoading.run("Pushing...", () =>
-				jjGitPushBookmark(bookmark.name),
-			)
+			const observer = commandLog.observer()
+			const pushResult = await jjGitPushBookmark(bookmark.name, { observer })
 			commandLog.addEntry(pushResult)
 			if (!pushResult.success) return
 			await refresh()
 		}
 
-		const prResult = await globalLoading.run("Opening...", () =>
-			ghPrCreateWeb(bookmark.name),
-		)
+		const observer = commandLog.observer()
+		const prResult = await ghPrCreateWeb(bookmark.name, { observer })
 		commandLog.addEntry(prResult)
 	}
 
@@ -754,9 +747,8 @@ export function LogPanel() {
 
 		try {
 			if (await jjIsInTrunk(commit.commitId)) {
-				const browseResult = await globalLoading.run("Opening...", () =>
-					ghBrowseCommit(commit.commitId),
-				)
+				const observer = commandLog.observer()
+				const browseResult = await ghBrowseCommit(commit.commitId, { observer })
 				commandLog.addEntry(browseResult)
 				return
 			}
@@ -768,9 +760,10 @@ export function LogPanel() {
 		let targetBookmark = bookmark ? findBookmarkByName(bookmark) : null
 		if (!targetBookmark) {
 			if (options?.direct) {
-				const pushResult = await globalLoading.run("Pushing...", () =>
-					jjGitPushChange(getRevisionId(commit)),
-				)
+				const observer = commandLog.observer()
+				const pushResult = await jjGitPushChange(getRevisionId(commit), {
+					observer,
+				})
 				commandLog.addEntry(pushResult)
 				if (!pushResult.success) return
 				await refresh()

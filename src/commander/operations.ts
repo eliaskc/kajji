@@ -619,9 +619,13 @@ export async function jjGitPush(
 
 export async function jjGitPushBookmark(
 	bookmark: string,
+	options?: OperationRunOptions,
 ): Promise<OperationResult> {
 	const args = ["git", "push", "--bookmark", bookmark]
-	const result = await execute(args)
+	const result = await execute(args, {
+		observer: options?.observer,
+		command: `jj ${args.join(" ")}`,
+	})
 	return {
 		...result,
 		command: `jj ${args.join(" ")}`,
@@ -630,9 +634,13 @@ export async function jjGitPushBookmark(
 
 export async function jjGitPushChange(
 	changeId: string,
+	options?: OperationRunOptions,
 ): Promise<OperationResult> {
 	const args = ["git", "push", "--change", changeId]
-	const result = await execute(args)
+	const result = await execute(args, {
+		observer: options?.observer,
+		command: `jj ${args.join(" ")}`,
+	})
 	return {
 		...result,
 		command: `jj ${args.join(" ")}`,

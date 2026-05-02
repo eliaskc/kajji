@@ -35,7 +35,6 @@ import { useCommandLog } from "../../context/commandlog"
 import { DIALOG_SIZE, useDialog } from "../../context/dialog"
 import { useFocus } from "../../context/focus"
 import { useKeybind } from "../../context/keybind"
-import { useLoading } from "../../context/loading"
 import { useSync } from "../../context/sync"
 import { useTheme } from "../../context/theme"
 import { createDoubleClickDetector } from "../../utils/double-click"
@@ -76,7 +75,6 @@ export function BookmarksPanel() {
 	const keybind = useKeybind()
 	const commandLog = useCommandLog()
 	const dialog = useDialog()
-	const globalLoading = useLoading()
 	const { colors } = useTheme()
 	const { refresh } = useSync()
 
@@ -87,9 +85,7 @@ export function BookmarksPanel() {
 		}) => Promise<OperationResult>,
 	) => {
 		const observer = commandLog.observer()
-		const result = await globalLoading.run(text, () =>
-			withCommandObserver(observer, () => op({ observer })),
-		)
+		const result = await withCommandObserver(observer, () => op({ observer }))
 		commandLog.addEntry(result)
 		if (result.success) {
 			refresh()
@@ -110,9 +106,10 @@ export function BookmarksPanel() {
 
 		try {
 			if (await jjIsInTrunk(bookmark.commitId)) {
-				const browseResult = await globalLoading.run("Opening...", () =>
-					ghBrowseCommit(bookmark.commitId),
-				)
+				const observer = commandLog.observer()
+				const browseResult = await ghBrowseCommit(bookmark.commitId, {
+					observer,
+				})
 				commandLog.addEntry(browseResult)
 				return
 			}
@@ -140,17 +137,15 @@ export function BookmarksPanel() {
 				],
 			})
 			if (!confirmed) return
-			const pushResult = await globalLoading.run("Pushing...", () =>
-				jjGitPushBookmark(bookmark.name),
-			)
+			const observer = commandLog.observer()
+			const pushResult = await jjGitPushBookmark(bookmark.name, { observer })
 			commandLog.addEntry(pushResult)
 			if (!pushResult.success) return
 			await refresh()
 		}
 
-		const prResult = await globalLoading.run("Opening...", () =>
-			ghPrCreateWeb(bookmark.name),
-		)
+		const observer = commandLog.observer()
+		const prResult = await ghPrCreateWeb(bookmark.name, { observer })
 		commandLog.addEntry(prResult)
 	}
 

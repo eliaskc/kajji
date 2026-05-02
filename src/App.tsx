@@ -43,7 +43,6 @@ import {
 import { FocusProvider, type Panel, useFocus } from "./context/focus"
 import { KeybindProvider } from "./context/keybind"
 import { LayoutProvider, useLayout } from "./context/layout"
-import { LoadingProvider, useLoading } from "./context/loading"
 import { SyncProvider, useSync } from "./context/sync"
 import { ThemeProvider, useTheme } from "./context/theme"
 import { setRepoPath } from "./repo"
@@ -81,7 +80,6 @@ function AppContent() {
 	const command = useCommand()
 	const dialog = useDialog()
 	const commandLog = useCommandLog()
-	const globalLoading = useLoading()
 	const layout = useLayout()
 	const { setTheme, setThemeMode, setSyntaxTheme } = useTheme()
 	const [whatsNewChanges, setWhatsNewChanges] = createSignal<
@@ -199,8 +197,8 @@ function AppContent() {
 		options?: Parameters<typeof jjGitFetch>[0],
 	) => {
 		const observer = commandLog.observer()
-		const result = await globalLoading.run(text, () =>
-			withCommandObserver(observer, () => jjGitFetch({ ...options, observer })),
+		const result = await withCommandObserver(observer, () =>
+			jjGitFetch({ ...options, observer }),
 		)
 		commandLog.addEntry(result)
 		if (result.success) {
@@ -213,8 +211,8 @@ function AppContent() {
 		options?: Parameters<typeof jjGitPush>[0],
 	) => {
 		const observer = commandLog.observer()
-		const result = await globalLoading.run(text, () =>
-			withCommandObserver(observer, () => jjGitPush({ ...options, observer })),
+		const result = await withCommandObserver(observer, () =>
+			jjGitPush({ ...options, observer }),
 		)
 		commandLog.addEntry(result)
 		if (result.success) {
@@ -556,7 +554,8 @@ function AppContent() {
 							operationLines={opLines}
 							onConfirm={async () => {
 								dialog.close()
-								const result = await globalLoading.run("Undoing...", jjUndo)
+								const observer = commandLog.observer()
+								const result = await withCommandObserver(observer, jjUndo)
 								commandLog.addEntry(result)
 								if (result.success) {
 									refresh()
@@ -593,7 +592,8 @@ function AppContent() {
 							operationLines={opLines}
 							onConfirm={async () => {
 								dialog.close()
-								const result = await globalLoading.run("Redoing...", jjRedo)
+								const observer = commandLog.observer()
+								const result = await withCommandObserver(observer, jjRedo)
 								commandLog.addEntry(result)
 								if (result.success) {
 									refresh()
@@ -671,19 +671,17 @@ export function App() {
 		<ThemeProvider>
 			<FocusProvider>
 				<LayoutProvider>
-					<LoadingProvider>
-						<SyncProvider>
-							<KeybindProvider>
-								<CommandLogProvider>
-									<DialogProvider>
-										<CommandProvider>
-											<AppContent />
-										</CommandProvider>
-									</DialogProvider>
-								</CommandLogProvider>
-							</KeybindProvider>
-						</SyncProvider>
-					</LoadingProvider>
+					<SyncProvider>
+						<KeybindProvider>
+							<CommandLogProvider>
+								<DialogProvider>
+									<CommandProvider>
+										<AppContent />
+									</CommandProvider>
+								</DialogProvider>
+							</CommandLogProvider>
+						</KeybindProvider>
+					</SyncProvider>
 				</LayoutProvider>
 			</FocusProvider>
 		</ThemeProvider>

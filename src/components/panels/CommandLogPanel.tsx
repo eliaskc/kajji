@@ -21,10 +21,28 @@ export function CommandLogPanel() {
 		if (commandLog.entries().some((entry) => entry.status === "running")) {
 			setSpinnerIndex((index) => index + 1)
 		}
-	}, 160)
+	}, 80)
 	onCleanup(() => clearInterval(spinnerTimer))
 	const spinnerFrame = createMemo(
-		() => ["|", "/", "-", "\\"][spinnerIndex() % 4] ?? "|",
+		() =>
+			[
+				"[    ]",
+				"[=   ]",
+				"[==  ]",
+				"[=== ]",
+				"[====]",
+				"[ ===]",
+				"[  ==]",
+				"[   =]",
+				"[    ]",
+				"[   =]",
+				"[  ==]",
+				"[ ===]",
+				"[====]",
+				"[=== ]",
+				"[==  ]",
+				"[=   ]",
+			][spinnerIndex() % 16] ?? "[    ]",
 	)
 
 	const entryPrefix = (
