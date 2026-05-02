@@ -1,4 +1,4 @@
-import { type ScrollBoxRenderable, TextAttributes } from "@opentui/core"
+import type { ScrollBoxRenderable } from "@opentui/core"
 import { useKeyboard, useRenderer } from "@opentui/solid"
 import {
 	For,
@@ -23,8 +23,8 @@ interface GitRepoScreenProps {
 function GitRepoScreen(props: GitRepoScreenProps) {
 	const { colors } = useTheme()
 	const options = [
-		{ label: "jj git init", colocate: false },
-		{ label: "jj git init --colocate", colocate: true },
+		{ key: "i", label: "jj git init", colocate: false },
+		{ key: "c", label: "jj git init --colocate", colocate: true },
 	]
 	const [selectedIndex, setSelectedIndex] = createSignal(0)
 
@@ -46,6 +46,14 @@ function GitRepoScreen(props: GitRepoScreenProps) {
 			evt.preventDefault()
 			evt.stopPropagation()
 			props.onQuit()
+		} else if (evt.name && evt.name.length === 1) {
+			const pressed = evt.name.toLowerCase()
+			const option = options.find((option) => option.key === pressed)
+			if (option) {
+				evt.preventDefault()
+				evt.stopPropagation()
+				props.onInit(option.colocate)
+			}
 		}
 	})
 
@@ -56,6 +64,7 @@ function GitRepoScreen(props: GitRepoScreenProps) {
 			top={0}
 			width="100%"
 			height="100%"
+			zIndex={1}
 			flexGrow={1}
 			flexDirection="column"
 			justifyContent="center"
@@ -71,13 +80,10 @@ function GitRepoScreen(props: GitRepoScreenProps) {
 				paddingBottom={1}
 				gap={1}
 			>
-				<text fg={colors().text} attributes={TextAttributes.BOLD}>
-					Setup
-				</text>
 				<box flexDirection="column">
-					<text fg={colors().warning}>Not a jj repository</text>
+					<text fg={colors().warning}>Git repository detected</text>
 					<text fg={colors().textMuted}>
-						Git repository detected in this directory
+						This directory has git, but has not been initialized for jj
 					</text>
 				</box>
 				<box flexDirection="column">
@@ -89,6 +95,10 @@ function GitRepoScreen(props: GitRepoScreenProps) {
 							)
 							return (
 								<box
+									flexDirection="row"
+									justifyContent="space-between"
+									paddingLeft={1}
+									paddingRight={1}
 									backgroundColor={
 										isSelected() ? colors().selectionBackground : undefined
 									}
@@ -97,17 +107,8 @@ function GitRepoScreen(props: GitRepoScreenProps) {
 										handleDoubleClick()
 									}}
 								>
-									<text>
-										<span
-											style={{
-												fg: isSelected()
-													? colors().primary
-													: colors().textMuted,
-											}}
-										>
-											{option.label}
-										</span>
-									</text>
+									<text fg={colors().text}>{option.label}</text>
+									<text fg={colors().primary}>{option.key}</text>
 								</box>
 							)
 						}}
@@ -136,11 +137,8 @@ interface NoVcsScreenProps {
 
 function NoVcsScreen(props: NoVcsScreenProps) {
 	const { colors } = useTheme()
-	type FocusedSection = "repos" | "init"
-	const [focusedSection, setFocusedSection] = createSignal<FocusedSection>(
-		props.recentRepos.length > 0 ? "repos" : "init",
-	)
-	const [selectedRepoIndex, setSelectedRepoIndex] = createSignal(0)
+	const repoIndex = (index: number) => index + 1
+	const [selectedIndex, setSelectedIndex] = createSignal(0)
 
 	// Scrolling for recent repos list
 	let scrollRef: ScrollBoxRenderable | undefined
@@ -176,7 +174,8 @@ function NoVcsScreen(props: NoVcsScreenProps) {
 	}
 
 	createEffect(() => {
-		scrollToIndex(selectedRepoIndex())
+		const index = selectedIndex() - 1
+		if (index >= 0 && index < props.recentRepos.length) scrollToIndex(index)
 	})
 
 	// Trigger re-render of timestamps every 30 seconds
@@ -193,33 +192,27 @@ function NoVcsScreen(props: NoVcsScreenProps) {
 	}
 
 	useKeyboard((evt) => {
-		if (evt.name === "tab") {
+		if (evt.name === "j" || evt.name === "down") {
 			evt.preventDefault()
 			evt.stopPropagation()
-			setFocusedSection((s) => (s === "repos" ? "init" : "repos"))
-		} else if (evt.name === "j" || evt.name === "down") {
-			evt.preventDefault()
-			evt.stopPropagation()
-			if (focusedSection() === "repos") {
-				setSelectedRepoIndex((i) =>
-					Math.min(props.recentRepos.length - 1, i + 1),
-				)
-			}
+			setSelectedIndex((i) => Math.min(props.recentRepos.length, i + 1))
 		} else if (evt.name === "k" || evt.name === "up") {
 			evt.preventDefault()
 			evt.stopPropagation()
-			if (focusedSection() === "repos") {
-				setSelectedRepoIndex((i) => Math.max(0, i - 1))
-			}
+			setSelectedIndex((i) => Math.max(0, i - 1))
 		} else if (evt.name === "return" || evt.name === "enter") {
 			evt.preventDefault()
 			evt.stopPropagation()
-			if (focusedSection() === "repos") {
-				const repo = props.recentRepos[selectedRepoIndex()]
-				if (repo) props.onSelectRepo(repo.path)
-			} else {
+			if (selectedIndex() === 0) {
 				props.onInit()
+			} else {
+				const repo = props.recentRepos[selectedIndex() - 1]
+				if (repo) props.onSelectRepo(repo.path)
 			}
+		} else if (evt.name === "i") {
+			evt.preventDefault()
+			evt.stopPropagation()
+			props.onInit()
 		} else if (evt.name === "q") {
 			evt.preventDefault()
 			evt.stopPropagation()
@@ -242,6 +235,7 @@ function NoVcsScreen(props: NoVcsScreenProps) {
 			top={0}
 			width="100%"
 			height="100%"
+			zIndex={1}
 			flexGrow={1}
 			flexDirection="column"
 			justifyContent="center"
@@ -257,23 +251,33 @@ function NoVcsScreen(props: NoVcsScreenProps) {
 				paddingBottom={1}
 				gap={1}
 			>
-				<text fg={colors().text} attributes={TextAttributes.BOLD}>
-					Setup
-				</text>
 				<box flexDirection="column">
-					<text fg={colors().warning}>Not a jj repository</text>
+					<text fg={colors().warning}>No repository found</text>
 					<text fg={colors().textMuted}>
-						No version control found in this directory
+						This directory is not a jj or git repository
 					</text>
+				</box>
+				<box
+					flexDirection="row"
+					justifyContent="space-between"
+					paddingLeft={1}
+					paddingRight={1}
+					backgroundColor={
+						selectedIndex() === 0 ? colors().selectionBackground : undefined
+					}
+					onMouseDown={() => {
+						setSelectedIndex(0)
+						handleInitDoubleClick()
+					}}
+				>
+					<text fg={colors().text}>jj init</text>
+					<text fg={colors().primary}>i</text>
 				</box>
 				<Show
 					when={props.recentRepos.length > 0}
 					fallback={<text fg={colors().textMuted}>No recent repositories</text>}
 				>
-					<box
-						flexDirection="column"
-						onMouseDown={() => setFocusedSection("repos")}
-					>
+					<box flexDirection="column">
 						<text fg={colors().textMuted}>Recent repositories:</text>
 						<box height={Math.min(props.recentRepos.length, 10)}>
 							<scrollbox
@@ -284,8 +288,7 @@ function NoVcsScreen(props: NoVcsScreenProps) {
 								<For each={props.recentRepos}>
 									{(repo, index) => {
 										const isSelected = () =>
-											focusedSection() === "repos" &&
-											index() === selectedRepoIndex()
+											repoIndex(index()) === selectedIndex()
 										const num = index() + 1
 										const displayPath = repo.path.replace(
 											new RegExp(`^${process.env.HOME}`),
@@ -297,39 +300,27 @@ function NoVcsScreen(props: NoVcsScreenProps) {
 										return (
 											<box
 												flexDirection="row"
+												justifyContent="space-between"
+												paddingLeft={1}
+												paddingRight={1}
 												backgroundColor={
 													isSelected()
 														? colors().selectionBackground
 														: undefined
 												}
 												onMouseDown={() => {
-													setFocusedSection("repos")
-													setSelectedRepoIndex(index())
+													setSelectedIndex(repoIndex(index()))
 													handleDoubleClick()
 												}}
 											>
-												<text wrapMode="none">
-													<span
-														style={{
-															fg: isSelected()
-																? colors().primary
-																: colors().textMuted,
-														}}
-													>
-														{num}.{" "}
-													</span>
-													<span
-														style={{
-															fg: isSelected()
-																? colors().text
-																: colors().textMuted,
-														}}
-													>
-														{displayPath}
-													</span>
+												<text fg={colors().primary} wrapMode="none">
+													{num}.{" "}
+												</text>
+												<text wrapMode="none" fg={colors().text}>
+													{displayPath}
 												</text>
 												<box flexGrow={1} />
-												<text fg={colors().textMuted}>
+												<text fg={colors().textMuted} wrapMode="none">
 													{getTimestamp(repo.lastOpened)}
 												</text>
 											</box>
@@ -340,30 +331,7 @@ function NoVcsScreen(props: NoVcsScreenProps) {
 						</box>
 					</box>
 				</Show>
-				<box
-					backgroundColor={
-						focusedSection() === "init"
-							? colors().selectionBackground
-							: undefined
-					}
-					onMouseDown={() => {
-						setFocusedSection("init")
-						handleInitDoubleClick()
-					}}
-				>
-					<text>
-						<span
-							style={{
-								fg:
-									focusedSection() === "init"
-										? colors().primary
-										: colors().textMuted,
-							}}
-						>
-							jj init
-						</span>
-					</text>
-				</box>
+
 				<FooterHints
 					hints={[
 						{ key: "enter", label: "run" },

@@ -98,6 +98,7 @@ export function ErrorScreen(props: ErrorScreenProps) {
 				top={0}
 				width="100%"
 				height="100%"
+				zIndex={1}
 				flexGrow={1}
 				flexDirection="column"
 				justifyContent="center"
@@ -152,44 +153,38 @@ export function ErrorScreen(props: ErrorScreenProps) {
 					<box flexDirection="column">
 						<Show when={canFix()}>
 							<box
+								flexDirection="row"
+								justifyContent="space-between"
+								paddingLeft={1}
+								paddingRight={1}
 								backgroundColor={
 									selectedAction() === "fix" && !isLoading()
 										? colors().selectionBackground
 										: undefined
 								}
 							>
-								<text
-									fg={
-										isLoading()
-											? colors().textMuted
-											: selectedAction() === "fix"
-												? colors().primary
-												: colors().textMuted
-									}
-								>
+								<text fg={isLoading() ? colors().textMuted : colors().text}>
 									{isFixing() ? "Running..." : parsedError().fixCommand}
 								</text>
+								<text fg={colors().primary}>f</text>
 							</box>
 						</Show>
 
 						<box
+							flexDirection="row"
+							justifyContent="space-between"
+							paddingLeft={1}
+							paddingRight={1}
 							backgroundColor={
 								selectedAction() === "retry" && !isLoading()
 									? colors().selectionBackground
 									: undefined
 							}
 						>
-							<text
-								fg={
-									isLoading()
-										? colors().textMuted
-										: selectedAction() === "retry"
-											? colors().primary
-											: colors().textMuted
-								}
-							>
+							<text fg={isLoading() ? colors().textMuted : colors().text}>
 								{isRetrying() ? "Retrying..." : "retry"}
 							</text>
+							<text fg={colors().primary}>r</text>
 						</box>
 					</box>
 					<FooterHints
