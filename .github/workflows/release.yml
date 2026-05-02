@@ -357,6 +357,14 @@ jobs:
           cat /tmp/release-notes.md
           echo "::endgroup::"
 
+      # Pre-flight: render the formula and verify we can clone+commit the tap
+      # locally. Aborts the release if the tap is misconfigured (bad token,
+      # missing repo, etc.) before we publish anything.
+      - name: Pre-flight Homebrew tap
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: bun run script/update-homebrew-tap.ts --check "${{ steps.notes.outputs.version }}"
+
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
@@ -369,3 +377,10 @@ jobs:
             dist/kajji-darwin-x64.zip
             dist/kajji-linux-x64.tar.gz
             dist/kajji-linux-arm64.tar.gz
+
+      # Push the tap update only after the GitHub release exists so brew users
+      # never see a formula whose download URLs 404.
+      - name: Push Homebrew tap update
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: bun run script/update-homebrew-tap.ts --push "${{ steps.notes.outputs.version }}"

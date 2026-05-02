@@ -21,10 +21,13 @@ Kajji is my attempt to bring the UX of lazygit to jj, while also aiming for top-
 > **Requirements**: [jj](https://github.com/martinvonz/jj)
 
 ```bash
-# recommended (standalone binary, no dependencies)
+# recommended if you use Homebrew
+brew install eliaskc/tap/kajji
+
+# standalone binary installer, no package manager required
 curl -fsSL https://kajji.sh/install.sh | bash
 
-# or via package manager
+# or via JavaScript package manager
 npm install -g kajji
 bun install -g kajji
 pnpm add -g kajji

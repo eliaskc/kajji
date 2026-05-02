@@ -12,6 +12,7 @@ export type PackageManager =
 	| "bun"
 	| "pnpm"
 	| "yarn"
+	| "brew"
 	| "curl"
 	| "unknown"
 
@@ -30,6 +31,13 @@ export async function detectPackageManager(): Promise<PackageManager> {
 	}
 
 	const checks: { name: PackageManager; command: () => Promise<string> }[] = [
+		{
+			// Scoped to a single formula so we don't list every brew package on
+			// the system (slow, plus avoids substring false-positives).
+			name: "brew",
+			command: () =>
+				$`brew list --formula --versions kajji`.quiet().nothrow().text(),
+		},
 		{ name: "bun", command: () => $`bun pm ls -g`.quiet().nothrow().text() },
 		{
 			name: "npm",
@@ -76,6 +84,10 @@ export function getUpdateCommand(
 			return `pnpm install -g kajji@${version}`
 		case "yarn":
 			return `yarn global add kajji@${version}`
+		case "brew":
+			// Homebrew always installs whatever the tap currently pins, so the
+			// `version` arg is intentionally ignored here.
+			return "brew upgrade kajji"
 		case "curl":
 			return "curl -fsSL https://kajji.sh/install.sh | bash"
 		default:
@@ -163,6 +175,9 @@ async function runUpdate(
 			break
 		case "yarn":
 			result = await $`yarn global add kajji@${version}`.quiet().nothrow()
+			break
+		case "brew":
+			result = await $`brew upgrade kajji`.quiet().nothrow()
 			break
 		case "curl":
 			result = await $`curl -fsSL https://kajji.sh/install.sh | bash`
