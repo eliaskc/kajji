@@ -38,6 +38,15 @@ npx kajji
 bunx kajji
 ```
 
+To remove kajji and its config/data:
+
+```bash
+kajji uninstall                       # interactive: removes config, data, and the binary
+kajji uninstall --dry-run             # show what would be removed
+kajji uninstall --keep-config --keep-data
+kajji uninstall --force               # skip the confirmation prompt
+```
+
 ### From source
 
 > **Requirements**: [Bun](https://bun.sh)

@@ -2,6 +2,7 @@ import { defineCommand, runMain } from "citty"
 import { getCurrentVersion } from "../utils/update"
 import { changesCommand } from "./changes"
 import { commentCommand } from "./comment"
+import { uninstallCommand } from "./uninstall"
 
 const main = defineCommand({
 	meta: {
@@ -12,6 +13,7 @@ const main = defineCommand({
 	subCommands: {
 		changes: changesCommand,
 		comment: commentCommand,
+		uninstall: uninstallCommand,
 	},
 })
 

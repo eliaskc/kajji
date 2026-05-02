@@ -13,7 +13,7 @@ _trace("index.tsx top")
 import { existsSync } from "node:fs"
 import { resolve } from "node:path"
 
-const CLI_COMMANDS = ["changes", "comment", "help"]
+const CLI_COMMANDS = ["changes", "comment", "help", "uninstall"]
 const CLI_FLAGS = ["--help", "-h", "--version", "-V"]
 
 const args = process.argv.slice(2)
