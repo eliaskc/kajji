@@ -10,10 +10,9 @@ import {
 	onCleanup,
 } from "solid-js"
 import { useCommand } from "../context/command"
-import { useDimmer } from "../context/dimmer"
 import { useKeybind } from "../context/keybind"
 import { useTheme } from "../context/theme"
-import { type Context, panelFromContext } from "../context/types"
+import type { Context } from "../context/types"
 import type { FlatFileNode } from "../utils/file-tree"
 import { FUZZY_THRESHOLD, scrollIntoView } from "../utils/scroll"
 import { FileTreeList } from "./FileTreeList"
@@ -46,7 +45,6 @@ export interface FilterableFileTreeApi {
 export function FilterableFileTree(props: FilterableFileTreeProps) {
 	const { colors } = useTheme()
 	const command = useCommand()
-	const dimmer = useDimmer()
 	const keybind = useKeybind()
 
 	const [filterMode, setFilterModeInternal] = createSignal(false)
@@ -58,19 +56,6 @@ export function FilterableFileTree(props: FilterableFileTreeProps) {
 
 	onCleanup(() => {
 		command.setInputMode(false)
-		dimmer.clear(
-			panelFromContext(props.focusContext ?? "log.files") ?? "log",
-			"filter-files",
-		)
-	})
-
-	createEffect(() => {
-		const panel = panelFromContext(props.focusContext ?? "log.files") ?? "log"
-		if (filterMode()) {
-			dimmer.activate(panel, "filter-files", { keepVisible: ["detail"] })
-		} else {
-			dimmer.clear(panel, "filter-files")
-		}
 	})
 	const [query, setQuery] = createSignal("")
 	const [appliedQuery, setAppliedQuery] = createSignal("")

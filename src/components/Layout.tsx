@@ -1,9 +1,7 @@
 import { Match, Show, Switch } from "solid-js"
-import { useDimmer } from "../context/dimmer"
 import { useFocus } from "../context/focus"
 import { useLayout } from "../context/layout"
 import { useTheme } from "../context/theme"
-import { Dimmer } from "./Dimmer"
 import { StatusBar } from "./StatusBar"
 import { BookmarksPanel } from "./panels/BookmarksPanel"
 import { CommandLogPanel } from "./panels/CommandLogPanel"
@@ -29,34 +27,24 @@ function HorizontalDivider() {
 }
 
 function NormalLayout() {
-	const dimmer = useDimmer()
-
 	return (
 		<box flexDirection="row" flexGrow={1} gap={0}>
 			<box flexGrow={1} flexBasis={0} flexDirection="column" gap={0}>
 				<box flexGrow={3} flexBasis={0}>
-					<Dimmer dimmed={dimmer.isDimmed("log")} grow>
-						<LogPanel />
-					</Dimmer>
+					<LogPanel />
 				</box>
 				<HorizontalDivider />
 				<box flexGrow={1} flexBasis={0}>
-					<Dimmer dimmed={dimmer.isDimmed("refs")} grow>
-						<BookmarksPanel />
-					</Dimmer>
+					<BookmarksPanel />
 				</box>
 			</box>
 			<VerticalDivider />
 			<box flexGrow={1} flexBasis={0} flexDirection="column">
 				<box flexGrow={1}>
-					<Dimmer dimmed={dimmer.isDimmed("detail")} grow>
-						<MainArea />
-					</Dimmer>
+					<MainArea />
 				</box>
 				<HorizontalDivider />
-				<Dimmer dimmed={dimmer.isDimmed("commandlog")}>
-					<CommandLogPanel />
-				</Dimmer>
+				<CommandLogPanel />
 			</box>
 		</box>
 	)
@@ -64,31 +52,19 @@ function NormalLayout() {
 
 function DiffLayout() {
 	const focus = useFocus()
-	const dimmer = useDimmer()
 	const isRefsFocused = () => focus.isPanel("refs")
 
 	return (
 		<box flexDirection="row" flexGrow={1} gap={0}>
 			<box flexGrow={1} flexBasis={0} flexDirection="column">
-				<Show
-					when={isRefsFocused()}
-					fallback={
-						<Dimmer dimmed={dimmer.isDimmed("log")} grow>
-							<LogPanel />
-						</Dimmer>
-					}
-				>
-					<Dimmer dimmed={dimmer.isDimmed("refs")} grow>
-						<BookmarksPanel />
-					</Dimmer>
+				<Show when={isRefsFocused()} fallback={<LogPanel />}>
+					<BookmarksPanel />
 				</Show>
 			</box>
 			<VerticalDivider />
 			<box flexGrow={4} flexBasis={0} flexDirection="column">
 				<box flexGrow={1}>
-					<Dimmer dimmed={dimmer.isDimmed("detail")} grow>
-						<MainArea />
-					</Dimmer>
+					<MainArea />
 				</box>
 			</box>
 		</box>
@@ -96,7 +72,7 @@ function DiffLayout() {
 }
 
 export function LayoutGrid() {
-	const { colors, style } = useTheme()
+	const { colors } = useTheme()
 	const { focusMode } = useLayout()
 
 	return (

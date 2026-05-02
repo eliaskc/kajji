@@ -40,7 +40,6 @@ import {
 	DialogProvider,
 	useDialog,
 } from "./context/dialog"
-import { DimmerProvider } from "./context/dimmer"
 import { FocusProvider, type Panel, useFocus } from "./context/focus"
 import { KeybindProvider } from "./context/keybind"
 import { LayoutProvider, useLayout } from "./context/layout"
@@ -672,21 +671,19 @@ export function App() {
 		<ThemeProvider>
 			<FocusProvider>
 				<LayoutProvider>
-					<DimmerProvider>
-						<LoadingProvider>
-							<SyncProvider>
-								<KeybindProvider>
-									<CommandLogProvider>
-										<DialogProvider>
-											<CommandProvider>
-												<AppContent />
-											</CommandProvider>
-										</DialogProvider>
-									</CommandLogProvider>
-								</KeybindProvider>
-							</SyncProvider>
-						</LoadingProvider>
-					</DimmerProvider>
+					<LoadingProvider>
+						<SyncProvider>
+							<KeybindProvider>
+								<CommandLogProvider>
+									<DialogProvider>
+										<CommandProvider>
+											<AppContent />
+										</CommandProvider>
+									</DialogProvider>
+								</CommandLogProvider>
+							</KeybindProvider>
+						</SyncProvider>
+					</LoadingProvider>
 				</LayoutProvider>
 			</FocusProvider>
 		</ThemeProvider>
