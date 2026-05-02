@@ -4,6 +4,7 @@ import { type Accessor, createEffect, createSignal, onCleanup } from "solid-js"
 import { readConfig } from "../config"
 import { type ThemeModeConfig, resolveThemeMode } from "../theme/mode"
 import { kajjiTheme } from "../theme/presets/kajji"
+import type { SyntaxThemeName } from "../theme/syntax"
 import type { Theme, ThemeColors, ThemeMode, ThemeStyle } from "../theme/types"
 import {
 	cacheTerminalBackground,
@@ -58,6 +59,9 @@ export const { use: useTheme, provider: ThemeProvider } = createSimpleContext({
 		)
 		const [systemMode, setSystemMode] = createSignal<ThemeMode | null>(
 			renderer.themeMode,
+		)
+		const [syntaxThemeConfig, setSyntaxThemeConfig] = createSignal(
+			config.syntaxTheme,
 		)
 		const [terminalBg, setTerminalBg] = createSignal<string | null>(
 			getCachedTerminalBackground(),
@@ -130,6 +134,9 @@ export const { use: useTheme, provider: ThemeProvider } = createSimpleContext({
 			renderer.off(CliRenderEvents.THEME_MODE, handleThemeMode)
 		})
 
+		const syntaxTheme: Accessor<SyntaxThemeName> = () =>
+			syntaxThemeConfig()[mode()] ?? theme().syntax[mode()]
+
 		const style: Accessor<ThemeStyle> = () => theme().style
 
 		const setThemeByName = (name: string) => {
@@ -140,13 +147,19 @@ export const { use: useTheme, provider: ThemeProvider } = createSimpleContext({
 			setThemeModeConfig(nextMode)
 		}
 
+		const setSyntaxTheme = (nextSyntaxTheme: typeof config.syntaxTheme) => {
+			setSyntaxThemeConfig(nextSyntaxTheme)
+		}
+
 		return {
 			theme,
 			colors,
 			style,
 			mode,
+			syntaxTheme,
 			setTheme: setThemeByName,
 			setThemeMode,
+			setSyntaxTheme,
 		}
 	},
 })

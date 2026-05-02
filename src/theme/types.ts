@@ -3,6 +3,16 @@ export interface ModeColors {
 	text: string
 }
 
+export interface DiffThemeColors {
+	additionBackground: string
+	deletionBackground: string
+	additionEmphasisBackground: string
+	deletionEmphasisBackground: string
+	additionText: string
+	deletionText: string
+	lineNumber: string
+}
+
 export interface ThemeColors {
 	primary: string
 	secondary: string
@@ -37,6 +47,8 @@ export interface ThemeColors {
 	scrollbarTrack: string
 	scrollbarThumb: string
 
+	diff: DiffThemeColors
+
 	modes: {
 		normal: ModeColors
 		diff: ModeColors
@@ -44,6 +56,8 @@ export interface ThemeColors {
 		pr: ModeColors
 	}
 }
+
+import type { SyntaxThemeName } from "./syntax"
 
 export interface ThemeStyle {
 	panel: {
@@ -63,5 +77,6 @@ export type ThemeMode = "dark" | "light"
 export interface Theme {
 	name: string
 	colors: Record<ThemeMode, ThemeColors>
+	syntax: Record<ThemeMode, SyntaxThemeName>
 	style: ThemeStyle
 }

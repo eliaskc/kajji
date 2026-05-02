@@ -243,7 +243,7 @@ describe("Syntax highlighting (tokenizeLineSync)", () => {
 	test("single line tokenization", () => {
 		const line = sampleLines[0] ?? ""
 		const result = benchmark("syntax-single-line", () => {
-			tokenizeLineSync(line, "typescript")
+			tokenizeLineSync(line, "typescript", "ayu-dark")
 		})
 		allResults.push(result)
 		console.log(formatResult(result))
@@ -254,7 +254,7 @@ describe("Syntax highlighting (tokenizeLineSync)", () => {
 		const result = benchmark("syntax-100-lines", () => {
 			for (let i = 0; i < 100; i++) {
 				const line = sampleLines[i % sampleLines.length] ?? ""
-				tokenizeLineSync(line, "typescript")
+				tokenizeLineSync(line, "typescript", "ayu-dark")
 			}
 		})
 		allResults.push(result)
@@ -268,7 +268,7 @@ describe("Syntax highlighting (tokenizeLineSync)", () => {
 			() => {
 				for (let i = 0; i < 500; i++) {
 					const line = sampleLines[i % sampleLines.length] ?? ""
-					tokenizeLineSync(line, "typescript")
+					tokenizeLineSync(line, "typescript", "ayu-dark")
 				}
 			},
 			20,
@@ -284,7 +284,7 @@ describe("Syntax highlighting (tokenizeLineSync)", () => {
 			() => {
 				for (let i = 0; i < 2000; i++) {
 					const line = sampleLines[i % sampleLines.length] ?? ""
-					tokenizeLineSync(line, "typescript")
+					tokenizeLineSync(line, "typescript", "ayu-dark")
 				}
 			},
 			10,

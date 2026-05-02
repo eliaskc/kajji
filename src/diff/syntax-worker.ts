@@ -32,12 +32,14 @@ import typescript from "@shikijs/langs/typescript"
 import yaml from "@shikijs/langs/yaml"
 import zig from "@shikijs/langs/zig"
 import ayuDark from "@shikijs/themes/ayu-dark"
+import githubLight from "@shikijs/themes/github-light"
 import type { BundledLanguage } from "shiki"
 import {
 	type Highlighter,
 	createHighlighter,
 	createJavaScriptRegexEngine,
 } from "shiki"
+import type { SyntaxThemeName } from "../theme/syntax"
 
 // Message types
 export type WorkerRequest =
@@ -47,6 +49,7 @@ export type WorkerRequest =
 			id: number
 			content: string
 			language: SupportedLanguages
+			theme: SyntaxThemeName
 	  }
 
 export type WorkerResponse =
@@ -100,7 +103,7 @@ let highlighter: Highlighter | null = null
 async function init() {
 	try {
 		highlighter = await createHighlighter({
-			themes: [ayuDark],
+			themes: [ayuDark, githubLight],
 			langs: LANG_MODULES.flat(),
 			engine: createJavaScriptRegexEngine(),
 		})
@@ -115,7 +118,12 @@ async function init() {
 	}
 }
 
-function tokenize(id: number, content: string, language: SupportedLanguages) {
+function tokenize(
+	id: number,
+	content: string,
+	language: SupportedLanguages,
+	theme: SyntaxThemeName,
+) {
 	if (!highlighter) {
 		self.postMessage({
 			type: "error",
@@ -142,7 +150,7 @@ function tokenize(id: number, content: string, language: SupportedLanguages) {
 		// above), so the cast is safe.
 		const result = highlighter.codeToTokens(content, {
 			lang: language as BundledLanguage,
-			theme: "ayu-dark",
+			theme,
 		})
 
 		const tokens: Array<{ content: string; color?: string }> = []
@@ -173,7 +181,7 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
 			init()
 			break
 		case "tokenize":
-			tokenize(msg.id, msg.content, msg.language)
+			tokenize(msg.id, msg.content, msg.language, msg.theme)
 			break
 	}
 }

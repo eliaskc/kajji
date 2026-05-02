@@ -17,24 +17,6 @@ import {
 } from "../../diff"
 import { truncatePathMiddle } from "../../utils/path-truncate"
 
-const DIFF_BG = {
-	addition: "#0d2818",
-	deletion: "#2d1215",
-	additionEmphasis: "#1a5a2a",
-	deletionEmphasis: "#5a1a1a",
-} as const
-
-const BAR_COLORS = {
-	addition: "#3fb950",
-	deletion: "#f85149",
-} as const
-
-const LINE_NUM_COLORS = {
-	addition: "#3fb950",
-	deletion: "#f85149",
-	context: "#6e7681",
-} as const
-
 const BAR_CHAR = "▌"
 const SEPARATOR_COLOR = "#30363d"
 const GAP_PATTERN_CHAR = "╱"
@@ -286,16 +268,16 @@ interface DiffLineRowProps {
 }
 
 function DiffLineRow(props: DiffLineRowProps) {
-	const { colors } = useTheme()
+	const { colors, syntaxTheme } = useTheme()
 
 	const language = createMemo(() => getLanguage(props.row.fileName))
 
 	const lineBg = createMemo(() => {
 		switch (props.row.type) {
 			case "addition":
-				return DIFF_BG.addition
+				return colors().diff.additionBackground
 			case "deletion":
-				return DIFF_BG.deletion
+				return colors().diff.deletionBackground
 			default:
 				return undefined
 		}
@@ -316,7 +298,7 @@ function DiffLineRow(props: DiffLineRowProps) {
 		}
 
 		// Request tokenization from worker (returns cached or queues request)
-		const result = tokenizeLineSync(content, language())
+		const result = tokenizeLineSync(content, language(), syntaxTheme())
 		return result.map((t) => ({
 			content: t.content,
 			color: t.color ?? defaultColor,
@@ -335,20 +317,20 @@ function DiffLineRow(props: DiffLineRowProps) {
 	const lineNumColor = createMemo(() => {
 		switch (props.row.type) {
 			case "deletion":
-				return LINE_NUM_COLORS.deletion
+				return colors().diff.deletionText
 			case "addition":
-				return LINE_NUM_COLORS.addition
+				return colors().diff.additionText
 			default:
-				return LINE_NUM_COLORS.context
+				return colors().diff.lineNumber
 		}
 	})
 
 	const bar = createMemo(() => {
 		switch (props.row.type) {
 			case "addition":
-				return { char: BAR_CHAR, color: BAR_COLORS.addition }
+				return { char: BAR_CHAR, color: colors().diff.additionText }
 			case "deletion":
-				return { char: BAR_CHAR, color: BAR_COLORS.deletion }
+				return { char: BAR_CHAR, color: colors().diff.deletionText }
 			default:
 				return { char: " ", color: undefined }
 		}

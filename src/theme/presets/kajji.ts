@@ -33,6 +33,16 @@ const dark: ThemeColors = {
 	scrollbarTrack: "#303030",
 	scrollbarThumb: "#606060",
 
+	diff: {
+		additionBackground: "#0d2818",
+		deletionBackground: "#2d1215",
+		additionEmphasisBackground: "#1a5a2a",
+		deletionEmphasisBackground: "#5a1a1a",
+		additionText: "#3fb950",
+		deletionText: "#f85149",
+		lineNumber: "#6e7681",
+	},
+
 	modes: {
 		normal: { bg: "#303030", text: "#808080" },
 		diff: { bg: "#56b6c2", text: "#0a0a0a" },
@@ -74,6 +84,16 @@ const light: ThemeColors = {
 	scrollbarTrack: "#e3e3e3",
 	scrollbarThumb: "#b8b8b8",
 
+	diff: {
+		additionBackground: "#e7f4e8",
+		deletionBackground: "#f8e4e6",
+		additionEmphasisBackground: "#c9e9cf",
+		deletionEmphasisBackground: "#f0c8cd",
+		additionText: "#4fae52",
+		deletionText: "#d84d4a",
+		lineNumber: "#6f7782",
+	},
+
 	modes: {
 		normal: { bg: "#e6e6e6", text: "#7a7a7a" },
 		diff: { bg: "#5fa8b8", text: "#111111" },
@@ -87,6 +107,10 @@ export const kajjiTheme: Theme = {
 	colors: {
 		dark,
 		light,
+	},
+	syntax: {
+		dark: "ayu-dark",
+		light: "github-light",
 	},
 	style: {
 		panel: {

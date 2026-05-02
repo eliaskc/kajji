@@ -1,5 +1,6 @@
 import { type SupportedLanguages, getFiletypeFromFileName } from "@pierre/diffs"
 import { createSignal } from "solid-js"
+import type { SyntaxThemeName } from "../theme/syntax"
 import type { WorkerRequest, WorkerResponse } from "./syntax-worker"
 
 export interface SyntaxToken {
@@ -16,7 +17,7 @@ export { highlighterReady }
 const [tokenVersion, setTokenVersion] = createSignal(0)
 export { tokenVersion }
 
-// Token cache: Map<"content:language", tokens>
+// Token cache: Map<"theme:language:content", tokens>
 const tokenCache = new Map<string, SyntaxToken[]>()
 
 // Pending tokenization requests to avoid duplicates
@@ -31,8 +32,12 @@ let worker: Worker | null = null
 // Map request IDs to cache keys for when responses come back
 const requestToCacheKey = new Map<number, string>()
 
-function getCacheKey(content: string, language: SupportedLanguages): string {
-	return `${language}:${content}`
+function getCacheKey(
+	content: string,
+	language: SupportedLanguages,
+	theme: SyntaxThemeName,
+): string {
+	return `${theme}:${language}:${content}`
 }
 
 function handleWorkerMessage(event: MessageEvent<WorkerResponse>) {
@@ -118,6 +123,7 @@ export function getLanguage(filename: string): SupportedLanguages {
 function requestTokenization(
 	content: string,
 	language: SupportedLanguages,
+	theme: SyntaxThemeName,
 	cacheKey: string,
 ): void {
 	if (!worker || pendingRequests.has(cacheKey)) return
@@ -131,6 +137,7 @@ function requestTokenization(
 		id,
 		content,
 		language,
+		theme,
 	} satisfies WorkerRequest)
 }
 
@@ -142,8 +149,9 @@ function requestTokenization(
 export function tokenizeLineSync(
 	content: string,
 	language: SupportedLanguages,
+	theme: SyntaxThemeName,
 ): SyntaxToken[] {
-	const cacheKey = getCacheKey(content, language)
+	const cacheKey = getCacheKey(content, language, theme)
 
 	// Check cache first
 	const cached = tokenCache.get(cacheKey)
@@ -153,7 +161,7 @@ export function tokenizeLineSync(
 
 	// If highlighter ready, request tokenization from worker
 	if (highlighterReady()) {
-		requestTokenization(content, language, cacheKey)
+		requestTokenization(content, language, theme, cacheKey)
 	}
 
 	// Return plain text for now
@@ -167,8 +175,9 @@ export function tokenizeLineSync(
 export async function tokenizeLine(
 	content: string,
 	language: SupportedLanguages,
+	theme: SyntaxThemeName,
 ): Promise<SyntaxToken[]> {
-	const cacheKey = getCacheKey(content, language)
+	const cacheKey = getCacheKey(content, language, theme)
 
 	// Check cache first
 	const cached = tokenCache.get(cacheKey)
@@ -220,6 +229,7 @@ export async function tokenizeLine(
 			id,
 			content,
 			language,
+			theme,
 		} satisfies WorkerRequest)
 	})
 }

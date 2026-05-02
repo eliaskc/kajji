@@ -10,6 +10,7 @@
 			"default": {
 				"theme": "kajji",
 				"themeMode": "system",
+				"syntaxTheme": {},
 				"showFileTree": true
 			},
 			"description": "UI settings",
@@ -26,6 +27,21 @@
 					"description": "Color mode: follow system/terminal, or force dark/light",
 					"type": "string",
 					"enum": ["system", "dark", "light"]
+				},
+				"syntaxTheme": {
+					"default": {},
+					"description": "Override syntax highlighting themes for dark/light modes",
+					"type": "object",
+					"properties": {
+						"dark": {
+							"type": "string",
+							"enum": ["ayu-dark", "github-light"]
+						},
+						"light": {
+							"type": "string",
+							"enum": ["ayu-dark", "github-light"]
+						}
+					}
 				},
 				"showFileTree": {
 					"default": true,

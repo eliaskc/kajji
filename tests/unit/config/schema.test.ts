@@ -6,6 +6,7 @@ describe("ConfigSchema", () => {
 		const config = ConfigSchema.parse({})
 		expect(config.ui.theme).toBe("kajji")
 		expect(config.ui.themeMode).toBe("system")
+		expect(config.ui.syntaxTheme).toEqual({})
 		expect(config.diff.layout).toBe("auto")
 		expect(config.diff.autoSwitchWidth).toBe(120)
 		expect(config.diff.useJjFormatter).toBe(false)
@@ -16,10 +17,18 @@ describe("ConfigSchema", () => {
 
 	test("partial config merges with defaults", () => {
 		const config = ConfigSchema.parse({
-			ui: { theme: "kajji", themeMode: "light" },
+			ui: {
+				theme: "kajji",
+				themeMode: "light",
+				syntaxTheme: { dark: "ayu-dark", light: "github-light" },
+			},
 		})
 		expect(config.ui.theme).toBe("kajji")
 		expect(config.ui.themeMode).toBe("light")
+		expect(config.ui.syntaxTheme).toEqual({
+			dark: "ayu-dark",
+			light: "github-light",
+		})
 		expect(config.diff.layout).toBe("auto")
 		expect(config.ui.showFileTree).toBe(true)
 	})
@@ -56,6 +65,13 @@ describe("ConfigSchema", () => {
 	test("invalid theme rejects", () => {
 		const result = ConfigSchema.safeParse({
 			ui: { theme: "nonexistent" },
+		})
+		expect(result.success).toBe(false)
+	})
+
+	test("invalid syntax theme rejects", () => {
+		const result = ConfigSchema.safeParse({
+			ui: { syntaxTheme: { light: "not-a-theme" } },
 		})
 		expect(result.success).toBe(false)
 	})

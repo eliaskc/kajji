@@ -20,25 +20,6 @@ import {
 } from "../../diff"
 import { truncatePathMiddle } from "../../utils/path-truncate"
 
-const DIFF_BG = {
-	addition: "#0d2818",
-	deletion: "#2d1215",
-	empty: undefined,
-	additionEmphasis: "#1a5a2a",
-	deletionEmphasis: "#5a1a1a",
-} as const
-
-const BAR_COLORS = {
-	addition: "#3fb950",
-	deletion: "#f85149",
-} as const
-
-const LINE_NUM_COLORS = {
-	addition: "#3fb950",
-	deletion: "#f85149",
-	context: "#6e7681",
-} as const
-
 const SEPARATOR_COLOR = "#30363d"
 const GAP_PATTERN_CHAR = "╱"
 const GAP_PATTERN_COLOR = "#2a2a2a"
@@ -477,7 +458,7 @@ interface TokenWithEmphasis extends SyntaxToken {
 }
 
 function SplitContentRow(props: SplitContentRowProps) {
-	const { colors } = useTheme()
+	const { colors, syntaxTheme } = useTheme()
 
 	const language = createMemo(() => getLanguage(props.row.row.fileName))
 
@@ -492,16 +473,16 @@ function SplitContentRow(props: SplitContentRowProps) {
 	)
 
 	const leftBg = createMemo(() => {
-		if (!hasLeftLine()) return DIFF_BG.empty
+		if (!hasLeftLine()) return undefined
 		return props.row.row.left?.type === "deletion"
-			? DIFF_BG.deletion
+			? colors().diff.deletionBackground
 			: undefined
 	})
 
 	const rightBg = createMemo(() => {
-		if (!hasRightLine()) return DIFF_BG.empty
+		if (!hasRightLine()) return undefined
 		return props.row.row.right?.type === "addition"
-			? DIFF_BG.addition
+			? colors().diff.additionBackground
 			: undefined
 	})
 
@@ -527,7 +508,7 @@ function SplitContentRow(props: SplitContentRowProps) {
 		}
 
 		if (!wordDiff) {
-			const tokens = tokenizeLineSync(content, lang)
+			const tokens = tokenizeLineSync(content, lang, syntaxTheme())
 			return tokens.map((t) => ({
 				content: t.content,
 				color: t.color ?? defaultColor,
@@ -537,7 +518,7 @@ function SplitContentRow(props: SplitContentRowProps) {
 		// Tokenize each word diff segment
 		const result: TokenWithEmphasis[] = []
 		for (const segment of wordDiff) {
-			const segmentTokens = tokenizeLineSync(segment.text, lang)
+			const segmentTokens = tokenizeLineSync(segment.text, lang, syntaxTheme())
 			const isEmphasis = segment.type === emphasisType
 			for (const token of segmentTokens) {
 				result.push({
@@ -579,30 +560,30 @@ function SplitContentRow(props: SplitContentRowProps) {
 	})
 
 	const leftLineNumColor = createMemo(() => {
-		if (!hasLeftLine()) return LINE_NUM_COLORS.context
+		if (!hasLeftLine()) return colors().diff.lineNumber
 		return props.row.row.left?.type === "deletion"
-			? LINE_NUM_COLORS.deletion
-			: LINE_NUM_COLORS.context
+			? colors().diff.deletionText
+			: colors().diff.lineNumber
 	})
 
 	const rightLineNumColor = createMemo(() => {
-		if (!hasRightLine()) return LINE_NUM_COLORS.context
+		if (!hasRightLine()) return colors().diff.lineNumber
 		return props.row.row.right?.type === "addition"
-			? LINE_NUM_COLORS.addition
-			: LINE_NUM_COLORS.context
+			? colors().diff.additionText
+			: colors().diff.lineNumber
 	})
 
 	const leftBar = createMemo(() => {
 		if (!hasLeftLine()) return null
 		if (props.row.row.left?.type === "deletion")
-			return { char: BAR_CHAR, color: BAR_COLORS.deletion }
+			return { char: BAR_CHAR, color: colors().diff.deletionText }
 		return { char: " ", color: undefined }
 	})
 
 	const rightBar = createMemo(() => {
 		if (!hasRightLine()) return null
 		if (props.row.row.right?.type === "addition")
-			return { char: BAR_CHAR, color: BAR_COLORS.addition }
+			return { char: BAR_CHAR, color: colors().diff.additionText }
 		return { char: " ", color: undefined }
 	})
 
@@ -653,7 +634,9 @@ function SplitContentRow(props: SplitContentRowProps) {
 								<span
 									style={{
 										fg: token.color,
-										bg: token.emphasis ? DIFF_BG.deletionEmphasis : undefined,
+										bg: token.emphasis
+											? colors().diff.deletionEmphasisBackground
+											: undefined,
 									}}
 								>
 									{token.content}
@@ -697,7 +680,9 @@ function SplitContentRow(props: SplitContentRowProps) {
 								<span
 									style={{
 										fg: token.color,
-										bg: token.emphasis ? DIFF_BG.additionEmphasis : undefined,
+										bg: token.emphasis
+											? colors().diff.additionEmphasisBackground
+											: undefined,
 									}}
 								>
 									{token.content}

@@ -1,4 +1,5 @@
 import { z } from "zod"
+import { syntaxThemeNames } from "../theme/syntax"
 
 const SCHEMA_URL = "https://kajji.sh/schema.json"
 
@@ -13,6 +14,13 @@ export const UiSchema = z.object({
 		.enum(["system", "dark", "light"])
 		.default("system")
 		.describe("Color mode: follow system/terminal, or force dark/light"),
+	syntaxTheme: z
+		.object({
+			dark: z.enum(syntaxThemeNames).optional(),
+			light: z.enum(syntaxThemeNames).optional(),
+		})
+		.default({})
+		.describe("Override syntax highlighting themes for dark/light modes"),
 	showFileTree: z
 		.boolean()
 		.default(true)
@@ -77,7 +85,12 @@ export const ConfigSchema = z
 			.describe("JSON Schema reference for editor autocomplete"),
 
 		ui: UiSchema.optional()
-			.default({ theme: "kajji", themeMode: "system", showFileTree: true })
+			.default({
+				theme: "kajji",
+				themeMode: "system",
+				syntaxTheme: {},
+				showFileTree: true,
+			})
 			.describe("UI settings"),
 
 		diff: DiffSchema.optional()
