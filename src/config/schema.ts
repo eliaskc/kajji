@@ -2,11 +2,17 @@ import { z } from "zod"
 
 const SCHEMA_URL = "https://kajji.sh/schema.json"
 
+const ThemeSchema = z.preprocess(
+	(value) => (value === "lazygit" || value === "opencode" ? "kajji" : value),
+	z.enum(["kajji"]).default("kajji"),
+)
+
 export const UiSchema = z.object({
-	theme: z
-		.enum(["lazygit", "opencode"])
-		.default("lazygit")
-		.describe("Color theme"),
+	theme: ThemeSchema.describe("Color theme"),
+	themeMode: z
+		.enum(["system", "dark", "light"])
+		.default("system")
+		.describe("Color mode: follow system/terminal, or force dark/light"),
 	showFileTree: z
 		.boolean()
 		.default(true)
@@ -71,7 +77,7 @@ export const ConfigSchema = z
 			.describe("JSON Schema reference for editor autocomplete"),
 
 		ui: UiSchema.optional()
-			.default({ theme: "lazygit", showFileTree: true })
+			.default({ theme: "kajji", themeMode: "system", showFileTree: true })
 			.describe("UI settings"),
 
 		diff: DiffSchema.optional()

@@ -1,9 +1,10 @@
+import { CliRenderEvents } from "@opentui/core"
 import { useRenderer } from "@opentui/solid"
-import { type Accessor, createEffect, createSignal } from "solid-js"
+import { type Accessor, createEffect, createSignal, onCleanup } from "solid-js"
 import { readConfig } from "../config"
-import { lazygitTheme } from "../theme/presets/lazygit"
-import { opencodeTheme } from "../theme/presets/opencode"
-import type { Theme, ThemeColors, ThemeStyle } from "../theme/types"
+import { type ThemeModeConfig, resolveThemeMode } from "../theme/mode"
+import { kajjiTheme } from "../theme/presets/kajji"
+import type { Theme, ThemeColors, ThemeMode, ThemeStyle } from "../theme/types"
 import {
 	cacheTerminalBackground,
 	getCachedTerminalBackground,
@@ -11,8 +12,7 @@ import {
 import { createSimpleContext } from "./helper"
 
 const themes = {
-	lazygit: lazygitTheme,
-	opencode: opencodeTheme,
+	kajji: kajjiTheme,
 }
 
 type ThemeName = keyof typeof themes
@@ -40,24 +40,45 @@ function adjustBrightness(hex: string, amount: number): string {
 	return `#${toHex(rgb.r)}${toHex(rgb.g)}${toHex(rgb.b)}`
 }
 
+function normalizeThemeName(name: string): ThemeName {
+	if (name === "lazygit" || name === "opencode") return "kajji"
+	return name in themes ? (name as ThemeName) : "kajji"
+}
+
 export const { use: useTheme, provider: ThemeProvider } = createSimpleContext({
 	name: "Theme",
 	init: () => {
 		const renderer = useRenderer()
-		const [theme, setTheme] = createSignal<Theme>(themes[readConfig().ui.theme])
+		const config = readConfig().ui
+		const [theme, setTheme] = createSignal<Theme>(
+			themes[normalizeThemeName(config.theme)],
+		)
+		const [themeModeConfig, setThemeModeConfig] = createSignal<ThemeModeConfig>(
+			config.themeMode,
+		)
+		const [systemMode, setSystemMode] = createSignal<ThemeMode | null>(
+			renderer.themeMode,
+		)
 		const [terminalBg, setTerminalBg] = createSignal<string | null>(
 			getCachedTerminalBackground(),
 		)
 		const [hasDetectedTerminalBg, setHasDetectedTerminalBg] =
 			createSignal(false)
 
-		const isDark = (): boolean => {
+		const terminalBgIsDark = (): boolean => {
 			const bg = terminalBg()
 			if (!bg) return true
 			const rgb = parseHexColor(bg)
 			if (!rgb) return true
 			return calculateLuminance(rgb.r, rgb.g, rgb.b) <= 0.5
 		}
+
+		const mode: Accessor<ThemeMode> = () =>
+			resolveThemeMode({
+				configured: themeModeConfig(),
+				system: systemMode(),
+				terminalBgIsDark: terminalBgIsDark(),
+			})
 
 		createEffect(() => {
 			if (!theme().style.adaptToTerminal || hasDetectedTerminalBg()) return
@@ -77,14 +98,14 @@ export const { use: useTheme, provider: ThemeProvider } = createSimpleContext({
 		})
 
 		const colors: Accessor<ThemeColors> = () => {
-			const base = theme().colors
+			const base = theme().colors[mode()]
 			const bg = terminalBg()
 
 			if (!theme().style.adaptToTerminal || !bg) {
 				return base
 			}
 
-			const brightnessDir = isDark() ? 1 : -1
+			const brightnessDir = mode() === "dark" ? 1 : -1
 			return {
 				...base,
 				background: bg,
@@ -93,17 +114,39 @@ export const { use: useTheme, provider: ThemeProvider } = createSimpleContext({
 			}
 		}
 
+		createEffect(() => {
+			renderer.setBackgroundColor(colors().background)
+		})
+
+		const handleThemeMode = (nextMode: ThemeMode) => {
+			setSystemMode(nextMode)
+			renderer.clearPaletteCache()
+			setHasDetectedTerminalBg(false)
+		}
+
+		renderer.on(CliRenderEvents.THEME_MODE, handleThemeMode)
+
+		onCleanup(() => {
+			renderer.off(CliRenderEvents.THEME_MODE, handleThemeMode)
+		})
+
 		const style: Accessor<ThemeStyle> = () => theme().style
 
-		const setThemeByName = (name: ThemeName) => {
-			setTheme(themes[name])
+		const setThemeByName = (name: string) => {
+			setTheme(themes[normalizeThemeName(name)])
+		}
+
+		const setThemeMode = (nextMode: ThemeModeConfig) => {
+			setThemeModeConfig(nextMode)
 		}
 
 		return {
 			theme,
 			colors,
 			style,
+			mode,
 			setTheme: setThemeByName,
+			setThemeMode,
 		}
 	},
 })

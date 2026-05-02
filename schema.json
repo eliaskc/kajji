@@ -8,17 +8,24 @@
 		},
 		"ui": {
 			"default": {
-				"theme": "lazygit",
+				"theme": "kajji",
+				"themeMode": "system",
 				"showFileTree": true
 			},
 			"description": "UI settings",
 			"type": "object",
 			"properties": {
 				"theme": {
-					"default": "lazygit",
 					"description": "Color theme",
+					"default": "kajji",
 					"type": "string",
-					"enum": ["lazygit", "opencode"]
+					"enum": ["kajji"]
+				},
+				"themeMode": {
+					"default": "system",
+					"description": "Color mode: follow system/terminal, or force dark/light",
+					"type": "string",
+					"enum": ["system", "dark", "light"]
 				},
 				"showFileTree": {
 					"default": true,

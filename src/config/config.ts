@@ -22,6 +22,22 @@ function notifyConfigChange(config: AppConfig): void {
 	}
 }
 
+function hasLegacyTheme(raw: unknown): boolean {
+	if (!raw || typeof raw !== "object") return false
+	const ui = (raw as { ui?: unknown }).ui
+	if (!ui || typeof ui !== "object") return false
+	const theme = (ui as { theme?: unknown }).theme
+	return theme === "lazygit" || theme === "opencode"
+}
+
+function migrateConfigFile(config: AppConfig): void {
+	try {
+		writeFileAtomic(getConfigPath(), JSON.stringify(config, null, "\t"))
+	} catch {
+		// Best effort: keep using the migrated in-memory config if writing fails.
+	}
+}
+
 export function onConfigChange(listener: ConfigChangeListener): () => void {
 	configChangeListeners.add(listener)
 	return () => {
@@ -45,6 +61,9 @@ export function readConfig(): AppConfig {
 		const result = ConfigSchema.safeParse(raw ?? {})
 		if (result.success) {
 			cachedConfig = result.data
+			if (hasLegacyTheme(raw)) {
+				migrateConfigFile(cachedConfig)
+			}
 		} else {
 			// Log validation issues but don't crash — use defaults
 			for (const issue of result.error.issues) {

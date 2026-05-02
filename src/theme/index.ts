@@ -1,3 +1,8 @@
-export type { ModeColors, Theme, ThemeColors, ThemeStyle } from "./types"
-export { lazygitTheme } from "./presets/lazygit"
-export { opencodeTheme } from "./presets/opencode"
+export type {
+	ModeColors,
+	Theme,
+	ThemeColors,
+	ThemeMode,
+	ThemeStyle,
+} from "./types"
+export { kajjiTheme } from "./presets/kajji"

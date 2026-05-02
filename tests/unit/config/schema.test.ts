@@ -4,7 +4,8 @@ import { ConfigSchema } from "../../../src/config/schema"
 describe("ConfigSchema", () => {
 	test("empty object gets all defaults", () => {
 		const config = ConfigSchema.parse({})
-		expect(config.ui.theme).toBe("lazygit")
+		expect(config.ui.theme).toBe("kajji")
+		expect(config.ui.themeMode).toBe("system")
 		expect(config.diff.layout).toBe("auto")
 		expect(config.diff.autoSwitchWidth).toBe(120)
 		expect(config.diff.useJjFormatter).toBe(false)
@@ -15,9 +16,10 @@ describe("ConfigSchema", () => {
 
 	test("partial config merges with defaults", () => {
 		const config = ConfigSchema.parse({
-			ui: { theme: "opencode" },
+			ui: { theme: "kajji", themeMode: "light" },
 		})
-		expect(config.ui.theme).toBe("opencode")
+		expect(config.ui.theme).toBe("kajji")
+		expect(config.ui.themeMode).toBe("light")
 		expect(config.diff.layout).toBe("auto")
 		expect(config.ui.showFileTree).toBe(true)
 	})
@@ -34,7 +36,7 @@ describe("ConfigSchema", () => {
 	test("existing config with only whatsNewDisabled still works", () => {
 		const config = ConfigSchema.parse({ whatsNewDisabled: true })
 		expect(config.whatsNewDisabled).toBe(true)
-		expect(config.ui.theme).toBe("lazygit")
+		expect(config.ui.theme).toBe("kajji")
 	})
 
 	test("$schema field is preserved", () => {
@@ -42,6 +44,13 @@ describe("ConfigSchema", () => {
 			$schema: "https://kajji.sh/schema.json",
 		})
 		expect(config.$schema).toBe("https://kajji.sh/schema.json")
+	})
+
+	test("legacy theme names migrate to kajji", () => {
+		for (const theme of ["lazygit", "opencode"]) {
+			const config = ConfigSchema.parse({ ui: { theme } })
+			expect(config.ui.theme).toBe("kajji")
+		}
 	})
 
 	test("invalid theme rejects", () => {

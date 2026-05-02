@@ -8,19 +8,19 @@ describe("JSONC parsing", () => {
 	test("parses JSON with comments", () => {
 		const input = `{
 			// This is a comment
-			"ui": { "theme": "opencode" }
+			"ui": { "theme": "kajji" }
 		}`
 		const result = parseJsonc(input)
-		expect(result.ui.theme).toBe("opencode")
+		expect(result.ui.theme).toBe("kajji")
 	})
 
 	test("parses JSON with trailing commas", () => {
 		const input = `{
-			"ui": { "theme": "opencode", },
+			"ui": { "theme": "kajji", },
 			"whatsNewDisabled": true,
 		}`
 		const result = parseJsonc(input)
-		expect(result.ui.theme).toBe("opencode")
+		expect(result.ui.theme).toBe("kajji")
 		expect(result.whatsNewDisabled).toBe(true)
 	})
 

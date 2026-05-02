@@ -58,8 +58,10 @@ export interface ThemeStyle {
 	adaptToTerminal: boolean
 }
 
+export type ThemeMode = "dark" | "light"
+
 export interface Theme {
 	name: string
-	colors: ThemeColors
+	colors: Record<ThemeMode, ThemeColors>
 	style: ThemeStyle
 }
