@@ -36,14 +36,6 @@ export function CommandLogPanel() {
 	}, 80)
 	onCleanup(() => clearInterval(spinnerTimer))
 
-	const entryPrefix = (
-		entry: ReturnType<typeof commandLog.entries>[number],
-	) => {
-		if (entry.status === "failure") return "x "
-		if (entry.status === "skipped" || entry.status === "info") return "- "
-		return ""
-	}
-
 	const entryColor = (entry: ReturnType<typeof commandLog.entries>[number]) => {
 		if (entry.status === "failure") return colors().error
 		if (entry.status === "success") return successColor(entry)
@@ -53,13 +45,12 @@ export function CommandLogPanel() {
 	}
 
 	const entryText = (entry: ReturnType<typeof commandLog.entries>[number]) => {
-		const prefix = entryPrefix(entry)
 		const body = entry.command ? `$ ${entry.command}` : (entry.message ?? "")
 		const suffix =
 			entry.command && entry.status === "failure"
 				? `  [exit ${entry.exitCode ?? 1}]`
 				: ""
-		return `${prefix}${body}${suffix}`
+		return `${body}${suffix}`
 	}
 
 	const commandAgeMs = (
