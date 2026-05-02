@@ -82,6 +82,27 @@ export function getUpdateCommand(
 	}
 }
 
+export interface UpdateCallbacks {
+	onChecking?: () => void
+	onUpdateAvailable?: (info: {
+		currentVersion: string
+		latestVersion: string
+	}) => void
+	onUpdateStarted?: (info: {
+		version: string
+		packageManager: PackageManager
+		command: string
+	}) => void
+	onUpdateFinished?: (info: {
+		version: string
+		packageManager: PackageManager
+		command: string
+		success: boolean
+	}) => void
+	onUpdateSkipped?: (reason: string) => void
+	onError?: () => void
+}
+
 async function fetchLatestVersion(): Promise<string | null> {
 	try {
 		const response = await fetch(GITHUB_RELEASES_URL, {
@@ -155,31 +176,94 @@ async function runUpdate(
 	return result.exitCode === 0
 }
 
-export function checkForUpdates(): void {
-	if (Bun.env.NODE_ENV === "development") return
+async function simulateUpdate(
+	callbacks: UpdateCallbacks,
+	success: boolean,
+): Promise<void> {
+	const currentVersion = getCurrentVersion()
+	const latestVersion = "99.99.99"
+	const packageManager: PackageManager = "bun"
+	const command = getUpdateCommand(packageManager, latestVersion)
+	if (!command) return
 
+	callbacks.onChecking?.()
+	await Bun.sleep(700)
+	callbacks.onUpdateAvailable?.({ currentVersion, latestVersion })
+	await Bun.sleep(500)
+	callbacks.onUpdateStarted?.({
+		version: latestVersion,
+		packageManager,
+		command,
+	})
+	await Bun.sleep(1800)
+	callbacks.onUpdateFinished?.({
+		version: latestVersion,
+		packageManager,
+		command,
+		success,
+	})
+}
+
+export function checkForUpdates(callbacks: UpdateCallbacks = {}): void {
 	setTimeout(async () => {
 		try {
 			const { mockMode } = await import("../mock")
 			if (mockMode === "update-success" || mockMode === "update-failed") {
+				await simulateUpdate(callbacks, mockMode === "update-success")
 				return
 			}
 
-			if (shouldSkipCheck()) return
+			if (Bun.env.NODE_ENV === "development") return
+
+			if (shouldSkipCheck()) {
+				callbacks.onUpdateSkipped?.("checked recently")
+				return
+			}
+
+			callbacks.onChecking?.()
 
 			const currentVersion = getCurrentVersion()
 			const latestVersion = await fetchLatestVersion()
-			if (!latestVersion) return
+			if (!latestVersion) {
+				callbacks.onUpdateSkipped?.("latest version unavailable")
+				return
+			}
 
 			updateLastCheckTime()
 
-			if (compareVersions(latestVersion, currentVersion) <= 0) return
+			if (compareVersions(latestVersion, currentVersion) <= 0) {
+				callbacks.onUpdateSkipped?.("already up to date")
+				return
+			}
+
+			callbacks.onUpdateAvailable?.({ currentVersion, latestVersion })
 
 			const pm = await detectPackageManager()
-			if (pm === "unknown") return
+			if (pm === "unknown") {
+				callbacks.onUpdateSkipped?.("install method unknown")
+				return
+			}
 
-			await runUpdate(pm, latestVersion)
+			const command = getUpdateCommand(pm, latestVersion)
+			if (!command) {
+				callbacks.onUpdateSkipped?.("update command unavailable")
+				return
+			}
+
+			callbacks.onUpdateStarted?.({
+				version: latestVersion,
+				packageManager: pm,
+				command,
+			})
+			const success = await runUpdate(pm, latestVersion)
+			callbacks.onUpdateFinished?.({
+				version: latestVersion,
+				packageManager: pm,
+				command,
+				success,
+			})
 		} catch {
+			callbacks.onError?.()
 			// Non-blocking, silent failure
 		}
 	}, 100)

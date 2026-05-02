@@ -42,7 +42,6 @@ const dark: ThemeColors = {
 		deletionText: "#f85149",
 		lineNumber: "#6e7681",
 	},
-
 }
 
 const light: ThemeColors = {
@@ -87,7 +86,6 @@ const light: ThemeColors = {
 		deletionText: "#d84d4a",
 		lineNumber: "#6f7782",
 	},
-
 }
 
 export const kajjiTheme: Theme = {

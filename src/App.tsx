@@ -1,11 +1,5 @@
 import { useRenderer } from "@opentui/solid"
-import {
-	Show,
-	createEffect,
-	createSignal,
-	onCleanup,
-	onMount,
-} from "solid-js"
+import { Show, createEffect, createSignal, onCleanup, onMount } from "solid-js"
 import { withCommandObserver } from "./commander/executor"
 import {
 	fetchOpLog,
@@ -44,6 +38,7 @@ import { KeybindProvider } from "./context/keybind"
 import { LayoutProvider, useLayout } from "./context/layout"
 import { SyncProvider, useSync } from "./context/sync"
 import { ThemeProvider, useTheme } from "./context/theme"
+import { UpdateProvider, useUpdate } from "./context/update"
 import { setRepoPath } from "./repo"
 import {
 	getChangesSince,
@@ -80,6 +75,7 @@ function AppContent() {
 	const dialog = useDialog()
 	const commandLog = useCommandLog()
 	const layout = useLayout()
+	const update = useUpdate()
 	const { setTheme, setThemeMode, setSyntaxTheme } = useTheme()
 	const [whatsNewChanges, setWhatsNewChanges] = createSignal<
 		VersionBlock[] | null
@@ -96,7 +92,9 @@ function AppContent() {
 		const current = focus.panel()
 		const idx = visiblePanels.indexOf(current)
 		const next =
-			visiblePanels[(idx + direction + visiblePanels.length) % visiblePanels.length]
+			visiblePanels[
+				(idx + direction + visiblePanels.length) % visiblePanels.length
+			]
 		if (next) focus.setPanel(next)
 	}
 
@@ -149,7 +147,38 @@ function AppContent() {
 		loadLog()
 		loadBookmarks()
 		loadRemoteBookmarks()
-		checkForUpdates()
+		let updateLogId: string | null = null
+		checkForUpdates({
+			onChecking: () => update.setChecking(),
+			onUpdateAvailable: ({ currentVersion, latestVersion }) => {
+				commandLog.info(
+					`kajji update available: v${currentVersion} → v${latestVersion}`,
+				)
+			},
+			onUpdateStarted: ({ version, command }) => {
+				update.setUpdating(version, command)
+				updateLogId = commandLog.start(command)
+			},
+			onUpdateFinished: ({ version, command, success }) => {
+				if (success) update.setSuccess(version)
+				else update.setFailure(version)
+				if (updateLogId) {
+					commandLog.finish(updateLogId, {
+						command,
+						stdout: success
+							? `Updated kajji to v${version}.\n\nRestart to use the new version.\n`
+							: "",
+						stderr: success
+							? ""
+							: `Failed to update kajji to v${version}.\n\nTo install manually, run:\n   ${command}\n`,
+						exitCode: success ? 0 : 1,
+						success,
+					})
+				}
+			},
+			onUpdateSkipped: () => update.setIdle(),
+			onError: () => update.setFailure(""),
+		})
 
 		const state = readState()
 		const config = readConfig()
@@ -666,9 +695,11 @@ export function App() {
 						<KeybindProvider>
 							<CommandLogProvider>
 								<DialogProvider>
-									<CommandProvider>
-										<AppContent />
-									</CommandProvider>
+									<UpdateProvider>
+										<CommandProvider>
+											<AppContent />
+										</CommandProvider>
+									</UpdateProvider>
 								</DialogProvider>
 							</CommandLogProvider>
 						</KeybindProvider>

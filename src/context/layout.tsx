@@ -47,7 +47,8 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
 				const isFocusMode = focusMode() === "focus"
 				const activePanel = focus.panel()
 				const ratio =
-					isFocusMode && (activePanel === "detail" || activePanel === "commandlog")
+					isFocusMode &&
+					(activePanel === "detail" || activePanel === "commandlog")
 						? 7 / 10
 						: isFocusMode && (activePanel === "log" || activePanel === "refs")
 							? 4 / 10

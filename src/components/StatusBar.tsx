@@ -1,10 +1,12 @@
-import { For, Show, createMemo } from "solid-js"
+import { For, Show, createMemo, createSignal, onCleanup } from "solid-js"
 import { useCommand } from "../context/command"
 import { useFocus } from "../context/focus"
 import { useKeybind } from "../context/keybind"
 import { useLayout } from "../context/layout"
 import { useTheme } from "../context/theme"
 import type { Context } from "../context/types"
+import { useUpdate } from "../context/update"
+import { blendColors } from "../utils/color"
 import { getCurrentVersion } from "../utils/update"
 
 function contextMatches(
@@ -20,7 +22,20 @@ export function StatusBar() {
 	const focus = useFocus()
 	const keybind = useKeybind()
 	const layout = useLayout()
+	const update = useUpdate()
 	const { colors, style } = useTheme()
+	const [animationTick, setAnimationTick] = createSignal(0)
+	const timer = setInterval(() => {
+		const status = update.state().status
+		if (
+			status === "checking" ||
+			status === "updating" ||
+			status === "success"
+		) {
+			setAnimationTick((index) => index + 1)
+		}
+	}, 140)
+	onCleanup(() => clearInterval(timer))
 
 	const relevantCommands = createMemo(() => {
 		const all = command.all()
@@ -66,6 +81,48 @@ export function StatusBar() {
 	const isFocusMode = () => layout.focusMode() === "focus"
 
 	const commandGap = separator() ? ` ${separator()} ` : "   "
+
+	const versionText = () => {
+		const state = update.state()
+		if (state.status === "success" && state.version)
+			return `updated v${state.version}`
+		if (state.status === "failure") return "update failed"
+		return `v${getCurrentVersion()}`
+	}
+
+	const versionColor = () => {
+		const state = update.state()
+		if (state.status === "failure") return colors().error
+		if (state.status === "success") {
+			animationTick()
+			const age = state.completedAt
+				? Date.now() - state.completedAt.getTime()
+				: 0
+			if (age < 1500) return colors().statusBarKey
+			const fadeProgress = Math.min(1, (age - 1500) / 300)
+			const easedProgress = 1 - (1 - fadeProgress) ** 3
+			return blendColors(
+				colors().statusBarKey,
+				colors().textMuted,
+				1 - easedProgress,
+			)
+		}
+		return colors().textMuted
+	}
+
+	const waveColor = (index: number, length: number) => {
+		animationTick()
+		const phase = animationTick() % Math.max(length, 1)
+		const distance = Math.abs(index - phase)
+		const wrappedDistance = Math.min(distance, length - distance)
+		const opacity = Math.max(0.15, 1 - wrappedDistance * 0.28)
+		return blendColors(colors().statusBarKey, colors().textMuted, opacity)
+	}
+
+	const shouldPulseVersion = () => {
+		const status = update.state().status
+		return status === "checking" || status === "updating"
+	}
 
 	return (
 		<box height={1} flexShrink={0} flexDirection="row">
@@ -131,8 +188,18 @@ export function StatusBar() {
 					</box>
 				</Show>
 				<box flexShrink={0} marginLeft={2}>
-					<text fg={colors().textMuted} wrapMode="none">
-						v{getCurrentVersion()}
+					<text fg={versionColor()} wrapMode="none">
+						<Show when={shouldPulseVersion()} fallback={versionText()}>
+							<For each={[...versionText()]}>
+								{(char, index) => (
+									<span
+										style={{ fg: waveColor(index(), versionText().length) }}
+									>
+										{char}
+									</span>
+								)}
+							</For>
+						</Show>
 					</text>
 				</box>
 			</>
