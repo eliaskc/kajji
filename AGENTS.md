@@ -10,10 +10,10 @@ Follow the Boy Scout rule:
 All work is tracked in [GitHub Issues](https://github.com/eliaskc/kajji/issues).
 
 - Check existing issues before starting work
-- When listing issues, include project status so Backlog/Ready/In Progress is visible. Recommended: `gh issue list --limit 200 --json number,title,projectItems --jq '.[] | "\(.number)\t\(.projectItems[0].status.name // "No status")\t\(.title)"'`
 - Create issues for new bugs, features, improvements
 - Use labels: `bug`, `feature`, `needs-exploration`, `ui-polish`, `tech-debt`, `docs`
-- Reference issues in commit messages
+- Use Conventional Commits for commit messages (`feat(scope): ...`, `fix(scope): ...`, `docs(scope): ...`, `test(scope): ...`, `refactor(scope): ...`, `chore(scope): ...`)
+- Reference issues in commit messages when applicable
 - Close issues when work is done: prefer magic words in commits/PRs (`Fixes #123` for bugs, `Closes #123` for features/improvements)
 - If needed, close manually with GitHub CLI: `gh issue close 123 --comment "Fixed by <commit-or-pr>"`
 
@@ -21,11 +21,13 @@ All work is tracked in [GitHub Issues](https://github.com/eliaskc/kajji/issues).
 
 - **Install**: `bun install`
 - **Dev**: `bun dev` (runs TUI)
-- **Test**: `bun test` (runs all tests)
+- **Test**: `bun test` (runs unit tests)
+- **Benchmarks**: `bun test:bench` (runs benchmark tests)
 - **Typecheck**: `bun check` (tsc --noEmit)
 - **Lint**: `bun lint` (biome check)
 - **Lint fix**: `bun lint:fix` (biome check --write)
-- **CLI**: `bun cli <command>` (runs CLI commands, e.g., `bun cli comment list -r @`)
+- **Schema**: `bun generate:schema` (updates generated config schema)
+- **CLI/TUI entry**: `bun cli` (runs the app without watch mode)
 
 ## OpenTUI Documentation
 
@@ -76,13 +78,19 @@ This project uses Solid.js, NOT React. Key differences:
 
 ## Architecture
 
-- **Entry**: `src/index.tsx` - renders root App component
-- **Commander**: `src/commander/` - jj CLI wrappers and output parsers
-- **Components**: `src/components/` - TUI components (panels, modals)
-- **Context**: `src/context/` - SolidJS context providers (state management)
-- **Keybind**: `src/keybind/` - Keybind registry and parser
-- **Theme**: `src/theme/` - Theme definitions and presets (lazygit, opencode)
-- **Utils**: `src/utils/` - Shared utilities (file tree, double-click detection)
+- **Entry**: `src/index.tsx` - process entrypoint; `src/tui.tsx` boots the TUI; `src/App.tsx` renders the root app
+- **CLI**: `src/cli/` - non-TUI command modules and formatting helpers
+- **Commander**: `src/commander/` - jj/gh CLI wrappers, streaming execution, and output parsers
+- **Comments**: `src/comments/` - GitHub comment metadata and relocation utilities
+- **Components**: `src/components/` - TUI components, including `panels/`, `modals/`, and diff views
+- **Config**: `src/config/` - config loading, defaults, and Zod schema
+- **Context**: `src/context/` - SolidJS providers for focus, commands, dialogs, sync, keybinds, loading, layout, and theme
+- **Diff**: `src/diff/` - diff parsing/formatting types and helpers
+- **Hooks**: `src/hooks/` - shared Solid/OpenTUI hooks
+- **Keybind**: `src/keybind/` - default keybind definitions, registry, parser, and display helpers
+- **Theme**: `src/theme/` - theme definitions and presets (lazygit, opencode)
+- **Types**: `src/types/` - shared type definitions
+- **Utils**: `src/utils/` - shared utilities (file tree, editor launch, status colors, double-click detection)
 - **Docs**: `docs/` - specs, design notes, OpenTUI reference
 
 ## Testing
@@ -95,33 +103,16 @@ This project uses Solid.js, NOT React. Key differences:
 ## Key Patterns
 
 ### Focus System (`src/context/focus.tsx`)
-Panels have modes like `log.revisions`, `log.files`, `bookmarks.list`, `bookmarks.commits`. Commands register for specific contexts and only activate when that context matches.
+Panels have contexts like `log.revisions`, `log.files`, `log.oplog`, `refs.bookmarks`, `detail`, and `commandlog`. Commands register for specific contexts and only activate when that context matches.
 
-### Command Registry (`src/App.tsx`)
-Commands are registered with `context`, `type`, and `visibility`. The keybind system routes key presses to the appropriate command based on current focus.
+### Command Registry (`src/context/command.tsx`, registrations in panels/App)
+Commands are registered with `context`, `type`, `panel`, and `visibility`. The keybind system routes key presses to the appropriate command based on current focus. `visibility: "help-only"` hides a command from the status bar; `"status-only"` hides it from help; omit visibility to show in both.
 
 ### Dialog System (`src/context/dialog.tsx`)
 Modal stack with backdrop overlay. Dialogs push/pop from stack. Theme-aware styling.
 
 ### Prefix Injection (Log Parsing)
 We inject unique prefixes into `jj log` template output to reliably parse multi-line entries. See `src/commander/log.ts`.
-
-## jj (Jujutsu) Workflow
-
-This repo uses jj, not git directly:
-- `jj st` - status
-- `jj log` - commit history  
-- `jj diff` - show changes
-- `jj desc -m "msg"` - set commit message
-- `jj new` - create new empty working copy
-- `jj squash` - squash into parent
-
-**IMPORTANT: Atomic commits**
-After completing an atomic change (a single logical unit of work), run `jj new` to create a new empty working copy. This keeps changes separate and avoids painful splitting later.
-
-- Run `jj new` after each feature, bug fix, or logical change
-- `jj describe` is optional — can be done in retrospect
-- Don't batch multiple unrelated changes into one commit
 
 ## Dependency Updates
 
@@ -138,15 +129,3 @@ When unsure about jj TUI patterns, explore these repos:
 - **jjui** (Go): https://github.com/idursun/jjui
 - **lazyjj** (Rust): https://github.com/Cretezy/lazyjj
 - **lazygit** (Go): https://github.com/jesseduffield/lazygit
-
-Use the librarian agent to research specific patterns.
-
-## OpenTUI Component Reference
-
-See [`docs/opentui.md`](docs/opentui.md) for the full component API reference, including:
-- Layout components (`box`, `scrollbox`, `text`)
-- Input components (`input`, `textarea`, `select`)
-- Styling patterns (RGBA, TextAttributes, SyntaxStyle)
-- Hooks (`useKeyboard`, `onResize`, `useRenderer`)
-- Critical patterns (virtualization, spacer boxes, focus routing)
-- Known quirks and workarounds
