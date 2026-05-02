@@ -825,7 +825,7 @@ export function MainArea() {
 		},
 		{
 			id: "detail.toggle_jj_formatter",
-			title: "toggle jj formatter",
+			title: "formatter",
 			keybind: "toggle_diff_formatter",
 			context: "detail",
 			type: "view",
@@ -840,7 +840,7 @@ export function MainArea() {
 		},
 		{
 			id: "detail.toggle_diff_style",
-			title: "toggle split/unified",
+			title: "diff view",
 			keybind: "toggle_diff_style",
 			context: "detail.diff_custom",
 			type: "view",
@@ -853,10 +853,40 @@ export function MainArea() {
 		},
 		{
 			id: "detail.toggle_diff_wrap",
-			title: "toggle wrap",
+			title: "wrap",
 			keybind: "toggle_diff_wrap",
 			context: "detail.diff_custom",
 			type: "view",
+			onSelect: () => {
+				setWrapOverride((enabled) => {
+					const current = enabled ?? wrapEnabled()
+					return !current
+				})
+			},
+		},
+		{
+			id: "log.files.toggle_diff_style",
+			title: "diff view",
+			keybind: "toggle_diff_style",
+			context: "log.files",
+			type: "view",
+			panel: "log",
+			visibility: "status-only",
+			onSelect: () => {
+				setViewStyleOverride((s) => {
+					const current = s ?? viewStyle()
+					return current === "unified" ? "split" : "unified"
+				})
+			},
+		},
+		{
+			id: "log.files.toggle_diff_wrap",
+			title: "wrap",
+			keybind: "toggle_diff_wrap",
+			context: "log.files",
+			type: "view",
+			panel: "log",
+			visibility: "status-only",
 			onSelect: () => {
 				setWrapOverride((enabled) => {
 					const current = enabled ?? wrapEnabled()

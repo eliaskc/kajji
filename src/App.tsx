@@ -360,7 +360,7 @@ function AppContent() {
 			? [
 					{
 						id: "global.toggle_console",
-						title: "toggle console",
+						title: "console",
 						keybind: "toggle_console" as const,
 						context: "global" as const,
 						type: "action" as const,
@@ -370,7 +370,7 @@ function AppContent() {
 			: []),
 		{
 			id: "global.focus_next",
-			title: "focus next panel",
+			title: "next panel",
 			keybind: "focus_next",
 			context: "global",
 			type: "navigation",
@@ -379,7 +379,7 @@ function AppContent() {
 		},
 		{
 			id: "global.focus_prev",
-			title: "focus previous panel",
+			title: "previous panel",
 			keybind: "focus_prev",
 			context: "global",
 			type: "navigation",
@@ -415,7 +415,7 @@ function AppContent() {
 		},
 		{
 			id: "global.focus_panel_4",
-			title: "focus command log",
+			title: "command log",
 			keybind: "focus_panel_4",
 			context: "global",
 			type: "navigation",
@@ -440,7 +440,7 @@ function AppContent() {
 		},
 		{
 			id: "global.switch_repository",
-			title: "switch repository",
+			title: "switch repo",
 			keybind: "open_recent",
 			context: "global",
 			type: "action",
@@ -514,7 +514,7 @@ function AppContent() {
 		},
 		{
 			id: "global.git_fetch_all",
-			title: "git fetch menu",
+			title: "fetch menu",
 			keybind: "jj_git_fetch_all",
 			context: "global",
 			type: "git",
@@ -534,7 +534,7 @@ function AppContent() {
 		},
 		{
 			id: "global.git_push_all",
-			title: "git push menu",
+			title: "push menu",
 			keybind: "jj_git_push_all",
 			context: "global",
 			type: "git",

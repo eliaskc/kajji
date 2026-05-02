@@ -1714,7 +1714,7 @@ export function LogPanel() {
 			: []),
 		{
 			id: "log.files.open_editor",
-			title: "open in editor",
+			title: "open",
 			keybind: "open_editor",
 			context: "log.files",
 			type: "action",
@@ -1746,7 +1746,7 @@ export function LogPanel() {
 		},
 		{
 			id: "log.files.open_editor_all",
-			title: "open all in editor",
+			title: "open all",
 			keybind: "open_editor_all",
 			context: "log.files",
 			type: "action",
@@ -1768,7 +1768,7 @@ export function LogPanel() {
 		},
 		{
 			id: "log.files.toggle_tree",
-			title: "toggle file tree/list",
+			title: "tree/list",
 			keybind: "toggle_file_tree",
 			context: "log.files",
 			type: "view",

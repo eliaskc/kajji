@@ -660,7 +660,7 @@ export function BookmarksPanel() {
 		},
 		{
 			id: "refs.bookmarks.toggle_remote",
-			title: "toggle remote-only",
+			title: "remote-only",
 			keybind: "bookmark_toggle_remote",
 			context: "refs.bookmarks",
 			type: "view",
