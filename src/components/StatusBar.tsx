@@ -63,6 +63,7 @@ export function StatusBar() {
 	)
 
 	const separator = () => style().statusBar.separator
+	const isFocusMode = () => layout.focusMode() === "focus"
 
 	const commandGap = separator() ? ` ${separator()} ` : "   "
 
@@ -71,27 +72,13 @@ export function StatusBar() {
 			<>
 				<box
 					flexShrink={0}
-					backgroundColor={
-						layout.focusMode() === "normal"
-							? undefined
-							: colors().modes[layout.focusMode()].bg
-					}
+					backgroundColor={isFocusMode() ? colors().titleBarFocused : undefined}
 				>
 					<text
 						wrapMode="none"
-						fg={
-							layout.focusMode() === "normal"
-								? colors().textMuted
-								: colors().modes[layout.focusMode()].text
-						}
+						fg={isFocusMode() ? colors().titleTextFocused : colors().textMuted}
 					>
-						{(() => {
-							const text = layout.focusMode().toUpperCase()
-							const width = "NORMAL".length
-							const leftPad = Math.floor((width - text.length) / 2)
-							const rightPad = width - text.length - leftPad
-							return " ".repeat(leftPad) + text + " ".repeat(rightPad)
-						})()}
+						{isFocusMode() ? " FOCUS " : " NORMAL"}
 					</text>
 				</box>
 				<box width={1} />

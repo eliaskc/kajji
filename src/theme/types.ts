@@ -1,8 +1,3 @@
-export interface ModeColors {
-	bg: string
-	text: string
-}
-
 export interface DiffThemeColors {
 	additionBackground: string
 	deletionBackground: string
@@ -48,13 +43,6 @@ export interface ThemeColors {
 	scrollbarThumb: string
 
 	diff: DiffThemeColors
-
-	modes: {
-		normal: ModeColors
-		diff: ModeColors
-		log: ModeColors
-		pr: ModeColors
-	}
 }
 
 import type { SyntaxThemeName } from "./syntax"

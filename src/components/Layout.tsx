@@ -1,4 +1,4 @@
-import { Match, Show, Switch } from "solid-js"
+import { Match, Switch } from "solid-js"
 import { useFocus } from "../context/focus"
 import { useLayout } from "../context/layout"
 import { useTheme } from "../context/theme"
@@ -50,22 +50,39 @@ function NormalLayout() {
 	)
 }
 
-function DiffLayout() {
+function FocusLayout() {
 	const focus = useFocus()
-	const isRefsFocused = () => focus.isPanel("refs")
+	const activePanel = () => focus.panel()
+	const leftGrow = () =>
+		activePanel() === "log" || activePanel() === "refs" ? 3 : 2
+	const rightGrow = () =>
+		activePanel() === "detail" || activePanel() === "commandlog"
+			? 7
+			: activePanel() === "log" || activePanel() === "refs"
+				? 2
+				: 3
+	const logGrow = () => (activePanel() === "log" ? 3 : 2)
+	const refsGrow = () => (activePanel() === "refs" ? 3 : 2)
+	const detailGrow = () => (activePanel() === "detail" ? 7 : 1)
 
 	return (
 		<box flexDirection="row" flexGrow={1} gap={0}>
-			<box flexGrow={1} flexBasis={0} flexDirection="column">
-				<Show when={isRefsFocused()} fallback={<LogPanel />}>
+			<box flexGrow={leftGrow()} flexBasis={0} flexDirection="column" gap={0}>
+				<box flexGrow={logGrow()} flexBasis={0}>
+					<LogPanel />
+				</box>
+				<HorizontalDivider />
+				<box flexGrow={refsGrow()} flexBasis={0}>
 					<BookmarksPanel />
-				</Show>
+				</box>
 			</box>
 			<VerticalDivider />
-			<box flexGrow={4} flexBasis={0} flexDirection="column">
-				<box flexGrow={1}>
+			<box flexGrow={rightGrow()} flexBasis={0} flexDirection="column">
+				<box flexGrow={detailGrow()} flexBasis={0}>
 					<MainArea />
 				</box>
+				<HorizontalDivider />
+				<CommandLogPanel />
 			</box>
 		</box>
 	)
@@ -90,8 +107,8 @@ export function LayoutGrid() {
 				<Match when={focusMode() === "normal"}>
 					<NormalLayout />
 				</Match>
-				<Match when={focusMode() === "diff"}>
-					<DiffLayout />
+				<Match when={focusMode() === "focus"}>
+					<FocusLayout />
 				</Match>
 			</Switch>
 			<box height={1} flexShrink={0} />

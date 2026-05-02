@@ -1,36 +1,27 @@
 import { useRenderer } from "@opentui/solid"
 import { createMemo, createSignal, onCleanup, onMount } from "solid-js"
+import { useFocus } from "./focus"
 import { createSimpleContext } from "./helper"
 
 const HELP_MODAL_1_COL_THRESHOLD = 90
 const HELP_MODAL_2_COL_THRESHOLD = 130
 
-export type FocusMode = "normal" | "diff"
+export type FocusMode = "normal" | "focus"
 
 export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
 	{
 		name: "Layout",
 		init: () => {
 			const renderer = useRenderer()
+			const focus = useFocus()
 
 			const [terminalWidth, setTerminalWidth] = createSignal(renderer.width)
 			const [terminalHeight, setTerminalHeight] = createSignal(renderer.height)
 
-			const [focusMode, setFocusModeInternal] =
-				createSignal<FocusMode>("normal")
-			const [previousMode, setPreviousMode] = createSignal<FocusMode>("normal")
-
-			const setFocusMode = (mode: FocusMode) => {
-				setPreviousMode(focusMode())
-				setFocusModeInternal(mode)
-			}
+			const [focusMode, setFocusMode] = createSignal<FocusMode>("normal")
 
 			const toggleFocusMode = () => {
-				setFocusMode(focusMode() === "normal" ? "diff" : "normal")
-			}
-
-			const returnToPreviousMode = () => {
-				setFocusModeInternal(previousMode())
+				setFocusMode(focusMode() === "normal" ? "focus" : "normal")
 			}
 
 			onMount(() => {
@@ -49,12 +40,18 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
 				return 3
 			})
 
-			// Main area width for diff panel calculations
-			// Based on diff mode ratio (1:4 split)
+			// Main area width for diff panel calculations.
+			// In focus mode, the selected panel gets the wide side of the layout.
 			const mainAreaWidth = createMemo(() => {
 				const width = terminalWidth()
-				const mode = focusMode()
-				const ratio = mode === "diff" ? 4 / 5 : 1 / 2
+				const isFocusMode = focusMode() === "focus"
+				const activePanel = focus.panel()
+				const ratio =
+					isFocusMode && (activePanel === "detail" || activePanel === "commandlog")
+						? 7 / 10
+						: isFocusMode && (activePanel === "log" || activePanel === "refs")
+							? 4 / 10
+							: 1 / 2
 				const borderWidth = 2
 				return Math.floor(width * ratio) - borderWidth
 			})
@@ -67,7 +64,6 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
 				focusMode,
 				setFocusMode,
 				toggleFocusMode,
-				returnToPreviousMode,
 			}
 		},
 	},

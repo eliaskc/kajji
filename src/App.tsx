@@ -2,7 +2,6 @@ import { useRenderer } from "@opentui/solid"
 import {
 	Show,
 	createEffect,
-	createMemo,
 	createSignal,
 	onCleanup,
 	onMount,
@@ -86,33 +85,25 @@ function AppContent() {
 		VersionBlock[] | null
 	>(null)
 
-	const visiblePanels = createMemo<Panel[]>(() => {
-		if (layout.focusMode() === "diff") {
-			const leftPanel = focus.panel() === "refs" ? "refs" : "log"
-			return [leftPanel, "detail"]
-		}
-		return ["log", "refs", "detail", "commandlog"]
-	})
+	const visiblePanels: Panel[] = ["log", "refs", "detail", "commandlog"]
 
 	const focusPanel = (panel: Panel) => {
-		if (!visiblePanels().includes(panel)) return
+		if (!visiblePanels.includes(panel)) return
 		focus.setPanel(panel)
 	}
 
 	const cyclePanel = (direction: 1 | -1) => {
-		const panels = visiblePanels()
-		if (panels.length === 0) return
 		const current = focus.panel()
-		const idx = panels.indexOf(current)
-		const next = panels[(idx + direction + panels.length) % panels.length]
+		const idx = visiblePanels.indexOf(current)
+		const next =
+			visiblePanels[(idx + direction + visiblePanels.length) % visiblePanels.length]
 		if (next) focus.setPanel(next)
 	}
 
 	createEffect(() => {
-		const panels = visiblePanels()
 		const current = focus.panel()
-		if (!panels.includes(current)) {
-			const next = panels[0]
+		if (!visiblePanels.includes(current)) {
+			const next = visiblePanels[0]
 			if (next) focus.setPanel(next)
 		}
 	})
@@ -492,7 +483,7 @@ function AppContent() {
 		},
 		{
 			id: "global.toggle_focus_mode",
-			title: "view",
+			title: "focus",
 			keybind: "toggle_focus_mode",
 			context: "global",
 			type: "action",

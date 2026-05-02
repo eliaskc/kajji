@@ -3,6 +3,7 @@ import { For, Show, createMemo, createSignal, onCleanup } from "solid-js"
 import { useCommand } from "../../context/command"
 import { useCommandLog } from "../../context/commandlog"
 import { useFocus } from "../../context/focus"
+import { useLayout } from "../../context/layout"
 import { useTheme } from "../../context/theme"
 import { blendColors } from "../../utils/color"
 import { Panel } from "../Panel"
@@ -11,12 +12,14 @@ export function CommandLogPanel() {
 	const { colors } = useTheme()
 	const commandLog = useCommandLog()
 	const focus = useFocus()
+	const layout = useLayout()
 	const command = useCommand()
 
 	let scrollRef: ScrollBoxRenderable | undefined
 	const [scrollTop, setScrollTop] = createSignal(0)
 
 	const isFocused = () => focus.isPanel("commandlog")
+	const isFocusModeFocused = () => isFocused() && layout.focusMode() === "focus"
 	const [animationTick, setAnimationTick] = createSignal(0)
 	const spinnerTimer = setInterval(() => {
 		if (
@@ -147,7 +150,7 @@ export function CommandLogPanel() {
 	])
 
 	return (
-		<box height={isFocused() ? 24 : 10} overflow="hidden">
+		<box height={isFocusModeFocused() ? 24 : 10} overflow="hidden">
 			<Panel
 				title="Command log"
 				hotkey="4"

@@ -43,12 +43,6 @@ const dark: ThemeColors = {
 		lineNumber: "#6e7681",
 	},
 
-	modes: {
-		normal: { bg: "#303030", text: "#808080" },
-		diff: { bg: "#56b6c2", text: "#0a0a0a" },
-		log: { bg: "#e5c07b", text: "#0a0a0a" },
-		pr: { bg: "#c678dd", text: "#0a0a0a" },
-	},
 }
 
 const light: ThemeColors = {
@@ -94,12 +88,6 @@ const light: ThemeColors = {
 		lineNumber: "#6f7782",
 	},
 
-	modes: {
-		normal: { bg: "#e6e6e6", text: "#7a7a7a" },
-		diff: { bg: "#5fa8b8", text: "#111111" },
-		log: { bg: "#d9ae55", text: "#111111" },
-		pr: { bg: "#a982bd", text: "#111111" },
-	},
 }
 
 export const kajjiTheme: Theme = {
