@@ -18,6 +18,7 @@ export interface CommandLogEntry {
 	status: CommandLogStatus
 	exitCode?: number
 	timestamp: Date
+	completedAt?: Date
 }
 
 function combinedOutput(
@@ -60,6 +61,7 @@ export const { use: useCommandLog, provider: CommandLogProvider } =
 									output: entry.output || combinedOutput(result),
 									status: result.success ? "success" : "failure",
 									exitCode: result.exitCode,
+									completedAt: new Date(),
 								}
 							: entry,
 					),
@@ -101,6 +103,7 @@ export const { use: useCommandLog, provider: CommandLogProvider } =
 					status: result.success ? "success" : "failure",
 					exitCode: result.exitCode,
 					timestamp: new Date(),
+					completedAt: new Date(),
 				}
 				setEntries((prev) => [...prev, entry])
 			}

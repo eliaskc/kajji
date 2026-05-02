@@ -4,6 +4,7 @@ import { useCommand } from "../../context/command"
 import { useCommandLog } from "../../context/commandlog"
 import { useFocus } from "../../context/focus"
 import { useTheme } from "../../context/theme"
+import { blendColors } from "../../utils/color"
 import { Panel } from "../Panel"
 
 export function CommandLogPanel() {
@@ -16,49 +17,87 @@ export function CommandLogPanel() {
 	const [scrollTop, setScrollTop] = createSignal(0)
 
 	const isFocused = () => focus.isPanel("commandlog")
-	const [spinnerIndex, setSpinnerIndex] = createSignal(0)
+	const [animationTick, setAnimationTick] = createSignal(0)
 	const spinnerTimer = setInterval(() => {
-		if (commandLog.entries().some((entry) => entry.status === "running")) {
-			setSpinnerIndex((index) => index + 1)
+		if (
+			commandLog
+				.entries()
+				.some(
+					(entry) =>
+						entry.status === "running" ||
+						(entry.status === "success" && entry.completedAt),
+				)
+		) {
+			setAnimationTick((index) => index + 1)
 		}
 	}, 80)
 	onCleanup(() => clearInterval(spinnerTimer))
-	const spinnerFrame = createMemo(
-		() =>
-			[
-				"[    ]",
-				"[=   ]",
-				"[==  ]",
-				"[=== ]",
-				"[====]",
-				"[ ===]",
-				"[  ==]",
-				"[   =]",
-				"[    ]",
-				"[   =]",
-				"[  ==]",
-				"[ ===]",
-				"[====]",
-				"[=== ]",
-				"[==  ]",
-				"[=   ]",
-			][spinnerIndex() % 16] ?? "[    ]",
-	)
 
 	const entryPrefix = (
 		entry: ReturnType<typeof commandLog.entries>[number],
 	) => {
-		if (entry.status === "running") return spinnerFrame()
-		if (entry.status === "failure") return "x"
-		if (entry.status === "skipped" || entry.status === "info") return "-"
-		return " "
+		if (entry.status === "failure") return "x "
+		if (entry.status === "skipped" || entry.status === "info") return "- "
+		return ""
 	}
 
 	const entryColor = (entry: ReturnType<typeof commandLog.entries>[number]) => {
 		if (entry.status === "failure") return colors().error
+		if (entry.status === "success") return successColor(entry)
 		if (entry.status === "skipped" || entry.status === "info")
 			return colors().textMuted
 		return colors().textMuted
+	}
+
+	const entryText = (entry: ReturnType<typeof commandLog.entries>[number]) => {
+		const prefix = entryPrefix(entry)
+		const body = entry.command ? `$ ${entry.command}` : (entry.message ?? "")
+		const suffix =
+			entry.command && entry.status === "failure"
+				? `  [exit ${entry.exitCode ?? 1}]`
+				: ""
+		return `${prefix}${body}${suffix}`
+	}
+
+	const commandAgeMs = (
+		entry: ReturnType<typeof commandLog.entries>[number],
+	) => {
+		animationTick()
+		return Date.now() - entry.timestamp.getTime()
+	}
+
+	const completionAgeMs = (
+		entry: ReturnType<typeof commandLog.entries>[number],
+	) => {
+		animationTick()
+		return entry.completedAt ? Date.now() - entry.completedAt.getTime() : null
+	}
+
+	const waveColor = (
+		entry: ReturnType<typeof commandLog.entries>[number],
+		index: number,
+		length: number,
+	) => {
+		const phase = Math.floor(commandAgeMs(entry) / 80) % Math.max(length, 1)
+		const distance = Math.abs(index - phase)
+		const wrappedDistance = Math.min(distance, length - distance)
+		const opacity = Math.max(0.15, 1 - wrappedDistance * 0.28)
+		return blendColors(colors().statusBarKey, colors().textMuted, opacity)
+	}
+
+	const successColor = (
+		entry: ReturnType<typeof commandLog.entries>[number],
+	) => {
+		const age = completionAgeMs(entry)
+		if (age === null) return colors().textMuted
+		if (age < 1500) return colors().statusBarKey
+		const fadeProgress = Math.min(1, (age - 1500) / 300)
+		const easedProgress = 1 - (1 - fadeProgress) ** 3
+		return blendColors(
+			colors().statusBarKey,
+			colors().textMuted,
+			1 - easedProgress,
+		)
 	}
 
 	command.register(() => [
@@ -136,22 +175,35 @@ export function CommandLogPanel() {
 							}
 						>
 							<For each={commandLog.entries()}>
-								{(entry) => (
-									<box flexDirection="column">
-										<text fg={entryColor(entry)}>
-											{entry.command
-												? `${entryPrefix(entry)} $ ${entry.command}${
-														entry.status === "failure"
-															? `  [exit ${entry.exitCode ?? 1}]`
-															: ""
-													}`
-												: `${entryPrefix(entry)} ${entry.message ?? ""}`}
-										</text>
-										<Show when={entry.output.length > 0}>
-											<text fg={colors().text}>{entry.output}</text>
-										</Show>
-									</box>
-								)}
+								{(entry) => {
+									const text = () => entryText(entry)
+									const chars = () => [...text()]
+									return (
+										<box flexDirection="column">
+											<text fg={entryColor(entry)}>
+												<Show
+													when={entry.status === "running"}
+													fallback={text()}
+												>
+													<For each={chars()}>
+														{(char, index) => (
+															<span
+																style={{
+																	fg: waveColor(entry, index(), chars().length),
+																}}
+															>
+																{char}
+															</span>
+														)}
+													</For>
+												</Show>
+											</text>
+											<Show when={entry.output.length > 0}>
+												<text fg={colors().text}>{entry.output}</text>
+											</Show>
+										</box>
+									)
+								}}
 							</For>
 						</Show>
 					</box>
