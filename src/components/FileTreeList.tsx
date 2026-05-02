@@ -2,6 +2,7 @@ import { For, Show } from "solid-js"
 import { useFocus } from "../context/focus"
 import { useTheme } from "../context/theme"
 import type { Context } from "../context/types"
+import { blendColors } from "../utils/color"
 import { createDoubleClickDetector } from "../utils/double-click"
 import type { FlatFileNode } from "../utils/file-tree"
 import { type FileStatus, getStatusColor } from "../utils/status-colors"
@@ -28,6 +29,8 @@ export interface FileTreeListProps {
 export function FileTreeList(props: FileTreeListProps) {
 	const focus = useFocus()
 	const { colors } = useTheme()
+	const selectionBackground = () =>
+		blendColors(colors().selectionBackground, colors().background, 0.5)
 
 	return (
 		<For each={props.files()}>
@@ -66,13 +69,17 @@ export function FileTreeList(props: FileTreeListProps) {
 					handleDoubleClick()
 				}
 
-				const showSelection = () =>
-					isSelected() && (props.isFocused?.() ?? true)
+				const isListFocused = () => props.isFocused?.() ?? true
+				const showSelection = () => isSelected()
 
 				return (
 					<box
 						backgroundColor={
-							showSelection() ? colors().selectionBackground : undefined
+							showSelection()
+								? isListFocused()
+									? colors().selectionBackground
+									: selectionBackground()
+								: undefined
 						}
 						overflow="hidden"
 						onMouseDown={handleMouseDown}

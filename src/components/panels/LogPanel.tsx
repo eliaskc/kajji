@@ -61,6 +61,7 @@ import { useSync } from "../../context/sync"
 import { useTheme } from "../../context/theme"
 import type { Context } from "../../context/types"
 import { getRepoPath } from "../../repo"
+import { blendColors } from "../../utils/color"
 import { createDoubleClickDetector } from "../../utils/double-click"
 import { openInEditor, shouldSuspendForEditor } from "../../utils/editor"
 import type { FileTreeNode } from "../../utils/file-tree"
@@ -306,6 +307,8 @@ export function LogPanel() {
 	}
 
 	const isFocused = () => focus.isPanel("log")
+	const inactiveSelectionBackground = () =>
+		blendColors(colors().selectionBackground, colors().background, 0.5)
 	const isFilesView = () => viewMode() === "files"
 
 	createEffect(() => {
@@ -1816,23 +1819,25 @@ export function LogPanel() {
 									}
 									handleClick()
 								}
-								const showSelection = () => isSelected() && isFocused()
+								const showSelection = () => isSelected()
+								const selectionBackground = () =>
+									isFocused()
+										? colors().selectionBackground
+										: inactiveSelectionBackground()
 								return (
 									<box onMouseDown={handleMouseDown}>
 										<For each={commit.lines}>
 											{(line) => (
 												<box
 													backgroundColor={
-														showSelection()
-															? colors().selectionBackground
-															: undefined
+														showSelection() ? selectionBackground() : undefined
 													}
 													overflow="hidden"
 												>
 													<AnsiText
 														content={line}
 														defaultFg={
-															showSelection()
+															showSelection() && isFocused()
 																? colors().selectionText
 																: undefined
 														}
@@ -1922,20 +1927,26 @@ export function LogPanel() {
 				<For each={opLogEntries()}>
 					{(entry, index) => {
 						const isSelected = () => index() === opLogSelectedIndex()
-						const showSelection = () => isSelected() && isFocused()
+						const showSelection = () => isSelected()
+						const selectionBackground = () =>
+							isFocused()
+								? colors().selectionBackground
+								: inactiveSelectionBackground()
 						return (
 							<For each={entry.lines}>
 								{(line) => (
 									<box
 										backgroundColor={
-											showSelection() ? colors().selectionBackground : undefined
+											showSelection() ? selectionBackground() : undefined
 										}
 										overflow="hidden"
 									>
 										<AnsiText
 											content={line}
 											defaultFg={
-												showSelection() ? colors().selectionText : undefined
+												showSelection() && isFocused()
+													? colors().selectionText
+													: undefined
 											}
 											wrapMode="none"
 											onMouseScroll={createHorizontalScrollHandler(
