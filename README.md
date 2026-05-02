@@ -2,23 +2,15 @@
   <img alt="kajji" src="./assets/kajji.gif">
 </p>
 
-A simple [jj](https://github.com/martinvonz/jj) terminal UI with custom diff rendering.
+# kajji
+
+A terminal UI for [jj / Jujutsu](https://github.com/martinvonz/jj): navigate changes, inspect polished diffs, and run common jj workflows with ease and speed.
+
+Kajji gives jj a fast, keyboard-first interface with a commit graph, file tree, operation log, bookmark management, GitHub helpers, revset filtering, and custom diff rendering with syntax highlighting, word-level emphasis, split/unified layouts, wrapping, and binary-file handling.
 
 ![normal mode](./assets/normal-mode.png)
 
-Reviewing local code has never been as prominent as it is today. Coding agents are writing line upon line, and your sorry eyes are the ones that need to trudge through it.
-
-Kajji makes this new reality less painful with polished jj navigation and manipulation alongside Shiki-powered diff rendering with syntax highlighting and word-level diffs. To allow for jj's log to get the real estate it deserves when you're looking at the diff, while also allowing the width required for side-by-side diff rendering, kajji has two view modes: normal and diff. Switch with ctrl+x and try it out.
-
-![diff mode](./assets/diff-mode.png)
-
-Why build this? While learning jj I found myself coming back to lazygit to do this quickly and easily - the options for jj didn't quite scratch that lazygit itch of speed, simplicity and polish.
-
-Kajji is my attempt to bring the UX of lazygit to jj, while also aiming for top-class diff rendering and exploring leveraging coding agents effectively. I'm building this for myself first and foremost, but I hope it can be helpful to others too.
-
 ## Installation
-
-> **Requirements**: [jj](https://github.com/martinvonz/jj)
 
 ```bash
 # recommended if you use Homebrew
@@ -49,7 +41,7 @@ kajji uninstall --force               # skip the confirmation prompt
 
 ### From source
 
-> **Requirements**: [Bun](https://bun.sh)
+Requirements: [Bun](https://bun.sh)
 
 ```bash
 git clone https://github.com/eliaskc/kajji.git
@@ -57,43 +49,6 @@ cd kajji
 bun install
 bun dev
 ```
-
-## Principles
-
-- **Polish & simplicity** - Do less, but do it well.
-- **Intuitive UX** - Sensible defaults, consistent patterns.
-- **Snappy** - If it feels slow, it's a bug.
-
-## Features
-
-**Core jj operations:**
-
-- [x] View commit log with graph
-- [x] View diffs with syntax highlighting and word-level emphasis
-- [x] New / edit / describe / squash / abandon
-- [x] Rebase with revision picker
-- [x] Split (suspends TUI for jj's native split)
-- [x] Undo / redo with preview
-- [x] Bookmarks (create, delete, rename, move)
-- [x] Git fetch / push
-- [x] Operation log with restore
-- [ ] Conflict resolution
-
-**TUI polish:**
-
-- [x] Vim-style navigation (j/k, ctrl+u/d)
-- [x] Mouse support (click, double-click, horizontal scroll)
-- [x] Collapsible file tree with status colors
-- [x] Help palette with fuzzy search (`?`)
-- [x] Focus modes for normal browsing vs diff viewing
-- [x] Line wrapping toggle (`w`) and split/unified view (`v`)
-- [x] Binary file detection
-- [x] Recent repository switcher
-- [x] Automatic update notifications
-- [x] Revset filtering and fuzzy search
-- [x] JSONC config with live reload and schema autocomplete
-- [x] Open files in editor from file view (`e`/`E`)
-- [ ] Multi-select for batch operations
 
 ## Usage
 
@@ -104,7 +59,45 @@ kajji                    # current directory
 kajji /path/to/repo      # specific directory
 ```
 
-### CLI
+Kajji has two main viewing modes:
+
+- **Normal mode** keeps the log, bookmarks, detail, and command log visible.
+- **Diff focus mode** gives the detail pane more space for side-by-side diffs.
+
+Toggle between them with `ctrl+x`.
+
+## Features
+
+**jj workflows**
+
+- Commit log with graph and revset filtering
+- File view with tree/list toggle, editor launching, and discard for working-copy files
+- New, edit, describe, squash, abandon, duplicate, rebase, split, resolve
+- Undo, redo, operation log, and restore
+- Bookmark create/delete/rename/forget/set/move plus remote-only filtering
+- Git fetch/push menus
+- Open commits and PRs on GitHub
+- Recent repository switcher
+
+**Diff viewing**
+
+- Custom unified and split diff renderers
+- Syntax highlighting and word-level change emphasis
+- Line wrapping and horizontal scrolling
+- Hunk and file navigation
+- Optional jj formatter output
+- Binary file detection
+
+**TUI polish**
+
+- Vim-style navigation plus mouse support
+- Focusable panels and tabs
+- Command palette with fuzzy search (`?` / `ctrl+p`)
+- Context-aware status hints
+- JSONC config with schema autocomplete
+- Automatic update notifications
+
+## CLI
 
 Kajji includes a small CLI for scripting and agent workflows:
 
@@ -122,90 +115,99 @@ kajji comment delete -r @ --file src/App.tsx
 kajji comment delete -r @ --all -y
 ```
 
-### Configuration
+## Configuration
 
 Kajji reads JSONC config from `~/.config/kajji/config.json` (comments and trailing commas are supported).
 
 - Open it from the command palette (`?`) with `open config`
-- Changes from `open config` are reloaded when you return to kajji
-- Schema autocomplete is available via `$schema` in the generated config
+- Changes made through `open config` are reloaded when you return to kajji
+- The default config includes `$schema: "https://kajji.sh/schema.json"` for editor autocomplete
 
-```jsonc
-{
-  "$schema": "https://kajji.sh/schema.json",
-  "ui": {
-    "theme": "lazygit",       // "lazygit" | "opencode"
-    "showFileTree": true
-  },
-  "diff": {
-    "layout": "auto",         // "auto" | "unified" | "split"
-    "autoSwitchWidth": 120,   // only used when layout is "auto"
-    "wrap": true,
-    "useJjFormatter": false   // use jj's ui.diff-formatter output in Detail
-  },
-  "whatsNewDisabled": false
-}
-```
+Common settings include:
 
-Not yet wired from config ([#16](https://github.com/eliaskc/kajji/issues/16)):
+- `ui.themeMode`: `system`, `dark`, or `light`
+- `ui.syntaxTheme.dark` / `ui.syntaxTheme.light`: syntax highlighting theme names
+- `ui.showFileTree`: show files as a tree or flat list
+- `diff.layout`: `auto`, `unified`, or `split`
+- `diff.autoSwitchWidth`: terminal width where `auto` switches to split view
+- `diff.wrap`: wrap long diff lines
+- `diff.useJjFormatter`: use jj's configured diff formatter in the detail pane
+- `hooks`: commands to run before specific operations
+- `whatsNewDisabled` / `autoUpdatesDisabled`: update notification controls
 
-- keybind overrides
+## Keybindings
 
-### Keybindings
+Default keybindings are contextual. Press `?` or `ctrl+p` in kajji for the full command list available in the current panel.
 
-| Key       | Action                            |
-| --------- | --------------------------------- |
-| `j` / `k` | Move down / up                    |
-| `Tab`     | Cycle focus between panels        |
-| `Enter`   | Drill into commit / file          |
-| `Escape`  | Back / close modal                |
-| `ctrl+x`  | Toggle focus mode (normal / diff) |
-| `ctrl+o`  | Open recent repository            |
-| `o` / `O` | Open commit/PR on GitHub (prompt / direct) |
-| `-`       | Toggle tree/list (Files) or jj formatter (Detail) |
-| `w`       | Toggle line wrapping in diff (built-in renderer) |
-| `v`       | Toggle split / unified diff (built-in renderer) |
-| `ctrl+p`  | Show commands (or `?`)            |
-| `q`       | Quit                              |
+### Global and navigation
 
-### Operations
+| Key                    | Action                                  |
+| ---------------------- | --------------------------------------- |
+| `q`                    | Quit                                    |
+| `?` / `ctrl+p`         | Command palette                         |
+| `Tab` / `shift+Tab`    | Next / previous panel                   |
+| `1` / `2` / `3` / `4`  | Focus log / refs / detail / command log |
+| `j` / `k` or `↓` / `↑` | Move down / up                          |
+| `ctrl+d` / `ctrl+u`    | Page down / up                          |
+| `Enter`                | Open/drill into the selected item       |
+| `Escape`               | Back, close, or clear filter            |
+| `[` / `]` or `h` / `l` | Previous / next tab                     |
+| `/`                    | Filter revisions or bookmarks           |
+| `ctrl+r`               | Refresh                                 |
+| `ctrl+x`               | Toggle normal/diff focus mode           |
+| `ctrl+o`               | Open recent repository                  |
 
-| Key       | Action                  |
-| --------- | ----------------------- |
-| `n` / `N` | New change / new before |
-| `e`       | Edit change             |
-| `d`       | Describe change         |
-| `s`       | Squash                  |
-| `a`       | Abandon change          |
-| `r`       | Rebase                  |
-| `S`       | Split                   |
-| `u` / `U` | Undo / redo             |
-| `f`       | Git fetch               |
-| `F`       | Git fetch options       |
-| `p`       | Git push                |
-| `P`       | Git push options        |
+### jj operations
 
-### Bookmarks
+| Key       | Action                                                                                     |
+| --------- | ------------------------------------------------------------------------------------------ |
+| `n` / `N` | New change / new menu                                                                      |
+| `e`       | Edit change, or open selected file in editor from file view                                |
+| `E`       | Open all files in editor from file view                                                    |
+| `d`       | Describe, delete bookmark, restore operation, or discard file changes depending on context |
+| `s`       | Squash                                                                                     |
+| `a`       | Abandon                                                                                    |
+| `r`       | Rebase, or rename bookmark in refs                                                         |
+| `S`       | Split                                                                                      |
+| `D`       | Duplicate                                                                                  |
+| `R`       | Resolve conflicts, or toggle remote-only bookmarks in refs                                 |
+| `u` / `U` | Undo / redo                                                                                |
+| `f` / `F` | Git fetch / fetch menu                                                                     |
+| `p` / `P` | Git push / push menu                                                                       |
 
-| Key | Action                 |
-| --- | ---------------------- |
-| `c` | Create bookmark        |
-| `d` | Delete bookmark        |
-| `r` | Rename bookmark        |
-| `b` | Set bookmark on commit |
-| `m` | Move bookmark          |
+### Diff and files
 
-See [GitHub issues](https://github.com/eliaskc/kajji/issues) for the roadmap.
+| Key                    | Action                                                        |
+| ---------------------- | ------------------------------------------------------------- |
+| `-`                    | Toggle file tree/list in file view, or jj formatter in detail |
+| `v`                    | Toggle split/unified diff                                     |
+| `w`                    | Toggle diff line wrapping                                     |
+| `h` / `l` or `←` / `→` | Horizontal scroll when wrapping is off                        |
+| `[` / `]`              | Previous / next hunk in custom diff view                      |
+| `{` / `}`              | Previous / next file in custom diff view                      |
+
+### Bookmarks and GitHub
+
+| Key       | Action                                             |
+| --------- | -------------------------------------------------- |
+| `c`       | Create bookmark                                    |
+| `d`       | Delete bookmark                                    |
+| `r`       | Rename bookmark                                    |
+| `x`       | Forget bookmark locally                            |
+| `b`       | Set bookmark on selected revision                  |
+| `m`       | Move bookmark                                      |
+| `o` / `O` | Open selected revision on GitHub (prompt / direct) |
+| `o`       | Open selected bookmark's commit or PR on GitHub    |
 
 ## Built With
 
-- [OpenTUI](https://github.com/sst/opentui) + [SolidJS](https://www.solidjs.com/) - Modern TypeScript TUI framework
-- [Bun](https://bun.sh) - Fast JavaScript runtime
+- [OpenTUI](https://github.com/sst/opentui) + [SolidJS](https://www.solidjs.com/) - TypeScript TUI framework
+- [Bun](https://bun.sh) - JavaScript runtime and build tooling
 - [jj (Jujutsu)](https://github.com/martinvonz/jj) - Git-compatible VCS
 
 ## Related Projects
 
-- [lazygit](https://github.com/jesseduffield/lazygit) - The inspiration for this project
+- [lazygit](https://github.com/jesseduffield/lazygit) - Git TUI
 - [jjui](https://github.com/idursun/jjui) - Go-based jj TUI
 - [lazyjj](https://github.com/Cretezy/lazyjj) - Rust-based jj TUI
 
