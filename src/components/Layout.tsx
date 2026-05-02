@@ -61,8 +61,8 @@ function FocusLayout() {
 			: activePanel() === "log" || activePanel() === "refs"
 				? 2
 				: 3
-	const logGrow = () => (activePanel() === "log" ? 3 : 2)
-	const refsGrow = () => (activePanel() === "refs" ? 3 : 2)
+	const logGrow = () => (activePanel() === "refs" ? 2 : 3)
+	const refsGrow = () => (activePanel() === "refs" ? 3 : 1)
 	const detailGrow = () => (activePanel() === "detail" ? 7 : 1)
 
 	return (
