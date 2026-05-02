@@ -639,15 +639,8 @@ export async function jjGitPushChange(
 	}
 }
 
-export async function jjRestore(
-	paths: string[],
-	revision?: string,
-): Promise<OperationResult> {
-	const args = ["restore"]
-	if (revision) {
-		args.push("-r", revision)
-	}
-	args.push(...paths)
+export async function jjRestore(paths: string[]): Promise<OperationResult> {
+	const args = ["restore", ...paths]
 	const result = await execute(args)
 	return {
 		...result,

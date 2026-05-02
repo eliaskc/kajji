@@ -394,6 +394,7 @@ export function LogPanel() {
 			refresh()
 			loadOpLog()
 		}
+		return result
 	}
 
 	const moveBookmark = async (
@@ -1673,33 +1674,44 @@ export function LogPanel() {
 			visibility: "help-only",
 			onSelect: exitFilesView,
 		},
-		{
-			id: "log.files.restore",
-			title: "restore",
-			keybind: "jj_restore",
-			context: "log.files",
-			type: "action",
-			panel: "log",
-			onSelect: async () => {
-				const file = flatFiles()[selectedFileIndex()]
-				if (!file) return
-				const node = file.node
-				const pathType = node.isDirectory ? "folder" : "file"
-				const confirmed = await dialog.confirm({
-					...DIALOG_SIZE.confirmExtraWide,
-					message: [
-						{ text: "Restore", style: "action" },
-						` ${pathType} `,
-						{ text: node.path, style: "target" },
-						"? ",
-						{ text: "This will discard changes.", style: "muted" },
-					],
-				})
-				if (confirmed) {
-					await runOperation("Restoring...", () => jjRestore([node.path]))
-				}
-			},
-		},
+		...(selectedCommit()?.isWorkingCopy
+			? [
+					{
+						id: "log.files.restore",
+						title: "discard",
+						keybind: "jj_restore" as const,
+						context: "log.files" as const,
+						type: "action" as const,
+						panel: "log" as const,
+						onSelect: async () => {
+							const fileIndex = selectedFileIndex()
+							const file = flatFiles()[fileIndex]
+							if (!file) return
+							const node = file.node
+							const displayPath = node.path || node.name
+							const restorePaths = node.path ? [node.path] : []
+							const confirmed = await dialog.confirm({
+								...DIALOG_SIZE.confirmExtraWide,
+								message: [
+									{ text: "Discard", style: "action" },
+									" changes to ",
+									{ text: displayPath, style: "target" },
+									"?",
+								],
+							})
+							if (confirmed) {
+								const result = await runOperation("Discarding...", () =>
+									jjRestore(restorePaths),
+								)
+								if (result?.success) {
+									const nextIndex = Math.min(fileIndex, flatFiles().length - 2)
+									setSelectedFileIndex(Math.max(0, nextIndex))
+								}
+							}
+						},
+					},
+				]
+			: []),
 		{
 			id: "log.files.open_editor",
 			title: "open in editor",

@@ -97,7 +97,7 @@ export const DEFAULT_KEYBINDS: KeybindConfig = {
 	jj_resolve: "R",
 	jj_undo: "u",
 	jj_redo: "U",
-	jj_restore: "r",
+	jj_restore: "d",
 	jj_rebase: "r",
 	jj_split: "S",
 	jj_git_fetch: "f",

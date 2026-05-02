@@ -21,6 +21,7 @@ import {
 	jjDescribe,
 	jjEdit,
 	jjRebase,
+	jjRestore,
 	jjShowDescription,
 	jjShowDescriptionStyled,
 	jjSquash,
@@ -511,6 +512,36 @@ describe("jjRebase", () => {
 			"def456",
 			"--ignore-immutable",
 		])
+	})
+})
+
+describe("jjRestore", () => {
+	test("restores paths from the default source when revision is omitted", async () => {
+		mockExecute.mockResolvedValueOnce({
+			stdout: "",
+			stderr: "",
+			exitCode: 0,
+			success: true,
+		})
+
+		const result = await jjRestore(["src/file.ts"])
+
+		expect(mockExecute).toHaveBeenCalledWith(["restore", "src/file.ts"])
+		expect(result.command).toBe("jj restore src/file.ts")
+	})
+
+	test("restores all paths when no paths are provided", async () => {
+		mockExecute.mockResolvedValueOnce({
+			stdout: "",
+			stderr: "",
+			exitCode: 0,
+			success: true,
+		})
+
+		const result = await jjRestore([])
+
+		expect(mockExecute).toHaveBeenCalledWith(["restore"])
+		expect(result.command).toBe("jj restore")
 	})
 })
 
