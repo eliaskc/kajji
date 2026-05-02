@@ -4,15 +4,15 @@ on:
   workflow_dispatch:
     inputs:
       bump:
-        description: "Version bump (patch | minor | major | x.y.z). Leave empty to let the agent decide."
+        description: "Version bump (patch/minor/major/x.y.z). Empty = agent decides."
         required: false
         default: ""
       model:
-        description: "pi model id (provider/model[:thinking]). Defaults to claude-sonnet-4-6 — top prose quality + adaptive reasoning. Alternatives: opencode/kimi-k2.5 (cheap), opencode/gpt-5.4-mini (fast)."
+        description: "pi model id (provider/model[:thinking]). Default: opencode/claude-sonnet-4-6."
         required: false
         default: "opencode/claude-sonnet-4-6"
       pi_version:
-        description: "Pin a specific @mariozechner/pi-coding-agent version (default: latest)"
+        description: "pi version. Default: latest."
         required: false
         default: "latest"
   pull_request:
@@ -264,7 +264,7 @@ jobs:
         run: bun run script/build.ts --target ${{ matrix.target }}
 
       - name: Upload platform package
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: kajji-${{ matrix.target }}
           path: dist/kajji-${{ matrix.target }}
@@ -308,7 +308,7 @@ jobs:
       - run: bun install
 
       - name: Download all platform artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           path: artifacts
 
