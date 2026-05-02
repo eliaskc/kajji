@@ -372,6 +372,9 @@ interface VirtualizedSplitRowProps {
 
 function VirtualizedSplitRow(props: VirtualizedSplitRowProps) {
 	const { colors } = useTheme()
+	const { colors, mode } = useTheme()
+	const gapPatternColor = () =>
+		mode() === "light" ? colors().border : GAP_PATTERN_COLOR
 
 	if (props.row.type === "file-header") {
 		const stats = props.fileStats.get(props.row.row.fileId)
@@ -435,9 +438,9 @@ function VirtualizedSplitRow(props: VirtualizedSplitRowProps) {
 		return (
 			<box overflow="hidden">
 				<text wrapMode="none">
-					<span style={{ fg: GAP_PATTERN_COLOR }}>{gutterPattern}</span>
+					<span style={{ fg: gapPatternColor() }}>{gutterPattern}</span>
 					<span style={{ fg: colors().textMuted }}>{ellipsis}</span>
-					<span style={{ fg: GAP_PATTERN_COLOR }}>{pattern}</span>
+					<span style={{ fg: gapPatternColor() }}>{pattern}</span>
 				</text>
 			</box>
 		)
