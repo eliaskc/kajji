@@ -4,6 +4,7 @@
 
 ### new
 - uninstall command with `--dry-run`, `--force`, `--keep-config`, and `--keep-data` flags ([`ce902c8`](../../commit/ce902c8))
+- kajji available via brew tap eliaskc/tap ([`e117c889`](../../commit/e117c889))
 
 ## 0.12.0
 
