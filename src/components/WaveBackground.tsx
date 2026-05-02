@@ -46,7 +46,7 @@ export interface WaveBackgroundProps {
 
 export function WaveBackground(props: WaveBackgroundProps) {
 	const renderer = useRenderer()
-	const { colors } = useTheme()
+	const { colors, mode } = useTheme()
 	const [tick, setTick] = createSignal(0)
 	const [dimensions, setDimensions] = createSignal({
 		width: renderer.width,
@@ -97,7 +97,7 @@ export function WaveBackground(props: WaveBackgroundProps) {
 		const t = tick()
 		const bg = colors().background
 		const peak = props.peakColor ?? colors().primary
-		const opacity = props.peakOpacity ?? 0.5
+		const opacity = props.peakOpacity ?? (mode() === "light" ? 0.85 : 0.5)
 
 		const result: string[][] = []
 		for (let y = 0; y < height; y++) {
