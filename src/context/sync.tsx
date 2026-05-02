@@ -123,6 +123,7 @@ interface SyncContextValue {
 	jumpToBookmarkCommit: () => number | null
 
 	refresh: () => Promise<void>
+	refreshCounter: () => number
 }
 
 const SyncContext = createContext<SyncContextValue>()
@@ -919,6 +920,7 @@ export function SyncProvider(props: { children: JSX.Element }) {
 		jumpToBookmarkCommit,
 
 		refresh: doFullRefresh,
+		refreshCounter,
 	}
 
 	return (

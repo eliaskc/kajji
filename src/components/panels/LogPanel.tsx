@@ -24,6 +24,7 @@ import {
 } from "../../commander/bookmarks"
 import { withCommandObserver } from "../../commander/executor"
 import { ghBrowseCommit, ghPrCreateWeb } from "../../commander/github"
+import { fetchLogPage } from "../../commander/log"
 import {
 	type OpLogEntry,
 	type OperationResult,
@@ -85,6 +86,46 @@ const LOG_TABS: Array<{ id: LogTab; label: string; context: Context }> = [
 	{ id: "revisions", label: "Revisions", context: "log.revisions" },
 	{ id: "oplog", label: "Oplog", context: "log.oplog" },
 ]
+
+type FilterPreviewGroup = {
+	revset: string
+	commits: Commit[]
+	exact: boolean
+}
+
+const REVSET_PREVIEW_LIMIT = 8
+
+const quoteRevsetString = (value: string) =>
+	`"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`
+
+const looksLikeExplicitRevset = (query: string) => /[()@|&~,:]/.test(query)
+
+const buildFilterPreviewRevsets = (query: string) => {
+	const trimmed = query.trim()
+	if (!trimmed) return []
+	if (looksLikeExplicitRevset(trimmed))
+		return [{ revset: trimmed, exact: true }]
+
+	const candidates = [
+		{ revset: trimmed, exact: false },
+		{ revset: `${trimmed}()`, exact: false },
+		{ revset: `::${trimmed}`, exact: false },
+		{ revset: `${trimmed}::`, exact: false },
+		{ revset: `::${trimmed}*`, exact: false },
+		{ revset: `${trimmed}*::`, exact: false },
+		{ revset: `description(${quoteRevsetString(trimmed)})`, exact: false },
+		{ revset: `bookmarks(${quoteRevsetString(trimmed)})`, exact: false },
+		{ revset: `remote_bookmarks(${quoteRevsetString(trimmed)})`, exact: false },
+		{ revset: `author(${quoteRevsetString(trimmed)})`, exact: false },
+		{ revset: `committer(${quoteRevsetString(trimmed)})`, exact: false },
+	]
+	const seen = new Set<string>()
+	return candidates.filter((candidate) => {
+		if (seen.has(candidate.revset)) return false
+		seen.add(candidate.revset)
+		return true
+	})
+}
 
 function sortBookmarksByProximity(
 	bookmarks: Bookmark[],
@@ -191,6 +232,7 @@ export function LogPanel() {
 		clearBookmarkFilterState,
 		loadLog,
 		loadMoreLog,
+		refreshCounter,
 		logHasMore,
 		logLimit,
 		logLoadingMore,
@@ -213,6 +255,33 @@ export function LogPanel() {
 	// Revset filter mode state
 	const [filterMode, setFilterModeInternal] = createSignal(false)
 	const [filterQuery, setFilterQuery] = createSignal("")
+	const [selectedFilterCommitId, setSelectedFilterCommitId] = createSignal<
+		string | null
+	>(null)
+	const [filterPreviewGroups, setFilterPreviewGroups] = createSignal<
+		FilterPreviewGroup[]
+	>([])
+	const [appliedFilterGroups, setAppliedFilterGroups] = createSignal<
+		FilterPreviewGroup[]
+	>([])
+	const [appliedFilterNoMatch, setAppliedFilterNoMatch] = createSignal(false)
+	const activeFilterGroups = createMemo(() =>
+		filterMode() ? filterPreviewGroups() : appliedFilterGroups(),
+	)
+	const showFilterResults = createMemo(
+		() =>
+			(filterMode() && filterQuery().trim().length > 0) ||
+			appliedFilterGroups().length > 0 ||
+			appliedFilterNoMatch(),
+	)
+	const groupedFilterCommits = createMemo(() =>
+		activeFilterGroups().flatMap((group) =>
+			group.commits.map((commit) => ({ group, commit })),
+		),
+	)
+	const [filterPreviewLoading, setFilterPreviewLoading] = createSignal(false)
+	let filterPreviewToken = 0
+	let filterPreviewTimer: ReturnType<typeof setTimeout> | null = null
 	let filterInputRef: TextareaRenderable | undefined
 
 	const setFilterMode = (value: boolean) => {
@@ -231,7 +300,104 @@ export function LogPanel() {
 
 	onCleanup(() => {
 		command.setInputMode(false)
+		if (filterPreviewTimer) clearTimeout(filterPreviewTimer)
 	})
+
+	const loadFilterGroupsForCandidates = async (
+		candidates: Array<{ revset: string; exact: boolean }>,
+	) => {
+		const results = await Promise.all(
+			candidates.map(async (candidate) => {
+				try {
+					const result = await fetchLogPage({
+						revset: candidate.revset,
+						limit: candidate.exact ? undefined : REVSET_PREVIEW_LIMIT,
+					})
+					return result.commits.length > 0
+						? { ...candidate, commits: result.commits }
+						: null
+				} catch {
+					return null
+				}
+			}),
+		)
+		const seen = new Set<string>()
+		return results
+			.filter((group): group is FilterPreviewGroup => group !== null)
+			.map((group) => ({
+				...group,
+				commits: group.commits.filter((commit) => {
+					const id = commit.changeId || commit.commitId
+					if (seen.has(id)) return false
+					seen.add(id)
+					return true
+				}),
+			}))
+			.filter((group) => group.commits.length > 0)
+	}
+
+	const loadFilterPreviewGroups = (query: string) =>
+		loadFilterGroupsForCandidates(buildFilterPreviewRevsets(query))
+
+	const refreshAppliedFilterGroups = async () => {
+		const groups = appliedFilterGroups()
+		if (groups.length === 0) return
+		const previousEntries = groupedFilterCommits()
+		const previousSelectedId = selectedFilterCommitId()
+		const previousIndex = Math.max(
+			0,
+			previousEntries.findIndex(
+				(entry) => entry.commit.changeId === previousSelectedId,
+			),
+		)
+		const nextGroups = await loadFilterGroupsForCandidates(
+			groups.map((group) => ({ revset: group.revset, exact: group.exact })),
+		)
+		setAppliedFilterGroups(nextGroups)
+
+		const nextEntries = nextGroups.flatMap((group) =>
+			group.commits.map((commit) => ({ group, commit })),
+		)
+		if (nextEntries.length === 0) {
+			setSelectedFilterCommitId(null)
+			return
+		}
+		const selectedStillExists = nextEntries.some(
+			(entry) => entry.commit.changeId === previousSelectedId,
+		)
+		if (selectedStillExists) return
+		const nextIndex = Math.min(previousIndex, nextEntries.length - 1)
+		setSelectedFilterCommitId(nextEntries[nextIndex]?.commit.changeId ?? null)
+	}
+
+	createEffect(
+		on(refreshCounter, () => {
+			if (appliedFilterGroups().length > 0) {
+				void refreshAppliedFilterGroups()
+			}
+		}),
+	)
+
+	createEffect(
+		on([filterMode, filterQuery], ([active, query]) => {
+			if (filterPreviewTimer) clearTimeout(filterPreviewTimer)
+			const trimmed = query.trim()
+			if (!active || !trimmed) {
+				filterPreviewToken++
+				setFilterPreviewGroups([])
+				setFilterPreviewLoading(false)
+				return
+			}
+			const token = ++filterPreviewToken
+			setFilterPreviewLoading(true)
+			filterPreviewTimer = setTimeout(async () => {
+				const groups = await loadFilterPreviewGroups(trimmed)
+				if (token !== filterPreviewToken) return
+				setFilterPreviewGroups(groups)
+				setFilterPreviewLoading(false)
+			}, 200)
+		}),
+	)
 
 	const activateFilter = () => {
 		// Pre-fill with existing filter
@@ -243,36 +409,73 @@ export function LogPanel() {
 		})
 	}
 
+	createEffect(() => {
+		const entries = groupedFilterCommits()
+		if (!showFilterResults() || entries.length === 0) return
+		const selectedId = selectedFilterCommitId()
+		if (
+			selectedId &&
+			entries.some((entry) => entry.commit.changeId === selectedId)
+		)
+			return
+		setSelectedFilterCommitId(entries[0]?.commit.changeId ?? null)
+	})
+
 	const cancelFilter = () => {
 		setFilterMode(false)
 		setFilterQuery("")
 	}
 
+	const selectGroupedCommit = async (
+		group: FilterPreviewGroup,
+		commit: Commit,
+		openFiles = false,
+	) => {
+		setSelectedFilterCommitId(commit.changeId)
+		setAppliedFilterGroups(activeFilterGroups())
+		setAppliedFilterNoMatch(false)
+		setRevsetFilter(group.revset)
+		await loadLog()
+		const index = commits().findIndex((c) => c.changeId === commit.changeId)
+		if (index >= 0) setSelectedIndex(index)
+		if (openFiles) enterFilesView()
+	}
+
 	const applyFilter = async () => {
 		const query = filterQuery().trim()
+		let groups = filterPreviewGroups()
+		if (query && filterPreviewLoading()) {
+			if (filterPreviewTimer) clearTimeout(filterPreviewTimer)
+			const token = ++filterPreviewToken
+			groups = await loadFilterPreviewGroups(query)
+			if (token === filterPreviewToken) {
+				setFilterPreviewGroups(groups)
+				setFilterPreviewLoading(false)
+			}
+		}
+		const selectedRevset = groups[0]?.revset ?? null
 		const activeBookmarkRevset = activeBookmarkFilter()
 			? `::${activeBookmarkFilter()}`
 			: null
 		const shouldClearBookmarkState =
-			activeBookmarkRevset && query !== activeBookmarkRevset
-		if (query) {
+			activeBookmarkRevset && selectedRevset !== activeBookmarkRevset
+		if (query && selectedRevset) {
 			if (shouldClearBookmarkState) {
 				clearBookmarkFilterState()
 			}
+			setAppliedFilterGroups(groups)
+			setAppliedFilterNoMatch(false)
+			setRevsetFilter(selectedRevset)
+		} else if (query) {
+			setAppliedFilterGroups([])
+			setAppliedFilterNoMatch(true)
 			setRevsetFilter(query)
-			await loadLog()
-			// Stay in filter mode if there was an error so user can fix it
-			if (revsetError()) {
-				queueMicrotask(() => {
-					filterInputRef?.focus()
-				})
-				return
-			}
-		} else if (revsetFilter()) {
+		} else if (!query && revsetFilter()) {
 			if (activeBookmarkFilter()) {
 				clearBookmarkFilterState()
 			}
-			// Clear filter if query is empty and there was a filter
+			setAppliedFilterGroups([])
+			setAppliedFilterNoMatch(false)
 			clearRevsetFilter()
 		}
 		setFilterMode(false)
@@ -281,6 +484,8 @@ export function LogPanel() {
 	const handleClearFilter = async () => {
 		const activeBookmark = activeBookmarkFilter()
 		if (!activeBookmark) {
+			setAppliedFilterGroups([])
+			setAppliedFilterNoMatch(false)
 			clearRevsetFilter()
 			return
 		}
@@ -290,6 +495,8 @@ export function LogPanel() {
 			setRevsetFilter(previousFilter)
 			await loadLog()
 		} else {
+			setAppliedFilterGroups([])
+			setAppliedFilterNoMatch(false)
 			clearRevsetFilter()
 		}
 		focus.setActiveContext("refs.bookmarks")
@@ -380,7 +587,8 @@ export function LogPanel() {
 		)
 		commandLog.addEntry(result)
 		if (result.success) {
-			refresh()
+			await refresh()
+			await refreshAppliedFilterGroups()
 			loadOpLog()
 		}
 		return result
@@ -533,7 +741,7 @@ export function LogPanel() {
 	}
 
 	const openForCommit = async (options?: { direct?: boolean }) => {
-		const commit = selectedCommit()
+		const commit = selectedLogCommit()
 		if (!commit) return
 
 		try {
@@ -837,7 +1045,35 @@ export function LogPanel() {
 		}
 	}
 
+	const selectGroupedCommitByOffset = (offset: 1 | -1) => {
+		const entries = groupedFilterCommits()
+		if (entries.length === 0) return
+		const selectedId = selectedFilterCommitId()
+		const currentIndex = Math.max(
+			0,
+			entries.findIndex((entry) => entry.commit.changeId === selectedId),
+		)
+		const nextIndex = Math.max(
+			0,
+			Math.min(entries.length - 1, currentIndex + offset),
+		)
+		const entry = entries[nextIndex]
+		if (!entry) return
+		selectGroupedCommit(entry.group, entry.commit)
+	}
+
+	const openSelectedGroupedCommit = () => {
+		const entry = groupedFilterCommits().find(
+			(entry) => entry.commit.changeId === selectedFilterCommitId(),
+		)
+		if (entry) selectGroupedCommit(entry.group, entry.commit, true)
+	}
+
 	const selectNextCommit = () => {
+		if (showFilterResults()) {
+			selectGroupedCommitByOffset(1)
+			return
+		}
 		if (logLoadingMore()) return
 		selectNext()
 		const list = commits()
@@ -847,7 +1083,24 @@ export function LogPanel() {
 		}
 	}
 
+	const selectPrevCommit = () => {
+		if (showFilterResults()) {
+			selectGroupedCommitByOffset(-1)
+			return
+		}
+		selectPrev()
+	}
+
 	const selectedOperation = () => opLogEntries()[opLogSelectedIndex()]
+
+	const selectedLogCommit = () => {
+		if (showFilterResults()) {
+			return groupedFilterCommits().find(
+				(entry) => entry.commit.changeId === selectedFilterCommitId(),
+			)?.commit
+		}
+		return selectedCommit()
+	}
 
 	const toAbsolutePath = (path: string) => resolve(getRepoPath(), path)
 
@@ -937,7 +1190,7 @@ export function LogPanel() {
 			type: "navigation",
 			panel: "log",
 			visibility: "help-only",
-			onSelect: selectPrev,
+			onSelect: selectPrevCommit,
 		},
 		{
 			id: "log.revisions.view_files",
@@ -947,7 +1200,13 @@ export function LogPanel() {
 			type: "view",
 			panel: "log",
 			visibility: "help-only",
-			onSelect: () => enterFilesView(),
+			onSelect: () => {
+				if (showFilterResults()) {
+					openSelectedGroupedCommit()
+					return
+				}
+				enterFilesView()
+			},
 		},
 		{
 			id: "log.revisions.new",
@@ -957,7 +1216,7 @@ export function LogPanel() {
 			type: "action",
 			panel: "log",
 			onSelect: () => {
-				const commit = selectedCommit()
+				const commit = selectedLogCommit()
 				if (commit)
 					runOperation("Creating...", (options) =>
 						jjNew(getRevisionId(commit), options),
@@ -973,7 +1232,7 @@ export function LogPanel() {
 			panel: "log",
 			visibility: "help-only",
 			onSelect: () => {
-				const commit = selectedCommit()
+				const commit = selectedLogCommit()
 				if (!commit) return
 				const revision = getRevisionId(commit)
 				dialog.open(
@@ -1043,7 +1302,7 @@ export function LogPanel() {
 			panel: "log",
 			visibility: "help-only",
 			onSelect: () => {
-				const commit = selectedCommit()
+				const commit = selectedLogCommit()
 				if (!commit) return
 				runOperation("Duplicating...", () => jjDuplicate(getRevisionId(commit)))
 			},
@@ -1057,7 +1316,7 @@ export function LogPanel() {
 			panel: "log",
 			visibility: "help-only",
 			onSelect: async () => {
-				const commit = selectedCommit()
+				const commit = selectedLogCommit()
 				if (!commit) return
 				renderer.suspend?.()
 				const revId = getRevisionId(commit)
@@ -1085,7 +1344,7 @@ export function LogPanel() {
 			panel: "log",
 			visibility: "help-only",
 			onSelect: async () => {
-				const commit = selectedCommit()
+				const commit = selectedLogCommit()
 				if (!commit) return
 				const revId = getRevisionId(commit)
 				const result = await jjEdit(revId)
@@ -1121,7 +1380,7 @@ export function LogPanel() {
 			type: "action",
 			panel: "log",
 			onSelect: () => {
-				const commit = selectedCommit()
+				const commit = selectedLogCommit()
 				if (!commit) return
 
 				// Find parent (next commit in list is typically the parent)
@@ -1241,7 +1500,7 @@ export function LogPanel() {
 			type: "action",
 			panel: "log",
 			onSelect: () => {
-				const commit = selectedCommit()
+				const commit = selectedLogCommit()
 				if (!commit) return
 				const revId = getRevisionId(commit)
 				dialog.open(
@@ -1317,7 +1576,7 @@ export function LogPanel() {
 			panel: "log",
 			visibility: "help-only",
 			onSelect: async () => {
-				const commit = selectedCommit()
+				const commit = selectedLogCommit()
 				if (!commit) return
 
 				if (commit.empty) {
@@ -1366,7 +1625,7 @@ export function LogPanel() {
 			type: "action",
 			panel: "log",
 			onSelect: async () => {
-				const commit = selectedCommit()
+				const commit = selectedLogCommit()
 				if (!commit) return
 
 				let ignoreImmutable = false
@@ -1445,7 +1704,7 @@ export function LogPanel() {
 			panel: "log",
 			visibility: "help-only",
 			onSelect: async () => {
-				const commit = selectedCommit()
+				const commit = selectedLogCommit()
 				if (!commit) return
 				const confirmed = await dialog.confirm({
 					...DIALOG_SIZE.confirm,
@@ -1492,7 +1751,7 @@ export function LogPanel() {
 			panel: "log",
 			visibility: "help-only",
 			onSelect: async () => {
-				const commit = selectedCommit()
+				const commit = selectedLogCommit()
 				if (!commit) return
 				const revId = getRevisionId(commit)
 				const selectedChangeId = commit.changeId
@@ -1662,7 +1921,7 @@ export function LogPanel() {
 			visibility: "help-only",
 			onSelect: exitFilesView,
 		},
-		...(selectedCommit()?.isWorkingCopy
+		...(selectedLogCommit()?.isWorkingCopy
 			? [
 					{
 						id: "log.files.restore",
@@ -1772,6 +2031,56 @@ export function LogPanel() {
 		}
 	})
 
+	const renderCommitEntry = (props: {
+		commit: Commit
+		selected: () => boolean
+		onSelect: () => void
+		onOpen: () => void
+		onNearEnd?: () => void
+	}) => {
+		const handleClick = createDoubleClickDetector(props.onOpen)
+		const handleMouseDown = () => {
+			props.onSelect()
+			props.onNearEnd?.()
+			handleClick()
+		}
+		const selectionBackground = () =>
+			isFocused() ? colors().selectionBackground : inactiveSelectionBackground()
+		return (
+			<box onMouseDown={handleMouseDown}>
+				<For each={props.commit.lines}>
+					{(line) => (
+						<box
+							backgroundColor={
+								props.selected() ? selectionBackground() : undefined
+							}
+							overflow="hidden"
+						>
+							<AnsiText
+								content={line}
+								defaultFg={
+									props.selected() && isFocused()
+										? colors().selectionText
+										: undefined
+								}
+								bold={props.commit.isWorkingCopy}
+								wrapMode="none"
+								onMouseScroll={createHorizontalScrollHandler(
+									logScrollLeft,
+									setLogScrollLeft,
+									logMaxLineLength,
+									logViewportWidth,
+								)}
+								cropStart={logScrollLeft()}
+								cropWidth={Math.max(1, logViewportWidth())}
+							/>
+						</box>
+					)}
+				</For>
+			</box>
+		)
+	}
+
 	const renderLogContent = () => (
 		<box flexDirection="column" flexGrow={1}>
 			<Show when={loading() && commits().length === 0}>
@@ -1780,7 +2089,7 @@ export function LogPanel() {
 			<Show when={error() && commits().length === 0}>
 				<text>Error: {error()}</text>
 			</Show>
-			<Show when={commits().length > 0 || revsetFilter()}>
+			<Show when={commits().length > 0 || revsetFilter() || filterMode()}>
 				<scrollbox
 					ref={scrollRef}
 					flexGrow={1}
@@ -1794,71 +2103,86 @@ export function LogPanel() {
 					scrollbarOptions={{ visible: false }}
 				>
 					<Show
-						when={commits().length > 0}
+						when={showFilterResults()}
 						fallback={
-							<box>
-								<text fg={colors().textMuted}>No matching revisions</text>
-							</box>
+							<Show
+								when={commits().length > 0}
+								fallback={
+									<box>
+										<text fg={colors().textMuted}>No matching revisions</text>
+									</box>
+								}
+							>
+								<For each={commits()}>
+									{(commit, index) =>
+										renderCommitEntry({
+											commit,
+											selected: () => index() === selectedIndex(),
+											onSelect: () => setSelectedIndex(index()),
+											onOpen: () => {
+												setSelectedIndex(index())
+												enterFilesView()
+											},
+											onNearEnd: () => {
+												if (
+													!logLoadingMore() &&
+													commits().length - index() <= 5 &&
+													logHasMore()
+												) {
+													loadMoreLog()
+												}
+											},
+										})
+									}
+								</For>
+							</Show>
 						}
 					>
-						<For each={commits()}>
-							{(commit, index) => {
-								const isSelected = () => index() === selectedIndex()
-								const handleClick = createDoubleClickDetector(() => {
-									setSelectedIndex(index())
-									enterFilesView()
-								})
-								const handleMouseDown = () => {
-									setSelectedIndex(index())
-									if (
-										!logLoadingMore() &&
-										commits().length - index() <= 5 &&
-										logHasMore()
-									) {
-										loadMoreLog()
-									}
-									handleClick()
-								}
-								const showSelection = () => isSelected()
-								const selectionBackground = () =>
-									isFocused()
-										? colors().selectionBackground
-										: inactiveSelectionBackground()
-								return (
-									<box onMouseDown={handleMouseDown}>
-										<For each={commit.lines}>
-											{(line) => (
-												<box
-													backgroundColor={
-														showSelection() ? selectionBackground() : undefined
-													}
-													overflow="hidden"
-												>
-													<AnsiText
-														content={line}
-														defaultFg={
-															showSelection() && isFocused()
-																? colors().selectionText
-																: undefined
-														}
-														bold={commit.isWorkingCopy}
-														wrapMode="none"
-														onMouseScroll={createHorizontalScrollHandler(
-															logScrollLeft,
-															setLogScrollLeft,
-															logMaxLineLength,
-															logViewportWidth,
-														)}
-														cropStart={logScrollLeft()}
-														cropWidth={Math.max(1, logViewportWidth())}
-													/>
+						<Show
+							when={activeFilterGroups().length > 0}
+							fallback={
+								<box>
+									<text fg={colors().textMuted}>
+										{filterPreviewLoading()
+											? "filtering..."
+											: "nothing matching"}
+									</text>
+								</box>
+							}
+						>
+							<For each={activeFilterGroups()}>
+								{(group, groupIndex) => {
+									const showHeading = () =>
+										!(activeFilterGroups().length === 1 && group.exact)
+									return (
+										<box flexDirection="column">
+											<Show when={showHeading() && groupIndex() > 0}>
+												<box height={1} />
+											</Show>
+											<Show when={showHeading()}>
+												<box height={1} overflow="hidden">
+													<text fg={colors().textMuted} wrapMode="none">
+														-r '{group.revset}'
+													</text>
 												</box>
-											)}
-										</For>
-									</box>
-								)
-							}}
-						</For>
+											</Show>
+											<For each={group.commits}>
+												{(commit) =>
+													renderCommitEntry({
+														commit,
+														selected: () =>
+															selectedFilterCommitId() === commit.changeId,
+														onSelect: () => selectGroupedCommit(group, commit),
+														onOpen: () =>
+															selectGroupedCommit(group, commit, true),
+													})
+												}
+											</For>
+										</box>
+									)
+								}}
+							</For>
+						</Show>
 					</Show>
 				</scrollbox>
 			</Show>
@@ -2000,7 +2324,7 @@ export function LogPanel() {
 	}
 
 	const filesTitle = () => {
-		const commit = selectedCommit()
+		const commit = selectedLogCommit()
 		return commit ? `Files (${commit.changeId.slice(0, 8)})` : "Files"
 	}
 
