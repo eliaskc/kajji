@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.13.0
+
+### new
+- uninstall command with `--dry-run`, `--force`, `--keep-config`, and `--keep-data` flags ([`ce902c8`](../../commit/ce902c8))
+
 ## 0.12.0
 
 ### new
