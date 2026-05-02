@@ -1,7 +1,7 @@
 /**
  * Extract release notes for a specific version from CHANGELOG.md.
  *
- * Usage: bun run script/extract-release-notes.ts <version>
+ * Usage: bun run scripts/extract-release-notes.ts <version>
  *
  * Prints the body of the `## <version>` section to stdout (without the heading).
  * Exits non-zero if the section is missing.
@@ -11,7 +11,7 @@ import { readFileSync } from "node:fs"
 
 const version = process.argv[2]
 if (!version) {
-	console.error("Usage: bun run script/extract-release-notes.ts <version>")
+	console.error("Usage: bun run scripts/extract-release-notes.ts <version>")
 	process.exit(1)
 }
 

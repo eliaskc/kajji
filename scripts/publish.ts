@@ -1,6 +1,6 @@
 /**
  * Publish script for kajji
- * Usage: bun run script/publish.ts [--tag <tag>] [--dry-run]
+ * Usage: bun run scripts/publish.ts [--tag <tag>] [--dry-run]
  */
 
 import {
@@ -132,10 +132,10 @@ console.log("\nCreating wrapper package...")
 const wrapperDir = "dist/kajji"
 mkdirSync(wrapperDir, { recursive: true })
 mkdirSync(`${wrapperDir}/bin`, { recursive: true })
-mkdirSync(`${wrapperDir}/script`, { recursive: true })
+mkdirSync(`${wrapperDir}/scripts`, { recursive: true })
 
 cpSync("bin/kajji", `${wrapperDir}/bin/kajji`)
-cpSync("script/postinstall.mjs", `${wrapperDir}/script/postinstall.mjs`)
+cpSync("scripts/postinstall.mjs", `${wrapperDir}/scripts/postinstall.mjs`)
 cpSync("README.md", `${wrapperDir}/README.md`)
 cpSync("LICENSE", `${wrapperDir}/LICENSE`)
 
@@ -149,7 +149,7 @@ const wrapperPkg = {
 	version,
 	description: pkg.description,
 	bin: { kajji: "./bin/kajji" },
-	scripts: { postinstall: "node ./script/postinstall.mjs" },
+	scripts: { postinstall: "node ./scripts/postinstall.mjs" },
 	optionalDependencies: optionalDeps,
 	repository: pkg.repository,
 	homepage: pkg.homepage,

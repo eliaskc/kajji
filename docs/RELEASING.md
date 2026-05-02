@@ -32,7 +32,7 @@ workflow_dispatch  ──►  draft-release-pr  ──►  PR opened  ──► 
 7. The `tag-on-merge` job creates and pushes `vX.Y.Z` from the merge commit.
 8. The tag push triggers:
    - `build` matrix on native runners (darwin-arm64, darwin-x64, linux-x64, linux-arm64) — no cross-compile flakiness
-   - `publish` job downloads all artifacts, runs `script/publish.ts --skip-build` to push 5 packages (`kajji-{platform}` × 4 + `kajji` wrapper) to npm, then creates the GitHub release with archives and notes from `CHANGELOG.md`
+   - `publish` job downloads all artifacts, runs `scripts/publish.ts --skip-build` to push 5 packages (`kajji-{platform}` × 4 + `kajji` wrapper) to npm, then creates the GitHub release with archives and notes from `CHANGELOG.md`
 
 ## Required secrets
 
@@ -77,7 +77,7 @@ If GH Actions is down or you need to ship from your machine, the original local 
 jj describe -m "release: vX.Y.Z"
 
 # 3. Build, publish, tag, and create the GH release in one shot
-bun run script/release.ts <version>   # version: patch | minor | major | x.y.z
+bun run scripts/release.ts <version>   # version: patch | minor | major | x.y.z
 ```
 
 This requires you to have all four target platforms buildable locally, which is the whole reason the CI flow exists.

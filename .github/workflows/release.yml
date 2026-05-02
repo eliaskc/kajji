@@ -131,7 +131,7 @@ jobs:
         id: notes
         run: |
           set -euo pipefail
-          NOTES=$(bun run script/extract-release-notes.ts "${{ steps.post.outputs.version }}")
+          NOTES=$(bun run scripts/extract-release-notes.ts "${{ steps.post.outputs.version }}")
           {
             echo "notes<<RELEASE_NOTES_EOF"
             echo "$NOTES"
@@ -261,7 +261,7 @@ jobs:
       - run: bun install
 
       - name: Build binary
-        run: bun run script/build.ts --target ${{ matrix.target }}
+        run: bun run scripts/build.ts --target ${{ matrix.target }}
 
       - name: Upload platform package
         uses: actions/upload-artifact@v6
@@ -344,7 +344,7 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           SKIP_BUILD: "1"
-        run: bun run script/publish.ts --skip-build
+        run: bun run scripts/publish.ts --skip-build
 
       - name: Extract release notes
         id: notes
@@ -352,7 +352,7 @@ jobs:
           set -euo pipefail
           VERSION=$(jq -r .version package.json)
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          bun run script/extract-release-notes.ts "$VERSION" > /tmp/release-notes.md
+          bun run scripts/extract-release-notes.ts "$VERSION" > /tmp/release-notes.md
           echo "::group::Release notes"
           cat /tmp/release-notes.md
           echo "::endgroup::"
@@ -363,7 +363,7 @@ jobs:
       - name: Pre-flight Homebrew tap
         env:
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-        run: bun run script/update-homebrew-tap.ts --check "${{ steps.notes.outputs.version }}"
+        run: bun run scripts/update-homebrew-tap.ts --check "${{ steps.notes.outputs.version }}"
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
@@ -383,4 +383,4 @@ jobs:
       - name: Push Homebrew tap update
         env:
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-        run: bun run script/update-homebrew-tap.ts --push "${{ steps.notes.outputs.version }}"
+        run: bun run scripts/update-homebrew-tap.ts --push "${{ steps.notes.outputs.version }}"

@@ -1,1 +1,0 @@
-../../.pi/prompts/update-docs.md

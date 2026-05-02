@@ -1,1 +1,0 @@
-../../.pi/prompts/check-deps.md

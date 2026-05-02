@@ -1,7 +1,7 @@
 /**
  * Release script for kajji
  *
- * Usage: bun run script/release.ts [version]
+ * Usage: bun run scripts/release.ts [version]
  *
  * version: patch | minor | major | x.y.z (optional, defaults to package.json)
  *
@@ -117,10 +117,10 @@ if (newVersion !== currentVersion) {
 console.log("Skipping commit, tag, and push (local release only)...")
 
 console.log("\nBuilding binaries...")
-run("bun run script/build.ts", { inherit: true })
+run("bun run scripts/build.ts", { inherit: true })
 
 console.log("\nPublishing to npm...")
-run("bun run script/publish.ts", { inherit: true })
+run("bun run scripts/publish.ts", { inherit: true })
 
 console.log("\nCreating GitHub release...")
 const changelog = readFileSync("CHANGELOG.md", "utf-8")

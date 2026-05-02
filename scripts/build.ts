@@ -1,7 +1,7 @@
 /**
  * Build script for kajji - compiles to native binaries for all platforms
  *
- * Usage: bun run script/build.ts [--target <platform>]
+ * Usage: bun run scripts/build.ts [--target <platform>]
  * Platforms: darwin-arm64, darwin-x64, linux-x64, linux-arm64
  */
 
