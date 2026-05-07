@@ -1,6 +1,7 @@
 import { Match, Switch } from "solid-js"
 import { useFocus } from "../context/focus"
 import { useLayout } from "../context/layout"
+import { useSync } from "../context/sync"
 import { useTheme } from "../context/theme"
 import { StatusBar } from "./StatusBar"
 import { BookmarksPanel } from "./panels/BookmarksPanel"
@@ -22,6 +23,20 @@ function HorizontalDivider() {
 	return (
 		<box height={1} overflow="hidden">
 			<text fg={colors().backgroundElement}>{"─".repeat(500)}</text>
+		</box>
+	)
+}
+
+function BookmarkDiffLayout() {
+	return (
+		<box flexDirection="row" flexGrow={1} gap={0}>
+			<box flexGrow={1} flexBasis={0}>
+				<LogPanel />
+			</box>
+			<VerticalDivider />
+			<box flexGrow={2} flexBasis={0}>
+				<MainArea />
+			</box>
 		</box>
 	)
 }
@@ -91,6 +106,7 @@ function FocusLayout() {
 export function LayoutGrid() {
 	const { colors } = useTheme()
 	const { focusMode } = useLayout()
+	const { activeBookmarkDiff } = useSync()
 
 	return (
 		<box
@@ -104,6 +120,9 @@ export function LayoutGrid() {
 			gap={0}
 		>
 			<Switch>
+				<Match when={activeBookmarkDiff()}>
+					<BookmarkDiffLayout />
+				</Match>
 				<Match when={focusMode() === "normal"}>
 					<NormalLayout />
 				</Match>

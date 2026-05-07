@@ -302,17 +302,29 @@ function DialogHints(props: { hints: DialogHint[] }) {
 	const { colors, style } = useTheme()
 	const separator = () => style().statusBar.separator
 	const hintGap = () => (separator() ? ` ${separator()} ` : "   ")
+	const groupedHints = () => {
+		const byLabel = new Map<string, string[]>()
+		for (const hint of props.hints) {
+			const keys = byLabel.get(hint.label) ?? []
+			keys.push(hint.key)
+			byLabel.set(hint.label, keys)
+		}
+		return [...byLabel.entries()].map(([label, keys]) => ({
+			label,
+			key: keys.join(" / "),
+		}))
+	}
 
 	return (
-		<Show when={props.hints.length > 0}>
+		<Show when={groupedHints().length > 0}>
 			<box width="100%" alignItems="center">
 				<text wrapMode="none">
-					<For each={props.hints}>
+					<For each={groupedHints()}>
 						{(hint, index) => (
 							<>
 								<span style={{ fg: colors().primary }}>{hint.key}</span>{" "}
 								<span style={{ fg: colors().textMuted }}>{hint.label}</span>
-								<Show when={index() < props.hints.length - 1}>
+								<Show when={index() < groupedHints().length - 1}>
 									<span
 										style={{
 											fg: separator() ? colors().textMuted : undefined,

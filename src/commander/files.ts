@@ -64,10 +64,10 @@ export function parseFileSummary(output: string): FileChange[] {
 	return files
 }
 
-export async function fetchFiles(revision: string): Promise<FileChange[]> {
-	const summaryArgs = ["diff", "--summary", "-r", revision]
-	const binaryArgs = ["diff", "--git", "-r", revision]
-
+async function fetchFilesWithArgs(
+	summaryArgs: string[],
+	binaryArgs: string[],
+): Promise<FileChange[]> {
 	const [summaryResult, binaryResult] = await Promise.all([
 		execute(summaryArgs),
 		execute(binaryArgs),
@@ -95,4 +95,21 @@ export async function fetchFiles(revision: string): Promise<FileChange[]> {
 		...file,
 		isBinary: binaryFiles.has(file.path),
 	}))
+}
+
+export async function fetchFiles(revision: string): Promise<FileChange[]> {
+	return fetchFilesWithArgs(
+		["diff", "--summary", "-r", revision],
+		["diff", "--git", "-r", revision],
+	)
+}
+
+export async function fetchFilesRange(
+	from: string,
+	to: string,
+): Promise<FileChange[]> {
+	return fetchFilesWithArgs(
+		["diff", "--summary", "--from", from, "--to", to],
+		["diff", "--git", "--from", from, "--to", to],
+	)
 }

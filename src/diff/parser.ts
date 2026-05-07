@@ -32,13 +32,10 @@ export interface ParseDiffOptions {
  * Fetch and parse a diff from jj into structured format.
  * Uses --git format for proper parsing (no ANSI colors).
  */
-export async function fetchParsedDiff(
-	revision: string,
-	options: ParseDiffOptions = {},
+async function fetchParsedDiffWithArgs(
+	args: string[],
+	options: ParseDiffOptions,
 ): Promise<DiffFile[]> {
-	const args = ["diff", "-r", revision, "--git"]
-
-	// Add specific file paths if provided
 	if (options.paths && options.paths.length > 0) {
 		args.push(...toFilesetArgs(options.paths))
 	}
@@ -50,6 +47,24 @@ export async function fetchParsedDiff(
 	}
 
 	return parseDiffString(result.stdout)
+}
+
+export async function fetchParsedDiff(
+	revision: string,
+	options: ParseDiffOptions = {},
+): Promise<DiffFile[]> {
+	return fetchParsedDiffWithArgs(["diff", "-r", revision, "--git"], options)
+}
+
+export async function fetchParsedDiffRange(
+	from: string,
+	to: string,
+	options: ParseDiffOptions = {},
+): Promise<DiffFile[]> {
+	return fetchParsedDiffWithArgs(
+		["diff", "--from", from, "--to", to, "--git"],
+		options,
+	)
 }
 
 /**

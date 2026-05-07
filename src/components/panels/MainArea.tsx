@@ -14,7 +14,7 @@ import {
 	onMount,
 } from "solid-js"
 
-import { fetchDiff } from "../../commander/diff"
+import { fetchDiff, fetchDiffRange } from "../../commander/diff"
 import type { DiffStats } from "../../commander/operations"
 import { type Commit, getRevisionId } from "../../commander/types"
 import { onConfigChange, readConfig } from "../../config"
@@ -26,6 +26,7 @@ import { useTheme } from "../../context/theme"
 import {
 	type FlattenedFile,
 	fetchParsedDiff,
+	fetchParsedDiffRange,
 	flattenDiff,
 	getLineNumWidth,
 	getMaxLineNumber,
@@ -187,6 +188,25 @@ function stripEmailAndDate(
 	return result
 }
 
+function BookmarkDiffHeader(props: {
+	bookmark: string
+	from: string
+	to: string
+}) {
+	const { colors } = useTheme()
+	return (
+		<box flexDirection="column" flexShrink={0}>
+			<text>
+				<span style={{ fg: colors().textMuted }}>{"Diff: "}</span>
+				<span style={{ fg: colors().primary }}>{props.from}</span>
+				<span style={{ fg: colors().textMuted }}>{" → "}</span>
+				<span style={{ fg: colors().primary }}>{props.to}</span>
+			</text>
+			<text fg={colors().textMuted}>local vs origin for {props.bookmark}</text>
+		</box>
+	)
+}
+
 function MinimalCommitHeader(props: {
 	commit: Commit
 	details: CommitDetails | null
@@ -281,7 +301,13 @@ function CommitHeader(props: {
 }
 
 export function MainArea() {
-	const { activeCommit, commitDetails, viewMode, selectedFile } = useSync()
+	const {
+		activeCommit,
+		activeBookmarkDiff,
+		commitDetails,
+		viewMode,
+		selectedFile,
+	} = useSync()
 	const layout = useLayout()
 	const { mainAreaWidth } = layout
 	const { colors } = useTheme()
@@ -390,6 +416,7 @@ export function MainArea() {
 
 	const repoInfo = createMemo(() => {
 		activeCommit()
+		activeBookmarkDiff()
 		const repoPath = getRepoPath()
 		const repoName = basename(repoPath)
 		return {
@@ -587,9 +614,10 @@ export function MainArea() {
 	// Fetch parsed diff when commit/file changes
 	createEffect(() => {
 		const commit = activeCommit()
+		const bookmarkDiff = activeBookmarkDiff()
 		const vMode = viewMode()
 		const showJjFormatter = useJjFormatter()
-		if (!commit) return
+		if (!commit && !bookmarkDiff) return
 
 		let paths: string[] | undefined
 
@@ -604,7 +632,12 @@ export function MainArea() {
 		}
 
 		if (selectedFileIsBinary()) {
-			const fetchKey = `${commit.changeId}:${commit.commitId}:${paths?.join(",") ?? "all"}:binary`
+			const sourceKey = bookmarkDiff
+				? `${bookmarkDiff.from}..${bookmarkDiff.to}`
+				: commit
+					? `${commit.changeId}:${commit.commitId}`
+					: "none"
+			const fetchKey = `${sourceKey}:${paths?.join(",") ?? "all"}:binary`
 			if (fetchKey === currentFetchKey) return
 			currentFetchKey = fetchKey
 			setParsedFiles([])
@@ -614,7 +647,12 @@ export function MainArea() {
 			return
 		}
 
-		const fetchKey = `${commit.changeId}:${commit.commitId}:${paths?.join(",") ?? "all"}:${showJjFormatter ? "jj" : "custom"}`
+		const sourceKey = bookmarkDiff
+			? `${bookmarkDiff.from}..${bookmarkDiff.to}`
+			: commit
+				? `${commit.changeId}:${commit.commitId}`
+				: "none"
+		const fetchKey = `${sourceKey}:${paths?.join(",") ?? "all"}:${showJjFormatter ? "jj" : "custom"}`
 		if (fetchKey === currentFetchKey) return
 		currentFetchKey = fetchKey
 
@@ -622,12 +660,21 @@ export function MainArea() {
 		setParsedDiffError(null)
 
 		const fetchStart = performance.now()
-		const fetcher = showJjFormatter
-			? fetchDiff(getRevisionId(commit), {
-					paths,
-					columns: Math.max(1, viewportWidth()),
-				})
-			: fetchParsedDiff(getRevisionId(commit), { paths })
+		const fetcher = bookmarkDiff
+			? showJjFormatter
+				? fetchDiffRange(bookmarkDiff.from, bookmarkDiff.to, {
+						paths,
+						columns: Math.max(1, viewportWidth()),
+					})
+				: fetchParsedDiffRange(bookmarkDiff.from, bookmarkDiff.to, { paths })
+			: commit && showJjFormatter
+				? fetchDiff(getRevisionId(commit), {
+						paths,
+						columns: Math.max(1, viewportWidth()),
+					})
+				: commit
+					? fetchParsedDiff(getRevisionId(commit), { paths })
+					: Promise.resolve([])
 
 		fetcher
 			.then((result) => {
@@ -701,8 +748,12 @@ export function MainArea() {
 
 	createEffect(() => {
 		const commit = activeCommit()
-		if (commit && commit.changeId !== currentCommitId()) {
-			setCurrentCommitId(commit.changeId)
+		const bookmarkDiff = activeBookmarkDiff()
+		const nextId = bookmarkDiff
+			? `${bookmarkDiff.from}..${bookmarkDiff.to}`
+			: commit?.changeId
+		if (nextId && nextId !== currentCommitId()) {
+			setCurrentCommitId(nextId)
 			setScrollTop(0)
 			setScrollLeft(0)
 			scrollRef?.scrollTo(0)
@@ -1002,7 +1053,14 @@ export function MainArea() {
 				>
 					<box flexDirection="column">
 						<box ref={headerRef} flexDirection="column" flexShrink={0}>
-							<Show when={activeCommit()}>
+							<Show when={activeBookmarkDiff()}>
+								<BookmarkDiffHeader
+									bookmark={activeBookmarkDiff()?.bookmark ?? ""}
+									from={activeBookmarkDiff()?.from ?? ""}
+									to={activeBookmarkDiff()?.to ?? ""}
+								/>
+							</Show>
+							<Show when={!activeBookmarkDiff() && activeCommit()}>
 								{(commit: () => Commit) => (
 									<Show
 										when={viewMode() !== "files"}

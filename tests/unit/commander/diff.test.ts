@@ -13,7 +13,7 @@ mock.module("../../../src/commander/executor", () => ({
 	execute: mockExecute,
 }))
 
-import { fetchDiff } from "../../../src/commander/diff"
+import { fetchDiff, fetchDiffRange } from "../../../src/commander/diff"
 
 describe("fetchDiff", () => {
 	test("returns diff output on success", async () => {
@@ -178,6 +178,35 @@ describe("fetchDiff", () => {
 				'file:"src/c.ts"',
 			],
 			{ cwd: undefined, env: {} },
+		)
+	})
+
+	test("fetchDiffRange calls execute with from and to revisions", async () => {
+		mockExecute.mockResolvedValueOnce({
+			stdout: "range diff",
+			stderr: "",
+			exitCode: 0,
+			success: true,
+		})
+
+		const result = await fetchDiffRange("feature@origin", "feature", {
+			columns: 100,
+			paths: ["src/file.ts"],
+		})
+
+		expect(result).toBe("range diff")
+		expect(mockExecute).toHaveBeenCalledWith(
+			[
+				"diff",
+				"--from",
+				"feature@origin",
+				"--to",
+				"feature",
+				"--color",
+				"always",
+				'file:"src/file.ts"',
+			],
+			{ cwd: undefined, env: { COLUMNS: "100" } },
 		)
 	})
 })

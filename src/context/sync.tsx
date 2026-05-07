@@ -18,7 +18,7 @@ import { getRepoPath } from "../repo"
 import { addRecentRepo } from "../utils/state"
 import { getVisibleBookmarks } from "./sync-bookmarks"
 
-import { fetchFiles } from "../commander/files"
+import { fetchFiles, fetchFilesRange } from "../commander/files"
 import { streamLogPage } from "../commander/log"
 import {
 	fetchRefreshState,
@@ -45,6 +45,12 @@ import { profile, profileMsg } from "../utils/profiler"
 
 export type ViewMode = "log" | "files"
 
+export interface BookmarkDiffView {
+	bookmark: string
+	from: string
+	to: string
+}
+
 export interface CommitDetails {
 	changeId: string
 	subject: string
@@ -61,6 +67,7 @@ interface SyncContextValue {
 	selectLast: () => void
 	selectedCommit: () => Commit | undefined
 	activeCommit: () => Commit | undefined
+	activeBookmarkDiff: () => BookmarkDiffView | null
 	commitDetails: () => CommitDetails | null
 	loadLog: () => Promise<void>
 	loadMoreLog: () => Promise<void>
@@ -93,6 +100,7 @@ interface SyncContextValue {
 	showTree: () => boolean
 	toggleShowTree: () => void
 	enterFilesView: () => Promise<void>
+	enterBookmarkDiffView: (bookmark: string) => Promise<void>
 	exitFilesView: () => void
 	toggleFolder: (path: string) => void
 	selectPrevFile: () => void
@@ -150,6 +158,8 @@ export function SyncProvider(props: { children: JSX.Element }) {
 	const [filesLoading, setFilesLoading] = createSignal(false)
 	const [filesError, setFilesError] = createSignal<string | null>(null)
 	const [showTree, setShowTree] = createSignal(readConfig().ui.showFileTree)
+	const [activeBookmarkDiff, setActiveBookmarkDiff] =
+		createSignal<BookmarkDiffView | null>(null)
 	onMount(() => {
 		const unsubscribeConfig = onConfigChange((config) => {
 			setShowTree(config.ui.showFileTree)
@@ -281,9 +291,14 @@ export function SyncProvider(props: { children: JSX.Element }) {
 			}
 
 			if (viewMode() === "files") {
+				const diff = activeBookmarkDiff()
 				const commit = selectedCommit()
-				if (commit) {
-					const result = await fetchFiles(getRevisionId(commit))
+				const result = diff
+					? await fetchFilesRange(diff.from, diff.to)
+					: commit
+						? await fetchFiles(getRevisionId(commit))
+						: null
+				if (result) {
 					setFiles(result)
 					setFileTree(buildFileTree(result))
 				}
@@ -425,6 +440,12 @@ export function SyncProvider(props: { children: JSX.Element }) {
 	let currentDetailsCacheKey: string | null = null
 	createEffect(() => {
 		const commit = activeCommit()
+
+		if (activeBookmarkDiff()) {
+			setCommitDetails(null)
+			currentDetailsCacheKey = null
+			return
+		}
 
 		if (!commit) {
 			setCommitDetails(null)
@@ -805,20 +826,23 @@ export function SyncProvider(props: { children: JSX.Element }) {
 		loadLog()
 	}
 
+	const showFiles = (result: FileChange[]) => {
+		setFiles(result)
+		setFileTree(buildFileTree(result))
+		setSelectedFileIndexInternal(0)
+		setCollapsedPaths(new Set<string>())
+		setViewMode("files")
+	}
+
 	const enterFilesView = async () => {
 		const commit = selectedCommit()
 		if (!commit) return
 
+		setActiveBookmarkDiff(null)
 		setFilesLoading(true)
 		setFilesError(null)
 		try {
-			const result = await fetchFiles(getRevisionId(commit))
-			setFiles(result)
-			const tree = buildFileTree(result)
-			setFileTree(tree)
-			setSelectedFileIndexInternal(0)
-			setCollapsedPaths(new Set<string>())
-			setViewMode("files")
+			showFiles(await fetchFiles(getRevisionId(commit)))
 			focus.setActiveContext("log.files")
 		} catch (e) {
 			setFilesError(e instanceof Error ? e.message : "Failed to load files")
@@ -827,8 +851,26 @@ export function SyncProvider(props: { children: JSX.Element }) {
 		}
 	}
 
+	const enterBookmarkDiffView = async (bookmark: string) => {
+		const diff = { bookmark, from: `${bookmark}@origin`, to: bookmark }
+		setFilesLoading(true)
+		setFilesError(null)
+		try {
+			showFiles(await fetchFilesRange(diff.from, diff.to))
+			setActiveBookmarkDiff(diff)
+			focus.setPanel("log")
+			focus.setActiveContext("log.files")
+		} catch (e) {
+			setActiveBookmarkDiff(null)
+			setFilesError(e instanceof Error ? e.message : "Failed to load files")
+		} finally {
+			setFilesLoading(false)
+		}
+	}
+
 	const exitFilesView = () => {
 		setViewMode("log")
+		setActiveBookmarkDiff(null)
 		setFiles([])
 		setFileTree(null)
 		setSelectedFileIndex(0)
@@ -858,6 +900,7 @@ export function SyncProvider(props: { children: JSX.Element }) {
 		selectLast,
 		selectedCommit,
 		activeCommit,
+		activeBookmarkDiff,
 		commitDetails,
 		loadLog,
 		loadMoreLog,
@@ -890,6 +933,7 @@ export function SyncProvider(props: { children: JSX.Element }) {
 		showTree,
 		toggleShowTree: () => setShowTree((v) => !v),
 		enterFilesView,
+		enterBookmarkDiffView,
 		exitFilesView,
 		toggleFolder,
 		selectPrevFile,

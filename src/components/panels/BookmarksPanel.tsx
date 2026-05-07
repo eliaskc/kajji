@@ -37,12 +37,14 @@ import { useFocus } from "../../context/focus"
 import { useKeybind } from "../../context/keybind"
 import { useSync } from "../../context/sync"
 import { useTheme } from "../../context/theme"
+import { hasOriginDiff } from "../../utils/bookmark-origin-diff"
 import { createDoubleClickDetector } from "../../utils/double-click"
 import { FUZZY_THRESHOLD, scrollIntoView } from "../../utils/scroll"
 import { AnsiText } from "../AnsiText"
 import { FilterInput } from "../FilterInput"
 import { Panel } from "../Panel"
 import { BookmarkNameModal } from "../modals/BookmarkNameModal"
+import { NoOriginDiffModal } from "../modals/NoOriginDiffModal"
 import { RevisionPickerModal } from "../modals/RevisionPickerModal"
 
 export function BookmarksPanel() {
@@ -69,6 +71,8 @@ export function BookmarksPanel() {
 		setActiveBookmarkFilter,
 		setPreviousRevsetFilter,
 		loadLog,
+		activeBookmarkDiff,
+		enterBookmarkDiffView,
 	} = useSync()
 	const focus = useFocus()
 	const command = useCommand()
@@ -507,6 +511,26 @@ export function BookmarksPanel() {
 			? remoteOnlyBookmarks().length > 0
 			: localBookmarks().length > 0
 
+	const openSelectedBookmarkOriginDiff = () => {
+		if (showRemoteOnly()) return
+		const bookmark = selectedBookmark()
+		if (!bookmark || !hasOriginDiff(bookmark, remoteBookmarks())) {
+			dialog.open(() => <NoOriginDiffModal />, {
+				id: "bookmark-origin-diff-unavailable",
+				title: [{ text: "No origin diff", style: "action" }],
+				...DIALOG_SIZE.confirm,
+				hints: [
+					{ key: "enter", label: "close" },
+					{ key: "esc", label: "close" },
+				],
+			})
+			return
+		}
+		const activeDiff = activeBookmarkDiff()
+		if (activeDiff?.bookmark === bookmark.name) return
+		void enterBookmarkDiffView(bookmark.name)
+	}
+
 	const handleListEnter = () => {
 		if (showRemoteOnly()) return
 		const bookmark = selectedBookmark()
@@ -824,6 +848,16 @@ export function BookmarksPanel() {
 					},
 				)
 			},
+		},
+		{
+			id: "refs.bookmarks.diff_origin",
+			title: "compare to origin",
+			keybind: "bookmark_diff_origin",
+			context: "refs.bookmarks",
+			type: "view",
+			panel: "refs",
+			visibility: "status-only",
+			onSelect: openSelectedBookmarkOriginDiff,
 		},
 	])
 
