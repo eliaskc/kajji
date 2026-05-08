@@ -424,6 +424,7 @@ function AppContent() {
 			context: "log.revisions",
 			type: "view",
 			panel: "log",
+			visibility: "help-only",
 			onSelect: openBookmarkOriginDiff,
 		},
 		{

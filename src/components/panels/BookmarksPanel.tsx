@@ -856,7 +856,6 @@ export function BookmarksPanel() {
 			context: "refs.bookmarks",
 			type: "view",
 			panel: "refs",
-			visibility: "status-only",
 			onSelect: openSelectedBookmarkOriginDiff,
 		},
 	])
