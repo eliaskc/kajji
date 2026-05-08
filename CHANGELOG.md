@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.14.0
+
+### new
+- compare-to-origin diff view for local bookmarks (`C` in refs status bar) ([`f78f054`](../../commit/f78f054), [`0c7a99c`](../../commit/0c7a99c))
+- `gitHooksPath` config option to set a custom git hooks directory for pre-commit ([`badcbd0`](../../commit/badcbd0))
+
+### fixed
+- ux: origin-dirty marker shown on out-of-sync bookmark rows ([`1988a31`](../../commit/1988a31))
+- ux: bookmark panel rendering stabilized on layout and dialog changes ([`a6765ed`](../../commit/a6765ed))
+- build: remove darwin codesign workaround ([`0687c30`](../../commit/0687c30))
+
 ## 0.13.0
 
 ### new
