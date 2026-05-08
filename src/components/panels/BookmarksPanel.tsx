@@ -1,6 +1,7 @@
 import type { ScrollBoxRenderable, TextareaRenderable } from "@opentui/core"
 import { useKeyboard } from "@opentui/solid"
 import fuzzysort from "fuzzysort"
+import { ptyToJson } from "ghostty-opentui"
 import {
 	For,
 	Show,
@@ -37,6 +38,7 @@ import { useFocus } from "../../context/focus"
 import { useKeybind } from "../../context/keybind"
 import { useSync } from "../../context/sync"
 import { useTheme } from "../../context/theme"
+import { resolveAnsiForeground } from "../../theme/ansi"
 import { hasOriginDiff } from "../../utils/bookmark-origin-diff"
 import { createDoubleClickDetector } from "../../utils/double-click"
 import { FUZZY_THRESHOLD, scrollIntoView } from "../../utils/scroll"
@@ -46,6 +48,11 @@ import { Panel } from "../Panel"
 import { BookmarkNameModal } from "../modals/BookmarkNameModal"
 import { NoOriginDiffModal } from "../modals/NoOriginDiffModal"
 import { RevisionPickerModal } from "../modals/RevisionPickerModal"
+
+// biome-ignore lint/suspicious/noControlCharactersInRegex: intentional ANSI escape sequence
+const stripAnsi = (str: string) => str.replace(/\x1b\[[0-9;]*m/g, "")
+
+const emptyDescriptionPrefix = "(empty) "
 
 export function BookmarksPanel() {
 	const {
@@ -79,7 +86,7 @@ export function BookmarksPanel() {
 	const keybind = useKeybind()
 	const commandLog = useCommandLog()
 	const dialog = useDialog()
-	const { colors } = useTheme()
+	const { colors, mode } = useTheme()
 	const { refresh } = useSync()
 
 	const runOperation = async (
@@ -155,6 +162,26 @@ export function BookmarksPanel() {
 
 	const isFocused = () => focus.isPanel("refs")
 	const localBookmarks = () => bookmarks().filter((b) => b.isLocal)
+	const inlineAnsiSpans = (content: string, defaultFg?: string) => {
+		const spans =
+			ptyToJson(content, { cols: 9999, rows: 1 }).lines[0]?.spans ?? []
+		return spans
+			.filter((span) => span.text.length > 0)
+			.map((span) => ({
+				text: span.text,
+				fg: resolveAnsiForeground({
+					fg: span.fg,
+					mode: mode(),
+					text: colors().text,
+					textMuted: colors().textMuted,
+					defaultFg,
+				}),
+				bg: span.bg ?? undefined,
+			}))
+	}
+	const bookmarkNameFg = (bookmark: Bookmark) =>
+		inlineAnsiSpans(bookmark.nameDisplay || bookmark.name).at(-1)?.fg ??
+		colors().text
 	const remoteBookmarkNames = createMemo(() => {
 		const names = new Set<string>()
 		for (const bookmark of remoteBookmarks()) {
@@ -890,7 +917,11 @@ export function BookmarksPanel() {
 					) : null
 				}
 			>
-				<box flexDirection="column" flexGrow={1}>
+				<box
+					flexDirection="column"
+					flexGrow={1}
+					backgroundColor={colors().background}
+				>
 					<Show when={currentBookmarks().length === 0 && hasActiveFilter()}>
 						<box flexGrow={1}>
 							<text fg={colors().textMuted}>No matching bookmarks</text>
@@ -901,7 +932,9 @@ export function BookmarksPanel() {
 						<scrollbox
 							ref={listScrollRef}
 							flexGrow={1}
+							backgroundColor={colors().background}
 							scrollbarOptions={{ visible: false }}
+							contentOptions={{ backgroundColor: colors().background }}
 						>
 							<For each={currentBookmarks()}>
 								{(bookmark, index) => {
@@ -943,97 +976,131 @@ export function BookmarksPanel() {
 												</box>
 											</Show>
 											<box
+												width="100%"
+												height={1}
+												flexShrink={0}
 												backgroundColor={
 													showSelection()
 														? colors().selectionBackground
 														: isActive()
 															? colors().backgroundElement
-															: undefined
+															: colors().background
 												}
 												overflow="hidden"
 												onMouseDown={handleMouseDown}
 											>
 												<box flexDirection="row" flexGrow={1} overflow="hidden">
-													<box flexDirection="row" flexShrink={0}>
-														<Show
-															when={!isDeleted()}
-															fallback={
-																<text fg={colors().error} wrapMode="none">
-																	{"–deleted "}
-																</text>
-															}
-														>
-															<AnsiText
-																content={
-																	bookmark.changeIdDisplay || bookmark.changeId
+													<box flexShrink={0} overflow="hidden">
+														<text wrapMode="none">
+															<Show
+																when={!isDeleted()}
+																fallback={
+																	<span style={{ fg: colors().error }}>
+																		{"–deleted "}
+																	</span>
 																}
-																defaultFg={
+															>
+																<For
+																	each={inlineAnsiSpans(
+																		bookmark.changeIdDisplay ||
+																			bookmark.changeId,
+																		showSelection()
+																			? colors().selectionText
+																			: undefined,
+																	)}
+																>
+																	{(span) => (
+																		<span style={{ fg: span.fg, bg: span.bg }}>
+																			{span.text}
+																		</span>
+																	)}
+																</For>
+																<span style={{ fg: colors().textMuted }}>
+																	{" "}
+																</span>
+															</Show>
+															<For
+																each={inlineAnsiSpans(
+																	bookmark.nameDisplay || bookmark.name,
 																	showSelection()
 																		? colors().selectionText
-																		: undefined
+																		: undefined,
+																)}
+															>
+																{(span) => (
+																	<span style={{ fg: span.fg, bg: span.bg }}>
+																		{span.text}
+																	</span>
+																)}
+															</For>
+															<Show
+																when={
+																	bookmark.isLocal &&
+																	originChangedBookmarkNames().has(
+																		bookmark.name,
+																	)
 																}
-																wrapMode="none"
-															/>
-															<text fg={colors().textMuted} wrapMode="none">
-																{" "}
-															</text>
-														</Show>
-														<AnsiText
-															content={bookmark.nameDisplay || bookmark.name}
-															defaultFg={
-																showSelection()
-																	? colors().selectionText
-																	: undefined
-															}
-															wrapMode="none"
-														/>
-														<Show
-															when={
-																bookmark.isLocal &&
-																originChangedBookmarkNames().has(bookmark.name)
-															}
-														>
-															<AnsiText
-																content={
-																	bookmark.nameDisplay
-																		? bookmark.nameDisplay.replace(
-																				bookmark.name,
-																				"*",
-																			)
-																		: "*"
-																}
-																defaultFg={
-																	showSelection()
-																		? colors().selectionText
-																		: undefined
-																}
-																wrapMode="none"
-															/>
-														</Show>
-														<Show when={!isDeleted()}>
-															<text fg={colors().textMuted} wrapMode="none">
-																{" "}
-															</text>
-														</Show>
-														<Show when={showRemoteOnly() && bookmark.remote}>
-															<text fg={colors().textMuted} wrapMode="none">
-																@{bookmark.remote}
-															</text>
-															<text fg={colors().textMuted} wrapMode="none">
-																{" "}
-															</text>
-														</Show>
+															>
+																<span
+																	style={{
+																		fg: showSelection()
+																			? colors().selectionText
+																			: bookmarkNameFg(bookmark),
+																	}}
+																>
+																	*
+																</span>
+															</Show>
+															<Show when={!isDeleted()}>
+																<span style={{ fg: colors().textMuted }}>
+																	{" "}
+																</span>
+															</Show>
+															<Show when={showRemoteOnly() && bookmark.remote}>
+																<span style={{ fg: colors().textMuted }}>
+																	@{bookmark.remote}{" "}
+																</span>
+															</Show>
+														</text>
 													</box>
 													<Show when={!isDeleted()}>
-														<box flexGrow={1} overflow="hidden">
-															<text
-																fg={colors().textMuted}
-																content={
-																	bookmark.descriptionDisplay ||
-																	bookmark.description
+														<box
+															flexDirection="row"
+															flexGrow={1}
+															overflow="hidden"
+														>
+															<Show
+																when={stripAnsi(
+																	bookmark.descriptionDisplay,
+																).startsWith(emptyDescriptionPrefix)}
+																fallback={
+																	<text
+																		fg={colors().textMuted}
+																		content={bookmark.description}
+																		wrapMode="none"
+																	/>
 																}
-																wrapMode="none"
-															/>
+															>
+																<box
+																	width={emptyDescriptionPrefix.length}
+																	flexShrink={0}
+																>
+																	<text
+																		fg={colors().success}
+																		content={emptyDescriptionPrefix}
+																		wrapMode="none"
+																	/>
+																</box>
+																<box flexGrow={1} overflow="hidden">
+																	<text
+																		fg={colors().textMuted}
+																		content={bookmark.description.slice(
+																			emptyDescriptionPrefix.length,
+																		)}
+																		wrapMode="none"
+																	/>
+																</box>
+															</Show>
 														</box>
 													</Show>
 												</box>

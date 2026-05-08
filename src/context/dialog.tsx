@@ -6,6 +6,7 @@ import {
 	type JSX,
 	type ParentProps,
 	Show,
+	createEffect,
 	createSignal,
 	onCleanup,
 	onMount,
@@ -399,7 +400,14 @@ function DialogBackdrop(props: { children: JSX.Element }) {
 }
 
 export function DialogContainer(props: ParentProps) {
+	const renderer = useRenderer()
+	const { colors } = useTheme()
 	const dialog = useDialog()
+
+	createEffect(() => {
+		dialog.isOpen()
+		renderer.setBackgroundColor(colors().background)
+	})
 
 	return (
 		<box flexGrow={1} width="100%" height="100%">

@@ -1,8 +1,4 @@
-import {
-	type InputRenderable,
-	RGBA,
-	type TextareaRenderable,
-} from "@opentui/core"
+import type { InputRenderable, TextareaRenderable } from "@opentui/core"
 import { useKeyboard } from "@opentui/solid"
 import { createSignal, onMount } from "solid-js"
 import { useCommandInputGuard } from "../../context/command"
@@ -66,8 +62,12 @@ export function DescribeModal(props: DescribeModalProps) {
 	const charCount = () => subject().length
 
 	return (
-		<box flexDirection="column" gap={1}>
-			<box flexDirection="row" width="100%">
+		<box flexDirection="column" gap={1} backgroundColor={colors().background}>
+			<box
+				flexDirection="row"
+				width="100%"
+				backgroundColor={colors().background}
+			>
 				<input
 					ref={(r) => {
 						subjectRef = r
@@ -79,9 +79,10 @@ export function DescribeModal(props: DescribeModalProps) {
 					}}
 					onSubmit={handleSave}
 					cursorColor={colors().primary}
+					backgroundColor={colors().background}
 					textColor={colors().text}
 					focusedTextColor={colors().text}
-					focusedBackgroundColor={RGBA.fromInts(0, 0, 0, 0)}
+					focusedBackgroundColor={colors().background}
 					flexGrow={1}
 					flexShrink={1}
 				/>
@@ -100,9 +101,10 @@ export function DescribeModal(props: DescribeModalProps) {
 					if (bodyRef) setBody(bodyRef.plainText)
 				}}
 				cursorColor={colors().primary}
+				backgroundColor={colors().background}
 				textColor={colors().text}
 				focusedTextColor={colors().text}
-				focusedBackgroundColor={RGBA.fromInts(0, 0, 0, 0)}
+				focusedBackgroundColor={colors().background}
 				flexGrow={1}
 				height={8}
 			/>

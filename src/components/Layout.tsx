@@ -1,4 +1,5 @@
-import { Match, Switch } from "solid-js"
+import { useRenderer } from "@opentui/solid"
+import { Match, Switch, createEffect } from "solid-js"
 import { useFocus } from "../context/focus"
 import { useLayout } from "../context/layout"
 import { useSync } from "../context/sync"
@@ -104,9 +105,16 @@ function FocusLayout() {
 }
 
 export function LayoutGrid() {
+	const renderer = useRenderer()
 	const { colors } = useTheme()
 	const { focusMode } = useLayout()
 	const { activeBookmarkDiff } = useSync()
+
+	createEffect(() => {
+		focusMode()
+		activeBookmarkDiff()
+		renderer.setBackgroundColor(colors().background)
+	})
 
 	return (
 		<box

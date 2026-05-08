@@ -142,6 +142,7 @@ export function Panel(props: PanelProps) {
 			flexGrow={1}
 			flexDirection="column"
 			height="100%"
+			backgroundColor={colors().background}
 			overflow={props.overflow ?? "hidden"}
 			gap={0}
 			onMouseDown={handleMouseDown}
