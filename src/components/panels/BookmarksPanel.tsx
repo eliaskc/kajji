@@ -171,6 +171,21 @@ export function BookmarksPanel() {
 	const activeLocalBookmarks = createMemo(() =>
 		visibleBookmarks().filter((b) => b.isLocal && b.changeId),
 	)
+	const originChangedBookmarkNames = createMemo(() => {
+		const originByName = new Map(
+			remoteBookmarks()
+				.filter((bookmark) => !bookmark.isLocal && bookmark.remote === "origin")
+				.map((bookmark) => [bookmark.name, bookmark]),
+		)
+		const names = new Set<string>()
+		for (const bookmark of activeLocalBookmarks()) {
+			const origin = originByName.get(bookmark.name)
+			if (origin?.commitId && origin.commitId !== bookmark.commitId) {
+				names.add(bookmark.name)
+			}
+		}
+		return names
+	})
 	const deletedLocalBookmarks = createMemo(() =>
 		visibleBookmarks().filter((b) => b.isLocal && !b.changeId),
 	)
@@ -972,6 +987,29 @@ export function BookmarksPanel() {
 															}
 															wrapMode="none"
 														/>
+														<Show
+															when={
+																bookmark.isLocal &&
+																originChangedBookmarkNames().has(bookmark.name)
+															}
+														>
+															<AnsiText
+																content={
+																	bookmark.nameDisplay
+																		? bookmark.nameDisplay.replace(
+																				bookmark.name,
+																				"*",
+																			)
+																		: "*"
+																}
+																defaultFg={
+																	showSelection()
+																		? colors().selectionText
+																		: undefined
+																}
+																wrapMode="none"
+															/>
+														</Show>
 														<Show when={!isDeleted()}>
 															<text fg={colors().textMuted} wrapMode="none">
 																{" "}
