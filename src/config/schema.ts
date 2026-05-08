@@ -102,6 +102,13 @@ export const ConfigSchema = z
 			})
 			.describe("Diff display settings"),
 
+		gitHooksPath: z
+			.union([z.string(), z.literal(false)])
+			.optional()
+			.describe(
+				"Path to a Git-compatible hooks directory, or false to disable core.hooksPath discovery",
+			),
+
 		hooks: z
 			.record(z.string(), HookSchema)
 			.default({})

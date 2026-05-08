@@ -13,6 +13,7 @@ describe("ConfigSchema", () => {
 		expect(config.ui.showFileTree).toBe(true)
 		expect(config.whatsNewDisabled).toBe(false)
 		expect(config.autoUpdatesDisabled).toBe(false)
+		expect(config.gitHooksPath).toBeUndefined()
 		expect(config.hooks).toEqual({})
 	})
 
@@ -103,6 +104,14 @@ describe("ConfigSchema", () => {
 			diff: { autoSwitchWidth: 0 },
 		})
 		expect(config.diff.autoSwitchWidth).toBe(0)
+	})
+
+	test("gitHooksPath can be configured or disabled", () => {
+		const configured = ConfigSchema.parse({ gitHooksPath: ".githooks" })
+		expect(configured.gitHooksPath).toBe(".githooks")
+
+		const disabled = ConfigSchema.parse({ gitHooksPath: false })
+		expect(disabled.gitHooksPath).toBe(false)
 	})
 
 	test("hooks can be configured for jj.new", () => {

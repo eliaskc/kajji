@@ -53,6 +53,13 @@ export function CommandLogPanel() {
 		return `${body}${suffix}`
 	}
 
+	const shouldShowNoOutput = (
+		entry: ReturnType<typeof commandLog.entries>[number],
+	) =>
+		entry.kind === "hook" &&
+		entry.status === "success" &&
+		entry.output.length === 0
+
 	const commandAgeMs = (
 		entry: ReturnType<typeof commandLog.entries>[number],
 	) => {
@@ -192,8 +199,14 @@ export function CommandLogPanel() {
 													</For>
 												</Show>
 											</text>
-											<Show when={entry.output.length > 0}>
-												<text fg={colors().text}>{entry.output}</text>
+											<Show
+												when={
+													entry.output.length > 0 || shouldShowNoOutput(entry)
+												}
+											>
+												<text fg={colors().text}>
+													{entry.output || "[no output]"}
+												</text>
 											</Show>
 										</box>
 									)

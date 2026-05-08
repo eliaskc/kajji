@@ -85,6 +85,18 @@
 				}
 			}
 		},
+		"gitHooksPath": {
+			"description": "Path to a Git-compatible hooks directory, or false to disable core.hooksPath discovery",
+			"anyOf": [
+				{
+					"type": "string"
+				},
+				{
+					"type": "boolean",
+					"const": false
+				}
+			]
+		},
 		"hooks": {
 			"default": {},
 			"description": "Hooks keyed by operation id, for example jj.new",

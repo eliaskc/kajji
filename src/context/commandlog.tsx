@@ -1,5 +1,5 @@
 import { createSignal } from "solid-js"
-import type { CommandObserver } from "../commander/observer"
+import type { CommandKind, CommandObserver } from "../commander/observer"
 import type { OperationResult } from "../commander/operations"
 import { createSimpleContext } from "./helper"
 
@@ -15,6 +15,7 @@ export interface CommandLogEntry {
 	command?: string
 	message?: string
 	output: string
+	kind?: CommandKind
 	status: CommandLogStatus
 	exitCode?: number
 	timestamp: Date
@@ -33,11 +34,18 @@ export const { use: useCommandLog, provider: CommandLogProvider } =
 		init: () => {
 			const [entries, setEntries] = createSignal<CommandLogEntry[]>([])
 
-			const start = (command: string): string => {
+			const start = (command: string, kind?: CommandKind): string => {
 				const id = crypto.randomUUID()
 				setEntries((prev) => [
 					...prev,
-					{ id, command, output: "", status: "running", timestamp: new Date() },
+					{
+						id,
+						command,
+						output: "",
+						kind,
+						status: "running",
+						timestamp: new Date(),
+					},
 				])
 				return id
 			}
@@ -109,7 +117,7 @@ export const { use: useCommandLog, provider: CommandLogProvider } =
 			}
 
 			const observer = (): CommandObserver => ({
-				start: (command) => start(command),
+				start: (command, options) => start(command, options?.kind),
 				append,
 				finish: (id, result) => finish(id, { ...result, command: "" }),
 				skip,
