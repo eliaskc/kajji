@@ -179,9 +179,9 @@ export function BookmarksPanel() {
 				bg: span.bg ?? undefined,
 			}))
 	}
-	const bookmarkNameFg = (bookmark: Bookmark) =>
-		inlineAnsiSpans(bookmark.nameDisplay || bookmark.name).at(-1)?.fg ??
-		colors().text
+	const bookmarkNameFg = (bookmark: Bookmark, defaultFg?: string) =>
+		inlineAnsiSpans(bookmark.nameDisplay || bookmark.name, defaultFg).at(-1)?.fg ??
+		(defaultFg ?? colors().text)
 	const remoteBookmarkNames = createMemo(() => {
 		const names = new Set<string>()
 		for (const bookmark of remoteBookmarks()) {
@@ -1043,9 +1043,12 @@ export function BookmarksPanel() {
 															>
 																<span
 																	style={{
-																		fg: showSelection()
-																			? colors().selectionText
-																			: bookmarkNameFg(bookmark),
+																		fg: bookmarkNameFg(
+																			bookmark,
+																			showSelection()
+																				? colors().selectionText
+																				: undefined,
+																		),
 																	}}
 																>
 																	*
