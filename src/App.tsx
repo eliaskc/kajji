@@ -15,7 +15,6 @@ import { LayoutGrid } from "./components/Layout"
 import { WhatsNewScreen } from "./components/WhatsNewScreen"
 import { ActionMenuModal } from "./components/modals/ActionMenuModal"
 import { HelpModal, helpContentWidth } from "./components/modals/HelpModal"
-import { NoOriginDiffModal } from "./components/modals/NoOriginDiffModal"
 import { RecentReposModal } from "./components/modals/RecentReposModal"
 import { UndoModal } from "./components/modals/UndoModal"
 
@@ -41,7 +40,6 @@ import { SyncProvider, useSync } from "./context/sync"
 import { ThemeProvider, useTheme } from "./context/theme"
 import { UpdateProvider, useUpdate } from "./context/update"
 import { setRepoPath } from "./repo"
-import { findCommitBookmarkWithOriginDiff } from "./utils/bookmark-origin-diff"
 import {
 	getChangesSince,
 	isMajorOrMinorUpdate,
@@ -71,10 +69,6 @@ function AppContent() {
 		loading,
 		commits,
 		selectedCommit,
-		bookmarks,
-		remoteBookmarks,
-		enterBookmarkDiffView,
-		activeBookmarkDiff,
 	} = useSync()
 	const focus = useFocus()
 	const command = useCommand()
@@ -302,32 +296,6 @@ function AppContent() {
 		})
 	}
 
-	const localBookmarkForOriginDiff = () =>
-		findCommitBookmarkWithOriginDiff(
-			selectedCommit(),
-			bookmarks(),
-			remoteBookmarks(),
-		)
-
-	const openBookmarkOriginDiff = () => {
-		const bookmark = localBookmarkForOriginDiff()
-		if (!bookmark) {
-			dialog.open(() => <NoOriginDiffModal />, {
-				id: "bookmark-origin-diff-unavailable",
-				title: [{ text: "No origin diff", style: "action" }],
-				...DIALOG_SIZE.confirm,
-				hints: [
-					{ key: "enter", label: "close" },
-					{ key: "esc", label: "close" },
-				],
-			})
-			return
-		}
-		const activeDiff = activeBookmarkDiff()
-		if (activeDiff?.bookmark === bookmark) return
-		void enterBookmarkDiffView(bookmark)
-	}
-
 	const openPushMenu = () => {
 		const commit =
 			focus.activeContext() === "log.revisions" ? selectedCommit() : null
@@ -417,16 +385,6 @@ function AppContent() {
 					},
 				]
 			: []),
-		{
-			id: "log.revisions.bookmark_diff_origin",
-			title: "compare to origin",
-			keybind: "bookmark_diff_origin",
-			context: "log.revisions",
-			type: "view",
-			panel: "log",
-			visibility: "help-only",
-			onSelect: openBookmarkOriginDiff,
-		},
 		{
 			id: "global.focus_next",
 			title: "next panel",

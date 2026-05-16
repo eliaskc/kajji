@@ -240,6 +240,11 @@ export function BookmarksPanel() {
 	const [filterSelectedIndex, setFilterSelectedIndex] = createSignal(0)
 	const [showRemoteOnly, setShowRemoteOnly] = createSignal(false)
 	const [remoteSelectedIndex, setRemoteSelectedIndex] = createSignal(0)
+	const selectedBookmarkHasOriginDiff = createMemo(() => {
+		if (showRemoteOnly()) return false
+		const bookmark = selectedBookmark()
+		return Boolean(bookmark && originChangedBookmarkNames().has(bookmark.name))
+	})
 
 	let filterInputRef: TextareaRenderable | undefined
 
@@ -898,6 +903,7 @@ export function BookmarksPanel() {
 			context: "refs.bookmarks",
 			type: "view",
 			panel: "refs",
+			visibility: selectedBookmarkHasOriginDiff() ? undefined : "help-only",
 			onSelect: openSelectedBookmarkOriginDiff,
 		},
 	])

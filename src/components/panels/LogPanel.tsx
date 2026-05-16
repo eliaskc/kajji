@@ -60,6 +60,7 @@ import { useSync } from "../../context/sync"
 import { useTheme } from "../../context/theme"
 import type { Context } from "../../context/types"
 import { getRepoPath } from "../../repo"
+import { findCommitBookmarkWithOriginDiff } from "../../utils/bookmark-origin-diff"
 import { blendColors } from "../../utils/color"
 import { createDoubleClickDetector } from "../../utils/double-click"
 import { openInEditor, shouldSuspendForEditor } from "../../utils/editor"
@@ -74,6 +75,7 @@ import { Panel } from "../Panel"
 import { ActionMenuModal } from "../modals/ActionMenuModal"
 import { BookmarkNameModal } from "../modals/BookmarkNameModal"
 import { DescribeModal } from "../modals/DescribeModal"
+import { NoOriginDiffModal } from "../modals/NoOriginDiffModal"
 import { RebaseModal } from "../modals/RebaseModal"
 import { SetBookmarkModal } from "../modals/SetBookmarkModal"
 import { SquashModal } from "../modals/SquashModal"
@@ -235,6 +237,8 @@ export function LogPanel() {
 		logHasMore,
 		logLimit,
 		logLoadingMore,
+		activeBookmarkDiff,
+		enterBookmarkDiffView,
 	} = useSync()
 	const focus = useFocus()
 	const command = useCommand()
@@ -1103,6 +1107,33 @@ export function LogPanel() {
 		return selectedCommit()
 	}
 
+	const selectedOriginDiffBookmark = createMemo(() =>
+		findCommitBookmarkWithOriginDiff(
+			selectedLogCommit(),
+			bookmarks(),
+			remoteBookmarks(),
+		),
+	)
+
+	const openBookmarkOriginDiff = () => {
+		const bookmark = selectedOriginDiffBookmark()
+		if (!bookmark) {
+			dialog.open(() => <NoOriginDiffModal />, {
+				id: "bookmark-origin-diff-unavailable",
+				title: [{ text: "No origin diff", style: "action" }],
+				...DIALOG_SIZE.confirm,
+				hints: [
+					{ key: "enter", label: "close" },
+					{ key: "esc", label: "close" },
+				],
+			})
+			return
+		}
+		const activeDiff = activeBookmarkDiff()
+		if (activeDiff?.bookmark === bookmark) return
+		void enterBookmarkDiffView(bookmark)
+	}
+
 	const toAbsolutePath = (path: string) => resolve(getRepoPath(), path)
 
 	const collectOpenablePaths = (node: FileTreeNode): string[] => {
@@ -1833,6 +1864,16 @@ export function LogPanel() {
 			panel: "log",
 			visibility: "none",
 			onSelect: handleClearFilter,
+		},
+		{
+			id: "log.revisions.bookmark_diff_origin",
+			title: "compare to origin",
+			keybind: "bookmark_diff_origin",
+			context: "log.revisions",
+			type: "view",
+			panel: "log",
+			visibility: selectedOriginDiffBookmark() ? undefined : "help-only",
+			onSelect: openBookmarkOriginDiff,
 		},
 		{
 			id: "log.oplog.restore",
