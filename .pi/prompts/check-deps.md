@@ -6,20 +6,21 @@ Check for useful updates in key TUI dependencies.
 
 ## Dependencies to Check
 
-| Package | Current | Releases URL |
-|---------|---------|--------------|
-| `@opentui/core` | Check package.json | https://github.com/sst/opentui/releases |
-| `@opentui/solid` | Check package.json | https://github.com/sst/opentui/releases |
-| `@pierre/diffs` | Check package.json | https://github.com/pierrecomputer/pierre/releases |
-| `bun` | Run `bun --version` | https://github.com/oven-sh/bun/releases |
+| Package | Current | Release notes entry point | Source clone |
+|---------|---------|---------------------------|--------------|
+| `@opentui/core` | Check package.json | https://github.com/sst/opentui/releases | `git clone https://github.com/sst/opentui /tmp/opentui` |
+| `@opentui/solid` | Check package.json | https://github.com/sst/opentui/releases | `git clone https://github.com/sst/opentui /tmp/opentui` |
+| `@pierre/diffs` | Check package.json | https://github.com/pierrecomputer/pierre/releases | `git clone https://github.com/pierrecomputer/pierre /tmp/pierre` |
+| `bun` | Run `bun --version` | https://github.com/oven-sh/bun/releases | `git clone https://github.com/oven-sh/bun /tmp/bun` |
 
 ## Steps
 
 1. Read `package.json` to get current versions of npm dependencies
 2. Run `bun --version` to get current Bun version
-3. Fetch the releases page for each dependency
-4. Compare current version to latest available
-5. For each release between current and latest, summarize:
+3. Check release notes links as entry points for identifying notable changes
+4. Clone each dependency source repo into `/tmp` (or update the existing `/tmp` clone)
+5. Inspect source, tags, changelogs, and release notes to compare current vs latest available. Use source analysis to verify behavior before making recommendations.
+6. For each release between current and latest, summarize:
    - New features or APIs that could benefit kajji
    - Bug fixes that might affect us
    - Breaking changes to watch for

@@ -111,4 +111,4 @@ See [spec](./specs/github-stacking.md) for the full design.
 - **Vault references:** `~/oh-yeah/Projects/kajji/references/` — Tool analysis, research
 
 **External inspiration:**
-- [lumen](https://github.com/jnsahaj/lumen) — Rust CLI: beautiful side-by-side diff viewer, AI commit messages
+- [lumen](https://github.com/jnsahaj/lumen) — Rust CLI: beautiful side-by-side diff viewer, AI commit messages. Clone to `/tmp/lumen` and inspect source directly when researching patterns.

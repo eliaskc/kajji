@@ -29,12 +29,16 @@ All work is tracked in [GitHub Issues](https://github.com/eliaskc/kajji/issues).
 - **Schema**: `bun generate:schema` (updates generated config schema)
 - **CLI/TUI entry**: `bun cli` (runs the app without watch mode)
 
-## OpenTUI Documentation
+## Dependency Source Research
 
-Before working on TUI component tasks, check:
-- **Local reference**: [`docs/opentui.md`](docs/opentui.md) — component API, patterns, known quirks
-- **Upstream docs**: https://github.com/sst/opentui/tree/main/packages/solid
-- **Examples**: https://github.com/sst/opentui/tree/main/packages/solid/examples
+When you need to understand OpenTUI, Solid, Bun, `@pierre/diffs`, or another dependency in detail, clone the upstream source repository into `/tmp` and inspect the current source directly. Prefer source analysis over relying on local reference docs or stale notes.
+
+Suggested locations:
+- OpenTUI: `git clone https://github.com/sst/opentui /tmp/opentui`
+- @pierre/diffs: `git clone https://github.com/pierrecomputer/pierre /tmp/pierre`
+- Bun: `git clone https://github.com/oven-sh/bun /tmp/bun`
+
+Reuse an existing `/tmp` clone when present, and pull/update it before relying on it.
 
 ## Code Style
 
@@ -91,7 +95,7 @@ This project uses Solid.js, NOT React. Key differences:
 - **Theme**: `src/theme/` - theme definitions and presets (lazygit, opencode)
 - **Types**: `src/types/` - shared type definitions
 - **Utils**: `src/utils/` - shared utilities (file tree, editor launch, status colors, double-click detection)
-- **Docs**: `docs/` - specs, design notes, OpenTUI reference
+- **Docs**: `docs/` - specs and design notes
 
 ## Testing
 
@@ -116,16 +120,13 @@ We inject unique prefixes into `jj log` template output to reliably parse multi-
 
 ## Dependency Updates
 
-Use the `check-deps` skill to stay current on key dependencies:
-- **OpenTUI** — TUI framework (breaking changes possible)
-- **@pierre/diffs** — Diff parsing library
-- **Bun** — Runtime
-
-Run periodically or when debugging unexpected behavior.
+When checking dependency behavior or upgrade impact, inspect the dependency's source and release history from a `/tmp` clone rather than relying on summarized references. Use package manager metadata only to identify installed/latest versions.
 
 ## Reference Projects
 
-When unsure about jj TUI patterns, explore these repos:
-- **jjui** (Go): https://github.com/idursun/jjui
-- **lazyjj** (Rust): https://github.com/Cretezy/lazyjj
-- **lazygit** (Go): https://github.com/jesseduffield/lazygit
+When unsure about jj TUI patterns, clone and inspect relevant source repos under `/tmp`:
+- **jjui** (Go): `git clone https://github.com/idursun/jjui /tmp/jjui`
+- **lazyjj** (Rust): `git clone https://github.com/Cretezy/lazyjj /tmp/lazyjj`
+- **lazygit** (Go): `git clone https://github.com/jesseduffield/lazygit /tmp/lazygit`
+
+Reuse existing clones when present, and update them before analysis.
