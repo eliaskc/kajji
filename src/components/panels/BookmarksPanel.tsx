@@ -993,33 +993,6 @@ export function BookmarksPanel() {
 												<box flexDirection="row" flexGrow={1} overflow="hidden">
 													<box flexShrink={0} overflow="hidden">
 														<text wrapMode="none">
-															<Show
-																when={!isDeleted()}
-																fallback={
-																	<span style={{ fg: colors().error }}>
-																		{"–deleted "}
-																	</span>
-																}
-															>
-																<For
-																	each={inlineAnsiSpans(
-																		bookmark.changeIdDisplay ||
-																			bookmark.changeId,
-																		showSelection()
-																			? colors().selectionText
-																			: undefined,
-																	)}
-																>
-																	{(span) => (
-																		<span style={{ fg: span.fg, bg: span.bg }}>
-																			{span.text}
-																		</span>
-																	)}
-																</For>
-																<span style={{ fg: colors().textMuted }}>
-																	{" "}
-																</span>
-															</Show>
 															<For
 																each={inlineAnsiSpans(
 																	bookmark.nameDisplay || bookmark.name,
@@ -1037,9 +1010,7 @@ export function BookmarksPanel() {
 															<Show
 																when={
 																	bookmark.isLocal &&
-																	originChangedBookmarkNames().has(
-																		bookmark.name,
-																	)
+																	originChangedBookmarkNames().has(bookmark.name)
 																}
 															>
 																<span
@@ -1055,10 +1026,28 @@ export function BookmarksPanel() {
 																	*
 																</span>
 															</Show>
-															<Show when={!isDeleted()}>
-																<span style={{ fg: colors().textMuted }}>
-																	{" "}
-																</span>
+															<Show
+																when={!isDeleted()}
+																fallback={
+																	<span style={{ fg: colors().error }}>{" –deleted "}</span>
+																}
+															>
+																<span style={{ fg: colors().textMuted }}>{" "}</span>
+																<For
+																	each={inlineAnsiSpans(
+																	bookmark.changeIdDisplay || bookmark.changeId,
+																	showSelection()
+																		? colors().selectionText
+																		: colors().textMuted,
+																)}
+																>
+																{(span) => (
+																	<span style={{ fg: span.fg, bg: span.bg }}>
+																		{span.text}
+																	</span>
+																)}
+																</For>
+																<span style={{ fg: colors().textMuted }}>{" "}</span>
 															</Show>
 															<Show when={showRemoteOnly() && bookmark.remote}>
 																<span style={{ fg: colors().textMuted }}>
