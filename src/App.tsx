@@ -36,6 +36,7 @@ import {
 import { FocusProvider, type Panel, useFocus } from "./context/focus"
 import { KeybindProvider } from "./context/keybind"
 import { LayoutProvider, useLayout } from "./context/layout"
+import { StatusProvider } from "./context/status"
 import { SyncProvider, useSync } from "./context/sync"
 import { ThemeProvider, useTheme } from "./context/theme"
 import { UpdateProvider, useUpdate } from "./context/update"
@@ -705,13 +706,15 @@ export function App() {
 					<SyncProvider>
 						<KeybindProvider>
 							<CommandLogProvider>
-								<DialogProvider>
-									<UpdateProvider>
-										<CommandProvider>
-											<AppContent />
-										</CommandProvider>
-									</UpdateProvider>
-								</DialogProvider>
+								<StatusProvider>
+									<DialogProvider>
+										<UpdateProvider>
+											<CommandProvider>
+												<AppContent />
+											</CommandProvider>
+										</UpdateProvider>
+									</DialogProvider>
+								</StatusProvider>
 							</CommandLogProvider>
 						</KeybindProvider>
 					</SyncProvider>

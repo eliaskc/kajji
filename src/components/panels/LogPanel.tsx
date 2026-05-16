@@ -56,6 +56,7 @@ import { useCommandLog } from "../../context/commandlog"
 import { DIALOG_SIZE, useDialog } from "../../context/dialog"
 import { useFocus } from "../../context/focus"
 import { useKeybind } from "../../context/keybind"
+import { useStatus } from "../../context/status"
 import { useSync } from "../../context/sync"
 import { useTheme } from "../../context/theme"
 import type { Context } from "../../context/types"
@@ -75,7 +76,6 @@ import { Panel } from "../Panel"
 import { ActionMenuModal } from "../modals/ActionMenuModal"
 import { BookmarkNameModal } from "../modals/BookmarkNameModal"
 import { DescribeModal } from "../modals/DescribeModal"
-import { NoOriginDiffModal } from "../modals/NoOriginDiffModal"
 import { RebaseModal } from "../modals/RebaseModal"
 import { SetBookmarkModal } from "../modals/SetBookmarkModal"
 import { SquashModal } from "../modals/SquashModal"
@@ -244,6 +244,7 @@ export function LogPanel() {
 	const command = useCommand()
 	const commandLog = useCommandLog()
 	const dialog = useDialog()
+	const status = useStatus()
 	const keybind = useKeybind()
 	const { colors } = useTheme()
 
@@ -1118,15 +1119,7 @@ export function LogPanel() {
 	const openBookmarkOriginDiff = () => {
 		const bookmark = selectedOriginDiffBookmark()
 		if (!bookmark) {
-			dialog.open(() => <NoOriginDiffModal />, {
-				id: "bookmark-origin-diff-unavailable",
-				title: [{ text: "No origin diff", style: "action" }],
-				...DIALOG_SIZE.confirm,
-				hints: [
-					{ key: "enter", label: "close" },
-					{ key: "esc", label: "close" },
-				],
-			})
+			status.show("No changes compared to origin.")
 			return
 		}
 		const activeDiff = activeBookmarkDiff()

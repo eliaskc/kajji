@@ -3,6 +3,7 @@ import { useCommand } from "../context/command"
 import { useFocus } from "../context/focus"
 import { useKeybind } from "../context/keybind"
 import { useLayout } from "../context/layout"
+import { useStatus } from "../context/status"
 import { useTheme } from "../context/theme"
 import type { Context } from "../context/types"
 import { useUpdate } from "../context/update"
@@ -22,6 +23,7 @@ export function StatusBar() {
 	const focus = useFocus()
 	const keybind = useKeybind()
 	const layout = useLayout()
+	const status = useStatus()
 	const update = useUpdate()
 	const { colors, style } = useTheme()
 	const [animationTick, setAnimationTick] = createSignal(0)
@@ -122,66 +124,99 @@ export function StatusBar() {
 		return status === "checking" || status === "updating"
 	}
 
+	const statusMessageColor = () => {
+		const message = status.message()
+		if (!message) return colors().textMuted
+		if (message.kind === "success") return colors().statusBarKey
+		if (message.kind === "error") return colors().error
+		return colors().textMuted
+	}
+
 	return (
 		<box height={1} flexShrink={0} flexDirection="row">
 			<>
-				<box
-					flexShrink={0}
-					backgroundColor={isFocusMode() ? colors().titleBarFocused : undefined}
+				<Show
+					when={status.message()}
+					fallback={
+						<>
+							<box
+								flexShrink={0}
+								backgroundColor={
+									isFocusMode() ? colors().titleBarFocused : undefined
+								}
+							>
+								<text
+									wrapMode="none"
+									fg={
+										isFocusMode()
+											? colors().titleTextFocused
+											: colors().textMuted
+									}
+								>
+									{isFocusMode() ? " FOCUS " : " NORMAL"}
+								</text>
+							</box>
+							<box width={1} />
+							<box flexGrow={1} overflow="hidden">
+								<text wrapMode="none">
+									<For each={contextCommands()}>
+										{(cmd, index) => (
+											<>
+												<span style={{ fg: colors().statusBarKey }}>
+													{cmd.keybind ? keybind.print(cmd.keybind) : ""}
+												</span>{" "}
+												<span style={{ fg: colors().textMuted }}>
+													{cmd.title}
+												</span>
+												<Show when={index() < contextCommands().length - 1}>
+													<span
+														style={{
+															fg: separator() ? colors().textMuted : undefined,
+														}}
+													>
+														{commandGap}
+													</span>
+												</Show>
+											</>
+										)}
+									</For>
+								</text>
+							</box>
+							<Show when={globalCommands().length > 0}>
+								<box flexShrink={0}>
+									<text wrapMode="none">
+										<For each={globalCommands()}>
+											{(cmd, index) => (
+												<>
+													<Show when={index() > 0}>
+														<span
+															style={{
+																fg: separator()
+																	? colors().textMuted
+																	: undefined,
+															}}
+														>
+															{commandGap}
+														</span>
+													</Show>
+													<span style={{ fg: colors().statusBarKey }}>
+														{cmd.keybind ? keybind.print(cmd.keybind) : ""}
+													</span>{" "}
+													<span style={{ fg: colors().textMuted }}>
+														{cmd.title}
+													</span>
+												</>
+											)}
+										</For>
+									</text>
+								</box>
+							</Show>
+						</>
+					}
 				>
-					<text
-						wrapMode="none"
-						fg={isFocusMode() ? colors().titleTextFocused : colors().textMuted}
-					>
-						{isFocusMode() ? " FOCUS " : " NORMAL"}
-					</text>
-				</box>
-				<box width={1} />
-				<box flexGrow={1} overflow="hidden">
-					<text wrapMode="none">
-						<For each={contextCommands()}>
-							{(cmd, index) => (
-								<>
-									<span style={{ fg: colors().statusBarKey }}>
-										{cmd.keybind ? keybind.print(cmd.keybind) : ""}
-									</span>{" "}
-									<span style={{ fg: colors().textMuted }}>{cmd.title}</span>
-									<Show when={index() < contextCommands().length - 1}>
-										<span
-											style={{
-												fg: separator() ? colors().textMuted : undefined,
-											}}
-										>
-											{commandGap}
-										</span>
-									</Show>
-								</>
-							)}
-						</For>
-					</text>
-				</box>
-				<Show when={globalCommands().length > 0}>
-					<box flexShrink={0}>
-						<text wrapMode="none">
-							<For each={globalCommands()}>
-								{(cmd, index) => (
-									<>
-										<Show when={index() > 0}>
-											<span
-												style={{
-													fg: separator() ? colors().textMuted : undefined,
-												}}
-											>
-												{commandGap}
-											</span>
-										</Show>
-										<span style={{ fg: colors().statusBarKey }}>
-											{cmd.keybind ? keybind.print(cmd.keybind) : ""}
-										</span>{" "}
-										<span style={{ fg: colors().textMuted }}>{cmd.title}</span>
-									</>
-								)}
-							</For>
+					<box flexGrow={1} overflow="hidden">
+						<text fg={statusMessageColor()} wrapMode="none">
+							{status.message()?.text}
 						</text>
 					</box>
 				</Show>

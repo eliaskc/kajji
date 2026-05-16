@@ -36,6 +36,7 @@ import { useCommandLog } from "../../context/commandlog"
 import { DIALOG_SIZE, useDialog } from "../../context/dialog"
 import { useFocus } from "../../context/focus"
 import { useKeybind } from "../../context/keybind"
+import { useStatus } from "../../context/status"
 import { useSync } from "../../context/sync"
 import { useTheme } from "../../context/theme"
 import { resolveAnsiForeground } from "../../theme/ansi"
@@ -46,7 +47,6 @@ import { AnsiText } from "../AnsiText"
 import { FilterInput } from "../FilterInput"
 import { Panel } from "../Panel"
 import { BookmarkNameModal } from "../modals/BookmarkNameModal"
-import { NoOriginDiffModal } from "../modals/NoOriginDiffModal"
 import { RevisionPickerModal } from "../modals/RevisionPickerModal"
 
 // biome-ignore lint/suspicious/noControlCharactersInRegex: intentional ANSI escape sequence
@@ -86,6 +86,7 @@ export function BookmarksPanel() {
 	const keybind = useKeybind()
 	const commandLog = useCommandLog()
 	const dialog = useDialog()
+	const status = useStatus()
 	const { colors, mode } = useTheme()
 	const { refresh } = useSync()
 
@@ -180,8 +181,10 @@ export function BookmarksPanel() {
 			}))
 	}
 	const bookmarkNameFg = (bookmark: Bookmark, defaultFg?: string) =>
-		inlineAnsiSpans(bookmark.nameDisplay || bookmark.name, defaultFg).at(-1)?.fg ??
-		(defaultFg ?? colors().text)
+		inlineAnsiSpans(bookmark.nameDisplay || bookmark.name, defaultFg).at(-1)
+			?.fg ??
+		defaultFg ??
+		colors().text
 	const remoteBookmarkNames = createMemo(() => {
 		const names = new Set<string>()
 		for (const bookmark of remoteBookmarks()) {
@@ -562,15 +565,7 @@ export function BookmarksPanel() {
 		if (showRemoteOnly()) return
 		const bookmark = selectedBookmark()
 		if (!bookmark || !hasOriginDiff(bookmark, remoteBookmarks())) {
-			dialog.open(() => <NoOriginDiffModal />, {
-				id: "bookmark-origin-diff-unavailable",
-				title: [{ text: "No origin diff", style: "action" }],
-				...DIALOG_SIZE.confirm,
-				hints: [
-					{ key: "enter", label: "close" },
-					{ key: "esc", label: "close" },
-				],
-			})
+			status.show("No changes compared to origin.")
 			return
 		}
 		const activeDiff = activeBookmarkDiff()
