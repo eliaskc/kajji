@@ -1010,7 +1010,9 @@ export function BookmarksPanel() {
 															<Show
 																when={
 																	bookmark.isLocal &&
-																	originChangedBookmarkNames().has(bookmark.name)
+																	originChangedBookmarkNames().has(
+																		bookmark.name,
+																	)
 																}
 															>
 																<span
@@ -1029,25 +1031,32 @@ export function BookmarksPanel() {
 															<Show
 																when={!isDeleted()}
 																fallback={
-																	<span style={{ fg: colors().error }}>{" –deleted "}</span>
+																	<span style={{ fg: colors().error }}>
+																		{" –deleted "}
+																	</span>
 																}
 															>
-																<span style={{ fg: colors().textMuted }}>{" "}</span>
+																<span style={{ fg: colors().textMuted }}>
+																	{" "}
+																</span>
 																<For
 																	each={inlineAnsiSpans(
-																	bookmark.changeIdDisplay || bookmark.changeId,
-																	showSelection()
-																		? colors().selectionText
-																		: colors().textMuted,
-																)}
+																		bookmark.changeIdDisplay ||
+																			bookmark.changeId,
+																		showSelection()
+																			? colors().selectionText
+																			: colors().textMuted,
+																	)}
 																>
-																{(span) => (
-																	<span style={{ fg: span.fg, bg: span.bg }}>
-																		{span.text}
-																	</span>
-																)}
+																	{(span) => (
+																		<span style={{ fg: span.fg, bg: span.bg }}>
+																			{span.text}
+																		</span>
+																	)}
 																</For>
-																<span style={{ fg: colors().textMuted }}>{" "}</span>
+																<span style={{ fg: colors().textMuted }}>
+																	{" "}
+																</span>
 															</Show>
 															<Show when={showRemoteOnly() && bookmark.remote}>
 																<span style={{ fg: colors().textMuted }}>

@@ -1,572 +1,497 @@
 # GitHub PR Stacking
 
-> "Graphite in a TUI" — stacked PRs with jj's clean model, open-source and free.
+## Status
 
-## Philosophy
+Canonical spec for kajji's stacked PR UX and stack operations.
 
-**The log is the stack.** jj's commit graph already models stacking perfectly — bookmarks on commits in an ancestry chain are a stack. kajji doesn't need to invent a separate "stack" concept. It just needs to handle the GitHub side: opening PRs with the right bases, posting stack navigation comments, and restacking after merges.
+This supersedes earlier exploration. The current direction is based on the bookmarks panel as the primary stack surface, with stack operations exposed from that context and mirrored later in the CLI for agents.
 
-Key principles:
+## Goal
 
-- **No overhead on top of jj.** jj's log, bookmarks, and rebase are the foundation. kajji only adds the GitHub PR layer.
-- **Each bookmark = one PR.** A bookmark can span multiple commits. The user places bookmarks at PR boundaries using jj natively.
-- **Force-push by default.** jj users expect history rewriting (edit/squash is the core workflow). Force-push keeps the remote in sync with the jj model. Append-only updates (preserving GitHub review context) can be added later as an option.
-- **Dependent stacks by default.** Each PR targets the ancestor bookmark below it. This gives reviewers clean incremental diffs. Independent mode (each PR targets trunk) can be offered when changes are unrelated.
+Make kajji's bookmarks panel the primary place to understand and operate on GitHub PR stacks.
 
-## Overview
+The UX is based on a **PR-target tree**:
 
-Three main flows, integrated into existing keybindings:
+- jj's DAG and trunk are the inputs.
+- Each bookmark is a potential PR boundary.
+- If a bookmark has a non-trunk ancestor bookmark, that ancestor is its PR target.
+- If it has no ancestor bookmark, trunk is its PR target.
+- Only actual multi-bookmark stacks are visualized as stacks; standalone bookmarks remain flat.
 
-1. **Open PR** (`o`/`O`) — Create a PR, with awareness of ancestor bookmarks for stacking
-2. **Submit stack** (`P` menu) — Push all bookmarks in a stack + update stack comments
-3. **Sync stack** (`F` menu) — Fetch, detect merged PRs, rebase + clean up
+This keeps the hierarchy meaningful while still making trunk/main visible as the target for real stacks.
 
----
+## Principles
 
-## Open PR Flow
+- **Each bookmark = one PR.** A bookmark can span multiple commits. Users place bookmarks at PR boundaries using jj.
+- **Bookmarks panel is the stack UX.** The jj log remains the commit graph; stack presentation and actions live in bookmarks.
+- **Dependent stacks by default.** A child PR targets the nearest ancestor bookmark; a stack root targets trunk.
+- **Standalone bookmarks stay standalone.** A bookmark that would target trunk is not shown as a stack unless it has stack children.
+- **Submit is local → GitHub.** Submit makes GitHub PR state match the local jj/bookmark stack.
+- **Sync is GitHub/trunk → local.** Sync reconciles local jj/bookmark state after remote or PR state changes.
+- **Dry-run first in UI.** Lowercase modal actions compute a plan and ask for confirmation; uppercase variants execute directly.
+- **CLI mirrors UI.** Stack operations should eventually be available to agents via `kajji stack ...` commands.
 
-### `o` — Open with modal
+## Definitions
 
-When pressing `o` on a commit:
+- **Trunk**: the repo's trunk bookmark, typically `main`.
+- **Stack**: a chain of at least two non-trunk bookmarks connected by target relationships.
+- **Stack root**: the bottom non-trunk bookmark in a stack; its target is trunk.
+- **Stack tip**: the topmost bookmark in a stack.
+- **Standalone bookmark**: a non-trunk bookmark that has no stack children and is not a child in a stack.
+- **PR target tree**: the bookmark tree derived from nearest ancestor bookmark if present, otherwise trunk.
 
-1. If a PR already exists for this bookmark → open it in browser
-2. If no bookmark exists → prompt to create one (existing flow)
-3. If ancestor bookmarks exist between this commit and trunk → show base picker:
+## Bookmarks Panel Visualization
 
-```
-Open Pull Request
+The bookmarks panel should render bookmark rows as:
 
-  Target:
-    > push-auth-fix (stack on ancestor)
-      main
-
-  [Enter] Select  [Esc] Cancel
-```
-
-Options:
-- **Stack on ancestor** (default if ancestor bookmarks exist): `gh pr create --head <bookmark> --base <ancestor-bookmark>`
-- **Target trunk**: `gh pr create --head <bookmark> --base main`
-
-If no ancestor bookmarks exist, skip the modal — go straight to creating a PR targeting trunk (same as current flow).
-
-On PR creation, post a stack navigation comment (see [Stack Comments](#stack-navigation-comments)).
-
-### `O` — Quick open (no modal)
-
-Defaults:
-- Stack on nearest ancestor bookmark if one exists
-- Fall back to trunk if no ancestors
-- Post stack navigation comment
-
-This is the "I know what I want, just do it" key.
-
-### Logic
-
-```typescript
-function getBase(commit: Commit, allCommits: Commit[]): string {
-  // Walk ancestors from commit toward trunk
-  // Find the nearest commit with a bookmark
-  // Return that bookmark name, or trunk if none found
-  const ancestors = walkAncestors(commit, allCommits)
-  const nearestWithBookmark = ancestors.find(c => c.bookmarks.length > 0)
-  return nearestWithBookmark?.bookmarks[0] ?? 'main'
-}
+```text
+bookmark-name  #123  rev-id  description
 ```
 
-### jj Commands
+Rules:
+
+- Bookmark name is the primary column.
+- PR number is shown after bookmark name when known.
+- Omit PR number entirely when unknown; do not render a placeholder.
+- Revision/change id follows the optional PR number.
+- Description follows revision id.
+- Stack indentation uses the same row rendering as normal bookmarks, only prefixed with a muted stack marker.
+
+Example:
+
+```text
+main                                  #150  xsnpmwxy  feat(APN-572): add audio tracking visuals
+↳ APN-607/deployment-ard-platform     #151  rztqmtry  chore(backend): add deployment platform
+  ↳ audio-tracking-visuals            #152  szvuqomv  code cleanup for PR
+    ↳ poc/demo-results-detail...            xyluqyrl  DEMO: transition
+APN-546-class-2-analysis-view         #149  qmmykump  APN-546 Class 2 analysis
+```
+
+### Important visualization rule
+
+Do **not** nest every bookmark under trunk.
+
+A standalone bookmark targeting trunk remains flat:
+
+```text
+main                                  xsnpmwxy  trunk description
+APN-546-class-2-analysis-view         qmmykump  standalone branch
+```
+
+A stack is nested under trunk only when there is a real multi-bookmark stack:
+
+```text
+main                                  xsnpmwxy  trunk description
+↳ APN-607/deployment-ard-platform     rztqmtry  stack root
+  ↳ audio-tracking-visuals            szvuqomv  stack child
+APN-546-class-2-analysis-view         qmmykump  standalone branch
+```
+
+This preserves the meaning of indentation: it indicates stack context, not merely "branched from trunk".
+
+## Stack Highlighting
+
+When the bookmarks panel is focused and the selected row belongs to an actual stack, visually emphasize that stack.
+
+Desired behavior:
+
+- Rows in the active stack remain fully opaque.
+- Non-active-stack rows are dimmed using row-level opacity.
+- Prefer OpenTUI row `opacity` over custom color/background changes.
+- Include the trunk/target row in the active stack highlight.
+- Selecting trunk itself does not activate highlighting.
+- Selecting a standalone bookmark does not activate highlighting.
+- Selecting any stack member activates the whole stack, not just that bookmark.
+
+Example active stack:
+
+```text
+main                                  xsnpmwxy  trunk
+↳ APN-607/deployment-ard-platform     rztqmtry  stack root
+  ↳ audio-tracking-visuals            szvuqomv  stack child
+    ↳ poc/demo-results-detail...      xyluqyrl  stack tip
+APN-546-class-2-analysis-view         qmmykump  dimmed standalone row
+```
+
+## Stack Actions Entry Point
+
+Stack actions are initiated from the bookmarks panel.
+
+- Press `s` on a stack member to open the Stack Actions modal for that stack.
+- Press `s` on trunk/main to open a stack picker listing available stacks under that trunk.
+- Press `s` on a standalone bookmark to show a transient status-bar message, similar to the current "Compare to origin" unavailable behavior.
+- Do not add a global stack keybind initially.
+- Do not add a transient status-bar mode. Modal actions are instant and discoverable enough.
+
+Rationale:
+
+- The bookmarks panel has the clearest selection target for stack actions.
+- Global stack actions would need extra disambiguation.
+- Log-view selection may be inside a stack but not at a bookmark/PR boundary.
+
+## Stack Picker for Trunk Selection
+
+When trunk is selected and the user presses `s`, show a picker of stacks under that trunk.
+
+Example:
+
+```text
+Stacks under main
+
+main                                  xsnpmwxy  feat(APN-572): add audio tracking visuals
+↳ APN-607/deployment-ard-platform     rztqmtry  chore(backend): add deployment platform
+  ↳ audio-tracking-visuals            szvuqomv  code cleanup for PR
+    ↳ poc/demo-results-detail...      xyluqyrl  DEMO: transition
+
+main                                  xsnpmwxy  feat(APN-572): add audio tracking visuals
+↳ other-stack-root                    abcdefgh  other stack root
+  ↳ other-stack-child                 ijklmnop  other stack child
+
+Enter choose   Esc cancel
+```
+
+Selecting a stack opens the Stack Actions modal for that stack.
+
+## Stack Actions Modal
+
+The Stack Actions modal should show the stack using the same rendering style as the bookmarks panel.
+
+Example:
+
+```text
+Stack actions
+
+main                                  #150  xsnpmwxy  feat(APN-572): add audio tracking visuals
+↳ APN-607/deployment-ard-platform     #151  rztqmtry  chore(backend): add deployment platform
+  ↳ audio-tracking-visuals            #152  szvuqomv  code cleanup for PR
+    ↳ poc/demo-results-detail...            xyluqyrl  DEMO: transition
+
+s  stack submit --dry-run
+S  stack submit
+f  stack sync --dry-run
+F  stack sync
+
+Esc cancel
+```
+
+Notes:
+
+- Initial actions operate on the whole stack.
+- Do not show which child bookmark opened the modal unless an action specifically targets that bookmark.
+- Reuse bookmark row rendering where possible.
+- Include descriptions.
+- Include PR numbers when known.
+
+## Standalone Bookmark Behavior
+
+If the selected bookmark is not part of an actual stack, pressing `s` should not open a generic bookmark action modal.
+
+Show an unavailable status-bar message instead:
+
+```text
+No stack for APN-546-class-2-analysis-view.
+```
+
+Rationale:
+
+- `s` means stack actions.
+- Standalone PR/bookmark operations already live elsewhere (`o`, push menu, etc.).
+- A "create stack from here" action is not meaningful; a stack is created by adding descendant bookmarks.
+
+## Actions
+
+Initial stack actions:
+
+```text
+s  stack submit --dry-run
+S  stack submit
+f  stack sync --dry-run
+F  stack sync
+```
+
+Do not include initially:
+
+- push stack
+- update comments/snippets
+- merge
+- doctor/status
+- undo
+
+These may be added later if needed. Undo needs its own design because stack operations mutate both jj/local state and GitHub state.
+
+### Why no push action initially?
+
+`push` and `submit` are easy to confuse:
+
+- Push bookmarks: update remote bookmark refs.
+- Submit stack: make GitHub PR state match the local jj/bookmark stack.
+
+Since kajji already has push flows, the stack modal should avoid this ambiguity initially.
+
+### Why no comments/snippets action?
+
+Stack snippets are part of submit. Users should not need to run a separate "update comments" action.
+
+## Submit
+
+`stack submit` is the local-to-GitHub operation.
+
+Definition:
+
+> Ensure remote bookmarks and GitHub PRs match the local jj PR-target tree.
+
+Responsibilities may include:
+
+- push needed bookmarks explicitly
+- create missing PRs
+- update existing PR bases
+- update stack snippets/comments/bodies
+- report conflicts or GitHub state mismatches
+
+`stack submit --dry-run` computes and displays the planned changes without applying them.
+
+### UI behavior
+
+Lowercase `s`:
+
+1. Compute the submit plan.
+2. Show a confirmation/plan modal.
+3. Apply only if the user confirms.
+4. Do not write the dry-run preview to the command log by default.
+
+Uppercase `S`:
+
+1. Execute immediately.
+2. Skip the pre-apply confirmation modal.
+3. Stream/log execution output to the command log.
+
+Even direct execution should still surface errors and final result in the command log.
+
+## Sync
+
+`stack sync` is the GitHub/trunk-to-local operation.
+
+Definition:
+
+> Fetch remote state, detect landed/closed stack PRs, and reconcile the local jj/bookmark stack.
+
+Likely responsibilities:
+
+- fetch remote state
+- detect merged/closed PRs for bookmarks in the stack
+- plan local rebase/cleanup work when parent PRs have landed
+- retarget remaining PR bases if required
+- report conflicts or GitHub state mismatches
+
+`stack sync --dry-run` computes and displays the planned changes without applying them.
+
+### Restack mechanics
+
+When a parent PR lands, the likely local repair primitive is:
 
 ```bash
-# Create bookmark if needed
-jj bookmark create <name> -r <rev>
-
-# Push (first push needs explicit -b since bare push skips untracked bookmarks)
-jj git push -b <bookmark>
-
-# Open PR with correct base
-gh pr create --web --head <bookmark> --base <ancestor-bookmark-or-main>
+jj rebase -s <next-stack-bookmark> -d <updated-target>
 ```
 
-**Note on `jj git push` behavior:** Bare `jj git push` only pushes bookmarks that are already tracked on the remote (have been pushed at least once). First push of a bookmark requires `-b <name>`, `--change <id>`, or `--all`. This is why submit stack must use explicit `-b` flags.
+`jj rebase -s` rebases the source commit and descendants together, preserving stack order. jj records conflicts in commits rather than leaving Git-style in-progress cherry-picks.
 
----
+Exact cleanup details should be validated during implementation rather than treated as final in this UX spec.
 
-## Submit Stack Flow
+### Stack snippets and sync
 
-### Trigger
+Sync does not update stack snippets by default.
 
-`P` (push menu) → `s` (submit stack entry)
+Rationale:
 
-The push menu is extended with stack-aware options:
+- The snippet links to GitHub PRs by number.
+- GitHub's native links show whether PRs are open/merged/closed.
+- PR base/state is already visible in GitHub.
+- Snippets only need updating when submit adds or reshapes the PR stack.
 
-```
-Push options
-  s  submit push-auth-fix::push-cleanup
-  b  --bookmark push-auth-fix
-  c  --change kywxvzoq
-  a  --all
-  t  --tracked
-  d  --deleted
-  n  --dry-run
-```
+This policy can be revisited later if we add explicit pruning/refresh behavior.
 
-If multiple stacks are detected, show one entry per stack using `bottom::top` notation:
+### UI behavior
 
-```
-  s  submit push-auth-fix::push-cleanup
-  S  submit push-feature-a::push-feature-c
-```
+Lowercase `f`:
 
-### Logic
+1. Compute the sync plan.
+2. Show a confirmation/plan modal.
+3. Apply only if the user confirms.
+4. Do not write the dry-run preview to the command log by default.
 
-1. Discover all bookmarks in the stack (connected ancestry chain between trunk and tips, both ancestors and descendants of `@`)
-2. Push each bookmark explicitly: `jj git push -b <bookmark>` for each
-3. Update stack navigation comments on all PRs in the stack
+Uppercase `F`:
 
-### Stack Discovery
+1. Execute immediately.
+2. Skip the pre-apply confirmation modal.
+3. Stream/log execution output to the command log.
 
-Open question: exact revset for finding all bookmarks in a connected stack. Candidates:
+## Undo
 
-```bash
-# All mutable commits with bookmarks between trunk and tips
-(ancestors(visible_heads()) & descendants(trunk())) & mutable() & bookmarks()
+`jj undo` is necessary but not sufficient for stack operations.
 
-# Or more targeted: from selected commit, walk both directions
-(ancestors(<rev>) | descendants(<rev>)) & mutable() & bookmarks()
-```
+Stack actions can mutate GitHub state as well as jj state:
 
-The right approach depends on how we want to handle multiple independent stacks. To be determined during implementation.
+- create PRs
+- retarget PR bases
+- update stack snippets
+- push bookmark refs
+- delete/abandon local bookmarks or changes during sync
 
----
+Kajji should eventually keep a stack operation journal for applied stack mutations. The journal should make it possible to explain and, where practical, reverse the last stack operation.
 
-## Sync Stack Flow
+`kitlangton/stack` has this shape: it records an undo journal, then `stack undo --apply` can restore local branch backups, force-push restored branches, close PRs created by the previous operation, retarget PRs to their previous bases, and restore stack metadata.
 
-### Trigger
+For kajji, the exact mechanism should be designed during implementation, but the principle is the same:
 
-`F` (fetch menu) → `s` (sync stack entry)
+- jj-local changes can lean on `jj op log` / `jj undo` where appropriate.
+- GitHub mutations need explicit before/after state recorded by kajji.
+- Applied `stack submit` / `stack sync` should record enough information to report what changed and what can be undone.
+- Dry-run/plan previews do not need undo entries because they do not mutate state.
 
-The fetch menu is extended with stack-aware options:
+Potential journal entries:
 
-```
-Fetch options
-  s  sync push-auth-fix::push-cleanup
-  a  --all-remotes
-  t  --tracked
-  b  --branch push-auth-fix
-  p  --branch glob:push-*
-```
+- PR created: PR number, head bookmark
+- PR base changed: PR number, previous base, new base
+- Stack snippet changed: PR number, previous body/comment id/body, new body
+- Bookmark pushed: bookmark name, previous remote target if known, new target
+- Local cleanup/rebase: jj operation id before/after, affected bookmarks
 
-If multiple stacks, show one entry per stack:
+Undo does not need to be an initial stack modal action, but the implementation should avoid painting us into a corner. Actual stack executions should have an operation boundary and enough metadata to support future undo.
 
-```
-  s  sync push-auth-fix::push-cleanup
-  S  sync push-feature-a::push-feature-c
-```
+## Dry Run and Command Log
 
-### Sync Logic
+In the UI:
 
-1. `jj git fetch`
-2. Detect merged PRs: `gh pr list --state merged` filtered to known stack bookmarks
-   - Alternative: check if remote bookmarks were deleted (less reliable — depends on GitHub branch deletion settings)
-3. Show confirmation modal:
+- Lowercase dry-run actions show a plan modal.
+- Dry-run previews are not written to the command log by default.
+- Actual executions are written to the command log.
+- Execution output should be streamed if possible.
+- Execution issues should be visible in the command log.
 
-```
-Stack sync: push-auth-fix::push-cleanup
+For CLI:
 
-  Merged:
-    push-auth-fix (#42) — merged into main
+- `--dry-run` prints the plan to stdout/stderr like a normal CLI command.
+- Non-dry-run commands execute and print/log their result normally.
 
-  Proposed:
-    - Rebase push-session onto main@origin
-    - Abandon push-auth-fix
-    - Delete bookmark push-auth-fix
-    - Force-push remaining stack
-    - Update stack comments
+## Stack Snippet Format
 
-  [Enter] Apply  [Esc] Cancel
-```
+A compact GitHub-native stack snippet is preferred.
 
-4. On confirm, execute (bottom-up for multi-merge):
-
-```bash
-# For each merged PR (bottom-up):
-
-# 1. Rebase the next bookmark above onto trunk
-#    -s cascades to all descendants, preserving relative order
-jj rebase -s <next-above-merged> -d main@origin
-
-# 2. Clean up merged change (may already be abandoned by jj)
-jj abandon <merged-change-id>
-
-# 3. Clean up bookmark
-jj bookmark delete <merged-bookmark>
-
-# After all merges processed:
-
-# 4. Force-push remaining stack
-jj git push -b <bookmark1> -b <bookmark2> ...
-
-# 5. Update stack navigation comments
-gh api ...  # update comment on each remaining PR
-```
-
-### Restack Mechanics
-
-The key command is `jj rebase -s <source> -d <destination>`:
-
-- `-s` (source) rebases the source commit **and all its descendants**
-- Descendants maintain their relative relationships
-- One command handles the entire sub-stack
-
-Example: Stack is `main ← A ← B ← C ← D`, PR for A merges:
-
-```
-Before:  main(old) ← A ← B ← C ← D
-Command: jj rebase -s B -d main@origin
-After:   main(with A) ← B' ← C' ← D'
-```
-
-B moves onto new main, C stays on B, D stays on C. No need to rebase each individually.
-
-**Multi-merge edge case:** If A and C both merge simultaneously, process bottom-up:
-1. Rebase B onto main (handles A being gone)
-2. Re-evaluate — C's changes are now in main, so C becomes empty
-3. Abandon C, rebase D onto B
-
----
-
-## Stack Navigation Comments
-
-Posted as a **comment** on each PR in the stack (not injected into PR body). Created on PR open, updated on every submit.
-
-### Format
+Example:
 
 ```markdown
-<!-- kajji:stack -->
 ### Stack
-- **push-cleanup** #47 👈
-- push-session #46
-- push-auth-fix #45
-- `main`
 
----
-*Created by [kajji](https://github.com/eliaskc/kajji)*
+1. #101
+2. **#102** 👈 current
 ```
 
-The `<!-- kajji:stack -->` HTML comment is a machine-readable marker for finding and updating the comment idempotently.
+Notes:
 
-### Update Triggers
+- GitHub automatically links PR numbers.
+- The current PR is emphasized.
+- The snippet does not need to show PR base, state, checks, or review status.
+- Those are native GitHub concepts visible on the PRs themselves.
 
-Stack comments are updated whenever the stack's remote state changes:
-- New bookmark/PR added to the stack
-- PR merged (removed from comment, remaining PRs re-numbered)
-- Submit stack operation
+Implementation can choose PR body blocks or marker comments. Earlier exploration favored comments; `kitlangton/stack` shows body blocks can also work well.
 
-### Implementation
+## PR Numbers in Kajji
+
+The bookmarks panel should show PR numbers when known.
+
+Example:
+
+```text
+APN-607/deployment-ard-platform  #151  rztqmtry  chore(backend): add deployment platform
+APN-546-class-2-analysis-view          qmmykump  APN-546 Class 2 analysis
+```
+
+Rules:
+
+- Show PR number for stack and standalone bookmarks.
+- Omit PR number when unknown.
+- Do not show a placeholder.
+- Consider adding PR numbers to the log panel later, but bookmarks panel comes first.
+
+## CLI Mirror
+
+Kajji should eventually expose stack operations in the CLI so agents can perform them.
+
+Initial command shape:
 
 ```bash
-# Find existing stack comment on a PR
-gh api repos/{owner}/{repo}/issues/{pr}/comments \
-  --jq '.[] | select(.body | contains("<!-- kajji:stack -->"))'
-
-# Create or update
-gh api repos/{owner}/{repo}/issues/{pr}/comments \
-  -f body="<!-- kajji:stack -->
-### Stack
-..."
+kajji stack list
+kajji stack submit [bookmark] --dry-run
+kajji stack submit [bookmark]
+kajji stack sync [bookmark] --dry-run
+kajji stack sync [bookmark]
 ```
 
----
+No separate generic PR CLI is needed initially; users and agents can use `gh` for generic PR operations. Kajji's stack CLI should focus on jj/bookmark stack orchestration.
 
-## Conflict Handling
+## Implementation Architecture: Effect
 
-jj allows conflicts to persist in commits. When rebasing a stack during sync:
-- If conflicts occur, jj records them but continues the rebase
-- Show clear warning in the sync result:
-  ```
-  Conflicts in push-session:
-    - src/auth.ts
-    - src/utils.ts
+Stack operations should be built on Effect rather than as ad-hoc commander/TUI logic.
 
-  Rebase completed with conflicts. Resolve before pushing.
-  ```
-- Block force-push of conflicted commits until resolved (or provide override)
+Rationale:
 
----
+- Stack operations combine jj/local mutations, GitHub mutations, dry-run planning, command streaming, and future undo journaling.
+- Failures need to be typed and surfaced with actionable recovery guidance.
+- Submit/sync should be testable with mocked jj and GitHub services, especially for partial failure and conflict scenarios.
+- UI and CLI should share the same stack planner/interpreter rather than duplicating orchestration logic.
 
-## Commands
+The first production implementation should focus Effect usage on the stack core and adjacent command boundaries, not on rewriting the TUI.
 
-| Key | Context | Action |
-|-----|---------|--------|
-| `o` | Log | Open PR — modal with base picker if ancestor bookmarks exist |
-| `O` | Log | Quick open — stack on ancestor, fallback trunk |
-| `p` | Global | Push tracked bookmarks (`jj git push`) |
-| `P` | Global | Push menu — existing options + submit stack entries |
-| `f` | Global | Fetch (`jj git fetch`) |
-| `F` | Global | Fetch menu — existing options + sync stack entries |
+Recommended service boundaries:
 
----
+- `Jj`: stack-relevant jj queries and mutations, including graph/bookmark state, `jj rebase -s`, operation ids, and undo-related queries.
+- `GitHub`: PR lookup/creation/update, base retargeting, body/comment snippet updates, and PR state reads.
+- `StackJournal`: durable operation journal for applied mutations and future undo support.
+- `StackPlanner`: pure or mostly pure discovery/planning for submit/sync dry-runs.
+- `StackExecutor`: apply-mode interpreter that executes a plan, streams/logs progress, and records journal entries.
 
-## Implementation Phases
+Initial Effect scope:
 
-### Phase 0: Stacked PR Open (extends existing PR flow)
-- [ ] Detect ancestor bookmarks when pressing `o`
-- [ ] Show base picker modal (ancestor vs trunk)
-- [ ] `O` quick-open with default stacking behavior
-- [ ] `gh pr create --base <ancestor>` for stacked PRs
-- [ ] Post stack navigation comment on PR creation
+- Build stack discovery, submit planning, sync planning, and apply-mode execution in an Effect subsystem.
+- Keep the Solid/OpenTUI UI mostly outside Effect; call into the stack runtime at modal/action boundaries.
+- Keep existing non-stack commander code unless it becomes a natural dependency of stack services.
 
-### Phase 1: Submit Stack
-- [ ] Stack discovery — find all bookmarks in connected ancestry chain
-- [ ] `P` menu entry: submit stack (push all bookmarks with explicit `-b`)
-- [ ] Stack identification with `bottom::top` notation
-- [ ] Update stack navigation comments on all PRs in stack
-- [ ] Handle multiple stacks in the push menu
+Potential next steps after stack lands:
 
-### Phase 2: Sync Stack
-- [ ] `F` menu entry: sync stack
-- [ ] Detect merged PRs via `gh pr list --state merged`
-- [ ] Confirmation modal showing proposed changes
-- [ ] Restack: `jj rebase -s <new-bottom> -d main@origin`
-- [ ] Cleanup: abandon merged changes, delete stale bookmarks
-- [ ] Force-push remaining stack
-- [ ] Update stack navigation comments
+- Migrate commander process execution into an Effect-backed process service.
+- Migrate jj command wrappers used by stack into Effect services first, then consider broader commander migration.
+- Migrate GitHub PR helpers used by stack into typed Effect services.
+- Reuse the same services for the future `kajji stack ...` CLI mirror.
 
-### Phase 3: Polish
-- [ ] Handle edge cases (orphaned PRs, conflicts, multi-merge)
-- [ ] PR status indicators in log (see [Future: PR Status](#future-pr-status-in-log))
-- [ ] Multi-select stack operations (when multi-select lands)
-- [ ] Undo support for stack operations
+Avoid a broad UI rewrite as part of adopting Effect. The valuable migration boundary is command orchestration, error handling, streaming, and testability.
 
----
+## Implementation Notes from the PoC
 
-## Future: PR Status in Log
+The current PoC already implemented several UX pieces that should be preserved or reimplemented cleanly:
 
-Deferred — implement after core stacking works.
+- Bookmark rows render as `bookmark-name rev-id description` instead of `rev-id bookmark-name description`.
+- Stack visualization lives in the bookmarks panel, not the jj log.
+- Stack indentation uses a muted `↳` marker.
+- Stack structure is based on actual jj parent relationships, not recency/log order guesses.
+- Parent commit ids were added to log parsing so stack inference can walk the DAG.
+- Trunk/simple branches are not shown as stacks unless they anchor an actual multi-bookmark stack.
+- Stack highlighting uses row-level opacity dimming when the bookmarks panel is focused.
+- Selecting trunk or standalone bookmarks does not activate stack highlighting.
+- Selecting any stack member activates highlighting for the whole stack, including the trunk target.
 
-Show PR status alongside commits in the log panel. Two candidate approaches:
+When moving from PoC to production implementation, consider extracting stack discovery into a shared service/planner that can be used by:
 
-**Option A: Appended character/emoji** — Add a status indicator after the commit line, rendered by kajji (not jj's template). Preserves jj's native bookmark coloring.
+- bookmarks panel
+- stack action modal
+- CLI commands
+- future command palette entries
 
-```
-○  kywxvzoq  push-auth-fix  Add auth validation   ⏳
-                                                    ^ appended by kajji
-```
+## Prior Art
 
-| Character | Meaning |
-|-----------|---------|
-| ⏳ | PR open, waiting for review |
-| ✅ | PR approved / ready to merge |
-| ❌ | PR checks failing |
+Useful references:
 
-**Option B: Vertical bar** — A colored bar on the left or right edge of the log, spanning each entry's height. Colored by PR status. This pattern could also encode multi-select state (focus vs selected).
+- `kitlangton/stack`: concise `sync` workflow, GitHub-native stack block, agent-friendly CLI shape.
+- Graphite: stack navigation snippets and submit/sync mental model.
+- jj-native tools such as jj-ryu, jjpr, jj-stack, and jj-domino: validate bookmark-centric stacks for jj.
 
-| Color | Meaning |
-|-------|---------|
-| Yellow | PR open, waiting review |
-| Green | PR approved / ready |
-| Red | Checks failing |
-| Blue | Selected (multi-select) |
-
-The vertical bar pattern avoids interfering with jj's native text coloring and focus highlight. It also generalizes to other status dimensions.
-
-**Data source:** PR status would be cached locally (populated on sync/`F`), mapping bookmark names to PR states via `gh pr list --json`. Not fetched live to avoid latency and rate limits.
-
-**Note:** Merged PRs typically have their bookmarks deleted (depending on GitHub branch deletion settings), so merged status may not need display — the bookmark simply disappears from the log after sync.
-
----
-
-## Implementation Notes
-
-### Push Behavior
-
-`jj git push` (bare, no flags) only pushes bookmarks that are already **tracked** on the remote — i.e., bookmarks that have been pushed at least once before. This means:
-
-- First push of a bookmark requires `-b <name>`, `--change <id>`, or `--all`
-- Subsequent pushes of a tracked bookmark work with bare `jj git push`
-- **Submit stack must use explicit `-b` flags** to handle a mix of tracked and untracked bookmarks
-
-### Base Targeting Logic
-
-```typescript
-function getBase(commit: Commit, stack: Commit[]): string {
-  const idx = stack.indexOf(commit)
-  if (idx === 0) return 'main' // or default branch
-  const parent = stack[idx - 1]
-  return parent.bookmarks[0] || `push-${parent.changeId.slice(0, 8)}`
-}
-```
-
-### Idempotent PR Creation
-
-Check for existing PR before creating:
-```bash
-gh pr list --head <branch> --json number,state,url
-```
-If exists, update via `gh pr edit`. If not, create new.
-
----
-
-## Dependencies
-
-- `gh` CLI must be installed and authenticated (for GitHub)
-- Repository must have a supported remote
-- jj must be configured with git backend (colocated repo)
-
----
-
-## Forge Abstraction
-
-The forge-specific surface area is small — all stack logic (discovery, restack, bookmark management, push) is pure jj. Only the PR layer touches the forge. Start with GitHub, but keep forge-specific code isolated for future multi-forge support.
-
-### Interface
-
-```typescript
-interface Forge {
-  createPR(head: string, base: string, options?: { draft?: boolean }): Promise<PR>
-  listPRs(filters: { head?: string, state?: string }): Promise<PR[]>
-  findStackComment(prNumber: number): Promise<Comment | null>
-  upsertStackComment(prNumber: number, body: string): Promise<void>
-  openInBrowser(prNumber: number): Promise<void>
-}
-```
-
-### Approach
-
-Don't build the abstraction upfront. Keep forge-specific code in `src/commander/github.ts` (which already exists). When a second forge is needed, extract the interface then.
-
-The current code is already mostly in the right shape — `ghPrCreateWeb`, `ghBrowseCommit`, and the `gh api` calls for comment management are all in one file.
-
-### Prior art
-
-jjpr and jj-ryu both support multiple forges. jjpr auto-detects the forge from the remote URL (`github.com`, `gitlab.com`, `codeberg.org`) and talks directly to forge APIs via HTTP. jj-ryu uses `gh`/`glab` CLI fallbacks. Both validate that the abstraction boundary is clean.
-
----
-
-## Prior Art & Evaluation
-
-Thorough evaluation of the jj stacking ecosystem (March 2026):
-
-### jj-native tools
-
-**[jj-ryu](https://github.com/dmmulroy/jj-ryu)** — Stacked PRs for jj (Rust)
-- Graphite-inspired: `ryu track`, `ryu submit`, `ryu sync`
-- **Each bookmark = one PR** (not each commit). User places bookmarks, ryu manages PRs.
-- **Explicit opt-in**: bookmarks must be `ryu track`-ed before submission. Tracking state in `.jj/repo/ryu/tracking.toml`
-- **Stack discovery**: revset `trunk()..@`, filtered to commits with bookmarks
-- **Restacking is the user's job**: ryu delegates to `jj rebase`, does not rebase itself
-- **Stack navigation comments**: posted on each PR with full stack + `👈` marker for current PR. Embeds base64 JSON in HTML comment for machine readability
-- **Dependency-aware execution**: topological sort with Kahn's algorithm to handle PR base retargeting before pushes (handles swap scenarios)
-- **No merge commit support**: excludes commits with >1 parent
-- Designed as a library (`jj_ryu` crate) — could be embedded in TUI apps
-- GitLab support
-
-**[jj-spr](https://github.com/LucioFranco/jj-spr)** — jj-native stacked PRs (Rust)
-- Commands: `jj spr diff` (create/update PR), `jj spr land` (merge), `jj spr list`, `jj spr close`
-- **PR identity stored in commit message**: appends `Pull Request: https://...` trailer to commit description
-- **Branch naming**: slugified commit title (e.g., `spr/yourname/add-auth-module`), not change ID
-- **Two modes**:
-  - Default (dependent): PR targets parent PR's branch, reviewer sees incremental diff
-  - `--cherry-pick` (independent): PR cherry-picked onto main, each PR stands alone. Docs recommend this as default.
-- **Append-only updates**: never force-pushes PR branches. Creates new commits on top of existing PR history. Preserves GitHub "Files changed since last review."
-- **Manual post-land rebase**: 3-4 manual commands after landing. Tool acknowledges this as friction (`TODO` in source for automation).
-- **Requires colocated repo** (`.git` must exist)
-- Write access to repo required (can't use fork workflow)
-
-**[jj-stack](https://github.com/keanemind/jj-stack)** — Stacked PRs for jj (TypeScript)
-- Philosophy matches ours: *"Jujutsu's CLI is already very ergonomic for managing stacks locally, so jj-stack specifically focuses on taking your local repo state and turning it into GitHub pull requests."*
-- **Not an abstraction over jj** — does not help manipulate local repo
-- Commands: `jst` (show stacks), `jst submit <bookmark>` (submit stack up to bookmark)
-- **Bookmark-centric**: walks bookmarks toward `trunk()` to discover stacks
-- Lightweight (Node.js)
-
-**[jj-domino](https://github.com/zombiezen/jj-domino)** — Stack manager for jj (Go, March 2026)
-- Minimal: `jj-domino -c 'trunk()..@-'` creates PRs for all changes in revset
-- Uses `push-<change-id>` bookmark naming (similar to jj's `jj git push --change`)
-- Infers everything from jj config (no separate config)
-- Drafts for non-bottom PRs by default
-
-**[jjpr](https://github.com/michaeldhopkins/jjpr)** — Multi-forge stacked PRs (Rust, actively maintained)
-- **Multi-forge**: GitHub, GitLab, Forgejo/Codeberg in one binary
-- **Stack merging with live re-evaluation**: `jjpr merge` merges bottom-up, rebases remaining after each merge
-- **Pure HTTP**: talks directly to forge APIs, no `gh`/`glab` CLI required
-- **Idempotent `submit`**: converges to correct state, pushes only what changed
-- **Merge commit support**: `jj new A B` handled (follows first parent)
-- **Foreign base detection**: auto-targets PRs at coworker's branch if stack builds on one
-- Most feature-complete of the jj-native tools
-
-### git-native tools (UX reference)
-
-**[spr](https://github.com/ejoffe/spr)** — git-based stacked PRs (Go)
-- **Each commit = one PR** (git-ism, not applicable to jj's bookmark model)
-- **Status bits**: `[⌛❌✅❌]` — CI checks / approval / conflicts / stack status. Dense, information-rich.
-- **commit-id injection**: appends stable 8-char ID to commit messages for tracking across rebases. Pollutes history.
-- **Merge trick**: merges topmost ready PR into main (collapsing stack), closes PRs below. Confusing for reviewers.
-- **WIP prefix**: commits starting with "WIP" skip PR creation
-- **`--count N`**: operate on only bottom N PRs
-- **No branch management**: user works on one branch, spr manages `spr/main/<id>` branches invisibly
-- Valuable for UX patterns, not for architecture
-
-**[Graphite](https://graphite.dev/)** — Commercial stacking tool
-- **Stack model**: explicit parent-child tracking in `.git/.graphite_repo_config`
-- **Auto-restack**: `gt modify` (amend) automatically cascades rebase to all upstack branches. The killer UX feature.
-- **`gt sync`**: the "come back to work" command — pull trunk, delete merged branches (with confirmation), restack everything
-- **`gt absorb`**: distributes staged hunks to the right commits automatically (magic mid-stack editing)
-- **Conflict resolution UX**: inline stack context during conflicts — you always know where you are
-- **Navigation**: `gt up/down/top/bottom` — spatial metaphor with filled/empty circle symbols (`◉`/`◯`)
-- **Stack comments on PRs**: exactly the pattern kajji should adopt (comment with stack chain, updated continuously)
-- **Idempotent submit**: `gt submit` safe to run repeatedly
-
-### Key Decisions from Research
-
-| Decision | Choice | Rationale |
-|----------|--------|-----------|
-| Stack model | Each bookmark = one PR | jj-native, matches all jj tools. spr's "each commit" is a git-ism |
-| Stack concept | Implicit (jj log is the stack) | No separate tracking. jj-stack/jj-domino validate this approach |
-| Remote sync | Force-push (default) | Simpler, matches jj's rewrite model. Append-only as future option |
-| Stack type | Dependent (default) | PR targets ancestor bookmark. Independent as future option |
-| Restacking | `jj rebase -s` | One command cascades to all descendants. jj handles conflicts gracefully |
-| PR navigation | Stack comment (not body) | Idempotently updatable, matches Graphite's pattern |
-| Status display | Deferred | Needs multi-select colors first. Vertical bar pattern preferred |
-
-### Patterns to Adopt
-
-| Pattern | Source | How |
-|---------|--------|-----|
-| Stack navigation comments | jj-ryu, Graphite | Comment with `<!-- kajji:stack -->` marker, updated on submit |
-| Idempotent submit | jjpr, Graphite | Check existing PR before creating; submit safe to repeat |
-| `bottom::top` stack notation | — | For identifying stacks in menus |
-| Sync as power command | Graphite | fetch + detect merged + restack in one flow |
-| Inline conflict context | Graphite | Show stack position during rebase conflicts (future) |
-
----
-
-## Open Questions
-
-- **Stack discovery revset**: exact revset for finding all bookmarks in a connected stack. Needs to handle multiple independent stacks, both ancestors and descendants of `@`. To be determined during implementation.
-- **Force-push failures**: how to handle protected branches, required status checks, etc.?
-- **Independent mode**: offer `--cherry-pick` style independent PRs as an option? When and how? Defer to Phase 3+.
-- **Append-only sync**: add as option for teams that value GitHub "since last review"? Significant implementation complexity. Defer.
-- **Integration with jj's eventual native GitHub support**: jj may add built-in PR management. Monitor [jj-vcs/jj#485](https://github.com/jj-vcs/jj/issues/485).
-- **Use jj-ryu or jjpr as backend?**: Both are well-structured Rust crates. jj-ryu is designed as a library. Could potentially shell out to `jjpr` or `ryu` instead of implementing stack logic from scratch. Evaluate effort trade-off when starting implementation.
-
----
-
-## Future: Full PR Management
-
-Beyond stacking, kajji could become a full PR management tool.
-
-See PR Management (archived in vault: `~/oh-yeah/Projects/kajji/archive/pr-management.md`) for archived exploration.
-
-Summary of what's explored there:
-- PR list with filtering (open, assigned, created by me, review requested)
-- PR detail view (description, reviews, CI, files, diff)
-- Actions: approve, request changes, comment (inline and general), merge
-- GitHub file sync (track viewed files, sync with GitHub's checkboxes)
-- AI-assisted review (see [AI Integration](./ai-integration.md))
-
-### Why This Matters
-This would make kajji a true "Graphite in TUI":
-- Open-source and free
-- Works with standard tools (jj + gh CLI)
-- No vendor lock-in, no account required
-- Full stacking workflow from creation to merge
+This spec intentionally keeps only the decisions relevant to kajji's current direction rather than carrying forward all earlier research details.
