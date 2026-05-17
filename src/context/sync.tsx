@@ -1,6 +1,7 @@
 import { useRenderer } from "@opentui/solid"
 import {
     type JSX,
+    batch as batchUpdates,
     createContext,
     createEffect,
     createMemo,
@@ -57,6 +58,10 @@ export interface CommitDetails {
     body: string
 }
 
+interface RefreshOptions {
+    selectIndex?: (commits: Commit[]) => number | null | undefined
+}
+
 interface SyncContextValue {
     commits: () => Commit[]
     selectedIndex: () => number
@@ -69,7 +74,7 @@ interface SyncContextValue {
     activeCommit: () => Commit | undefined
     activeBookmarkDiff: () => BookmarkDiffView | null
     commitDetails: () => CommitDetails | null
-    loadLog: () => Promise<void>
+    loadLog: (options?: RefreshOptions) => Promise<void>
     loadMoreLog: () => Promise<void>
     logHasMore: () => boolean
     logLimit: () => number
@@ -130,7 +135,7 @@ interface SyncContextValue {
     selectLastBookmark: () => void
     jumpToBookmarkCommit: () => number | null
 
-    refresh: () => Promise<void>
+    refresh: (options?: RefreshOptions) => Promise<void>
     refreshCounter: () => number
 }
 
@@ -276,7 +281,7 @@ export function SyncProvider(props: { children: JSX.Element }) {
         resolve?.()
     }
 
-    const doFullRefresh = async () => {
+    const doFullRefresh = async (options?: RefreshOptions) => {
         if (isRefreshing) {
             refreshQueued = true
             return
@@ -286,7 +291,7 @@ export function SyncProvider(props: { children: JSX.Element }) {
 
         try {
             await Promise.all([
-                loadLog(),
+                loadLog(options),
                 loadBookmarks(),
                 loadRemoteBookmarks(),
             ])
@@ -772,7 +777,7 @@ export function SyncProvider(props: { children: JSX.Element }) {
         })
     }
 
-    const loadLog = async () => {
+    const loadLog = async (options?: RefreshOptions) => {
         const isInitialLoad = commits().length === 0
         if (isInitialLoad) setLoading(true)
         setError(null)
@@ -797,7 +802,14 @@ export function SyncProvider(props: { children: JSX.Element }) {
                             baseCommits.length === 0 ||
                             batch.length >= baseCommits.length
                         ) {
-                            setCommits(batch)
+                            batchUpdates(() => {
+                                setCommits(batch)
+                                const nextSelectedIndex =
+                                    options?.selectIndex?.(batch)
+                                if (nextSelectedIndex != null) {
+                                    setSelectedIndex(nextSelectedIndex)
+                                }
+                            })
                         } else {
                             const batchIds = new Set(
                                 batch.map((commit) => commit.changeId),
@@ -817,20 +829,43 @@ export function SyncProvider(props: { children: JSX.Element }) {
                                     return true
                                 }),
                             )
-                            setCommits(merged)
+                            batchUpdates(() => {
+                                setCommits(merged)
+                                const nextSelectedIndex =
+                                    options?.selectIndex?.(merged)
+                                if (nextSelectedIndex != null) {
+                                    setSelectedIndex(nextSelectedIndex)
+                                }
+                            })
                         }
                         if (isInitialLoad) setLoading(false)
                     },
                     onComplete: (result) => {
                         if (token !== logStreamToken) return
-                        setCommits(result.commits)
-                        setLogHasMore(result.hasMore)
-                        setLogLimit(limit)
-                        setSelectedIndex((index) =>
-                            result.commits.length === 0
-                                ? 0
-                                : Math.min(index, result.commits.length - 1),
-                        )
+                        batchUpdates(() => {
+                            setCommits(result.commits)
+                            setLogHasMore(result.hasMore)
+                            setLogLimit(limit)
+                            const nextSelectedIndex = options?.selectIndex?.(
+                                result.commits,
+                            )
+                            setSelectedIndex((index) =>
+                                result.commits.length === 0
+                                    ? 0
+                                    : nextSelectedIndex != null
+                                      ? Math.max(
+                                            0,
+                                            Math.min(
+                                                nextSelectedIndex,
+                                                result.commits.length - 1,
+                                            ),
+                                        )
+                                      : Math.min(
+                                            index,
+                                            result.commits.length - 1,
+                                        ),
+                            )
+                        })
                         setRevsetError(null)
                         if (isInitialLoad) {
                             setSelectedIndex(0)

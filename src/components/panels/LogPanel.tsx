@@ -599,6 +599,10 @@ export function LogPanel() {
         op: (options?: {
             observer: ReturnType<typeof commandLog.observer>
         }) => Promise<OperationResult>,
+        selectAfterRefresh?: (
+            result: OperationResult,
+            commits: Commit[],
+        ) => number | null | undefined,
     ) => {
         const observer = commandLog.observer()
         const result = await withCommandObserver(observer, () =>
@@ -606,7 +610,11 @@ export function LogPanel() {
         )
         commandLog.addEntry(result)
         if (result.success) {
-            await refresh()
+            await refresh({
+                selectIndex: selectAfterRefresh
+                    ? (commits) => selectAfterRefresh(result, commits)
+                    : undefined,
+            })
             await refreshAppliedFilterGroups()
             loadOpLog()
         }
@@ -629,6 +637,42 @@ export function LogPanel() {
             loadOpLog()
         }
         return result
+    }
+
+    const findCommitIndexById = (
+        commitList: Commit[],
+        id: string | undefined,
+    ) => {
+        if (!id) return null
+        const exactIndex = commitList.findIndex(
+            (commit) => commit.changeId === id || commit.commitId === id,
+        )
+        if (exactIndex >= 0) return exactIndex
+        const prefixIndex = commitList.findIndex(
+            (commit) =>
+                commit.changeId.startsWith(id) ||
+                commit.commitId.startsWith(id),
+        )
+        return prefixIndex >= 0 ? prefixIndex : null
+    }
+
+    const findWorkingCopyCommitIndex = (commitList: Commit[]) => {
+        const index = commitList.findIndex((commit) => commit.isWorkingCopy)
+        return index >= 0 ? index : null
+    }
+
+    const selectWorkingCopyCommitAfterRefresh = (
+        _result: OperationResult,
+        commitList: Commit[],
+    ) => findWorkingCopyCommitIndex(commitList)
+
+    const selectDuplicatedCommit = (
+        result: OperationResult,
+        commitList: Commit[],
+    ) => {
+        const output = `${result.stdout}\n${result.stderr}`
+        const duplicatedId = output.match(/\bas\s+([0-9a-f]+|[k-z]+)\b/)?.[1]
+        return findCommitIndexById(commitList, duplicatedId)
     }
 
     const findLocalBookmark = (name: string) =>
@@ -1281,8 +1325,10 @@ export function LogPanel() {
             onSelect: () => {
                 const commit = selectedLogCommit()
                 if (commit)
-                    runOperation("Creating...", (options) =>
-                        jjNew(getRevisionId(commit), options),
+                    runOperation(
+                        "Creating...",
+                        (options) => jjNew(getRevisionId(commit), options),
+                        selectWorkingCopyCommitAfterRefresh,
                     )
             },
         },
@@ -1308,8 +1354,11 @@ export function LogPanel() {
                                     label: "",
                                     detail: "run hooks",
                                     onSelect: () =>
-                                        runOperation("Creating...", (options) =>
-                                            jjNew(revision, options),
+                                        runOperation(
+                                            "Creating...",
+                                            (options) =>
+                                                jjNew(revision, options),
+                                            selectWorkingCopyCommitAfterRefresh,
                                         ),
                                 },
                                 {
@@ -1318,11 +1367,14 @@ export function LogPanel() {
                                     label: " --no-verify",
                                     detail: "skip hooks",
                                     onSelect: () =>
-                                        runOperation("Creating...", (options) =>
-                                            jjNew(revision, {
-                                                ...options,
-                                                verify: false,
-                                            }),
+                                        runOperation(
+                                            "Creating...",
+                                            (options) =>
+                                                jjNew(revision, {
+                                                    ...options,
+                                                    verify: false,
+                                                }),
+                                            selectWorkingCopyCommitAfterRefresh,
                                         ),
                                 },
                                 {
@@ -1330,8 +1382,11 @@ export function LogPanel() {
                                     mutedPrefix: "jj new",
                                     label: " --after",
                                     onSelect: () =>
-                                        runOperation("Creating...", (options) =>
-                                            jjNewAfter(revision, options),
+                                        runOperation(
+                                            "Creating...",
+                                            (options) =>
+                                                jjNewAfter(revision, options),
+                                            selectWorkingCopyCommitAfterRefresh,
                                         ),
                                 },
                                 {
@@ -1339,8 +1394,11 @@ export function LogPanel() {
                                     mutedPrefix: "jj new",
                                     label: " --before",
                                     onSelect: () =>
-                                        runOperation("Creating...", (options) =>
-                                            jjNewBefore(revision, options),
+                                        runOperation(
+                                            "Creating...",
+                                            (options) =>
+                                                jjNewBefore(revision, options),
+                                            selectWorkingCopyCommitAfterRefresh,
                                         ),
                                 },
                             ]}
@@ -1373,8 +1431,10 @@ export function LogPanel() {
             onSelect: () => {
                 const commit = selectedLogCommit()
                 if (!commit) return
-                runOperation("Duplicating...", () =>
-                    jjDuplicate(getRevisionId(commit)),
+                runOperation(
+                    "Duplicating...",
+                    () => jjDuplicate(getRevisionId(commit)),
+                    selectDuplicatedCommit,
                 )
             },
         },
@@ -1433,14 +1493,18 @@ export function LogPanel() {
                         ],
                     })
                     if (confirmed) {
-                        await runOperation("Editing...", () =>
-                            jjEdit(revId, { ignoreImmutable: true }),
+                        await runOperation(
+                            "Editing...",
+                            () => jjEdit(revId, { ignoreImmutable: true }),
+                            selectWorkingCopyCommitAfterRefresh,
                         )
                     }
                 } else {
                     commandLog.addEntry(result)
                     if (result.success) {
-                        refresh()
+                        await refresh({
+                            selectIndex: findWorkingCopyCommitIndex,
+                        })
                         loadOpLog()
                     }
                 }
@@ -1508,20 +1572,32 @@ export function LogPanel() {
                                     // Interactive mode needs to suspend the TUI
                                     renderer.suspend?.()
                                     try {
-                                        await jjSquashInteractive(revId, {
-                                            into:
-                                                target !== revId
-                                                    ? target
-                                                    : undefined,
-                                            useDestinationMessage:
-                                                options.useDestinationMessage,
-                                            keepEmptied: options.keepEmptied,
-                                            ignoreImmutable,
-                                        })
+                                        const result =
+                                            await jjSquashInteractive(revId, {
+                                                into:
+                                                    target !== revId
+                                                        ? target
+                                                        : undefined,
+                                                useDestinationMessage:
+                                                    options.useDestinationMessage,
+                                                keepEmptied:
+                                                    options.keepEmptied,
+                                                ignoreImmutable,
+                                            })
+                                        if (result.success) {
+                                            await refresh({
+                                                selectIndex: (commitList) =>
+                                                    findCommitIndexById(
+                                                        commitList,
+                                                        options.keepEmptied
+                                                            ? commit.changeId
+                                                            : target,
+                                                    ),
+                                            })
+                                            loadOpLog()
+                                        }
                                     } finally {
                                         renderer.resume?.()
-                                        refresh()
-                                        loadOpLog()
                                     }
                                 } else {
                                     // Non-interactive squash
@@ -1560,12 +1636,27 @@ export function LogPanel() {
                                                             options.keepEmptied,
                                                         ignoreImmutable: true,
                                                     }),
+                                                (_result, commitList) =>
+                                                    findCommitIndexById(
+                                                        commitList,
+                                                        options.keepEmptied
+                                                            ? commit.changeId
+                                                            : target,
+                                                    ),
                                             )
                                         }
                                     } else {
                                         commandLog.addEntry(result)
                                         if (result.success) {
-                                            refresh()
+                                            await refresh({
+                                                selectIndex: (commitList) =>
+                                                    findCommitIndexById(
+                                                        commitList,
+                                                        options.keepEmptied
+                                                            ? commit.changeId
+                                                            : target,
+                                                    ),
+                                            })
                                             loadOpLog()
                                         }
                                     }
@@ -1640,20 +1731,34 @@ export function LogPanel() {
                                         ],
                                     })
                                     if (confirmed) {
-                                        await runOperation("Rebasing...", () =>
-                                            jjRebase(revId, destination, {
-                                                mode: options.mode,
-                                                targetMode: options.targetMode,
-                                                skipEmptied:
-                                                    options.skipEmptied,
-                                                ignoreImmutable: true,
-                                            }),
+                                        await runOperation(
+                                            "Rebasing...",
+                                            () =>
+                                                jjRebase(revId, destination, {
+                                                    mode: options.mode,
+                                                    targetMode:
+                                                        options.targetMode,
+                                                    skipEmptied:
+                                                        options.skipEmptied,
+                                                    ignoreImmutable: true,
+                                                }),
+                                            (_result, commitList) =>
+                                                findCommitIndexById(
+                                                    commitList,
+                                                    commit.changeId,
+                                                ),
                                         )
                                     }
                                 } else {
                                     commandLog.addEntry(result)
                                     if (result.success) {
-                                        refresh()
+                                        await refresh({
+                                            selectIndex: (commitList) =>
+                                                findCommitIndexById(
+                                                    commitList,
+                                                    commit.changeId,
+                                                ),
+                                        })
                                         loadOpLog()
                                     }
                                 }
