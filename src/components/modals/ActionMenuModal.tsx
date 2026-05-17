@@ -13,6 +13,8 @@ export interface ActionMenuOption {
 
 interface ActionMenuModalProps {
     options: ActionMenuOption[]
+    paddingLeft?: number
+    paddingRight?: number
 }
 
 export function ActionMenuModal(props: ActionMenuModalProps) {
@@ -89,8 +91,8 @@ export function ActionMenuModal(props: ActionMenuModalProps) {
                     <box
                         flexDirection="row"
                         justifyContent="space-between"
-                        paddingLeft={1}
-                        paddingRight={1}
+                        paddingLeft={props.paddingLeft ?? 0}
+                        paddingRight={props.paddingRight ?? 0}
                         backgroundColor={
                             index() === selectedIndex()
                                 ? colors().selectionBackground
