@@ -1,0 +1,37 @@
+// Project-specific Zed settings
+// Use Biome for this repo so format-on-save matches `bun lint:fix` / biome.json.
+{
+  "lsp": {
+    "biome": {
+      "settings": {
+        "require_config_file": true,
+      },
+    },
+  },
+  "languages": {
+    "TypeScript": {
+      "language_servers": ["biome", "typescript-language-server", "!vtsls"],
+      "formatter": { "language_server": { "name": "biome" } },
+      "code_actions_on_format": {
+        "source.fixAll.biome": true,
+        "source.organizeImports.biome": true,
+      },
+    },
+    "TSX": {
+      "language_servers": ["biome", "typescript-language-server", "!vtsls"],
+      "formatter": { "language_server": { "name": "biome" } },
+      "code_actions_on_format": {
+        "source.fixAll.biome": true,
+        "source.organizeImports.biome": true,
+      },
+    },
+    "JSON": {
+      "language_servers": ["biome", "json-language-server"],
+      "formatter": { "language_server": { "name": "biome" } },
+      "code_actions_on_format": {
+        "source.fixAll.biome": true,
+        "source.organizeImports.biome": true,
+      },
+    },
+  },
+}
