@@ -22,7 +22,11 @@ import {
     jjBookmarkSet,
 } from "../../commander/bookmarks"
 import { withCommandObserver } from "../../commander/executor"
-import { ghBrowseCommit, ghPrCreateWeb } from "../../commander/github"
+import {
+    ghBrowseCommit,
+    ghListPullRequestsByHead,
+    ghPrCreateWeb,
+} from "../../commander/github"
 import {
     type OperationResult,
     isImmutableError,
@@ -157,6 +161,9 @@ export function BookmarksPanel() {
         const observer = commandLog.observer()
         const prResult = await ghPrCreateWeb(bookmark.name, { observer })
         commandLog.addEntry(prResult)
+        if (prResult.success) {
+            refreshPrMetadataAfterPrCreateWeb()
+        }
     }
 
     const isFocused = () => focus.isPanel("refs")
@@ -225,6 +232,15 @@ export function BookmarksPanel() {
     const [filterSelectedIndex, setFilterSelectedIndex] = createSignal(0)
     const [showRemoteOnly, setShowRemoteOnly] = createSignal(false)
     const [remoteSelectedIndex, setRemoteSelectedIndex] = createSignal(0)
+    const [bookmarkPrNumbers, setBookmarkPrNumbers] = createSignal<
+        ReadonlyMap<string, number>
+    >(new Map())
+    const [prMetadataRefreshToken, setPrMetadataRefreshToken] = createSignal(0)
+    const refreshPrMetadataAfterPrCreateWeb = () => {
+        setTimeout(() => setPrMetadataRefreshToken((token) => token + 1), 15000)
+        setTimeout(() => setPrMetadataRefreshToken((token) => token + 1), 30000)
+        setTimeout(() => setPrMetadataRefreshToken((token) => token + 1), 60000)
+    }
     const selectedBookmarkHasOriginDiff = createMemo(() => {
         if (showRemoteOnly()) return false
         const bookmark = selectedBookmark()
@@ -252,6 +268,36 @@ export function BookmarksPanel() {
     const hasActiveFilter = createMemo(
         () => activeFilterQuery().trim().length > 0,
     )
+
+    createEffect(() => {
+        prMetadataRefreshToken()
+        const names = activeLocalBookmarks()
+            .map((bookmark) => bookmark.name)
+            .sort()
+        if (names.length === 0) {
+            setBookmarkPrNumbers(new Map())
+            return
+        }
+
+        let cancelled = false
+        ghListPullRequestsByHead(names)
+            .then((pullsByHead) => {
+                if (cancelled) return
+                const next = new Map<string, number>()
+                for (const name of names) {
+                    const pull = pullsByHead.get(name)
+                    if (pull) next.set(name, pull.number)
+                }
+                setBookmarkPrNumbers(next)
+            })
+            .catch(() => {
+                if (!cancelled) setBookmarkPrNumbers(new Map())
+            })
+
+        onCleanup(() => {
+            cancelled = true
+        })
+    })
 
     const filteredBookmarks = createMemo(() => {
         const q = activeFilterQuery().trim()
@@ -1002,6 +1048,8 @@ export function BookmarksPanel() {
                                         handleDoubleClick()
                                     }
                                     const isDeleted = () => !bookmark.changeId
+                                    const prNumber = () =>
+                                        bookmarkPrNumbers().get(bookmark.name)
                                     const isInActiveStack = () =>
                                         Boolean(
                                             activeStackKey() &&
@@ -1112,6 +1160,18 @@ export function BookmarksPanel() {
                                                                     }}
                                                                 >
                                                                     *
+                                                                </span>
+                                                            </Show>
+                                                            <Show
+                                                                when={prNumber()}
+                                                            >
+                                                                <span
+                                                                    style={{
+                                                                        fg: colors()
+                                                                            .textMuted,
+                                                                    }}
+                                                                >
+                                                                    {` #${prNumber()}`}
                                                                 </span>
                                                             </Show>
                                                             <Show
