@@ -2,7 +2,6 @@ import type { ScrollBoxRenderable, TextareaRenderable } from "@opentui/core"
 import { useKeyboard } from "@opentui/solid"
 import { Effect } from "effect"
 import fuzzysort from "fuzzysort"
-import { ptyToJson } from "ghostty-opentui"
 import {
     For,
     Show,
@@ -46,21 +45,16 @@ import { useSync } from "../../context/sync"
 import { useTheme } from "../../context/theme"
 import { buildBookmarkStackModel } from "../../stack/discovery"
 import type { BookmarkStackRow } from "../../stack/model"
-import { resolveAnsiForeground } from "../../theme/ansi"
 import { hasOriginDiff } from "../../utils/bookmark-origin-diff"
 import { createDoubleClickDetector } from "../../utils/double-click"
 import { FUZZY_THRESHOLD, scrollIntoView } from "../../utils/scroll"
-import { AnsiText } from "../AnsiText"
+import { BookmarkStackRowView } from "../BookmarkStackRowView"
 import { FilterInput } from "../FilterInput"
 import { Panel } from "../Panel"
 import { ActionMenuModal } from "../modals/ActionMenuModal"
 import { BookmarkNameModal } from "../modals/BookmarkNameModal"
 import { RevisionPickerModal } from "../modals/RevisionPickerModal"
-
-// biome-ignore lint/suspicious/noControlCharactersInRegex: intentional ANSI escape sequence
-const stripAnsi = (str: string) => str.replace(/\x1b\[[0-9;]*m/g, "")
-
-const emptyDescriptionPrefix = "(empty) "
+import { StackActionsModal } from "../modals/StackActionsModal"
 
 type BookmarkRow = BookmarkStackRow<Bookmark>
 
@@ -98,7 +92,7 @@ export function BookmarksPanel() {
     const commandLog = useCommandLog()
     const dialog = useDialog()
     const status = useStatus()
-    const { colors, mode } = useTheme()
+    const { colors } = useTheme()
     const { refresh } = useSync()
 
     const runOperation = async (
@@ -169,28 +163,6 @@ export function BookmarksPanel() {
 
     const isFocused = () => focus.isPanel("refs")
     const localBookmarks = () => bookmarks().filter((b) => b.isLocal)
-    const inlineAnsiSpans = (content: string, defaultFg?: string) => {
-        const spans =
-            ptyToJson(content, { cols: 9999, rows: 1 }).lines[0]?.spans ?? []
-        return spans
-            .filter((span) => span.text.length > 0)
-            .map((span) => ({
-                text: span.text,
-                fg: resolveAnsiForeground({
-                    fg: span.fg,
-                    mode: mode(),
-                    text: colors().text,
-                    textMuted: colors().textMuted,
-                    defaultFg,
-                }),
-                bg: span.bg ?? undefined,
-            }))
-    }
-    const bookmarkNameFg = (bookmark: Bookmark, defaultFg?: string) =>
-        inlineAnsiSpans(bookmark.nameDisplay || bookmark.name, defaultFg).at(-1)
-            ?.fg ??
-        defaultFg ??
-        colors().text
     const activeLocalBookmarks = createMemo(() =>
         visibleBookmarks().filter((b) => b.isLocal && b.changeId),
     )
@@ -381,48 +353,64 @@ export function BookmarksPanel() {
         return row.stackKeys[0]
     })
 
+    const stackActionOptions = (stackRootName: string) => [
+        {
+            key: "s",
+            mutedPrefix: "stack ",
+            label: "submit --dry-run",
+            onSelect: () =>
+                status.show(
+                    `Stack submit dry-run for ${stackRootName} is not implemented yet.`,
+                ),
+        },
+        {
+            key: "S",
+            mutedPrefix: "stack ",
+            label: "submit",
+            onSelect: () =>
+                status.show(
+                    `Stack submit for ${stackRootName} is not implemented yet.`,
+                ),
+        },
+        {
+            key: "f",
+            mutedPrefix: "stack ",
+            label: "sync --dry-run",
+            onSelect: () =>
+                status.show(
+                    `Stack sync dry-run for ${stackRootName} is not implemented yet.`,
+                ),
+        },
+        {
+            key: "F",
+            mutedPrefix: "stack ",
+            label: "sync",
+            onSelect: () =>
+                status.show(
+                    `Stack sync for ${stackRootName} is not implemented yet.`,
+                ),
+        },
+    ]
+
+    const stackRows = (stackRootName: string) => {
+        const rows = displayBookmarkRows().filter((row) =>
+            row.stackKeys.includes(stackRootName),
+        )
+        const minDepth = Math.min(...rows.map((row) => row.depth))
+        return rows.map((row) => ({
+            ...row,
+            depth: Math.max(0, row.depth - minDepth),
+        }))
+    }
+
     const openStackActions = (stackRootName: string) => {
         dialog.open(
             () => (
-                <ActionMenuModal
-                    options={[
-                        {
-                            key: "s",
-                            mutedPrefix: "stack ",
-                            label: "submit --dry-run",
-                            onSelect: () =>
-                                status.show(
-                                    `Stack submit dry-run for ${stackRootName} is not implemented yet.`,
-                                ),
-                        },
-                        {
-                            key: "S",
-                            mutedPrefix: "stack ",
-                            label: "submit",
-                            onSelect: () =>
-                                status.show(
-                                    `Stack submit for ${stackRootName} is not implemented yet.`,
-                                ),
-                        },
-                        {
-                            key: "f",
-                            mutedPrefix: "stack ",
-                            label: "sync --dry-run",
-                            onSelect: () =>
-                                status.show(
-                                    `Stack sync dry-run for ${stackRootName} is not implemented yet.`,
-                                ),
-                        },
-                        {
-                            key: "F",
-                            mutedPrefix: "stack ",
-                            label: "sync",
-                            onSelect: () =>
-                                status.show(
-                                    `Stack sync for ${stackRootName} is not implemented yet.`,
-                                ),
-                        },
-                    ]}
+                <StackActionsModal
+                    stackRootName={stackRootName}
+                    rows={stackRows(stackRootName)}
+                    prNumbers={bookmarkPrNumbers()}
+                    actions={stackActionOptions(stackRootName)}
                 />
             ),
             {
@@ -432,8 +420,11 @@ export function BookmarksPanel() {
                     " options for ",
                     { text: stackRootName, style: "target" },
                 ],
-                ...DIALOG_SIZE.confirm,
-                hints: [{ key: "enter", label: "run" }],
+                ...DIALOG_SIZE.confirmWide,
+                hints: [
+                    { key: "enter", label: "run" },
+                    { key: "esc", label: "close" },
+                ],
             },
         )
     }
@@ -1200,236 +1191,15 @@ export function BookmarksPanel() {
                                                         : 1
                                                 }
                                             >
-                                                <box
-                                                    flexDirection="row"
-                                                    flexGrow={1}
-                                                    overflow="hidden"
-                                                >
-                                                    <box
-                                                        flexShrink={0}
-                                                        overflow="hidden"
-                                                    >
-                                                        <text wrapMode="none">
-                                                            <Show
-                                                                when={
-                                                                    row.depth >
-                                                                    0
-                                                                }
-                                                            >
-                                                                <span
-                                                                    style={{
-                                                                        fg: colors()
-                                                                            .textMuted,
-                                                                    }}
-                                                                >
-                                                                    {"  ".repeat(
-                                                                        Math.max(
-                                                                            0,
-                                                                            row.depth -
-                                                                                1,
-                                                                        ),
-                                                                    )}
-                                                                    ↳{" "}
-                                                                </span>
-                                                            </Show>
-                                                            <For
-                                                                each={inlineAnsiSpans(
-                                                                    bookmark.nameDisplay ||
-                                                                        bookmark.name,
-                                                                    showSelection()
-                                                                        ? colors()
-                                                                              .selectionText
-                                                                        : undefined,
-                                                                )}
-                                                            >
-                                                                {(span) => (
-                                                                    <span
-                                                                        style={{
-                                                                            fg: span.fg,
-                                                                            bg: span.bg,
-                                                                        }}
-                                                                    >
-                                                                        {
-                                                                            span.text
-                                                                        }
-                                                                    </span>
-                                                                )}
-                                                            </For>
-                                                            <Show
-                                                                when={
-                                                                    bookmark.isLocal &&
-                                                                    originChangedBookmarkNames().has(
-                                                                        bookmark.name,
-                                                                    )
-                                                                }
-                                                            >
-                                                                <span
-                                                                    style={{
-                                                                        fg: bookmarkNameFg(
-                                                                            bookmark,
-                                                                            showSelection()
-                                                                                ? colors()
-                                                                                      .selectionText
-                                                                                : undefined,
-                                                                        ),
-                                                                    }}
-                                                                >
-                                                                    *
-                                                                </span>
-                                                            </Show>
-                                                            <Show
-                                                                when={prNumber()}
-                                                            >
-                                                                <span
-                                                                    style={{
-                                                                        fg: colors()
-                                                                            .textMuted,
-                                                                    }}
-                                                                >
-                                                                    {` #${prNumber()}`}
-                                                                </span>
-                                                            </Show>
-                                                            <Show
-                                                                when={
-                                                                    !isDeleted()
-                                                                }
-                                                                fallback={
-                                                                    <span
-                                                                        style={{
-                                                                            fg: colors()
-                                                                                .error,
-                                                                        }}
-                                                                    >
-                                                                        {
-                                                                            " –deleted "
-                                                                        }
-                                                                    </span>
-                                                                }
-                                                            >
-                                                                <span
-                                                                    style={{
-                                                                        fg: colors()
-                                                                            .textMuted,
-                                                                    }}
-                                                                >
-                                                                    {" "}
-                                                                </span>
-                                                                <For
-                                                                    each={inlineAnsiSpans(
-                                                                        bookmark.changeIdDisplay ||
-                                                                            bookmark.changeId,
-                                                                        showSelection()
-                                                                            ? colors()
-                                                                                  .selectionText
-                                                                            : colors()
-                                                                                  .textMuted,
-                                                                    )}
-                                                                >
-                                                                    {(span) => (
-                                                                        <span
-                                                                            style={{
-                                                                                fg: span.fg,
-                                                                                bg: span.bg,
-                                                                            }}
-                                                                        >
-                                                                            {
-                                                                                span.text
-                                                                            }
-                                                                        </span>
-                                                                    )}
-                                                                </For>
-                                                                <span
-                                                                    style={{
-                                                                        fg: colors()
-                                                                            .textMuted,
-                                                                    }}
-                                                                >
-                                                                    {" "}
-                                                                </span>
-                                                            </Show>
-                                                            <Show
-                                                                when={
-                                                                    showRemoteOnly() &&
-                                                                    bookmark.remote
-                                                                }
-                                                            >
-                                                                <span
-                                                                    style={{
-                                                                        fg: colors()
-                                                                            .textMuted,
-                                                                    }}
-                                                                >
-                                                                    @
-                                                                    {
-                                                                        bookmark.remote
-                                                                    }{" "}
-                                                                </span>
-                                                            </Show>
-                                                        </text>
-                                                    </box>
-                                                    <Show when={!isDeleted()}>
-                                                        <box
-                                                            flexDirection="row"
-                                                            flexGrow={1}
-                                                            overflow="hidden"
-                                                        >
-                                                            <Show
-                                                                when={stripAnsi(
-                                                                    bookmark.descriptionDisplay,
-                                                                ).startsWith(
-                                                                    emptyDescriptionPrefix,
-                                                                )}
-                                                                fallback={
-                                                                    <text
-                                                                        fg={
-                                                                            colors()
-                                                                                .textMuted
-                                                                        }
-                                                                        content={
-                                                                            bookmark.description
-                                                                        }
-                                                                        wrapMode="none"
-                                                                    />
-                                                                }
-                                                            >
-                                                                <box
-                                                                    width={
-                                                                        emptyDescriptionPrefix.length
-                                                                    }
-                                                                    flexShrink={
-                                                                        0
-                                                                    }
-                                                                >
-                                                                    <text
-                                                                        fg={
-                                                                            colors()
-                                                                                .success
-                                                                        }
-                                                                        content={
-                                                                            emptyDescriptionPrefix
-                                                                        }
-                                                                        wrapMode="none"
-                                                                    />
-                                                                </box>
-                                                                <box
-                                                                    flexGrow={1}
-                                                                    overflow="hidden"
-                                                                >
-                                                                    <text
-                                                                        fg={
-                                                                            colors()
-                                                                                .textMuted
-                                                                        }
-                                                                        content={bookmark.description.slice(
-                                                                            emptyDescriptionPrefix.length,
-                                                                        )}
-                                                                        wrapMode="none"
-                                                                    />
-                                                                </box>
-                                                            </Show>
-                                                        </box>
-                                                    </Show>
-                                                </box>
+                                                <BookmarkStackRowView
+                                                    row={row}
+                                                    selected={showSelection()}
+                                                    prNumber={prNumber()}
+                                                    showOriginChanged={originChangedBookmarkNames().has(
+                                                        bookmark.name,
+                                                    )}
+                                                    showRemote={showRemoteOnly()}
+                                                />
                                             </box>
                                         </>
                                     )
