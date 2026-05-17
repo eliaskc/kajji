@@ -51,6 +51,7 @@ interface DialogState {
     title?: string | StyledSegment[]
     width?: DimensionOrAccessor
     maxWidth?: number
+    closeOnEsc?: boolean
 }
 
 export type StyledSegment =
@@ -179,7 +180,12 @@ export const { use: useDialog, provider: DialogProvider } = createSimpleContext(
             }
 
             useKeyboard((evt) => {
-                if (stack().length > 0 && evt.name === "escape") {
+                const current = stack().at(-1)
+                if (
+                    current &&
+                    current.closeOnEsc !== false &&
+                    evt.name === "escape"
+                ) {
                     evt.preventDefault()
                     evt.stopPropagation()
                     close()
@@ -195,6 +201,7 @@ export const { use: useDialog, provider: DialogProvider } = createSimpleContext(
                     title?: string | StyledSegment[]
                     width?: DimensionOrAccessor
                     maxWidth?: number
+                    closeOnEsc?: boolean
                 },
             ) => {
                 setStack((s) => [
@@ -207,6 +214,7 @@ export const { use: useDialog, provider: DialogProvider } = createSimpleContext(
                         title: options?.title,
                         width: options?.width,
                         maxWidth: options?.maxWidth,
+                        closeOnEsc: options?.closeOnEsc,
                     },
                 ])
             }
@@ -220,6 +228,7 @@ export const { use: useDialog, provider: DialogProvider } = createSimpleContext(
                     title?: string | StyledSegment[]
                     width?: DimensionOrAccessor
                     maxWidth?: number
+                    closeOnEsc?: boolean
                 },
             ) => {
                 const current = stack().at(-1)
@@ -233,6 +242,7 @@ export const { use: useDialog, provider: DialogProvider } = createSimpleContext(
                         title: options?.title,
                         width: options?.width,
                         maxWidth: options?.maxWidth,
+                        closeOnEsc: options?.closeOnEsc,
                     })
                 }
             }

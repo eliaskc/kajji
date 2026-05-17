@@ -23,7 +23,11 @@ describe("parseGhPullRequestsByHeadGraphqlJson", () => {
                         h0: {
                             associatedPullRequests: {
                                 nodes: [
-                                    { number: 123, headRefName: "feature-a" },
+                                    {
+                                        number: 123,
+                                        headRefName: "feature-a",
+                                        baseRefName: "main",
+                                    },
                                 ],
                             },
                         },
@@ -40,7 +44,10 @@ describe("parseGhPullRequestsByHeadGraphqlJson", () => {
         )
 
         expect([...pulls.entries()]).toEqual([
-            ["feature-a", { number: 123, headRefName: "feature-a" }],
+            [
+                "feature-a",
+                { number: 123, headRefName: "feature-a", baseRefName: "main" },
+            ],
             ["feature-b", { number: 124, headRefName: "feature-b" }],
         ])
     })

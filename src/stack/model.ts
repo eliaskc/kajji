@@ -24,3 +24,41 @@ export interface BookmarkStackModel<TBookmark extends StackBookmarkInput> {
     readonly trunkNames: ReadonlySet<string>
     readonly stackRootNames: ReadonlySet<string>
 }
+
+export interface StackPullRequestInput {
+    readonly number: number
+    readonly headRefName: string
+    readonly baseRefName?: string
+}
+
+export interface StackRemoteBookmarkInput {
+    readonly name: string
+    readonly commitId: string
+}
+
+export type StackPlanKind = "submit" | "sync"
+export type StackPlanRowStatus =
+    | "current"
+    | "create-pr"
+    | "update-pr"
+    | "push"
+    | "rebase"
+
+export interface StackPlanRow<TBookmark extends StackBookmarkInput> {
+    readonly row: BookmarkStackRow<TBookmark>
+    readonly prNumber?: number
+    readonly desiredBase?: string
+    readonly status: StackPlanRowStatus
+    readonly note: string
+}
+
+export interface StackPlan<TBookmark extends StackBookmarkInput> {
+    readonly kind: StackPlanKind
+    readonly stackRootName: string
+    readonly rows: readonly StackPlanRow<TBookmark>[]
+    readonly updatePrNumbers: readonly number[]
+    readonly createPrBookmarks: readonly string[]
+    readonly pushBookmarks: readonly string[]
+    readonly rebaseBookmarks: readonly string[]
+    readonly applyCommand: string
+}

@@ -22,6 +22,7 @@ import {
 } from "../../commander/bookmarks"
 import { withCommandObserver } from "../../commander/executor"
 import {
+    type GitHubPullRequestSummary,
     ghBrowseCommit,
     ghListPullRequestsByHead,
     ghPrCreateWeb,
@@ -44,7 +45,8 @@ import { useStatus } from "../../context/status"
 import { useSync } from "../../context/sync"
 import { useTheme } from "../../context/theme"
 import { buildBookmarkStackModel } from "../../stack/discovery"
-import type { BookmarkStackRow } from "../../stack/model"
+import type { BookmarkStackModel, BookmarkStackRow } from "../../stack/model"
+import { buildSubmitPlanSync, buildSyncPlanSync } from "../../stack/planner"
 import { hasOriginDiff } from "../../utils/bookmark-origin-diff"
 import { createDoubleClickDetector } from "../../utils/double-click"
 import { FUZZY_THRESHOLD, scrollIntoView } from "../../utils/scroll"
@@ -55,6 +57,7 @@ import { ActionMenuModal } from "../modals/ActionMenuModal"
 import { BookmarkNameModal } from "../modals/BookmarkNameModal"
 import { RevisionPickerModal } from "../modals/RevisionPickerModal"
 import { StackActionsModal } from "../modals/StackActionsModal"
+import { StackPlanModal } from "../modals/StackPlanModal"
 
 type BookmarkRow = BookmarkStackRow<Bookmark>
 
@@ -205,9 +208,18 @@ export function BookmarksPanel() {
     const [filterSelectedIndex, setFilterSelectedIndex] = createSignal(0)
     const [showRemoteOnly, setShowRemoteOnly] = createSignal(false)
     const [remoteSelectedIndex, setRemoteSelectedIndex] = createSignal(0)
-    const [bookmarkPrNumbers, setBookmarkPrNumbers] = createSignal<
-        ReadonlyMap<string, number>
+    const [pullRequestsByHead, setPullRequestsByHead] = createSignal<
+        ReadonlyMap<string, GitHubPullRequestSummary>
     >(new Map())
+    const bookmarkPrNumbers = createMemo(
+        () =>
+            new Map(
+                [...pullRequestsByHead()].map(([head, pull]) => [
+                    head,
+                    pull.number,
+                ]),
+            ),
+    )
     const [prMetadataRefreshToken, setPrMetadataRefreshToken] = createSignal(0)
     const refreshPrMetadataAfterPrCreateWeb = () => {
         setTimeout(() => setPrMetadataRefreshToken((token) => token + 1), 15000)
@@ -248,7 +260,7 @@ export function BookmarksPanel() {
             .map((bookmark) => bookmark.name)
             .sort()
         if (names.length === 0) {
-            setBookmarkPrNumbers(new Map())
+            setPullRequestsByHead(new Map())
             return
         }
 
@@ -256,15 +268,10 @@ export function BookmarksPanel() {
         ghListPullRequestsByHead(names)
             .then((pullsByHead) => {
                 if (cancelled) return
-                const next = new Map<string, number>()
-                for (const name of names) {
-                    const pull = pullsByHead.get(name)
-                    if (pull) next.set(name, pull.number)
-                }
-                setBookmarkPrNumbers(next)
+                setPullRequestsByHead(pullsByHead)
             })
             .catch(() => {
-                if (!cancelled) setBookmarkPrNumbers(new Map())
+                if (!cancelled) setPullRequestsByHead(new Map())
             })
 
         onCleanup(() => {
@@ -293,7 +300,23 @@ export function BookmarksPanel() {
         return visibleLocalBookmarks()
     })
 
-    const displayBookmarkRows = createMemo<BookmarkRow[]>(() => {
+    const displayBookmarkStackModel = createMemo<
+        BookmarkStackModel<Bookmark> | undefined
+    >(() => {
+        if (hasActiveFilter() || showRemoteOnly()) return undefined
+        return Effect.runSync(
+            buildBookmarkStackModel({
+                commits: commits().map((commit) => ({
+                    commitId: commit.commitId,
+                    parentCommitIds: commit.parentCommitIds ?? [],
+                    immutable: commit.immutable,
+                })),
+                bookmarks: displayBookmarks(),
+            }),
+        )
+    })
+
+    const displayBookmarkRows = createMemo<readonly BookmarkRow[]>(() => {
         const source = displayBookmarks()
         if (hasActiveFilter() || showRemoteOnly()) {
             return source.map((bookmark) => ({
@@ -303,17 +326,7 @@ export function BookmarksPanel() {
             }))
         }
 
-        const model = Effect.runSync(
-            buildBookmarkStackModel({
-                commits: commits().map((commit) => ({
-                    commitId: commit.commitId,
-                    parentCommitIds: commit.parentCommitIds ?? [],
-                    immutable: commit.immutable,
-                })),
-                bookmarks: source,
-            }),
-        )
-        return model.rows
+        return displayBookmarkStackModel()?.rows ?? []
     })
 
     const currentBookmarks = () =>
@@ -353,15 +366,73 @@ export function BookmarksPanel() {
         return row.stackKeys[0]
     })
 
+    const remoteBookmarksByName = () =>
+        new Map(
+            remoteBookmarks()
+                .filter((bookmark) => !bookmark.isLocal)
+                .map((bookmark) => [bookmark.name, bookmark]),
+        )
+
+    const openStackPlan = (kind: "submit" | "sync", stackRootName: string) => {
+        const stackModel = displayBookmarkStackModel()
+        if (!stackModel) return
+        const plan =
+            kind === "submit"
+                ? buildSubmitPlanSync({
+                      stackRootName,
+                      stackModel,
+                      pullRequestsByHead: pullRequestsByHead(),
+                      remoteBookmarksByName: remoteBookmarksByName(),
+                  })
+                : buildSyncPlanSync({
+                      stackRootName,
+                      stackModel,
+                      pullRequestsByHead: pullRequestsByHead(),
+                      remoteBookmarksByName: remoteBookmarksByName(),
+                  })
+        dialog.open(
+            () => (
+                <StackPlanModal
+                    plan={plan}
+                    onApply={() =>
+                        status.show(
+                            kind === "submit"
+                                ? `Stack submit for ${stackRootName} is not implemented yet.`
+                                : `Stack sync for ${stackRootName} is not implemented yet.`,
+                        )
+                    }
+                    onBack={() => openStackActions(stackRootName)}
+                />
+            ),
+            {
+                id: `bookmark-stack-${kind}-plan`,
+                title: [
+                    {
+                        text:
+                            kind === "submit"
+                                ? "Submit preview"
+                                : "Sync preview",
+                        style: "action",
+                    },
+                    " for ",
+                    { text: stackRootName, style: "target" },
+                ],
+                ...DIALOG_SIZE.confirmWide,
+                closeOnEsc: false,
+                hints: [
+                    { key: "enter", label: "apply" },
+                    { key: "esc", label: "back" },
+                ],
+            },
+        )
+    }
+
     const stackActionOptions = (stackRootName: string) => [
         {
             key: "s",
             mutedPrefix: "stack ",
             label: "submit --dry-run",
-            onSelect: () =>
-                status.show(
-                    `Stack submit dry-run for ${stackRootName} is not implemented yet.`,
-                ),
+            onSelect: () => openStackPlan("submit", stackRootName),
         },
         {
             key: "S",
@@ -376,10 +447,7 @@ export function BookmarksPanel() {
             key: "f",
             mutedPrefix: "stack ",
             label: "sync --dry-run",
-            onSelect: () =>
-                status.show(
-                    `Stack sync dry-run for ${stackRootName} is not implemented yet.`,
-                ),
+            onSelect: () => openStackPlan("sync", stackRootName),
         },
         {
             key: "F",
