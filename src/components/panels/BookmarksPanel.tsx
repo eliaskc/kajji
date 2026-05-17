@@ -1,5 +1,6 @@
 import type { ScrollBoxRenderable, TextareaRenderable } from "@opentui/core"
 import { useKeyboard } from "@opentui/solid"
+import { Effect } from "effect"
 import fuzzysort from "fuzzysort"
 import { ptyToJson } from "ghostty-opentui"
 import {
@@ -39,6 +40,8 @@ import { useKeybind } from "../../context/keybind"
 import { useStatus } from "../../context/status"
 import { useSync } from "../../context/sync"
 import { useTheme } from "../../context/theme"
+import { buildBookmarkStackModel } from "../../stack/discovery"
+import type { BookmarkStackRow } from "../../stack/model"
 import { resolveAnsiForeground } from "../../theme/ansi"
 import { hasOriginDiff } from "../../utils/bookmark-origin-diff"
 import { createDoubleClickDetector } from "../../utils/double-click"
@@ -53,6 +56,8 @@ import { RevisionPickerModal } from "../modals/RevisionPickerModal"
 const stripAnsi = (str: string) => str.replace(/\x1b\[[0-9;]*m/g, "")
 
 const emptyDescriptionPrefix = "(empty) "
+
+type BookmarkRow = BookmarkStackRow<Bookmark>
 
 export function BookmarksPanel() {
     const {
@@ -178,19 +183,6 @@ export function BookmarksPanel() {
             ?.fg ??
         defaultFg ??
         colors().text
-    const remoteBookmarkNames = createMemo(() => {
-        const names = new Set<string>()
-        for (const bookmark of remoteBookmarks()) {
-            if (!bookmark.isLocal) {
-                names.add(bookmark.name)
-            }
-        }
-        return names
-    })
-    const canSplitByUntracked = createMemo(
-        () => !remoteBookmarksLoading() && !remoteBookmarksError(),
-    )
-
     const activeLocalBookmarks = createMemo(() =>
         visibleBookmarks().filter((b) => b.isLocal && b.changeId),
     )
@@ -214,14 +206,6 @@ export function BookmarksPanel() {
     })
     const deletedLocalBookmarks = createMemo(() =>
         visibleBookmarks().filter((b) => b.isLocal && !b.changeId),
-    )
-    const localOnlyBookmarks = createMemo(() =>
-        activeLocalBookmarks().filter(
-            (b) => !remoteBookmarkNames().has(b.name),
-        ),
-    )
-    const trackedLocalBookmarks = createMemo(() =>
-        activeLocalBookmarks().filter((b) => remoteBookmarkNames().has(b.name)),
     )
     const remoteOnlyBookmarks = createMemo(() => {
         const localNames = new Set(localBookmarks().map((b) => b.name))
@@ -287,17 +271,36 @@ export function BookmarksPanel() {
     const displayBookmarks = createMemo(() => {
         if (hasActiveFilter()) return filteredBookmarks()
         if (showRemoteOnly()) return remoteOnlyBookmarks()
-        if (!canSplitByUntracked()) return visibleLocalBookmarks()
-        return [
-            ...localOnlyBookmarks(),
-            ...trackedLocalBookmarks(),
-            ...deletedLocalBookmarks(),
-        ]
+        return visibleLocalBookmarks()
     })
 
-    const currentBookmarks = () => displayBookmarks()
+    const displayBookmarkRows = createMemo<BookmarkRow[]>(() => {
+        const source = displayBookmarks()
+        if (hasActiveFilter() || showRemoteOnly()) {
+            return source.map((bookmark) => ({
+                bookmark,
+                depth: 0,
+                stackKeys: [],
+            }))
+        }
 
-    const listTotalRows = createMemo(() => displayBookmarks().length)
+        const model = Effect.runSync(
+            buildBookmarkStackModel({
+                commits: commits().map((commit) => ({
+                    commitId: commit.commitId,
+                    parentCommitIds: commit.parentCommitIds ?? [],
+                    immutable: commit.immutable,
+                })),
+                bookmarks: source,
+            }),
+        )
+        return model.rows
+    })
+
+    const currentBookmarks = () =>
+        displayBookmarkRows().map((row) => row.bookmark)
+
+    const listTotalRows = createMemo(() => displayBookmarkRows().length)
     const canPageBookmarks = createMemo(
         () => !showRemoteOnly() && !hasActiveFilter() && bookmarksHasMore(),
     )
@@ -307,24 +310,26 @@ export function BookmarksPanel() {
         if (showRemoteOnly()) return remoteSelectedIndex()
         const selected = selectedBookmark()
         if (!selected) return 0
-        const idx = displayBookmarks().findIndex(
+        const idx = currentBookmarks().findIndex(
             (b) => b.name === selected.name,
         )
         return idx >= 0 ? idx : 0
     })
 
     const currentSelectedIndex = () => displaySelectedIndex()
-    const localOnlySeparatorIndex = createMemo(
-        () => localOnlyBookmarks().length,
-    )
-    const showUntrackedSeparator = createMemo(
-        () =>
-            !hasActiveFilter() &&
-            !showRemoteOnly() &&
-            canSplitByUntracked() &&
-            localOnlyBookmarks().length > 0 &&
-            trackedLocalBookmarks().length + deletedLocalBookmarks().length > 0,
-    )
+    const activeStackKey = createMemo(() => {
+        if (!isFocused()) return undefined
+        const row = displayBookmarkRows()[currentSelectedIndex()]
+        if (!row) return undefined
+        if (
+            commits().find(
+                (commit) => commit.commitId === row.bookmark.commitId,
+            )?.immutable
+        ) {
+            return undefined
+        }
+        return row.stackKeys[0]
+    })
 
     createEffect(
         on(
@@ -377,7 +382,7 @@ export function BookmarksPanel() {
     )
 
     const selectNextBookmarkInView = () => {
-        const max = displayBookmarks().length - 1
+        const max = currentBookmarks().length - 1
         if (max < 0) return
         if (hasActiveFilter()) {
             setFilterSelectedIndex((i) => Math.min(max, i + 1))
@@ -388,7 +393,7 @@ export function BookmarksPanel() {
             return
         }
         const nextIndex = Math.min(max, displaySelectedIndex() + 1)
-        const nextBookmark = displayBookmarks()[nextIndex]
+        const nextBookmark = currentBookmarks()[nextIndex]
         if (!nextBookmark) return
         const localIndex = localBookmarks().findIndex(
             (b) => b.name === nextBookmark.name,
@@ -408,7 +413,7 @@ export function BookmarksPanel() {
             return
         }
         const prevIndex = Math.max(0, displaySelectedIndex() - 1)
-        const prevBookmark = displayBookmarks()[prevIndex]
+        const prevBookmark = currentBookmarks()[prevIndex]
         if (!prevBookmark) return
         const localIndex = localBookmarks().findIndex(
             (b) => b.name === prevBookmark.name,
@@ -963,8 +968,9 @@ export function BookmarksPanel() {
                                 backgroundColor: colors().background,
                             }}
                         >
-                            <For each={currentBookmarks()}>
-                                {(bookmark, index) => {
+                            <For each={displayBookmarkRows()}>
+                                {(row, index) => {
+                                    const bookmark = row.bookmark
                                     const isSelected = () =>
                                         index() === currentSelectedIndex()
                                     const showSelection = () =>
@@ -996,27 +1002,20 @@ export function BookmarksPanel() {
                                         handleDoubleClick()
                                     }
                                     const isDeleted = () => !bookmark.changeId
+                                    const isInActiveStack = () =>
+                                        Boolean(
+                                            activeStackKey() &&
+                                                row.stackKeys.includes(
+                                                    activeStackKey() ?? "",
+                                                ),
+                                        )
+                                    const isMutedByActiveStack = () =>
+                                        Boolean(
+                                            activeStackKey() &&
+                                                !isInActiveStack(),
+                                        )
                                     return (
                                         <>
-                                            <Show
-                                                when={
-                                                    showUntrackedSeparator() &&
-                                                    index() ===
-                                                        localOnlySeparatorIndex()
-                                                }
-                                            >
-                                                <box
-                                                    height={1}
-                                                    overflow="hidden"
-                                                >
-                                                    <text
-                                                        fg={colors().textMuted}
-                                                        wrapMode="none"
-                                                    >
-                                                        {"─".repeat(200)}
-                                                    </text>
-                                                </box>
-                                            </Show>
                                             <box
                                                 width="100%"
                                                 height={1}
@@ -1032,6 +1031,11 @@ export function BookmarksPanel() {
                                                 }
                                                 overflow="hidden"
                                                 onMouseDown={handleMouseDown}
+                                                opacity={
+                                                    isMutedByActiveStack()
+                                                        ? 0.6
+                                                        : 1
+                                                }
                                             >
                                                 <box
                                                     flexDirection="row"
@@ -1043,6 +1047,28 @@ export function BookmarksPanel() {
                                                         overflow="hidden"
                                                     >
                                                         <text wrapMode="none">
+                                                            <Show
+                                                                when={
+                                                                    row.depth >
+                                                                    0
+                                                                }
+                                                            >
+                                                                <span
+                                                                    style={{
+                                                                        fg: colors()
+                                                                            .textMuted,
+                                                                    }}
+                                                                >
+                                                                    {"  ".repeat(
+                                                                        Math.max(
+                                                                            0,
+                                                                            row.depth -
+                                                                                1,
+                                                                        ),
+                                                                    )}
+                                                                    ↳{" "}
+                                                                </span>
+                                                            </Show>
                                                             <For
                                                                 each={inlineAnsiSpans(
                                                                     bookmark.nameDisplay ||
