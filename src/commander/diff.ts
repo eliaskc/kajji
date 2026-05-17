@@ -3,115 +3,117 @@ import { profile } from "../utils/profiler"
 import { execute, executeStreaming } from "./executor"
 
 export interface FetchDiffOptions {
-	cwd?: string
-	columns?: number
-	paths?: string[]
+    cwd?: string
+    columns?: number
+    paths?: string[]
 }
 
 function buildDiffEnv(options: FetchDiffOptions): Record<string, string> {
-	const env: Record<string, string> = {}
-	if (options.columns) {
-		env.COLUMNS = String(options.columns)
-	}
-	return env
+    const env: Record<string, string> = {}
+    if (options.columns) {
+        env.COLUMNS = String(options.columns)
+    }
+    return env
 }
 
 export async function fetchDiff(
-	changeId: string,
-	options: FetchDiffOptions = {},
+    changeId: string,
+    options: FetchDiffOptions = {},
 ): Promise<string> {
-	const endTotal = profile(`fetchDiff(${changeId.slice(0, 8)})`)
-	const env = buildDiffEnv(options)
-	const args = ["diff", "-r", changeId, "--color", "always"]
+    const endTotal = profile(`fetchDiff(${changeId.slice(0, 8)})`)
+    const env = buildDiffEnv(options)
+    const args = ["diff", "-r", changeId, "--color", "always"]
 
-	if (options.paths && options.paths.length > 0) {
-		args.push(...toFilesetArgs(options.paths))
-	}
+    if (options.paths && options.paths.length > 0) {
+        args.push(...toFilesetArgs(options.paths))
+    }
 
-	const result = await execute(args, { cwd: options.cwd, env })
+    const result = await execute(args, { cwd: options.cwd, env })
 
-	if (!result.success) {
-		throw new Error(`jj diff failed: ${result.stderr}`)
-	}
+    if (!result.success) {
+        throw new Error(`jj diff failed: ${result.stderr}`)
+    }
 
-	endTotal()
-	return result.stdout
+    endTotal()
+    return result.stdout
 }
 
 export async function fetchDiffRange(
-	from: string,
-	to: string,
-	options: FetchDiffOptions = {},
+    from: string,
+    to: string,
+    options: FetchDiffOptions = {},
 ): Promise<string> {
-	const endTotal = profile(`fetchDiffRange(${from}..${to})`)
-	const env = buildDiffEnv(options)
-	const args = ["diff", "--from", from, "--to", to, "--color", "always"]
+    const endTotal = profile(`fetchDiffRange(${from}..${to})`)
+    const env = buildDiffEnv(options)
+    const args = ["diff", "--from", from, "--to", to, "--color", "always"]
 
-	if (options.paths && options.paths.length > 0) {
-		args.push(...toFilesetArgs(options.paths))
-	}
+    if (options.paths && options.paths.length > 0) {
+        args.push(...toFilesetArgs(options.paths))
+    }
 
-	const result = await execute(args, { cwd: options.cwd, env })
+    const result = await execute(args, { cwd: options.cwd, env })
 
-	if (!result.success) {
-		throw new Error(`jj diff failed: ${result.stderr}`)
-	}
+    if (!result.success) {
+        throw new Error(`jj diff failed: ${result.stderr}`)
+    }
 
-	endTotal()
-	return result.stdout
+    endTotal()
+    return result.stdout
 }
 
 export interface StreamDiffCallbacks {
-	onUpdate: (content: string, lineCount: number, complete: boolean) => void
-	onError: (error: Error) => void
+    onUpdate: (content: string, lineCount: number, complete: boolean) => void
+    onError: (error: Error) => void
 }
 
 export function streamDiff(
-	changeId: string,
-	options: FetchDiffOptions,
-	callbacks: StreamDiffCallbacks,
+    changeId: string,
+    options: FetchDiffOptions,
+    callbacks: StreamDiffCallbacks,
 ): { cancel: () => void } {
-	const endTotal = profile(`streamDiff(${changeId.slice(0, 8)})`)
+    const endTotal = profile(`streamDiff(${changeId.slice(0, 8)})`)
 
-	const env: Record<string, string> = {}
+    const env: Record<string, string> = {}
 
-	if (options.columns) {
-		env.COLUMNS = String(options.columns)
-	}
+    if (options.columns) {
+        env.COLUMNS = String(options.columns)
+    }
 
-	const args = ["diff", "-r", changeId, "--color", "always"]
+    const args = ["diff", "-r", changeId, "--color", "always"]
 
-	if (options.paths && options.paths.length > 0) {
-		args.push(...toFilesetArgs(options.paths))
-	}
+    if (options.paths && options.paths.length > 0) {
+        args.push(...toFilesetArgs(options.paths))
+    }
 
-	let firstUpdate = true
-	const endFirstChunk = profile("  first chunk")
+    let firstUpdate = true
+    const endFirstChunk = profile("  first chunk")
 
-	return executeStreaming(
-		args,
-		{ cwd: options.cwd, env },
-		{
-			onChunk: (content, lineCount, _chunk) => {
-				if (firstUpdate) {
-					endFirstChunk(`${lineCount} lines`)
-					firstUpdate = false
-				}
-				callbacks.onUpdate(content, lineCount, false)
-			},
-			onComplete: (result) => {
-				endTotal()
-				if (result.success) {
-					callbacks.onUpdate(
-						result.stdout,
-						result.stdout.split("\n").length,
-						true,
-					)
-				} else {
-					callbacks.onError(new Error(`jj diff failed: ${result.stderr}`))
-				}
-			},
-			onError: callbacks.onError,
-		},
-	)
+    return executeStreaming(
+        args,
+        { cwd: options.cwd, env },
+        {
+            onChunk: (content, lineCount, _chunk) => {
+                if (firstUpdate) {
+                    endFirstChunk(`${lineCount} lines`)
+                    firstUpdate = false
+                }
+                callbacks.onUpdate(content, lineCount, false)
+            },
+            onComplete: (result) => {
+                endTotal()
+                if (result.success) {
+                    callbacks.onUpdate(
+                        result.stdout,
+                        result.stdout.split("\n").length,
+                        true,
+                    )
+                } else {
+                    callbacks.onError(
+                        new Error(`jj diff failed: ${result.stderr}`),
+                    )
+                }
+            },
+            onError: callbacks.onError,
+        },
+    )
 }

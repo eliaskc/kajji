@@ -1,122 +1,122 @@
 {
-	"$schema": "https://json-schema.org/draft/2020-12/schema",
-	"type": "object",
-	"properties": {
-		"$schema": {
-			"description": "JSON Schema reference for editor autocomplete",
-			"type": "string"
-		},
-		"ui": {
-			"default": {
-				"theme": "kajji",
-				"themeMode": "system",
-				"syntaxTheme": {},
-				"showFileTree": true
-			},
-			"description": "UI settings",
-			"type": "object",
-			"properties": {
-				"theme": {
-					"description": "Color theme",
-					"default": "kajji",
-					"type": "string",
-					"enum": ["kajji"]
-				},
-				"themeMode": {
-					"default": "system",
-					"description": "Color mode: follow system/terminal, or force dark/light",
-					"type": "string",
-					"enum": ["system", "dark", "light"]
-				},
-				"syntaxTheme": {
-					"default": {},
-					"description": "Override syntax highlighting themes for dark/light modes",
-					"type": "object",
-					"properties": {
-						"dark": {
-							"type": "string",
-							"enum": ["ayu-dark", "github-light"]
-						},
-						"light": {
-							"type": "string",
-							"enum": ["ayu-dark", "github-light"]
-						}
-					}
-				},
-				"showFileTree": {
-					"default": true,
-					"description": "Show files as tree (false for flat list)",
-					"type": "boolean"
-				}
-			}
-		},
-		"diff": {
-			"default": {
-				"layout": "auto",
-				"autoSwitchWidth": 120,
-				"wrap": true,
-				"useJjFormatter": false
-			},
-			"description": "Diff display settings",
-			"type": "object",
-			"properties": {
-				"layout": {
-					"default": "auto",
-					"description": "Diff layout mode: auto switches based on autoSwitchWidth, unified/split are fixed",
-					"type": "string",
-					"enum": ["auto", "unified", "split"]
-				},
-				"autoSwitchWidth": {
-					"default": 120,
-					"description": "Auto-switch to split view above this terminal width (only used when layout is auto)",
-					"type": "integer",
-					"minimum": 0,
-					"maximum": 9007199254740991
-				},
-				"wrap": {
-					"default": true,
-					"description": "Wrap long lines in diff view",
-					"type": "boolean"
-				},
-				"useJjFormatter": {
-					"default": false,
-					"description": "Use jj's ui.diff-formatter output in the diff view",
-					"type": "boolean"
-				}
-			}
-		},
-		"gitHooksPath": {
-			"description": "Path to a Git-compatible hooks directory, or false to disable core.hooksPath discovery",
-			"anyOf": [
-				{
-					"type": "string"
-				},
-				{
-					"type": "boolean",
-					"const": false
-				}
-			]
-		},
-		"hooks": {
-			"default": {},
-			"description": "Hooks keyed by operation id, for example jj.new",
-			"type": "object",
-			"propertyNames": {
-				"type": "string"
-			}
-		},
-		"whatsNewDisabled": {
-			"default": false,
-			"description": "Disable the what's new screen on updates",
-			"type": "boolean"
-		},
-		"autoUpdatesDisabled": {
-			"default": false,
-			"description": "Disable automatic update checks and installs",
-			"type": "boolean"
-		}
-	},
-	"description": "kajji configuration",
-	"allowComments": true,
-	"allowTrailingCommas": true
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+        "$schema": {
+            "description": "JSON Schema reference for editor autocomplete",
+            "type": "string"
+        },
+        "ui": {
+            "default": {
+                "theme": "kajji",
+                "themeMode": "system",
+                "syntaxTheme": {},
+                "showFileTree": true
+            },
+            "description": "UI settings",
+            "type": "object",
+            "properties": {
+                "theme": {
+                    "description": "Color theme",
+                    "default": "kajji",
+                    "type": "string",
+                    "enum": ["kajji"]
+                },
+                "themeMode": {
+                    "default": "system",
+                    "description": "Color mode: follow system/terminal, or force dark/light",
+                    "type": "string",
+                    "enum": ["system", "dark", "light"]
+                },
+                "syntaxTheme": {
+                    "default": {},
+                    "description": "Override syntax highlighting themes for dark/light modes",
+                    "type": "object",
+                    "properties": {
+                        "dark": {
+                            "type": "string",
+                            "enum": ["ayu-dark", "github-light"]
+                        },
+                        "light": {
+                            "type": "string",
+                            "enum": ["ayu-dark", "github-light"]
+                        }
+                    }
+                },
+                "showFileTree": {
+                    "default": true,
+                    "description": "Show files as tree (false for flat list)",
+                    "type": "boolean"
+                }
+            }
+        },
+        "diff": {
+            "default": {
+                "layout": "auto",
+                "autoSwitchWidth": 120,
+                "wrap": true,
+                "useJjFormatter": false
+            },
+            "description": "Diff display settings",
+            "type": "object",
+            "properties": {
+                "layout": {
+                    "default": "auto",
+                    "description": "Diff layout mode: auto switches based on autoSwitchWidth, unified/split are fixed",
+                    "type": "string",
+                    "enum": ["auto", "unified", "split"]
+                },
+                "autoSwitchWidth": {
+                    "default": 120,
+                    "description": "Auto-switch to split view above this terminal width (only used when layout is auto)",
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                },
+                "wrap": {
+                    "default": true,
+                    "description": "Wrap long lines in diff view",
+                    "type": "boolean"
+                },
+                "useJjFormatter": {
+                    "default": false,
+                    "description": "Use jj's ui.diff-formatter output in the diff view",
+                    "type": "boolean"
+                }
+            }
+        },
+        "gitHooksPath": {
+            "description": "Path to a Git-compatible hooks directory, or false to disable core.hooksPath discovery",
+            "anyOf": [
+                {
+                    "type": "string"
+                },
+                {
+                    "type": "boolean",
+                    "const": false
+                }
+            ]
+        },
+        "hooks": {
+            "default": {},
+            "description": "Hooks keyed by operation id, for example jj.new",
+            "type": "object",
+            "propertyNames": {
+                "type": "string"
+            }
+        },
+        "whatsNewDisabled": {
+            "default": false,
+            "description": "Disable the what's new screen on updates",
+            "type": "boolean"
+        },
+        "autoUpdatesDisabled": {
+            "default": false,
+            "description": "Disable automatic update checks and installs",
+            "type": "boolean"
+        }
+    },
+    "description": "kajji configuration",
+    "allowComments": true,
+    "allowTrailingCommas": true
 }

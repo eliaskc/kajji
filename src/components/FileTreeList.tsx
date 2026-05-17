@@ -8,114 +8,125 @@ import type { FlatFileNode } from "../utils/file-tree"
 import { type FileStatus, getStatusColor } from "../utils/status-colors"
 
 const STATUS_CHARS: Record<string, string> = {
-	added: "A",
-	modified: "M",
-	deleted: "D",
-	renamed: "R",
-	copied: "C",
+    added: "A",
+    modified: "M",
+    deleted: "D",
+    renamed: "R",
+    copied: "C",
 }
 
 export interface FileTreeListProps {
-	files: () => FlatFileNode[]
-	selectedIndex: () => number
-	setSelectedIndex: (index: number) => void
-	collapsedPaths: () => Set<string>
-	toggleFolder: (path: string) => void
-	showTree?: () => boolean
-	isFocused?: () => boolean
-	focusContext?: Context
+    files: () => FlatFileNode[]
+    selectedIndex: () => number
+    setSelectedIndex: (index: number) => void
+    collapsedPaths: () => Set<string>
+    toggleFolder: (path: string) => void
+    showTree?: () => boolean
+    isFocused?: () => boolean
+    focusContext?: Context
 }
 
 export function FileTreeList(props: FileTreeListProps) {
-	const focus = useFocus()
-	const { colors } = useTheme()
-	const selectionBackground = () =>
-		blendColors(colors().selectionBackground, colors().background, 0.5)
+    const focus = useFocus()
+    const { colors } = useTheme()
+    const selectionBackground = () =>
+        blendColors(colors().selectionBackground, colors().background, 0.5)
 
-	return (
-		<For each={props.files()}>
-			{(item, index) => {
-				const isSelected = () => index() === props.selectedIndex()
-				const node = item.node
-				const isTree = props.showTree?.() ?? true
-				const indent = "  ".repeat(item.visualDepth)
-				const isCollapsed = props.collapsedPaths().has(node.path)
-				const isBinary = () => Boolean(node.isBinary)
+    return (
+        <For each={props.files()}>
+            {(item, index) => {
+                const isSelected = () => index() === props.selectedIndex()
+                const node = item.node
+                const isTree = props.showTree?.() ?? true
+                const indent = "  ".repeat(item.visualDepth)
+                const isCollapsed = props.collapsedPaths().has(node.path)
+                const isBinary = () => Boolean(node.isBinary)
 
-				const icon = node.isDirectory ? (isCollapsed ? "▶" : "▼") : " "
-				const displayName = isTree ? node.name : node.path
+                const icon = node.isDirectory ? (isCollapsed ? "▶" : "▼") : " "
+                const displayName = isTree ? node.name : node.path
 
-				const statusChar = node.status
-					? (STATUS_CHARS[node.status] ?? " ")
-					: " "
-				const statusColor = node.status
-					? getStatusColor(node.status as FileStatus, colors())
-					: colors().text
+                const statusChar = node.status
+                    ? (STATUS_CHARS[node.status] ?? " ")
+                    : " "
+                const statusColor = node.status
+                    ? getStatusColor(node.status as FileStatus, colors())
+                    : colors().text
 
-				const handleDoubleClick = createDoubleClickDetector(() => {
-					if (node.isDirectory) {
-						props.toggleFolder(node.path)
-					} else {
-						focus.setPanel("detail")
-					}
-				})
+                const handleDoubleClick = createDoubleClickDetector(() => {
+                    if (node.isDirectory) {
+                        props.toggleFolder(node.path)
+                    } else {
+                        focus.setPanel("detail")
+                    }
+                })
 
-				const handleMouseDown = (e: { stopPropagation: () => void }) => {
-					e.stopPropagation()
-					if (props.focusContext) {
-						focus.setActiveContext(props.focusContext)
-					}
-					props.setSelectedIndex(index())
-					handleDoubleClick()
-				}
+                const handleMouseDown = (e: {
+                    stopPropagation: () => void
+                }) => {
+                    e.stopPropagation()
+                    if (props.focusContext) {
+                        focus.setActiveContext(props.focusContext)
+                    }
+                    props.setSelectedIndex(index())
+                    handleDoubleClick()
+                }
 
-				const isListFocused = () => props.isFocused?.() ?? true
-				const showSelection = () => isSelected()
+                const isListFocused = () => props.isFocused?.() ?? true
+                const showSelection = () => isSelected()
 
-				return (
-					<box
-						backgroundColor={
-							showSelection()
-								? isListFocused()
-									? colors().selectionBackground
-									: selectionBackground()
-								: undefined
-						}
-						overflow="hidden"
-						onMouseDown={handleMouseDown}
-					>
-						<text wrapMode="none">
-							<span style={{ fg: colors().textMuted }}>{indent}</span>
-							<Show when={isTree}>
-								<span
-									style={{
-										fg: node.isDirectory ? colors().info : colors().textMuted,
-									}}
-								>
-									{icon}{" "}
-								</span>
-							</Show>
-							<Show when={!node.isDirectory}>
-								<span style={{ fg: statusColor }}>{statusChar} </span>
-							</Show>
-							<span
-								style={{
-									fg: node.isDirectory
-										? colors().info
-										: isBinary()
-											? colors().textMuted
-											: colors().text,
-								}}
-							>
-								{displayName}
-							</span>
-							<Show when={isBinary()}>
-								<span style={{ fg: colors().textMuted }}> (binary)</span>
-							</Show>
-						</text>
-					</box>
-				)
-			}}
-		</For>
-	)
+                return (
+                    <box
+                        backgroundColor={
+                            showSelection()
+                                ? isListFocused()
+                                    ? colors().selectionBackground
+                                    : selectionBackground()
+                                : undefined
+                        }
+                        overflow="hidden"
+                        onMouseDown={handleMouseDown}
+                    >
+                        <text wrapMode="none">
+                            <span style={{ fg: colors().textMuted }}>
+                                {indent}
+                            </span>
+                            <Show when={isTree}>
+                                <span
+                                    style={{
+                                        fg: node.isDirectory
+                                            ? colors().info
+                                            : colors().textMuted,
+                                    }}
+                                >
+                                    {icon}{" "}
+                                </span>
+                            </Show>
+                            <Show when={!node.isDirectory}>
+                                <span style={{ fg: statusColor }}>
+                                    {statusChar}{" "}
+                                </span>
+                            </Show>
+                            <span
+                                style={{
+                                    fg: node.isDirectory
+                                        ? colors().info
+                                        : isBinary()
+                                          ? colors().textMuted
+                                          : colors().text,
+                                }}
+                            >
+                                {displayName}
+                            </span>
+                            <Show when={isBinary()}>
+                                <span style={{ fg: colors().textMuted }}>
+                                    {" "}
+                                    (binary)
+                                </span>
+                            </Show>
+                        </text>
+                    </box>
+                )
+            }}
+        </For>
+    )
 }

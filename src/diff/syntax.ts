@@ -4,8 +4,8 @@ import type { SyntaxThemeName } from "../theme/syntax"
 import type { WorkerRequest, WorkerResponse } from "./syntax-worker"
 
 export interface SyntaxToken {
-	content: string
-	color?: string
+    content: string
+    color?: string
 }
 
 // Global reactive signal for highlighter readiness
@@ -33,87 +33,87 @@ let worker: Worker | null = null
 const requestToCacheKey = new Map<number, string>()
 
 function getCacheKey(
-	content: string,
-	language: SupportedLanguages,
-	theme: SyntaxThemeName,
+    content: string,
+    language: SupportedLanguages,
+    theme: SyntaxThemeName,
 ): string {
-	return `${theme}:${language}:${content}`
+    return `${theme}:${language}:${content}`
 }
 
 function handleWorkerMessage(event: MessageEvent<WorkerResponse>) {
-	const msg = event.data
+    const msg = event.data
 
-	switch (msg.type) {
-		case "ready":
-			setHighlighterReady(true)
-			break
+    switch (msg.type) {
+        case "ready":
+            setHighlighterReady(true)
+            break
 
-		case "tokens": {
-			const cacheKey = requestToCacheKey.get(msg.id)
-			if (cacheKey) {
-				tokenCache.set(cacheKey, msg.tokens)
-				requestToCacheKey.delete(msg.id)
-				pendingRequests.delete(cacheKey)
-				// Trigger re-render by incrementing version
-				setTokenVersion((v) => v + 1)
-			}
-			break
-		}
+        case "tokens": {
+            const cacheKey = requestToCacheKey.get(msg.id)
+            if (cacheKey) {
+                tokenCache.set(cacheKey, msg.tokens)
+                requestToCacheKey.delete(msg.id)
+                pendingRequests.delete(cacheKey)
+                // Trigger re-render by incrementing version
+                setTokenVersion((v) => v + 1)
+            }
+            break
+        }
 
-		case "error": {
-			const cacheKey = requestToCacheKey.get(msg.id)
-			if (cacheKey) {
-				requestToCacheKey.delete(msg.id)
-				pendingRequests.delete(cacheKey)
-			}
-			break
-		}
-	}
+        case "error": {
+            const cacheKey = requestToCacheKey.get(msg.id)
+            if (cacheKey) {
+                requestToCacheKey.delete(msg.id)
+                pendingRequests.delete(cacheKey)
+            }
+            break
+        }
+    }
 }
 
 export function initHighlighter(): void {
-	if (worker) return
+    if (worker) return
 
-	// Create worker using Bun's worker support
-	try {
-		const isBundled = import.meta.url.includes("/$bunfs/")
-		const workerPaths = isBundled
-			? [
-					"./diff/syntax-worker.js",
-					"./src/diff/syntax-worker.js",
-					"./syntax-worker.js",
-				]
-			: ["./syntax-worker.ts"]
-		let workerSpec: string | null = null
-		for (const workerPath of workerPaths) {
-			try {
-				workerSpec =
-					import.meta.resolve?.(workerPath) ??
-					new URL(workerPath, import.meta.url).href
-				break
-			} catch {}
-		}
-		if (!workerSpec) {
-			throw new Error("Unable to resolve syntax worker path")
-		}
-		worker = new Worker(workerSpec, {
-			type: "module",
-		})
-	} catch (error) {
-		return
-	}
+    // Create worker using Bun's worker support
+    try {
+        const isBundled = import.meta.url.includes("/$bunfs/")
+        const workerPaths = isBundled
+            ? [
+                  "./diff/syntax-worker.js",
+                  "./src/diff/syntax-worker.js",
+                  "./syntax-worker.js",
+              ]
+            : ["./syntax-worker.ts"]
+        let workerSpec: string | null = null
+        for (const workerPath of workerPaths) {
+            try {
+                workerSpec =
+                    import.meta.resolve?.(workerPath) ??
+                    new URL(workerPath, import.meta.url).href
+                break
+            } catch {}
+        }
+        if (!workerSpec) {
+            throw new Error("Unable to resolve syntax worker path")
+        }
+        worker = new Worker(workerSpec, {
+            type: "module",
+        })
+    } catch (error) {
+        return
+    }
 
-	worker.onmessage = handleWorkerMessage
-	worker.onerror = (err) => {
-		console.error("Syntax worker error:", err)
-	}
+    worker.onmessage = handleWorkerMessage
+    worker.onerror = (err) => {
+        console.error("Syntax worker error:", err)
+    }
 
-	// Tell worker to initialize
-	worker.postMessage({ type: "init" } satisfies WorkerRequest)
+    // Tell worker to initialize
+    worker.postMessage({ type: "init" } satisfies WorkerRequest)
 }
 
 export function getLanguage(filename: string): SupportedLanguages {
-	return getFiletypeFromFileName(filename)
+    return getFiletypeFromFileName(filename)
 }
 
 /**
@@ -121,24 +121,24 @@ export function getLanguage(filename: string): SupportedLanguages {
  * Returns immediately - tokens will arrive async and trigger re-render via tokenVersion signal.
  */
 function requestTokenization(
-	content: string,
-	language: SupportedLanguages,
-	theme: SyntaxThemeName,
-	cacheKey: string,
+    content: string,
+    language: SupportedLanguages,
+    theme: SyntaxThemeName,
+    cacheKey: string,
 ): void {
-	if (!worker || pendingRequests.has(cacheKey)) return
+    if (!worker || pendingRequests.has(cacheKey)) return
 
-	pendingRequests.add(cacheKey)
-	const id = requestId++
-	requestToCacheKey.set(id, cacheKey)
+    pendingRequests.add(cacheKey)
+    const id = requestId++
+    requestToCacheKey.set(id, cacheKey)
 
-	worker.postMessage({
-		type: "tokenize",
-		id,
-		content,
-		language,
-		theme,
-	} satisfies WorkerRequest)
+    worker.postMessage({
+        type: "tokenize",
+        id,
+        content,
+        language,
+        theme,
+    } satisfies WorkerRequest)
 }
 
 /**
@@ -147,25 +147,25 @@ function requestTokenization(
  * Components should depend on tokenVersion() to re-render when new tokens arrive.
  */
 export function tokenizeLineSync(
-	content: string,
-	language: SupportedLanguages,
-	theme: SyntaxThemeName,
+    content: string,
+    language: SupportedLanguages,
+    theme: SyntaxThemeName,
 ): SyntaxToken[] {
-	const cacheKey = getCacheKey(content, language, theme)
+    const cacheKey = getCacheKey(content, language, theme)
 
-	// Check cache first
-	const cached = tokenCache.get(cacheKey)
-	if (cached) {
-		return cached
-	}
+    // Check cache first
+    const cached = tokenCache.get(cacheKey)
+    if (cached) {
+        return cached
+    }
 
-	// If highlighter ready, request tokenization from worker
-	if (highlighterReady()) {
-		requestTokenization(content, language, theme, cacheKey)
-	}
+    // If highlighter ready, request tokenization from worker
+    if (highlighterReady()) {
+        requestTokenization(content, language, theme, cacheKey)
+    }
 
-	// Return plain text for now
-	return [{ content }]
+    // Return plain text for now
+    return [{ content }]
 }
 
 /**
@@ -173,75 +173,75 @@ export function tokenizeLineSync(
  * Prefer tokenizeLineSync for rendering.
  */
 export async function tokenizeLine(
-	content: string,
-	language: SupportedLanguages,
-	theme: SyntaxThemeName,
+    content: string,
+    language: SupportedLanguages,
+    theme: SyntaxThemeName,
 ): Promise<SyntaxToken[]> {
-	const cacheKey = getCacheKey(content, language, theme)
+    const cacheKey = getCacheKey(content, language, theme)
 
-	// Check cache first
-	const cached = tokenCache.get(cacheKey)
-	if (cached) {
-		return cached
-	}
+    // Check cache first
+    const cached = tokenCache.get(cacheKey)
+    if (cached) {
+        return cached
+    }
 
-	// Wait for highlighter to be ready
-	if (!highlighterReady()) {
-		return [{ content }]
-	}
+    // Wait for highlighter to be ready
+    if (!highlighterReady()) {
+        return [{ content }]
+    }
 
-	// Request and wait for result
-	return new Promise((resolve) => {
-		const id = requestId++
-		requestToCacheKey.set(id, cacheKey)
-		pendingRequests.add(cacheKey)
+    // Request and wait for result
+    return new Promise((resolve) => {
+        const id = requestId++
+        requestToCacheKey.set(id, cacheKey)
+        pendingRequests.add(cacheKey)
 
-		// Set up one-time listener for this specific request
-		const handler = (event: MessageEvent<WorkerResponse>) => {
-			const msg = event.data
-			if (msg.type === "tokens" && msg.id === id) {
-				tokenCache.set(cacheKey, msg.tokens)
-				requestToCacheKey.delete(id)
-				pendingRequests.delete(cacheKey)
-				resolve(msg.tokens)
-			} else if (msg.type === "error" && msg.id === id) {
-				requestToCacheKey.delete(id)
-				pendingRequests.delete(cacheKey)
-				resolve([{ content }])
-			}
-		}
+        // Set up one-time listener for this specific request
+        const handler = (event: MessageEvent<WorkerResponse>) => {
+            const msg = event.data
+            if (msg.type === "tokens" && msg.id === id) {
+                tokenCache.set(cacheKey, msg.tokens)
+                requestToCacheKey.delete(id)
+                pendingRequests.delete(cacheKey)
+                resolve(msg.tokens)
+            } else if (msg.type === "error" && msg.id === id) {
+                requestToCacheKey.delete(id)
+                pendingRequests.delete(cacheKey)
+                resolve([{ content }])
+            }
+        }
 
-		if (!worker) {
-			resolve([{ content }])
-			return
-		}
-		const w = worker
+        if (!worker) {
+            resolve([{ content }])
+            return
+        }
+        const w = worker
 
-		// Temporarily add listener
-		const originalHandler = w.onmessage
-		w.onmessage = (event) => {
-			originalHandler?.call(w, event)
-			handler(event)
-		}
+        // Temporarily add listener
+        const originalHandler = w.onmessage
+        w.onmessage = (event) => {
+            originalHandler?.call(w, event)
+            handler(event)
+        }
 
-		w.postMessage({
-			type: "tokenize",
-			id,
-			content,
-			language,
-			theme,
-		} satisfies WorkerRequest)
-	})
+        w.postMessage({
+            type: "tokenize",
+            id,
+            content,
+            language,
+            theme,
+        } satisfies WorkerRequest)
+    })
 }
 
 export function isHighlighterReady(): boolean {
-	return highlighterReady()
+    return highlighterReady()
 }
 
 /**
  * Clear the token cache (useful when changing themes)
  */
 export function clearTokenCache(): void {
-	tokenCache.clear()
-	setTokenVersion((v) => v + 1)
+    tokenCache.clear()
+    setTokenVersion((v) => v + 1)
 }

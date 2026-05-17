@@ -7,158 +7,163 @@ import { calculateScrollPosition } from "../utils/scroll"
 import { AnsiText } from "./AnsiText"
 
 export interface RevisionPickerProps {
-	commits: Commit[]
-	defaultRevision?: string
-	selectedRevision?: string
-	onSelect?: (commit: Commit) => void
-	focused?: boolean
-	height?: number
+    commits: Commit[]
+    defaultRevision?: string
+    selectedRevision?: string
+    onSelect?: (commit: Commit) => void
+    focused?: boolean
+    height?: number
 }
 
 export function RevisionPicker(props: RevisionPickerProps) {
-	const { colors } = useTheme()
+    const { colors } = useTheme()
 
-	const findDefaultIndex = () => {
-		if (props.defaultRevision) {
-			const idx = props.commits.findIndex(
-				(c) =>
-					c.changeId === props.defaultRevision ||
-					c.commitId === props.defaultRevision,
-			)
-			return idx >= 0 ? idx : 0
-		}
-		return 0
-	}
+    const findDefaultIndex = () => {
+        if (props.defaultRevision) {
+            const idx = props.commits.findIndex(
+                (c) =>
+                    c.changeId === props.defaultRevision ||
+                    c.commitId === props.defaultRevision,
+            )
+            return idx >= 0 ? idx : 0
+        }
+        return 0
+    }
 
-	const [selectedIndex, setSelectedIndex] = createSignal(findDefaultIndex())
+    const [selectedIndex, setSelectedIndex] = createSignal(findDefaultIndex())
 
-	let scrollRef: ScrollBoxRenderable | undefined
+    let scrollRef: ScrollBoxRenderable | undefined
 
-	const scrollToIndex = (index: number, force = false) => {
-		const commitList = props.commits
-		if (!scrollRef || commitList.length === 0) return
+    const scrollToIndex = (index: number, force = false) => {
+        const commitList = props.commits
+        if (!scrollRef || commitList.length === 0) return
 
-		let lineOffset = 0
-		const clampedIndex = Math.min(index, commitList.length)
-		for (const commit of commitList.slice(0, clampedIndex)) {
-			lineOffset += commit.lines.length
-		}
+        let lineOffset = 0
+        const clampedIndex = Math.min(index, commitList.length)
+        for (const commit of commitList.slice(0, clampedIndex)) {
+            lineOffset += commit.lines.length
+        }
 
-		const selectedHeight =
-			commitList[Math.min(index, commitList.length - 1)]?.lines.length ?? 1
+        const selectedHeight =
+            commitList[Math.min(index, commitList.length - 1)]?.lines.length ??
+            1
 
-		const currentScrollTop = scrollRef.scrollTop ?? 0
+        const currentScrollTop = scrollRef.scrollTop ?? 0
 
-		if (force) {
-			const targetScroll = Math.max(0, lineOffset - 2)
-			scrollRef.scrollTo(targetScroll)
-			return
-		}
+        if (force) {
+            const targetScroll = Math.max(0, lineOffset - 2)
+            scrollRef.scrollTo(targetScroll)
+            return
+        }
 
-		const newScrollTop = calculateScrollPosition({
-			ref: scrollRef,
-			index: lineOffset,
-			currentScrollTop,
-			listLength: commitList.length,
-			margin: 2,
-			itemSize: selectedHeight,
-		})
+        const newScrollTop = calculateScrollPosition({
+            ref: scrollRef,
+            index: lineOffset,
+            currentScrollTop,
+            listLength: commitList.length,
+            margin: 2,
+            itemSize: selectedHeight,
+        })
 
-		if (newScrollTop !== null) {
-			scrollRef.scrollTo(newScrollTop)
-		}
-	}
+        if (newScrollTop !== null) {
+            scrollRef.scrollTo(newScrollTop)
+        }
+    }
 
-	createEffect(() => {
-		const _ = props.commits
-		const __ = props.defaultRevision
-		setSelectedIndex(findDefaultIndex())
-	})
+    createEffect(() => {
+        const _ = props.commits
+        const __ = props.defaultRevision
+        setSelectedIndex(findDefaultIndex())
+    })
 
-	onMount(() => {
-		setTimeout(() => scrollToIndex(selectedIndex(), true), 1)
-	})
+    onMount(() => {
+        setTimeout(() => scrollToIndex(selectedIndex(), true), 1)
+    })
 
-	createEffect(() => {
-		scrollToIndex(selectedIndex())
-	})
+    createEffect(() => {
+        scrollToIndex(selectedIndex())
+    })
 
-	const selectPrev = () => {
-		setSelectedIndex((i) => {
-			const newIndex = Math.max(0, i - 1)
-			const commit = props.commits[newIndex]
-			if (commit) props.onSelect?.(commit)
-			return newIndex
-		})
-	}
+    const selectPrev = () => {
+        setSelectedIndex((i) => {
+            const newIndex = Math.max(0, i - 1)
+            const commit = props.commits[newIndex]
+            if (commit) props.onSelect?.(commit)
+            return newIndex
+        })
+    }
 
-	const selectNext = () => {
-		setSelectedIndex((i) => {
-			const newIndex = Math.min(props.commits.length - 1, i + 1)
-			const commit = props.commits[newIndex]
-			if (commit) props.onSelect?.(commit)
-			return newIndex
-		})
-	}
+    const selectNext = () => {
+        setSelectedIndex((i) => {
+            const newIndex = Math.min(props.commits.length - 1, i + 1)
+            const commit = props.commits[newIndex]
+            if (commit) props.onSelect?.(commit)
+            return newIndex
+        })
+    }
 
-	useKeyboard((evt) => {
-		if (!props.focused) return
+    useKeyboard((evt) => {
+        if (!props.focused) return
 
-		if (evt.name === "j" || evt.name === "down") {
-			evt.preventDefault()
-			evt.stopPropagation()
-			selectNext()
-		} else if (evt.name === "k" || evt.name === "up") {
-			evt.preventDefault()
-			evt.stopPropagation()
-			selectPrev()
-		}
-	})
+        if (evt.name === "j" || evt.name === "down") {
+            evt.preventDefault()
+            evt.stopPropagation()
+            selectNext()
+        } else if (evt.name === "k" || evt.name === "up") {
+            evt.preventDefault()
+            evt.stopPropagation()
+            selectPrev()
+        }
+    })
 
-	createEffect(() => {
-		const commit = props.commits[selectedIndex()]
-		if (commit) props.onSelect?.(commit)
-	})
+    createEffect(() => {
+        const commit = props.commits[selectedIndex()]
+        if (commit) props.onSelect?.(commit)
+    })
 
-	return (
-		<Show
-			when={props.commits.length > 0}
-			fallback={<text fg={colors().textMuted}>No commits</text>}
-		>
-			<scrollbox
-				ref={scrollRef}
-				focused={props.focused}
-				flexGrow={1}
-				height={props.height}
-				scrollbarOptions={{ visible: false }}
-			>
-				<For each={props.commits}>
-					{(commit, index) => {
-						const isSelected = () => index() === selectedIndex()
-						return (
-							<For each={commit.lines}>
-								{(line) => (
-									<box
-										backgroundColor={
-											isSelected() ? colors().selectionBackground : undefined
-										}
-										overflow="hidden"
-									>
-										<AnsiText
-											content={line}
-											defaultFg={
-												isSelected() ? colors().selectionText : undefined
-											}
-											bold={commit.isWorkingCopy}
-											wrapMode="none"
-										/>
-									</box>
-								)}
-							</For>
-						)
-					}}
-				</For>
-			</scrollbox>
-		</Show>
-	)
+    return (
+        <Show
+            when={props.commits.length > 0}
+            fallback={<text fg={colors().textMuted}>No commits</text>}
+        >
+            <scrollbox
+                ref={scrollRef}
+                focused={props.focused}
+                flexGrow={1}
+                height={props.height}
+                scrollbarOptions={{ visible: false }}
+            >
+                <For each={props.commits}>
+                    {(commit, index) => {
+                        const isSelected = () => index() === selectedIndex()
+                        return (
+                            <For each={commit.lines}>
+                                {(line) => (
+                                    <box
+                                        backgroundColor={
+                                            isSelected()
+                                                ? colors().selectionBackground
+                                                : undefined
+                                        }
+                                        overflow="hidden"
+                                    >
+                                        <AnsiText
+                                            content={line}
+                                            defaultFg={
+                                                isSelected()
+                                                    ? colors().selectionText
+                                                    : undefined
+                                            }
+                                            bold={commit.isWorkingCopy}
+                                            wrapMode="none"
+                                        />
+                                    </box>
+                                )}
+                            </For>
+                        )
+                    }}
+                </For>
+            </scrollbox>
+        </Show>
+    )
 }

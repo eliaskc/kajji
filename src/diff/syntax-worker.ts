@@ -35,153 +35,157 @@ import ayuDark from "@shikijs/themes/ayu-dark"
 import githubLight from "@shikijs/themes/github-light"
 import type { BundledLanguage } from "shiki"
 import {
-	type Highlighter,
-	createHighlighter,
-	createJavaScriptRegexEngine,
+    type Highlighter,
+    createHighlighter,
+    createJavaScriptRegexEngine,
 } from "shiki"
 import type { SyntaxThemeName } from "../theme/syntax"
 
 // Message types
 export type WorkerRequest =
-	| { type: "init" }
-	| {
-			type: "tokenize"
-			id: number
-			content: string
-			language: SupportedLanguages
-			theme: SyntaxThemeName
-	  }
+    | { type: "init" }
+    | {
+          type: "tokenize"
+          id: number
+          content: string
+          language: SupportedLanguages
+          theme: SyntaxThemeName
+      }
 
 export type WorkerResponse =
-	| { type: "ready" }
-	| {
-			type: "tokens"
-			id: number
-			tokens: Array<{ content: string; color?: string }>
-	  }
-	| { type: "error"; id: number; message: string }
+    | { type: "ready" }
+    | {
+          type: "tokens"
+          id: number
+          tokens: Array<{ content: string; color?: string }>
+      }
+    | { type: "error"; id: number; message: string }
 
 // Note: We previously had warmup code that pre-tokenized sample code for each language.
 // Testing showed it didn't noticeably improve first-highlight latency, but it did delay
 // the "ready" signal, making the first file's highlights appear slower. Removed.
 
 const LANG_MODULES = [
-	typescript,
-	tsx,
-	javascript,
-	jsx,
-	json,
-	html,
-	css,
-	markdown,
-	yaml,
-	toml,
-	bash,
-	c,
-	cpp,
-	rust,
-	go,
-	zig,
-	java,
-	kotlin,
-	scala,
-	swift,
-	objectiveC,
-	python,
-	ruby,
-	php,
-	lua,
-	elixir,
-	haskell,
-	sql,
-	dockerfile,
-	hcl,
+    typescript,
+    tsx,
+    javascript,
+    jsx,
+    json,
+    html,
+    css,
+    markdown,
+    yaml,
+    toml,
+    bash,
+    c,
+    cpp,
+    rust,
+    go,
+    zig,
+    java,
+    kotlin,
+    scala,
+    swift,
+    objectiveC,
+    python,
+    ruby,
+    php,
+    lua,
+    elixir,
+    haskell,
+    sql,
+    dockerfile,
+    hcl,
 ]
 
 let highlighter: Highlighter | null = null
 
 async function init() {
-	try {
-		highlighter = await createHighlighter({
-			themes: [ayuDark, githubLight],
-			langs: LANG_MODULES.flat(),
-			engine: createJavaScriptRegexEngine(),
-		})
+    try {
+        highlighter = await createHighlighter({
+            themes: [ayuDark, githubLight],
+            langs: LANG_MODULES.flat(),
+            engine: createJavaScriptRegexEngine(),
+        })
 
-		self.postMessage({ type: "ready" } satisfies WorkerResponse)
-	} catch (error) {
-		self.postMessage({
-			type: "error",
-			id: -1,
-			message: error instanceof Error ? error.message : String(error),
-		} satisfies WorkerResponse)
-	}
+        self.postMessage({ type: "ready" } satisfies WorkerResponse)
+    } catch (error) {
+        self.postMessage({
+            type: "error",
+            id: -1,
+            message: error instanceof Error ? error.message : String(error),
+        } satisfies WorkerResponse)
+    }
 }
 
 function tokenize(
-	id: number,
-	content: string,
-	language: SupportedLanguages,
-	theme: SyntaxThemeName,
+    id: number,
+    content: string,
+    language: SupportedLanguages,
+    theme: SyntaxThemeName,
 ) {
-	if (!highlighter) {
-		self.postMessage({
-			type: "error",
-			id,
-			message: "Highlighter not initialized",
-		} satisfies WorkerResponse)
-		return
-	}
+    if (!highlighter) {
+        self.postMessage({
+            type: "error",
+            id,
+            message: "Highlighter not initialized",
+        } satisfies WorkerResponse)
+        return
+    }
 
-	try {
-		const loadedLangs = highlighter.getLoadedLanguages()
-		if (!loadedLangs.includes(language)) {
-			// Language not loaded, return plain
-			self.postMessage({
-				type: "tokens",
-				id,
-				tokens: [{ content }],
-			} satisfies WorkerResponse)
-			return
-		}
+    try {
+        const loadedLangs = highlighter.getLoadedLanguages()
+        if (!loadedLangs.includes(language)) {
+            // Language not loaded, return plain
+            self.postMessage({
+                type: "tokens",
+                id,
+                tokens: [{ content }],
+            } satisfies WorkerResponse)
+            return
+        }
 
-		// @pierre/diffs 1.1+ widened SupportedLanguages to include custom
-		// string languages. We only pass loaded bundled languages here (guarded
-		// above), so the cast is safe.
-		const result = highlighter.codeToTokens(content, {
-			lang: language as BundledLanguage,
-			theme,
-		})
+        // @pierre/diffs 1.1+ widened SupportedLanguages to include custom
+        // string languages. We only pass loaded bundled languages here (guarded
+        // above), so the cast is safe.
+        const result = highlighter.codeToTokens(content, {
+            lang: language as BundledLanguage,
+            theme,
+        })
 
-		const tokens: Array<{ content: string; color?: string }> = []
-		for (const line of result.tokens) {
-			for (const token of line) {
-				tokens.push({
-					content: token.content,
-					color: token.color,
-				})
-			}
-		}
+        const tokens: Array<{ content: string; color?: string }> = []
+        for (const line of result.tokens) {
+            for (const token of line) {
+                tokens.push({
+                    content: token.content,
+                    color: token.color,
+                })
+            }
+        }
 
-		self.postMessage({ type: "tokens", id, tokens } satisfies WorkerResponse)
-	} catch {
-		self.postMessage({
-			type: "tokens",
-			id,
-			tokens: [{ content }],
-		} satisfies WorkerResponse)
-	}
+        self.postMessage({
+            type: "tokens",
+            id,
+            tokens,
+        } satisfies WorkerResponse)
+    } catch {
+        self.postMessage({
+            type: "tokens",
+            id,
+            tokens: [{ content }],
+        } satisfies WorkerResponse)
+    }
 }
 
 self.onmessage = (event: MessageEvent<WorkerRequest>) => {
-	const msg = event.data
+    const msg = event.data
 
-	switch (msg.type) {
-		case "init":
-			init()
-			break
-		case "tokenize":
-			tokenize(msg.id, msg.content, msg.language, msg.theme)
-			break
-	}
+    switch (msg.type) {
+        case "init":
+            init()
+            break
+        case "tokenize":
+            tokenize(msg.id, msg.content, msg.language, msg.theme)
+            break
+    }
 }

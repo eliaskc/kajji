@@ -1,113 +1,113 @@
 import type { Theme, ThemeColors } from "../types"
 
 const dark: ThemeColors = {
-	primary: "#7FD962",
-	secondary: "#56b6c2",
-	background: "#0a0a0a",
-	backgroundSecondary: "#141414",
-	backgroundElement: "#1e1e1e",
-	text: "#bfbdb6",
-	textMuted: "#808080",
+    primary: "#7FD962",
+    secondary: "#56b6c2",
+    background: "#0a0a0a",
+    backgroundSecondary: "#141414",
+    backgroundElement: "#1e1e1e",
+    text: "#bfbdb6",
+    textMuted: "#808080",
 
-	border: "#bfbdb6",
-	borderFocused: "#7FD962",
+    border: "#bfbdb6",
+    borderFocused: "#7FD962",
 
-	selectionBackground: "#323264",
-	selectionText: "#eeeeee",
+    selectionBackground: "#323264",
+    selectionText: "#eeeeee",
 
-	success: "#7FD962",
-	warning: "#e5c07b",
-	error: "#e06c75",
-	info: "#56b6c2",
+    success: "#7FD962",
+    warning: "#e5c07b",
+    error: "#e06c75",
+    info: "#56b6c2",
 
-	purple: "#c678dd",
-	orange: "#d19a66",
-	green: "#7FD962",
+    purple: "#c678dd",
+    orange: "#d19a66",
+    green: "#7FD962",
 
-	titleBarFocused: "#7FD962",
-	titleTextFocused: "#0a0a0a",
-	titleTextMuted: "#2a5a20",
+    titleBarFocused: "#7FD962",
+    titleTextFocused: "#0a0a0a",
+    titleTextMuted: "#2a5a20",
 
-	statusBarKey: "#7FD962",
+    statusBarKey: "#7FD962",
 
-	scrollbarTrack: "#303030",
-	scrollbarThumb: "#606060",
+    scrollbarTrack: "#303030",
+    scrollbarThumb: "#606060",
 
-	diff: {
-		additionBackground: "#0d2818",
-		deletionBackground: "#2d1215",
-		additionEmphasisBackground: "#1a5a2a",
-		deletionEmphasisBackground: "#5a1a1a",
-		additionText: "#3fb950",
-		deletionText: "#f85149",
-		lineNumber: "#6e7681",
-	},
+    diff: {
+        additionBackground: "#0d2818",
+        deletionBackground: "#2d1215",
+        additionEmphasisBackground: "#1a5a2a",
+        deletionEmphasisBackground: "#5a1a1a",
+        additionText: "#3fb950",
+        deletionText: "#f85149",
+        lineNumber: "#6e7681",
+    },
 }
 
 const light: ThemeColors = {
-	primary: "#6fcf57",
-	secondary: "#5fa8b8",
-	background: "#f7f7f7",
-	backgroundSecondary: "#eeeeee",
-	backgroundElement: "#e6e6e6",
-	text: "#4f4f4f",
-	textMuted: "#7a7a7a",
+    primary: "#6fcf57",
+    secondary: "#5fa8b8",
+    background: "#f7f7f7",
+    backgroundSecondary: "#eeeeee",
+    backgroundElement: "#e6e6e6",
+    text: "#4f4f4f",
+    textMuted: "#7a7a7a",
 
-	border: "#dddddd",
-	borderFocused: "#7FD962",
+    border: "#dddddd",
+    borderFocused: "#7FD962",
 
-	selectionBackground: "#e4e0f2",
-	selectionText: "#262631",
+    selectionBackground: "#e4e0f2",
+    selectionText: "#262631",
 
-	success: "#62bd4a",
-	warning: "#d9ae55",
-	error: "#c94c57",
-	info: "#5fa8b8",
+    success: "#62bd4a",
+    warning: "#d9ae55",
+    error: "#c94c57",
+    info: "#5fa8b8",
 
-	purple: "#a982bd",
-	orange: "#d9ae55",
-	green: "#6fcf57",
+    purple: "#a982bd",
+    orange: "#d9ae55",
+    green: "#6fcf57",
 
-	titleBarFocused: "#7FD962",
-	titleTextFocused: "#111111",
-	titleTextMuted: "#3d672e",
+    titleBarFocused: "#7FD962",
+    titleTextFocused: "#111111",
+    titleTextMuted: "#3d672e",
 
-	statusBarKey: "#62bd4a",
+    statusBarKey: "#62bd4a",
 
-	scrollbarTrack: "#e3e3e3",
-	scrollbarThumb: "#b8b8b8",
+    scrollbarTrack: "#e3e3e3",
+    scrollbarThumb: "#b8b8b8",
 
-	diff: {
-		additionBackground: "#e7f4e8",
-		deletionBackground: "#f8e4e6",
-		additionEmphasisBackground: "#c9e9cf",
-		deletionEmphasisBackground: "#f0c8cd",
-		additionText: "#4fae52",
-		deletionText: "#d84d4a",
-		lineNumber: "#6f7782",
-	},
+    diff: {
+        additionBackground: "#e7f4e8",
+        deletionBackground: "#f8e4e6",
+        additionEmphasisBackground: "#c9e9cf",
+        deletionEmphasisBackground: "#f0c8cd",
+        additionText: "#4fae52",
+        deletionText: "#d84d4a",
+        lineNumber: "#6f7782",
+    },
 }
 
 export const kajjiTheme: Theme = {
-	name: "kajji",
-	colors: {
-		dark,
-		light,
-	},
-	syntax: {
-		dark: "ayu-dark",
-		light: "github-light",
-	},
-	style: {
-		panel: {
-			borderStyle: "rounded",
-		},
-		statusBar: {
-			separator: "•",
-		},
-		dialog: {
-			overlayOpacity: 150,
-		},
-		adaptToTerminal: true,
-	},
+    name: "kajji",
+    colors: {
+        dark,
+        light,
+    },
+    syntax: {
+        dark: "ayu-dark",
+        light: "github-light",
+    },
+    style: {
+        panel: {
+            borderStyle: "rounded",
+        },
+        statusBar: {
+            separator: "•",
+        },
+        dialog: {
+            overlayOpacity: 150,
+        },
+        adaptToTerminal: true,
+    },
 }

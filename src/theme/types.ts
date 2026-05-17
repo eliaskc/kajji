@@ -1,70 +1,70 @@
 export interface DiffThemeColors {
-	additionBackground: string
-	deletionBackground: string
-	additionEmphasisBackground: string
-	deletionEmphasisBackground: string
-	additionText: string
-	deletionText: string
-	lineNumber: string
+    additionBackground: string
+    deletionBackground: string
+    additionEmphasisBackground: string
+    deletionEmphasisBackground: string
+    additionText: string
+    deletionText: string
+    lineNumber: string
 }
 
 export interface ThemeColors {
-	primary: string
-	secondary: string
-	background: string
-	backgroundSecondary: string
-	backgroundElement: string
+    primary: string
+    secondary: string
+    background: string
+    backgroundSecondary: string
+    backgroundElement: string
 
-	text: string
-	textMuted: string
+    text: string
+    textMuted: string
 
-	border: string
-	borderFocused: string
+    border: string
+    borderFocused: string
 
-	selectionBackground: string
-	selectionText: string
+    selectionBackground: string
+    selectionText: string
 
-	success: string
-	warning: string
-	error: string
-	info: string
+    success: string
+    warning: string
+    error: string
+    info: string
 
-	purple: string
-	orange: string
-	green: string
+    purple: string
+    orange: string
+    green: string
 
-	titleBarFocused: string
-	titleTextFocused: string
-	titleTextMuted: string
+    titleBarFocused: string
+    titleTextFocused: string
+    titleTextMuted: string
 
-	statusBarKey: string
+    statusBarKey: string
 
-	scrollbarTrack: string
-	scrollbarThumb: string
+    scrollbarTrack: string
+    scrollbarThumb: string
 
-	diff: DiffThemeColors
+    diff: DiffThemeColors
 }
 
 import type { SyntaxThemeName } from "./syntax"
 
 export interface ThemeStyle {
-	panel: {
-		borderStyle: "rounded" | "single"
-	}
-	statusBar: {
-		separator: string | null
-	}
-	dialog: {
-		overlayOpacity: number
-	}
-	adaptToTerminal: boolean
+    panel: {
+        borderStyle: "rounded" | "single"
+    }
+    statusBar: {
+        separator: string | null
+    }
+    dialog: {
+        overlayOpacity: number
+    }
+    adaptToTerminal: boolean
 }
 
 export type ThemeMode = "dark" | "light"
 
 export interface Theme {
-	name: string
-	colors: Record<ThemeMode, ThemeColors>
-	syntax: Record<ThemeMode, SyntaxThemeName>
-	style: ThemeStyle
+    name: string
+    colors: Record<ThemeMode, ThemeColors>
+    syntax: Record<ThemeMode, SyntaxThemeName>
+    style: ThemeStyle
 }

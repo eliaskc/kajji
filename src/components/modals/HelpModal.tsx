@@ -1,7 +1,7 @@
 import {
-	type InputRenderable,
-	RGBA,
-	type ScrollBoxRenderable,
+    type InputRenderable,
+    RGBA,
+    type ScrollBoxRenderable,
 } from "@opentui/core"
 import { useKeyboard } from "@opentui/solid"
 
@@ -9,30 +9,32 @@ const HELP_COLUMN_WIDTH = 32
 const HELP_SCROLLBAR_GUTTER = 2
 
 export function helpContentWidth(columns: number) {
-	const colGap = columns === 3 ? 4 : 2
-	return (
-		columns * HELP_COLUMN_WIDTH + (columns - 1) * colGap + HELP_SCROLLBAR_GUTTER
-	)
+    const colGap = columns === 3 ? 4 : 2
+    return (
+        columns * HELP_COLUMN_WIDTH +
+        (columns - 1) * colGap +
+        HELP_SCROLLBAR_GUTTER
+    )
 }
 
 const SINGLE_LINE_KEYBINDINGS = [
-	{ name: "return", action: "submit" as const },
-	{ name: "enter", action: "submit" as const },
+    { name: "return", action: "submit" as const },
+    { name: "enter", action: "submit" as const },
 ]
 import fuzzysort from "fuzzysort"
 import {
-	type Accessor,
-	For,
-	Show,
-	createEffect,
-	createMemo,
-	createSignal,
+    type Accessor,
+    For,
+    Show,
+    createEffect,
+    createMemo,
+    createSignal,
 } from "solid-js"
 import {
-	type CommandOption,
-	type Context,
-	useCommand,
-	useCommandInputGuard,
+    type CommandOption,
+    type Context,
+    useCommand,
+    useCommandInputGuard,
 } from "../../context/command"
 import { useDialog } from "../../context/dialog"
 import { useFocus } from "../../context/focus"
@@ -42,452 +44,484 @@ import { useTheme } from "../../context/theme"
 import type { KeybindConfigKey } from "../../keybind"
 
 type ContextGroup =
-	| "navigation"
-	| "revisions"
-	| "files"
-	| "bookmarks"
-	| "oplog"
-	| "detail"
-	| "git"
-	| "global"
+    | "navigation"
+    | "revisions"
+    | "files"
+    | "bookmarks"
+    | "oplog"
+    | "detail"
+    | "git"
+    | "global"
 
 interface ContextGroupData {
-	context: ContextGroup
-	label: string
-	commands: CommandOption[]
+    context: ContextGroup
+    label: string
+    commands: CommandOption[]
 }
 
 const GROUP_ORDER: ContextGroup[] = [
-	"revisions",
-	"files",
-	"bookmarks",
-	"oplog",
-	"detail",
-	"navigation",
-	"git",
-	"global",
+    "revisions",
+    "files",
+    "bookmarks",
+    "oplog",
+    "detail",
+    "navigation",
+    "git",
+    "global",
 ]
 
 const GROUP_LABELS: Record<ContextGroup, string> = {
-	navigation: "navigation",
-	revisions: "revisions",
-	files: "files",
-	bookmarks: "bookmarks",
-	oplog: "oplog",
-	detail: "detail",
-	git: "git",
-	global: "global",
+    navigation: "navigation",
+    revisions: "revisions",
+    files: "files",
+    bookmarks: "bookmarks",
+    oplog: "oplog",
+    detail: "detail",
+    git: "git",
+    global: "global",
 }
 
 const NAVIGATION_KEYBINDS = new Set([
-	"nav_down",
-	"nav_up",
-	"nav_page_up",
-	"nav_page_down",
-	"next_tab",
-	"prev_tab",
-	"focus_next",
-	"focus_prev",
-	"focus_panel_1",
-	"focus_panel_2",
-	"focus_panel_3",
-	"focus_panel_4",
+    "nav_down",
+    "nav_up",
+    "nav_page_up",
+    "nav_page_down",
+    "next_tab",
+    "prev_tab",
+    "focus_next",
+    "focus_prev",
+    "focus_panel_1",
+    "focus_panel_2",
+    "focus_panel_3",
+    "focus_panel_4",
 ])
 
 function contextToGroup(context: Context): ContextGroup {
-	if (context === "log.revisions") return "revisions"
-	if (context === "log.files") return "files"
-	if (context === "refs.bookmarks") return "bookmarks"
-	if (context === "log.oplog") return "oplog"
-	if (
-		context === "detail" ||
-		context.startsWith("detail.") ||
-		context === "commandlog"
-	)
-		return "detail"
-	return "global"
+    if (context === "log.revisions") return "revisions"
+    if (context === "log.files") return "files"
+    if (context === "refs.bookmarks") return "bookmarks"
+    if (context === "log.oplog") return "oplog"
+    if (
+        context === "detail" ||
+        context.startsWith("detail.") ||
+        context === "commandlog"
+    )
+        return "detail"
+    return "global"
 }
 
 function contextMatches(
-	commandContext: Context,
-	activeContext: Context,
+    commandContext: Context,
+    activeContext: Context,
 ): boolean {
-	if (commandContext === "global") return true
-	if (commandContext === activeContext) return true
-	return activeContext.startsWith(`${commandContext}.`)
+    if (commandContext === "global") return true
+    if (commandContext === activeContext) return true
+    return activeContext.startsWith(`${commandContext}.`)
 }
 
 export function HelpModal() {
-	const command = useCommand()
-	useCommandInputGuard()
-	const keybind = useKeybind()
-	const dialog = useDialog()
-	const focus = useFocus()
-	const layout = useLayout()
-	const { colors, style } = useTheme()
-	const [filter, setFilter] = createSignal("")
-	const [selectedIndex, setSelectedIndex] = createSignal(-1)
-	const [scrollTop, setScrollTop] = createSignal(0)
-	let searchInputRef: InputRenderable | undefined
-	let scrollRef: ScrollBoxRenderable | undefined
+    const command = useCommand()
+    useCommandInputGuard()
+    const keybind = useKeybind()
+    const dialog = useDialog()
+    const focus = useFocus()
+    const layout = useLayout()
+    const { colors, style } = useTheme()
+    const [filter, setFilter] = createSignal("")
+    const [selectedIndex, setSelectedIndex] = createSignal(-1)
+    const [scrollTop, setScrollTop] = createSignal(0)
+    let searchInputRef: InputRenderable | undefined
+    let scrollRef: ScrollBoxRenderable | undefined
 
-	const columnCount = () => layout.helpModalColumns()
+    const columnCount = () => layout.helpModalColumns()
 
-	type SearchableCommand = CommandOption & { keybindStr: string }
+    type SearchableCommand = CommandOption & { keybindStr: string }
 
-	const isVisibleInHelp = (cmd: CommandOption) => {
-		const v = cmd.visibility ?? "all"
-		return v === "all" || v === "help-only"
-	}
+    const isVisibleInHelp = (cmd: CommandOption) => {
+        const v = cmd.visibility ?? "all"
+        return v === "all" || v === "help-only"
+    }
 
-	const allCommands = createMemo((): SearchableCommand[] => {
-		return command
-			.all()
-			.filter(isVisibleInHelp)
-			.map((cmd) => ({
-				...cmd,
-				keybindStr: cmd.keybind ? keybind.print(cmd.keybind) : "",
-			}))
-	})
+    const allCommands = createMemo((): SearchableCommand[] => {
+        return command
+            .all()
+            .filter(isVisibleInHelp)
+            .map((cmd) => ({
+                ...cmd,
+                keybindStr: cmd.keybind ? keybind.print(cmd.keybind) : "",
+            }))
+    })
 
-	const matchedCommands = createMemo(() => {
-		const all = allCommands()
-		const filterText = filter().trim()
+    const matchedCommands = createMemo(() => {
+        const all = allCommands()
+        const filterText = filter().trim()
 
-		if (!filterText) {
-			return all
-		}
+        if (!filterText) {
+            return all
+        }
 
-		const results = fuzzysort.go(filterText, all, {
-			keys: ["title", "context", "keybindStr"],
-			threshold: -10000,
-		})
+        const results = fuzzysort.go(filterText, all, {
+            keys: ["title", "context", "keybindStr"],
+            threshold: -10000,
+        })
 
-		return results.map((r) => r.obj)
-	})
+        return results.map((r) => r.obj)
+    })
 
-	const matchedIds = createMemo(() => {
-		return new Set(matchedCommands().map((cmd) => cmd.id))
-	})
+    const matchedIds = createMemo(() => {
+        return new Set(matchedCommands().map((cmd) => cmd.id))
+    })
 
-	const isActive = (cmd: CommandOption) => {
-		if (!contextMatches(cmd.context, focus.activeContext())) return false
-		if (cmd.panel && cmd.panel !== focus.panel()) return false
-		return true
-	}
+    const isActive = (cmd: CommandOption) => {
+        if (!contextMatches(cmd.context, focus.activeContext())) return false
+        if (cmd.panel && cmd.panel !== focus.panel()) return false
+        return true
+    }
 
-	createEffect(() => {
-		const filterText = filter().trim()
-		if (filterText) {
-			setSelectedIndex(0)
-		} else {
-			setSelectedIndex(-1)
-		}
-	})
+    createEffect(() => {
+        const filterText = filter().trim()
+        if (filterText) {
+            setSelectedIndex(0)
+        } else {
+            setSelectedIndex(-1)
+        }
+    })
 
-	const selectedCommand = createMemo(() => {
-		const idx = selectedIndex()
-		if (idx < 0) return null
-		return matchedInColumnOrder()[idx] ?? null
-	})
+    const selectedCommand = createMemo(() => {
+        const idx = selectedIndex()
+        if (idx < 0) return null
+        return matchedInColumnOrder()[idx] ?? null
+    })
 
-	const groupedCommands = createMemo((): ContextGroupData[] => {
-		const all = allCommands()
-		const seenKeybinds = new Set<string>()
+    const groupedCommands = createMemo((): ContextGroupData[] => {
+        const all = allCommands()
+        const seenKeybinds = new Set<string>()
 
-		const groups = new Map<ContextGroup, CommandOption[]>()
-		const navCommands: CommandOption[] = []
+        const groups = new Map<ContextGroup, CommandOption[]>()
+        const navCommands: CommandOption[] = []
 
-		for (const cmd of all) {
-			if (NAVIGATION_KEYBINDS.has(cmd.keybind ?? "")) {
-				if (!seenKeybinds.has(cmd.keybind ?? "")) {
-					navCommands.push(cmd)
-					seenKeybinds.add(cmd.keybind ?? "")
-				}
-				continue
-			}
+        for (const cmd of all) {
+            if (NAVIGATION_KEYBINDS.has(cmd.keybind ?? "")) {
+                if (!seenKeybinds.has(cmd.keybind ?? "")) {
+                    navCommands.push(cmd)
+                    seenKeybinds.add(cmd.keybind ?? "")
+                }
+                continue
+            }
 
-			const group = cmd.type === "git" ? "git" : contextToGroup(cmd.context)
-			const existing = groups.get(group) || []
-			groups.set(group, [...existing, cmd])
-		}
+            const group =
+                cmd.type === "git" ? "git" : contextToGroup(cmd.context)
+            const existing = groups.get(group) || []
+            groups.set(group, [...existing, cmd])
+        }
 
-		if (navCommands.length > 0) {
-			groups.set("navigation", navCommands)
-		}
+        if (navCommands.length > 0) {
+            groups.set("navigation", navCommands)
+        }
 
-		const result: ContextGroupData[] = []
-		for (const group of GROUP_ORDER) {
-			const commands = groups.get(group)
-			if (commands && commands.length > 0) {
-				result.push({ context: group, label: GROUP_LABELS[group], commands })
-			}
-		}
+        const result: ContextGroupData[] = []
+        for (const group of GROUP_ORDER) {
+            const commands = groups.get(group)
+            if (commands && commands.length > 0) {
+                result.push({
+                    context: group,
+                    label: GROUP_LABELS[group],
+                    commands,
+                })
+            }
+        }
 
-		return result
-	})
+        return result
+    })
 
-	const columns = createMemo(() => {
-		const groups = groupedCommands()
-		const numCols = columnCount()
-		const cols: ContextGroupData[][] = Array.from({ length: numCols }, () => [])
+    const columns = createMemo(() => {
+        const groups = groupedCommands()
+        const numCols = columnCount()
+        const cols: ContextGroupData[][] = Array.from(
+            { length: numCols },
+            () => [],
+        )
 
-		let colIndex = 0
-		for (const group of groups) {
-			const col = cols[colIndex]
-			if (col) col.push(group)
-			colIndex = (colIndex + 1) % numCols
-		}
+        let colIndex = 0
+        for (const group of groups) {
+            const col = cols[colIndex]
+            if (col) col.push(group)
+            colIndex = (colIndex + 1) % numCols
+        }
 
-		return cols
-	})
+        return cols
+    })
 
-	const filteredGroups = createMemo((): ContextGroupData[] => {
-		const matched = matchedIds()
-		return groupedCommands()
-			.map((group) => ({
-				...group,
-				commands: group.commands.filter((cmd) => matched.has(cmd.id)),
-			}))
-			.filter((group) => group.commands.length > 0)
-	})
+    const filteredGroups = createMemo((): ContextGroupData[] => {
+        const matched = matchedIds()
+        return groupedCommands()
+            .map((group) => ({
+                ...group,
+                commands: group.commands.filter((cmd) => matched.has(cmd.id)),
+            }))
+            .filter((group) => group.commands.length > 0)
+    })
 
-	const filteredColumns = createMemo(() => {
-		const groups = filteredGroups()
-		const numCols = columnCount()
-		const cols: ContextGroupData[][] = Array.from({ length: numCols }, () => [])
+    const filteredColumns = createMemo(() => {
+        const groups = filteredGroups()
+        const numCols = columnCount()
+        const cols: ContextGroupData[][] = Array.from(
+            { length: numCols },
+            () => [],
+        )
 
-		let colIndex = 0
-		for (const group of groups) {
-			const col = cols[colIndex]
-			if (col) col.push(group)
-			colIndex = (colIndex + 1) % numCols
-		}
+        let colIndex = 0
+        for (const group of groups) {
+            const col = cols[colIndex]
+            if (col) col.push(group)
+            colIndex = (colIndex + 1) % numCols
+        }
 
-		return cols
-	})
+        return cols
+    })
 
-	const commandsInColumnOrder = createMemo(() => {
-		const cols = columns()
-		const result: CommandOption[] = []
-		for (const column of cols) {
-			for (const group of column) {
-				for (const cmd of group.commands) {
-					result.push(cmd)
-				}
-			}
-		}
-		return result
-	})
+    const commandsInColumnOrder = createMemo(() => {
+        const cols = columns()
+        const result: CommandOption[] = []
+        for (const column of cols) {
+            for (const group of column) {
+                for (const cmd of group.commands) {
+                    result.push(cmd)
+                }
+            }
+        }
+        return result
+    })
 
-	const matchedInColumnOrder = createMemo(() => {
-		const matched = matchedIds()
-		return commandsInColumnOrder().filter(
-			(cmd) => matched.has(cmd.id) && isActive(cmd),
-		)
-	})
+    const matchedInColumnOrder = createMemo(() => {
+        const matched = matchedIds()
+        return commandsInColumnOrder().filter(
+            (cmd) => matched.has(cmd.id) && isActive(cmd),
+        )
+    })
 
-	const isNavigatable = (cmd: CommandOption) => {
-		return matchedIds().has(cmd.id) && isActive(cmd)
-	}
+    const isNavigatable = (cmd: CommandOption) => {
+        return matchedIds().has(cmd.id) && isActive(cmd)
+    }
 
-	const getRowPositionForCommand = (cmd: CommandOption): number => {
-		const cols = filteredColumns()
-		let row = 0
-		for (const column of cols) {
-			let colRow = 0
-			for (const group of column) {
-				colRow += 1
-				for (const c of group.commands) {
-					if (c.id === cmd.id) {
-						return row + colRow
-					}
-					colRow += 1
-				}
-				colRow += 1
-			}
-			if (columnCount() === 1) {
-				row = colRow
-			}
-		}
-		return 0
-	}
+    const getRowPositionForCommand = (cmd: CommandOption): number => {
+        const cols = filteredColumns()
+        let row = 0
+        for (const column of cols) {
+            let colRow = 0
+            for (const group of column) {
+                colRow += 1
+                for (const c of group.commands) {
+                    if (c.id === cmd.id) {
+                        return row + colRow
+                    }
+                    colRow += 1
+                }
+                colRow += 1
+            }
+            if (columnCount() === 1) {
+                row = colRow
+            }
+        }
+        return 0
+    }
 
-	const scrollIntoView = (cmd: CommandOption | null) => {
-		if (!scrollRef || !cmd) return
-		if (columnCount() !== 1) return
+    const scrollIntoView = (cmd: CommandOption | null) => {
+        if (!scrollRef || !cmd) return
+        if (columnCount() !== 1) return
 
-		const rowPos = getRowPositionForCommand(cmd)
-		const margin = 2
-		const refAny = scrollRef as unknown as Record<string, unknown>
-		const viewportHeight =
-			(typeof refAny.height === "number" ? refAny.height : null) ??
-			(typeof refAny.rows === "number" ? refAny.rows : null) ??
-			10
+        const rowPos = getRowPositionForCommand(cmd)
+        const margin = 2
+        const refAny = scrollRef as unknown as Record<string, unknown>
+        const viewportHeight =
+            (typeof refAny.height === "number" ? refAny.height : null) ??
+            (typeof refAny.rows === "number" ? refAny.rows : null) ??
+            10
 
-		const currentScrollTop = scrollTop()
-		const visibleStart = currentScrollTop
-		const visibleEnd = currentScrollTop + viewportHeight - 1
-		const safeStart = visibleStart + margin
-		const safeEnd = visibleEnd - margin
+        const currentScrollTop = scrollTop()
+        const visibleStart = currentScrollTop
+        const visibleEnd = currentScrollTop + viewportHeight - 1
+        const safeStart = visibleStart + margin
+        const safeEnd = visibleEnd - margin
 
-		let newScrollTop = currentScrollTop
-		if (rowPos < safeStart) {
-			newScrollTop = Math.max(0, rowPos - margin)
-		} else if (rowPos > safeEnd) {
-			newScrollTop = Math.max(0, rowPos - viewportHeight + margin + 1)
-		}
+        let newScrollTop = currentScrollTop
+        if (rowPos < safeStart) {
+            newScrollTop = Math.max(0, rowPos - margin)
+        } else if (rowPos > safeEnd) {
+            newScrollTop = Math.max(0, rowPos - viewportHeight + margin + 1)
+        }
 
-		if (newScrollTop !== currentScrollTop) {
-			scrollRef.scrollTo(newScrollTop)
-			setScrollTop(newScrollTop)
-		}
-	}
+        if (newScrollTop !== currentScrollTop) {
+            scrollRef.scrollTo(newScrollTop)
+            setScrollTop(newScrollTop)
+        }
+    }
 
-	const move = (direction: 1 | -1) => {
-		const matched = matchedInColumnOrder()
-		if (matched.length === 0) return
+    const move = (direction: 1 | -1) => {
+        const matched = matchedInColumnOrder()
+        if (matched.length === 0) return
 
-		setSelectedIndex((prev) => {
-			if (prev < 0) return 0
-			let next = prev + direction
-			if (next < 0) next = matched.length - 1
-			if (next >= matched.length) next = 0
-			return next
-		})
-	}
+        setSelectedIndex((prev) => {
+            if (prev < 0) return 0
+            let next = prev + direction
+            if (next < 0) next = matched.length - 1
+            if (next >= matched.length) next = 0
+            return next
+        })
+    }
 
-	createEffect(() => {
-		const cmd = selectedCommand()
-		if (cmd) {
-			scrollIntoView(cmd)
-		}
-	})
+    createEffect(() => {
+        const cmd = selectedCommand()
+        if (cmd) {
+            scrollIntoView(cmd)
+        }
+    })
 
-	const executeSelected = () => {
-		const cmd = selectedCommand()
-		if (cmd) {
-			dialog.close()
-			cmd.onSelect()
-		}
-	}
+    const executeSelected = () => {
+        const cmd = selectedCommand()
+        if (cmd) {
+            dialog.close()
+            cmd.onSelect()
+        }
+    }
 
-	useKeyboard((evt) => {
-		if (evt.name === "down") {
-			evt.preventDefault()
-			evt.stopPropagation()
-			move(1)
-		} else if (evt.name === "up") {
-			evt.preventDefault()
-			evt.stopPropagation()
-			move(-1)
-		} else if (evt.name === "return") {
-			evt.preventDefault()
-			evt.stopPropagation()
-			executeSelected()
-		}
-	})
+    useKeyboard((evt) => {
+        if (evt.name === "down") {
+            evt.preventDefault()
+            evt.stopPropagation()
+            move(1)
+        } else if (evt.name === "up") {
+            evt.preventDefault()
+            evt.stopPropagation()
+            move(-1)
+        } else if (evt.name === "return") {
+            evt.preventDefault()
+            evt.stopPropagation()
+            executeSelected()
+        }
+    })
 
-	const separator = () => style().statusBar.separator
-	const gap = () => (separator() ? 0 : 3)
+    const separator = () => style().statusBar.separator
+    const gap = () => (separator() ? 0 : 3)
 
-	const isMatched = (cmd: CommandOption) => matchedIds().has(cmd.id)
-	const isSelected = (cmd: CommandOption) => selectedCommand()?.id === cmd.id
-	const columnGap = () => (columnCount() === 3 ? 4 : 2)
-	const modalWidth = () => helpContentWidth(columnCount())
+    const isMatched = (cmd: CommandOption) => matchedIds().has(cmd.id)
+    const isSelected = (cmd: CommandOption) => selectedCommand()?.id === cmd.id
+    const columnGap = () => (columnCount() === 3 ? 4 : 2)
+    const modalWidth = () => helpContentWidth(columnCount())
 
-	return (
-		<box flexDirection="column" width={modalWidth()} height="80%">
-			<box height={1} flexShrink={0} overflow="hidden">
-				<input
-					ref={(r) => {
-						searchInputRef = r
-						setTimeout(() => {
-							r.requestRender?.()
-							r.focus()
-						}, 1)
-					}}
-					onContentChange={() => {
-						if (searchInputRef) setFilter(searchInputRef.plainText)
-					}}
-					onSubmit={() => executeSelected()}
-					keyBindings={SINGLE_LINE_KEYBINDINGS}
-					placeholder="Search"
-					placeholderColor={colors().textMuted}
-					cursorColor={colors().primary}
-					textColor={colors().textMuted}
-					focusedTextColor={colors().text}
-					focusedBackgroundColor={RGBA.fromInts(0, 0, 0, 0)}
-					width="100%"
-				/>
-			</box>
-			<box height={1} flexShrink={0} />
+    return (
+        <box flexDirection="column" width={modalWidth()} height="80%">
+            <box height={1} flexShrink={0} overflow="hidden">
+                <input
+                    ref={(r) => {
+                        searchInputRef = r
+                        setTimeout(() => {
+                            r.requestRender?.()
+                            r.focus()
+                        }, 1)
+                    }}
+                    onContentChange={() => {
+                        if (searchInputRef) setFilter(searchInputRef.plainText)
+                    }}
+                    onSubmit={() => executeSelected()}
+                    keyBindings={SINGLE_LINE_KEYBINDINGS}
+                    placeholder="Search"
+                    placeholderColor={colors().textMuted}
+                    cursorColor={colors().primary}
+                    textColor={colors().textMuted}
+                    focusedTextColor={colors().text}
+                    focusedBackgroundColor={RGBA.fromInts(0, 0, 0, 0)}
+                    width="100%"
+                />
+            </box>
+            <box height={1} flexShrink={0} />
 
-			<scrollbox
-				ref={scrollRef}
-				flexGrow={1}
-				scrollX={false}
-				horizontalScrollbarOptions={{ visible: false }}
-			>
-				<box
-					flexDirection="row"
-					gap={columnGap()}
-					paddingRight={HELP_SCROLLBAR_GUTTER}
-				>
-					<For each={filteredColumns()}>
-						{(column) => (
-							<box flexDirection="column" width={32}>
-								<For each={column}>
-									{(group) => (
-										<box flexDirection="column" marginBottom={1}>
-											<text fg={colors().primary}>{group.label}</text>
-											<For each={group.commands}>
-												{(cmd) => (
-													<box
-														flexDirection="row"
-														justifyContent="space-between"
-														backgroundColor={
-															isSelected(cmd)
-																? colors().selectionBackground
-																: undefined
-														}
-													>
-														<text
-															fg={
-																isSelected(cmd)
-																	? colors().selectionText
-																	: isNavigatable(cmd)
-																		? colors().text
-																		: colors().textMuted
-															}
-														>
-															{cmd.title}
-														</text>
-														<Show when={cmd.keybind}>
-															{(kb: Accessor<KeybindConfigKey>) => (
-																<text
-																	fg={
-																		isSelected(cmd)
-																			? colors().selectionText
-																			: colors().textMuted
-																	}
-																	wrapMode="none"
-																>
-																	{keybind.print(kb())}
-																</text>
-															)}
-														</Show>
-													</box>
-												)}
-											</For>
-										</box>
-									)}
-								</For>
-							</box>
-						)}
-					</For>
-				</box>
-			</scrollbox>
-		</box>
-	)
+            <scrollbox
+                ref={scrollRef}
+                flexGrow={1}
+                scrollX={false}
+                horizontalScrollbarOptions={{ visible: false }}
+            >
+                <box
+                    flexDirection="row"
+                    gap={columnGap()}
+                    paddingRight={HELP_SCROLLBAR_GUTTER}
+                >
+                    <For each={filteredColumns()}>
+                        {(column) => (
+                            <box flexDirection="column" width={32}>
+                                <For each={column}>
+                                    {(group) => (
+                                        <box
+                                            flexDirection="column"
+                                            marginBottom={1}
+                                        >
+                                            <text fg={colors().primary}>
+                                                {group.label}
+                                            </text>
+                                            <For each={group.commands}>
+                                                {(cmd) => (
+                                                    <box
+                                                        flexDirection="row"
+                                                        justifyContent="space-between"
+                                                        backgroundColor={
+                                                            isSelected(cmd)
+                                                                ? colors()
+                                                                      .selectionBackground
+                                                                : undefined
+                                                        }
+                                                    >
+                                                        <text
+                                                            fg={
+                                                                isSelected(cmd)
+                                                                    ? colors()
+                                                                          .selectionText
+                                                                    : isNavigatable(
+                                                                            cmd,
+                                                                        )
+                                                                      ? colors()
+                                                                            .text
+                                                                      : colors()
+                                                                            .textMuted
+                                                            }
+                                                        >
+                                                            {cmd.title}
+                                                        </text>
+                                                        <Show
+                                                            when={cmd.keybind}
+                                                        >
+                                                            {(
+                                                                kb: Accessor<KeybindConfigKey>,
+                                                            ) => (
+                                                                <text
+                                                                    fg={
+                                                                        isSelected(
+                                                                            cmd,
+                                                                        )
+                                                                            ? colors()
+                                                                                  .selectionText
+                                                                            : colors()
+                                                                                  .textMuted
+                                                                    }
+                                                                    wrapMode="none"
+                                                                >
+                                                                    {keybind.print(
+                                                                        kb(),
+                                                                    )}
+                                                                </text>
+                                                            )}
+                                                        </Show>
+                                                    </box>
+                                                )}
+                                            </For>
+                                        </box>
+                                    )}
+                                </For>
+                            </box>
+                        )}
+                    </For>
+                </box>
+            </scrollbox>
+        </box>
+    )
 }

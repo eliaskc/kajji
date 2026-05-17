@@ -23,65 +23,65 @@ const pkg = JSON.parse(packageJson)
 const currentVersion = pkg.version
 
 function run(
-	cmd: string,
-	opts?: { inherit?: boolean; canFail?: boolean },
+    cmd: string,
+    opts?: { inherit?: boolean; canFail?: boolean },
 ): string {
-	try {
-		if (opts?.inherit) {
-			execSync(cmd, { encoding: "utf-8", stdio: "inherit" })
-			return ""
-		}
-		return execSync(cmd, {
-			encoding: "utf-8",
-			stdio: ["pipe", "pipe", "pipe"],
-		}).trim()
-	} catch (e: unknown) {
-		if (opts?.canFail) {
-			const error = e as { stdout?: Buffer; stderr?: Buffer }
-			return error.stdout?.toString().trim() ?? ""
-		}
-		throw e
-	}
+    try {
+        if (opts?.inherit) {
+            execSync(cmd, { encoding: "utf-8", stdio: "inherit" })
+            return ""
+        }
+        return execSync(cmd, {
+            encoding: "utf-8",
+            stdio: ["pipe", "pipe", "pipe"],
+        }).trim()
+    } catch (e: unknown) {
+        if (opts?.canFail) {
+            const error = e as { stdout?: Buffer; stderr?: Buffer }
+            return error.stdout?.toString().trim() ?? ""
+        }
+        throw e
+    }
 }
 
 const gitStatus = run("git status --porcelain", { canFail: true })
 const changedFiles = gitStatus.split("\n").filter(Boolean)
 if (changedFiles.length > 0) {
-	console.warn("Warning: releasing with uncommitted changes:")
-	console.warn(changedFiles.join("\n"))
-	console.warn("Release will continue without committing or pushing.\n")
+    console.warn("Warning: releasing with uncommitted changes:")
+    console.warn(changedFiles.join("\n"))
+    console.warn("Release will continue without committing or pushing.\n")
 }
 
 const latestTag = run("git tag --sort=-version:refname | head -1", {
-	canFail: true,
+    canFail: true,
 })
 if (!latestTag) {
-	console.error("Error: No existing tags found. Create an initial tag first.")
-	process.exit(1)
+    console.error("Error: No existing tags found. Create an initial tag first.")
+    process.exit(1)
 }
 
 console.log(`Current version: ${currentVersion}`)
 console.log(`Latest tag: ${latestTag}\n`)
 
 if (!existsSync("CHANGELOG.md")) {
-	console.error("Error: CHANGELOG.md not found.")
-	console.error("Generate it first with the /changelog skill.")
-	process.exit(1)
+    console.error("Error: CHANGELOG.md not found.")
+    console.error("Generate it first with the /changelog skill.")
+    process.exit(1)
 }
 
 function bumpVersion(
-	version: string,
-	type: "major" | "minor" | "patch",
+    version: string,
+    type: "major" | "minor" | "patch",
 ): string {
-	const [major, minor, patch] = version.split(".").map(Number)
-	switch (type) {
-		case "major":
-			return `${major + 1}.0.0`
-		case "minor":
-			return `${major}.${minor + 1}.0`
-		case "patch":
-			return `${major}.${minor}.${patch + 1}`
-	}
+    const [major, minor, patch] = version.split(".").map(Number)
+    switch (type) {
+        case "major":
+            return `${major + 1}.0.0`
+        case "minor":
+            return `${major}.${minor + 1}.0`
+        case "patch":
+            return `${major}.${minor}.${patch + 1}`
+    }
 }
 
 const args = process.argv.slice(2)
@@ -90,28 +90,28 @@ const versionArg = args[0]
 let newVersion = currentVersion
 
 if (versionArg) {
-	if (["major", "minor", "patch"].includes(versionArg)) {
-		const bumpType = versionArg as "major" | "minor" | "patch"
-		newVersion = bumpVersion(currentVersion, bumpType)
-	} else if (/^\d+\.\d+\.\d+$/.test(versionArg)) {
-		newVersion = versionArg
-	} else {
-		console.error(`Invalid version argument: ${versionArg}`)
-		console.error("Use: patch | minor | major | x.y.z")
-		process.exit(1)
-	}
+    if (["major", "minor", "patch"].includes(versionArg)) {
+        const bumpType = versionArg as "major" | "minor" | "patch"
+        newVersion = bumpVersion(currentVersion, bumpType)
+    } else if (/^\d+\.\d+\.\d+$/.test(versionArg)) {
+        newVersion = versionArg
+    } else {
+        console.error(`Invalid version argument: ${versionArg}`)
+        console.error("Use: patch | minor | major | x.y.z")
+        process.exit(1)
+    }
 }
 
 console.log(`New version: ${newVersion}\n`)
 
 if (newVersion !== currentVersion) {
-	console.log("Updating package.json...")
-	pkg.version = newVersion
-	const updatedPackageJson = packageJson.replace(
-		/"version":\s*"[^"]+"/,
-		`"version": "${newVersion}"`,
-	)
-	writeFileSync("package.json", updatedPackageJson)
+    console.log("Updating package.json...")
+    pkg.version = newVersion
+    const updatedPackageJson = packageJson.replace(
+        /"version":\s*"[^"]+"/,
+        `"version": "${newVersion}"`,
+    )
+    writeFileSync("package.json", updatedPackageJson)
 }
 
 console.log("Skipping commit, tag, and push (local release only)...")
@@ -125,25 +125,25 @@ run("bun run scripts/publish.ts", { inherit: true })
 console.log("\nCreating GitHub release...")
 const changelog = readFileSync("CHANGELOG.md", "utf-8")
 const versionPattern = new RegExp(
-	`## ${newVersion}\\n([\\s\\S]*?)(?=\\n## \\d|$)`,
+    `## ${newVersion}\\n([\\s\\S]*?)(?=\\n## \\d|$)`,
 )
 const match = changelog.match(versionPattern)
 const releaseNotes = match ? match[1].trim() : `Release v${newVersion}`
 const notesFile = `/tmp/kajji-release-notes-${newVersion}.md`
 writeFileSync(notesFile, releaseNotes)
 const existingRelease = run(`gh release view v${newVersion} --json tagName`, {
-	canFail: true,
+    canFail: true,
 })
 if (existingRelease) {
-	run(`gh release upload v${newVersion} dist/*.tar.gz dist/*.zip --clobber`)
-	run(
-		`gh release edit v${newVersion} --notes-file ${notesFile} --prerelease=false`,
-	)
+    run(`gh release upload v${newVersion} dist/*.tar.gz dist/*.zip --clobber`)
+    run(
+        `gh release edit v${newVersion} --notes-file ${notesFile} --prerelease=false`,
+    )
 } else {
-	run(
-		`gh release create v${newVersion} dist/*.tar.gz dist/*.zip --title "v${newVersion}" --notes-file ${notesFile}`,
-	)
-	run(`gh release edit v${newVersion} --prerelease=false`)
+    run(
+        `gh release create v${newVersion} dist/*.tar.gz dist/*.zip --title "v${newVersion}" --notes-file ${notesFile}`,
+    )
+    run(`gh release edit v${newVersion} --prerelease=false`)
 }
 
 console.log(`

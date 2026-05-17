@@ -11,23 +11,23 @@ export type Panel = "log" | "refs" | "detail" | "commandlog"
  * Some contexts intentionally use sub-modes for scoped commands (e.g. "detail.diff_*" ).
  */
 export type Context =
-	// Special contexts
-	| "global"
-	| "help"
-	// Log panel modes
-	| "log"
-	| "log.revisions"
-	| "log.files"
-	| "log.oplog"
-	// Refs panel modes
-	| "refs"
-	| "refs.bookmarks"
-	// Detail panel
-	| "detail"
-	| "detail.diff_custom"
-	| "detail.diff_jj_formatter"
-	// Command log panel
-	| "commandlog"
+    // Special contexts
+    | "global"
+    | "help"
+    // Log panel modes
+    | "log"
+    | "log.revisions"
+    | "log.files"
+    | "log.oplog"
+    // Refs panel modes
+    | "refs"
+    | "refs.bookmarks"
+    // Detail panel
+    | "detail"
+    | "detail.diff_custom"
+    | "detail.diff_jj_formatter"
+    // Command log panel
+    | "commandlog"
 
 export type CommandType = "action" | "navigation" | "view" | "git"
 
@@ -44,15 +44,15 @@ export type CommandVisibility = "all" | "help-only" | "status-only" | "none"
  * Extract the panel from a hierarchical context
  */
 export function panelFromContext(context: Context): Panel | null {
-	if (context === "global" || context === "help") return null
-	const panel = context.split(".")[0]
-	if (
-		panel === "log" ||
-		panel === "refs" ||
-		panel === "detail" ||
-		panel === "commandlog"
-	) {
-		return panel as Panel
-	}
-	return null
+    if (context === "global" || context === "help") return null
+    const panel = context.split(".")[0]
+    if (
+        panel === "log" ||
+        panel === "refs" ||
+        panel === "detail" ||
+        panel === "commandlog"
+    ) {
+        return panel as Panel
+    }
+    return null
 }

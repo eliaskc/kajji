@@ -14,37 +14,37 @@ const platform = platformMap[os.platform()]
 const arch = archMap[os.arch()]
 
 if (!platform || !arch) {
-	console.log(`Unsupported platform: ${os.platform()}-${os.arch()}`)
-	process.exit(0)
+    console.log(`Unsupported platform: ${os.platform()}-${os.arch()}`)
+    process.exit(0)
 }
 
 const packageName = `kajji-${platform}-${arch}`
 
 let packageDir
 try {
-	const packageJsonPath = require.resolve(`${packageName}/package.json`, {
-		paths: [path.join(__dirname, "..")],
-	})
-	packageDir = path.dirname(packageJsonPath)
+    const packageJsonPath = require.resolve(`${packageName}/package.json`, {
+        paths: [path.join(__dirname, "..")],
+    })
+    packageDir = path.dirname(packageJsonPath)
 } catch {
-	console.log(`Platform package ${packageName} not found, skipping symlink`)
-	process.exit(0)
+    console.log(`Platform package ${packageName} not found, skipping symlink`)
+    process.exit(0)
 }
 
 const binaryPath = path.join(packageDir, "bin", "kajji")
 const targetPath = path.join(__dirname, "..", "bin", "kajji-binary")
 
 if (!fs.existsSync(binaryPath)) {
-	console.log(`Binary not found at ${binaryPath}`)
-	process.exit(0)
+    console.log(`Binary not found at ${binaryPath}`)
+    process.exit(0)
 }
 
 try {
-	if (fs.existsSync(targetPath)) {
-		fs.unlinkSync(targetPath)
-	}
-	fs.symlinkSync(binaryPath, targetPath)
-	console.log(`kajji binary linked: ${targetPath} -> ${binaryPath}`)
+    if (fs.existsSync(targetPath)) {
+        fs.unlinkSync(targetPath)
+    }
+    fs.symlinkSync(binaryPath, targetPath)
+    console.log(`kajji binary linked: ${targetPath} -> ${binaryPath}`)
 } catch (err) {
-	console.log(`Could not create symlink: ${err.message}`)
+    console.log(`Could not create symlink: ${err.message}`)
 }

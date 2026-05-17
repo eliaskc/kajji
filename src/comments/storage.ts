@@ -11,43 +11,43 @@ const STATE_DIR = join(homedir(), ".local", "state", "kajji")
 const REPOS_DIR = join(STATE_DIR, "repos")
 
 export async function resolveRepoRoot(cwd = process.cwd()): Promise<string> {
-	const result = await execute(["root"], { cwd })
-	if (!result.success) {
-		throw new Error(result.stderr.trim() || "Not a jj repository")
-	}
-	const root = result.stdout.trim()
-	if (!root) {
-		throw new Error("Unable to resolve jj root")
-	}
-	return root
+    const result = await execute(["root"], { cwd })
+    if (!result.success) {
+        throw new Error(result.stderr.trim() || "Not a jj repository")
+    }
+    const root = result.stdout.trim()
+    if (!root) {
+        throw new Error("Unable to resolve jj root")
+    }
+    return root
 }
 
 function hashRepoPath(path: string): string {
-	return createHash("sha256").update(path).digest("hex")
+    return createHash("sha256").update(path).digest("hex")
 }
 
 function getCommentsPath(repoRoot: string): string {
-	return join(REPOS_DIR, hashRepoPath(repoRoot), "comments.json")
+    return join(REPOS_DIR, hashRepoPath(repoRoot), "comments.json")
 }
 
 export function readComments(repoRoot: string): CommentsState {
-	const commentsPath = getCommentsPath(repoRoot)
-	if (!existsSync(commentsPath)) {
-		return { version: COMMENTS_VERSION, revisions: {} }
-	}
-	try {
-		const content = readFileSync(commentsPath, "utf-8")
-		const parsed = JSON.parse(content) as CommentsState
-		if (parsed && parsed.version === COMMENTS_VERSION) {
-			return parsed
-		}
-		return { version: COMMENTS_VERSION, revisions: {} }
-	} catch {
-		return { version: COMMENTS_VERSION, revisions: {} }
-	}
+    const commentsPath = getCommentsPath(repoRoot)
+    if (!existsSync(commentsPath)) {
+        return { version: COMMENTS_VERSION, revisions: {} }
+    }
+    try {
+        const content = readFileSync(commentsPath, "utf-8")
+        const parsed = JSON.parse(content) as CommentsState
+        if (parsed && parsed.version === COMMENTS_VERSION) {
+            return parsed
+        }
+        return { version: COMMENTS_VERSION, revisions: {} }
+    } catch {
+        return { version: COMMENTS_VERSION, revisions: {} }
+    }
 }
 
 export function writeComments(repoRoot: string, state: CommentsState): void {
-	const commentsPath = getCommentsPath(repoRoot)
-	writeFileAtomic(commentsPath, JSON.stringify(state, null, 2))
+    const commentsPath = getCommentsPath(repoRoot)
+    writeFileAtomic(commentsPath, JSON.stringify(state, null, 2))
 }

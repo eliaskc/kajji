@@ -12,87 +12,87 @@ let initialized = false
 const startTime = performance.now()
 
 function ensureDir() {
-	if (initialized) return
-	try {
-		mkdirSync(PROFILE_DIR, { recursive: true })
-		const header = [
-			"# Kajji Profile",
-			`# Name: ${PROFILE_NAME}`,
-			PROFILE_MESSAGE ? `# Description: ${PROFILE_MESSAGE}` : null,
-			`# Started: ${new Date().toISOString()}`,
-			"# ",
-			"",
-		]
-			.filter(Boolean)
-			.join("\n")
-		writeFileSync(PROFILE_FILE, header)
-		initialized = true
-	} catch {
-		// silent fail
-	}
+    if (initialized) return
+    try {
+        mkdirSync(PROFILE_DIR, { recursive: true })
+        const header = [
+            "# Kajji Profile",
+            `# Name: ${PROFILE_NAME}`,
+            PROFILE_MESSAGE ? `# Description: ${PROFILE_MESSAGE}` : null,
+            `# Started: ${new Date().toISOString()}`,
+            "# ",
+            "",
+        ]
+            .filter(Boolean)
+            .join("\n")
+        writeFileSync(PROFILE_FILE, header)
+        initialized = true
+    } catch {
+        // silent fail
+    }
 }
 
 function formatTimestamp(): string {
-	const elapsed = performance.now() - startTime
-	const seconds = Math.floor(elapsed / 1000)
-	const ms = Math.floor(elapsed % 1000)
-	return `${seconds.toString().padStart(4, " ")}.${ms.toString().padStart(3, "0")}`
+    const elapsed = performance.now() - startTime
+    const seconds = Math.floor(elapsed / 1000)
+    const ms = Math.floor(elapsed % 1000)
+    return `${seconds.toString().padStart(4, " ")}.${ms.toString().padStart(3, "0")}`
 }
 
 export function profileLog(label: string, data?: Record<string, unknown>) {
-	if (!PROFILE_ENABLED) return
+    if (!PROFILE_ENABLED) return
 
-	ensureDir()
+    ensureDir()
 
-	const timestamp = formatTimestamp()
-	const msg = data
-		? `[${timestamp}] ${label}: ${JSON.stringify(data)}`
-		: `[${timestamp}] ${label}`
+    const timestamp = formatTimestamp()
+    const msg = data
+        ? `[${timestamp}] ${label}: ${JSON.stringify(data)}`
+        : `[${timestamp}] ${label}`
 
-	try {
-		appendFileSync(PROFILE_FILE, `${msg}\n`)
-	} catch {
-		// silent fail
-	}
+    try {
+        appendFileSync(PROFILE_FILE, `${msg}\n`)
+    } catch {
+        // silent fail
+    }
 
-	// Also log to stderr for real-time visibility
-	console.error(`[PROFILE] ${msg}`)
+    // Also log to stderr for real-time visibility
+    console.error(`[PROFILE] ${msg}`)
 }
 
 export function profile(label: string) {
-	if (!PROFILE_ENABLED) return () => {}
-	const start = performance.now()
-	return (extra?: string) => {
-		const ms = (performance.now() - start).toFixed(2)
-		profileLog(label, { ms: Number(ms), ...(extra ? { extra } : {}) })
-	}
+    if (!PROFILE_ENABLED) return () => {}
+    const start = performance.now()
+    return (extra?: string) => {
+        const ms = (performance.now() - start).toFixed(2)
+        profileLog(label, { ms: Number(ms), ...(extra ? { extra } : {}) })
+    }
 }
 
 /**
  * Simple profile log for inline messages (no timing wrapper)
  */
 export function profileMsg(message: string) {
-	if (!PROFILE_ENABLED) return
-	profileLog(message)
+    if (!PROFILE_ENABLED) return
+    profileLog(message)
 }
 
 let renderStart: number | null = null
 let renderCount = 0
 
 export function markRenderStart(component: string) {
-	if (!PROFILE_ENABLED) return
-	renderStart = performance.now()
-	renderCount++
-	profileLog(`render-start:${component}`, { renderCount })
+    if (!PROFILE_ENABLED) return
+    renderStart = performance.now()
+    renderCount++
+    profileLog(`render-start:${component}`, { renderCount })
 }
 
 export function markRenderEnd(component: string, lineCount?: number) {
-	if (!PROFILE_ENABLED || renderStart === null) return
-	const ms = performance.now() - renderStart
-	profileLog(`render-end:${component}`, {
-		ms: Number(ms.toFixed(2)),
-		renderCount,
-		...(lineCount !== undefined ? { lines: lineCount } : {}),
-	})
-	renderStart = null
+    if (!PROFILE_ENABLED || renderStart === null) return
+    const ms = performance.now() - renderStart
+    profileLog(`render-end:${component}`, {
+        ms: Number(ms.toFixed(2)),
+        renderCount,
+        ...(lineCount !== undefined ? { lines: lineCount } : {}),
+    })
+    renderStart = null
 }
