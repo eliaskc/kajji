@@ -1,6 +1,7 @@
 export interface Commit {
     changeId: string
     commitId: string
+    parentCommitIds?: string[]
     description: string
     author: string
     authorEmail: string

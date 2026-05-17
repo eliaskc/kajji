@@ -16,6 +16,8 @@ function buildTemplate(): string {
         `"${MARKER}"`,
         "commit_id",
         `"${MARKER}"`,
+        'parents.map(|c| c.commit_id()).join(",")',
+        `"${MARKER}"`,
         "immutable",
         `"${MARKER}"`,
         "empty",
@@ -54,26 +56,42 @@ export function parseLogOutput(output: string): Commit[] {
                 }
 
                 const gutter = parts[0] ?? ""
-                const bookmarksRaw = stripAnsi(parts[10] ?? "")
-                const workingCopiesRaw = stripAnsi(parts[12] ?? "")
+                const hasParentIds = parts.length >= 15
+                const parentCommitIdsRaw = hasParentIds
+                    ? stripAnsi(parts[3] ?? "")
+                    : ""
+                const bookmarksRaw = stripAnsi(
+                    parts[hasParentIds ? 11 : 10] ?? "",
+                )
+                const workingCopiesRaw = stripAnsi(
+                    parts[hasParentIds ? 13 : 12] ?? "",
+                )
                 current = {
                     changeId: stripAnsi(parts[1] ?? ""),
                     commitId: stripAnsi(parts[2] ?? ""),
-                    immutable: stripAnsi(parts[3] ?? "") === "true",
-                    empty: stripAnsi(parts[4] ?? "") === "true",
-                    divergent: stripAnsi(parts[5] ?? "") === "true",
-                    description: stripAnsi(parts[6] ?? ""),
-                    author: stripAnsi(parts[7] ?? ""),
-                    authorEmail: stripAnsi(parts[8] ?? ""),
-                    timestamp: stripAnsi(parts[9] ?? ""),
+                    parentCommitIds: parentCommitIdsRaw
+                        ? parentCommitIdsRaw.split(",")
+                        : [],
+                    immutable:
+                        stripAnsi(parts[hasParentIds ? 4 : 3] ?? "") === "true",
+                    empty:
+                        stripAnsi(parts[hasParentIds ? 5 : 4] ?? "") === "true",
+                    divergent:
+                        stripAnsi(parts[hasParentIds ? 6 : 5] ?? "") === "true",
+                    description: stripAnsi(parts[hasParentIds ? 7 : 6] ?? ""),
+                    author: stripAnsi(parts[hasParentIds ? 8 : 7] ?? ""),
+                    authorEmail: stripAnsi(parts[hasParentIds ? 9 : 8] ?? ""),
+                    timestamp: stripAnsi(parts[hasParentIds ? 10 : 9] ?? ""),
                     bookmarks: bookmarksRaw ? bookmarksRaw.split(",") : [],
-                    gitHead: stripAnsi(parts[11] ?? "") === "true",
+                    gitHead:
+                        stripAnsi(parts[hasParentIds ? 12 : 11] ?? "") ===
+                        "true",
                     workingCopies: workingCopiesRaw
                         ? workingCopiesRaw.split(",")
                         : [],
                     isWorkingCopy: gutter.includes("@"),
-                    refLine: parts[13] ?? "",
-                    lines: [gutter + (parts[13] ?? "")],
+                    refLine: parts[hasParentIds ? 14 : 13] ?? "",
+                    lines: [gutter + (parts[hasParentIds ? 14 : 13] ?? "")],
                 }
                 continue
             }
@@ -102,26 +120,38 @@ function parseLogLine(line: string, state: LogStreamState): Commit | null {
         if (parts.length >= 14) {
             const completed = state.current
             const gutter = parts[0] ?? ""
-            const bookmarksRaw = stripAnsi(parts[10] ?? "")
-            const workingCopiesRaw = stripAnsi(parts[12] ?? "")
+            const hasParentIds = parts.length >= 15
+            const parentCommitIdsRaw = hasParentIds
+                ? stripAnsi(parts[3] ?? "")
+                : ""
+            const bookmarksRaw = stripAnsi(parts[hasParentIds ? 11 : 10] ?? "")
+            const workingCopiesRaw = stripAnsi(
+                parts[hasParentIds ? 13 : 12] ?? "",
+            )
             state.current = {
                 changeId: stripAnsi(parts[1] ?? ""),
                 commitId: stripAnsi(parts[2] ?? ""),
-                immutable: stripAnsi(parts[3] ?? "") === "true",
-                empty: stripAnsi(parts[4] ?? "") === "true",
-                divergent: stripAnsi(parts[5] ?? "") === "true",
-                description: stripAnsi(parts[6] ?? ""),
-                author: stripAnsi(parts[7] ?? ""),
-                authorEmail: stripAnsi(parts[8] ?? ""),
-                timestamp: stripAnsi(parts[9] ?? ""),
+                parentCommitIds: parentCommitIdsRaw
+                    ? parentCommitIdsRaw.split(",")
+                    : [],
+                immutable:
+                    stripAnsi(parts[hasParentIds ? 4 : 3] ?? "") === "true",
+                empty: stripAnsi(parts[hasParentIds ? 5 : 4] ?? "") === "true",
+                divergent:
+                    stripAnsi(parts[hasParentIds ? 6 : 5] ?? "") === "true",
+                description: stripAnsi(parts[hasParentIds ? 7 : 6] ?? ""),
+                author: stripAnsi(parts[hasParentIds ? 8 : 7] ?? ""),
+                authorEmail: stripAnsi(parts[hasParentIds ? 9 : 8] ?? ""),
+                timestamp: stripAnsi(parts[hasParentIds ? 10 : 9] ?? ""),
                 bookmarks: bookmarksRaw ? bookmarksRaw.split(",") : [],
-                gitHead: stripAnsi(parts[11] ?? "") === "true",
+                gitHead:
+                    stripAnsi(parts[hasParentIds ? 12 : 11] ?? "") === "true",
                 workingCopies: workingCopiesRaw
                     ? workingCopiesRaw.split(",")
                     : [],
                 isWorkingCopy: gutter.includes("@"),
-                refLine: parts[13] ?? "",
-                lines: [gutter + (parts[13] ?? "")],
+                refLine: parts[hasParentIds ? 14 : 13] ?? "",
+                lines: [gutter + (parts[hasParentIds ? 14 : 13] ?? "")],
             }
             return completed
         }
