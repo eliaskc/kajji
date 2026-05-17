@@ -53,6 +53,7 @@ import { FUZZY_THRESHOLD, scrollIntoView } from "../../utils/scroll"
 import { AnsiText } from "../AnsiText"
 import { FilterInput } from "../FilterInput"
 import { Panel } from "../Panel"
+import { ActionMenuModal } from "../modals/ActionMenuModal"
 import { BookmarkNameModal } from "../modals/BookmarkNameModal"
 import { RevisionPickerModal } from "../modals/RevisionPickerModal"
 
@@ -363,9 +364,12 @@ export function BookmarksPanel() {
     })
 
     const currentSelectedIndex = () => displaySelectedIndex()
+    const selectedBookmarkRow = createMemo(
+        () => displayBookmarkRows()[currentSelectedIndex()],
+    )
     const activeStackKey = createMemo(() => {
         if (!isFocused()) return undefined
-        const row = displayBookmarkRows()[currentSelectedIndex()]
+        const row = selectedBookmarkRow()
         if (!row) return undefined
         if (
             commits().find(
@@ -376,6 +380,108 @@ export function BookmarksPanel() {
         }
         return row.stackKeys[0]
     })
+
+    const openStackActions = (stackRootName: string) => {
+        dialog.open(
+            () => (
+                <ActionMenuModal
+                    options={[
+                        {
+                            key: "s",
+                            mutedPrefix: "stack ",
+                            label: "submit --dry-run",
+                            onSelect: () =>
+                                status.show(
+                                    `Stack submit dry-run for ${stackRootName} is not implemented yet.`,
+                                ),
+                        },
+                        {
+                            key: "S",
+                            mutedPrefix: "stack ",
+                            label: "submit",
+                            onSelect: () =>
+                                status.show(
+                                    `Stack submit for ${stackRootName} is not implemented yet.`,
+                                ),
+                        },
+                        {
+                            key: "f",
+                            mutedPrefix: "stack ",
+                            label: "sync --dry-run",
+                            onSelect: () =>
+                                status.show(
+                                    `Stack sync dry-run for ${stackRootName} is not implemented yet.`,
+                                ),
+                        },
+                        {
+                            key: "F",
+                            mutedPrefix: "stack ",
+                            label: "sync",
+                            onSelect: () =>
+                                status.show(
+                                    `Stack sync for ${stackRootName} is not implemented yet.`,
+                                ),
+                        },
+                    ]}
+                />
+            ),
+            {
+                id: "bookmark-stack-actions",
+                title: [
+                    { text: "Stack", style: "action" },
+                    " options for ",
+                    { text: stackRootName, style: "target" },
+                ],
+                ...DIALOG_SIZE.confirm,
+                hints: [{ key: "enter", label: "run" }],
+            },
+        )
+    }
+
+    const openStackPicker = (stackRootNames: readonly string[]) => {
+        dialog.open(
+            () => (
+                <ActionMenuModal
+                    options={stackRootNames.map((name, index) => ({
+                        key: String(index + 1),
+                        label: name,
+                        detail: bookmarkPrNumbers().get(name)
+                            ? `#${bookmarkPrNumbers().get(name)}`
+                            : undefined,
+                        onSelect: () => openStackActions(name),
+                    }))}
+                />
+            ),
+            {
+                id: "bookmark-stack-picker",
+                title: [{ text: "Select stack", style: "action" }],
+                ...DIALOG_SIZE.confirm,
+                hints: [
+                    { key: "enter", label: "select" },
+                    { key: "esc", label: "close" },
+                ],
+            },
+        )
+    }
+
+    const openSelectedStack = () => {
+        if (showRemoteOnly()) return
+        const row = selectedBookmarkRow()
+        if (!row) return
+        if (row.stackKeys.length === 0) {
+            status.show(`No stack for ${row.bookmark.name}.`)
+            return
+        }
+        const isTrunk = commits().find(
+            (commit) => commit.commitId === row.bookmark.commitId,
+        )?.immutable
+        if (isTrunk) {
+            openStackPicker(row.stackKeys)
+            return
+        }
+        const stackKey = row.stackKeys[0]
+        if (stackKey) openStackActions(stackKey)
+    }
 
     createEffect(
         on(
@@ -955,6 +1061,15 @@ export function BookmarksPanel() {
                     },
                 )
             },
+        },
+        {
+            id: "refs.bookmarks.stack",
+            title: "stack",
+            keybind: "bookmark_stack",
+            context: "refs.bookmarks",
+            type: "action",
+            panel: "refs",
+            onSelect: openSelectedStack,
         },
         {
             id: "refs.bookmarks.diff_origin",
