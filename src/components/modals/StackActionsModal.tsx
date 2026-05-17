@@ -77,17 +77,10 @@ export function StackActionsModal(props: StackActionsModalProps) {
         }
 
         if (evt.name && evt.name.length === 1) {
-            const exactIndex = props.actions.findIndex(
-                (action) => action.key === evt.name,
+            const key = evt.shift ? evt.name.toUpperCase() : evt.name
+            const index = props.actions.findIndex(
+                (action) => action.key === key,
             )
-            const index =
-                exactIndex >= 0
-                    ? exactIndex
-                    : props.actions.findIndex(
-                          (action) =>
-                              action.key.toLowerCase() ===
-                              evt.name?.toLowerCase(),
-                      )
             if (index >= 0) {
                 evt.preventDefault()
                 evt.stopPropagation()
