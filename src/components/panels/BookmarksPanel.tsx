@@ -45,8 +45,12 @@ import { useStatus } from "../../context/status"
 import { useSync } from "../../context/sync"
 import { useTheme } from "../../context/theme"
 import { buildBookmarkStackModel } from "../../stack/discovery"
+import {
+    applyStackPlan,
+    prepareSubmitPlan,
+    prepareSyncPlan,
+} from "../../stack/executor"
 import type { BookmarkStackModel, BookmarkStackRow } from "../../stack/model"
-import { buildSubmitPlanSync, buildSyncPlanSync } from "../../stack/planner"
 import { hasOriginDiff } from "../../utils/bookmark-origin-diff"
 import { createDoubleClickDetector } from "../../utils/double-click"
 import { FUZZY_THRESHOLD, scrollIntoView } from "../../utils/scroll"
@@ -366,65 +370,98 @@ export function BookmarksPanel() {
         return row.stackKeys[0]
     })
 
-    const remoteBookmarksByName = () =>
-        new Map(
-            remoteBookmarks()
-                .filter((bookmark) => !bookmark.isLocal)
-                .map((bookmark) => [bookmark.name, bookmark]),
+    const applyPreparedPlan = async (
+        plan: Parameters<typeof applyStackPlan>[0],
+    ) => {
+        const observer = commandLog.observer()
+        try {
+            await Effect.runPromise(applyStackPlan(plan, { observer }))
+            refresh()
+            setPrMetadataRefreshToken((token) => token + 1)
+        } catch (error) {
+            commandLog.addEntry({
+                command: plan.applyCommand,
+                success: false,
+                exitCode: 1,
+                stdout: "",
+                stderr: error instanceof Error ? error.message : String(error),
+            })
+        }
+    }
+
+    const preparePlan = async (
+        kind: "submit" | "sync",
+        stackRootName: string,
+        observer?: ReturnType<typeof commandLog.observer>,
+    ) =>
+        Effect.runPromise(
+            kind === "submit"
+                ? prepareSubmitPlan({ stackRootName, observer })
+                : prepareSyncPlan({ stackRootName, observer }),
         )
 
-    const openStackPlan = (kind: "submit" | "sync", stackRootName: string) => {
-        const stackModel = displayBookmarkStackModel()
-        if (!stackModel) return
-        const plan =
-            kind === "submit"
-                ? buildSubmitPlanSync({
-                      stackRootName,
-                      stackModel,
-                      pullRequestsByHead: pullRequestsByHead(),
-                      remoteBookmarksByName: remoteBookmarksByName(),
-                  })
-                : buildSyncPlanSync({
-                      stackRootName,
-                      stackModel,
-                      pullRequestsByHead: pullRequestsByHead(),
-                      remoteBookmarksByName: remoteBookmarksByName(),
-                  })
-        dialog.open(
-            () => (
-                <StackPlanModal
-                    plan={plan}
-                    onApply={() =>
-                        status.show(
-                            kind === "submit"
-                                ? `Stack submit for ${stackRootName} is not implemented yet.`
-                                : `Stack sync for ${stackRootName} is not implemented yet.`,
-                        )
-                    }
-                    onBack={() => openStackActions(stackRootName)}
-                />
-            ),
-            {
-                id: `bookmark-stack-${kind}-plan`,
-                title: [
-                    {
-                        text:
-                            kind === "submit"
-                                ? "Submit preview"
-                                : "Sync preview",
-                        style: "action",
-                    },
-                    " for ",
-                    { text: stackRootName, style: "target" },
-                ],
-                ...DIALOG_SIZE.confirmWide,
-                closeOnEsc: false,
-                hints: [
-                    { key: "enter", label: "apply" },
-                    { key: "esc", label: "back" },
-                ],
-            },
-        )
+    const openStackPlan = async (
+        kind: "submit" | "sync",
+        stackRootName: string,
+    ) => {
+        try {
+            const plan = await preparePlan(kind, stackRootName)
+            dialog.open(
+                () => (
+                    <StackPlanModal
+                        plan={plan}
+                        onApply={() => applyPreparedPlan(plan)}
+                        onBack={() => openStackActions(stackRootName)}
+                    />
+                ),
+                {
+                    id: `bookmark-stack-${kind}-plan`,
+                    title: [
+                        {
+                            text:
+                                kind === "submit"
+                                    ? "Submit preview"
+                                    : "Sync preview",
+                            style: "action",
+                        },
+                        " for ",
+                        { text: stackRootName, style: "target" },
+                    ],
+                    ...DIALOG_SIZE.confirmWide,
+                    closeOnEsc: false,
+                    hints: [
+                        { key: "enter", label: "apply" },
+                        { key: "esc", label: "back" },
+                    ],
+                },
+            )
+        } catch (error) {
+            status.show(
+                error instanceof Error ? error.message : String(error),
+                {
+                    kind: "error",
+                },
+            )
+        }
+    }
+
+    const prepareAndApplyStack = async (
+        kind: "submit" | "sync",
+        stackRootName: string,
+    ) => {
+        const observer = commandLog.observer()
+        try {
+            const plan = await preparePlan(kind, stackRootName, observer)
+            await applyPreparedPlan(plan)
+        } catch (error) {
+            commandLog.addEntry({
+                command: kind === "submit" ? "stack submit" : "stack sync",
+                success: false,
+                exitCode: 1,
+                stdout: "",
+                stderr: error instanceof Error ? error.message : String(error),
+            })
+        }
     }
 
     const stackActionOptions = (stackRootName: string) => [
@@ -438,10 +475,7 @@ export function BookmarksPanel() {
             key: "S",
             mutedPrefix: "stack ",
             label: "submit",
-            onSelect: () =>
-                status.show(
-                    `Stack submit for ${stackRootName} is not implemented yet.`,
-                ),
+            onSelect: () => prepareAndApplyStack("submit", stackRootName),
         },
         {
             key: "f",
@@ -453,10 +487,7 @@ export function BookmarksPanel() {
             key: "F",
             mutedPrefix: "stack ",
             label: "sync",
-            onSelect: () =>
-                status.show(
-                    `Stack sync for ${stackRootName} is not implemented yet.`,
-                ),
+            onSelect: () => prepareAndApplyStack("sync", stackRootName),
         },
     ]
 

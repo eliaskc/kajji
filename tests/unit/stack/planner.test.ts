@@ -53,6 +53,43 @@ describe("stack planners", () => {
         expect(plan.pushBookmarks).toEqual(["feature-a", "feature-b"])
     })
 
+    test("sync plans closed-unmerged parent effects before apply", async () => {
+        const plan = buildSyncPlanSync({
+            stackRootName: "feature-a",
+            stackModel: await model(),
+            pullRequestsByHead: new Map([
+                [
+                    "feature-a",
+                    {
+                        number: 10,
+                        headRefName: "feature-a",
+                        baseRefName: "main",
+                        state: "CLOSED",
+                        merged: false,
+                    },
+                ],
+                [
+                    "feature-b",
+                    {
+                        number: 11,
+                        headRefName: "feature-b",
+                        baseRefName: "feature-a",
+                        state: "OPEN",
+                    },
+                ],
+            ]),
+        })
+
+        expect(
+            plan.rows.map((row) => [row.row.bookmark.name, row.status]),
+        ).toEqual([
+            ["main", "current"],
+            ["feature-a", "blocked"],
+            ["feature-b", "close-pr"],
+        ])
+        expect(plan.closePrNumbers).toEqual([11])
+    })
+
     test("sync plans rebases when GitHub PR base differs from local target", async () => {
         const plan = buildSyncPlanSync({
             stackRootName: "feature-a",

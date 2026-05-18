@@ -4,6 +4,7 @@ import type {
     BookmarkStackRow,
     StackBookmarkInput,
     StackPlan,
+    StackPlanEffect,
     StackPlanRow,
     StackPullRequestInput,
     StackRemoteBookmarkInput,
@@ -39,9 +40,7 @@ export function buildSubmitPlanSync<TBookmark extends StackBookmarkInput>({
 }: BuildStackPlanOptions<TBookmark>): StackPlan<TBookmark> {
     const rows = stackRows(stackRootName, stackModel)
     const planRows: StackPlanRow<TBookmark>[] = []
-    const updatePrNumbers: number[] = []
-    const createPrBookmarks: string[] = []
-    const pushBookmarks: string[] = []
+    const effects: StackPlanEffect[] = []
 
     for (const row of rows) {
         const bookmark = row.bookmark
@@ -49,6 +48,7 @@ export function buildSubmitPlanSync<TBookmark extends StackBookmarkInput>({
         const pull = pullRequestsByHead.get(bookmark.name)
         const remote = remoteBookmarksByName.get(bookmark.name)
         const isTrunk = stackModel.trunkNames.has(bookmark.name)
+        const rowEffects: StackPlanEffect[] = []
         const needsPush = Boolean(
             !isTrunk &&
                 bookmark.commitId &&
@@ -56,71 +56,50 @@ export function buildSubmitPlanSync<TBookmark extends StackBookmarkInput>({
         )
 
         if (isTrunk) {
-            planRows.push({
-                row,
-                desiredBase,
-                status: "current",
-                note: "",
-            })
-            continue
-        }
-
-        if (!pull) {
-            createPrBookmarks.push(bookmark.name)
-            if (needsPush) pushBookmarks.push(bookmark.name)
-            planRows.push({
-                row,
-                desiredBase,
-                status: "create-pr",
-                note: `would create PR onto ${desiredBase}`,
-            })
-            continue
-        }
-
-        if (pull.baseRefName && pull.baseRefName !== desiredBase) {
-            updatePrNumbers.push(pull.number)
-            if (needsPush) pushBookmarks.push(bookmark.name)
-            planRows.push({
-                row,
-                prNumber: pull.number,
-                desiredBase,
-                status: "update-pr",
-                note: `would retarget PR onto ${desiredBase}`,
-            })
+            planRows.push(rowPlan(row, pull, desiredBase, rowEffects, ""))
             continue
         }
 
         if (needsPush) {
-            pushBookmarks.push(bookmark.name)
-            planRows.push({
-                row,
-                prNumber: pull.number,
-                desiredBase,
-                status: "push",
-                note: "would push bookmark",
-            })
-            continue
+            rowEffects.push({ type: "push", bookmark: bookmark.name })
         }
 
-        planRows.push({
-            row,
-            prNumber: pull.number,
-            desiredBase,
-            status: "current",
-            note: `targets ${desiredBase}`,
-        })
+        if (!pull) {
+            rowEffects.push({
+                type: "create-pr",
+                bookmark: bookmark.name,
+                to: desiredBase,
+            })
+        } else {
+            if (pull.baseRefName && pull.baseRefName !== desiredBase) {
+                rowEffects.push({
+                    type: "update-pr",
+                    bookmark: bookmark.name,
+                    prNumber: pull.number,
+                    from: pull.baseRefName,
+                    to: desiredBase,
+                })
+            }
+            rowEffects.push({
+                type: "update-comment",
+                bookmark: bookmark.name,
+                prNumber: pull.number,
+            })
+        }
+
+        effects.push(...rowEffects)
+        planRows.push(
+            rowPlan(
+                row,
+                pull,
+                desiredBase,
+                rowEffects,
+                submitNote(rowEffects, desiredBase),
+            ),
+        )
     }
 
-    return {
-        kind: "submit",
-        stackRootName,
-        rows: planRows,
-        updatePrNumbers: uniqueNumbers(updatePrNumbers),
-        createPrBookmarks: uniqueStrings(createPrBookmarks),
-        pushBookmarks: uniqueStrings(pushBookmarks),
-        rebaseBookmarks: [],
-        applyCommand: "stack submit",
-    }
+    return makePlan("submit", stackRootName, planRows, effects, "stack submit")
 }
 
 export function buildSyncPlanSync<TBookmark extends StackBookmarkInput>({
@@ -130,7 +109,8 @@ export function buildSyncPlanSync<TBookmark extends StackBookmarkInput>({
 }: BuildStackPlanOptions<TBookmark>): StackPlan<TBookmark> {
     const rows = stackRows(stackRootName, stackModel)
     const planRows: StackPlanRow<TBookmark>[] = []
-    const rebaseBookmarks: string[] = []
+    const effects: StackPlanEffect[] = []
+    let blockedByClosedUnmerged: StackPullRequestInput | undefined
 
     for (const row of rows) {
         const bookmark = row.bookmark
@@ -138,49 +118,150 @@ export function buildSyncPlanSync<TBookmark extends StackBookmarkInput>({
         const localBase = desiredLocalBase(bookmark.name, stackModel)
         const desiredBase = pull?.baseRefName ?? localBase
         const isTrunk = stackModel.trunkNames.has(bookmark.name)
+        const rowEffects: StackPlanEffect[] = []
 
         if (isTrunk) {
-            planRows.push({
-                row,
-                prNumber: pull?.number,
-                desiredBase,
-                status: "current",
-                note: "",
-            })
+            planRows.push(rowPlan(row, pull, desiredBase, rowEffects, ""))
             continue
         }
 
-        if (desiredBase !== localBase) {
-            rebaseBookmarks.push(bookmark.name)
-            planRows.push({
-                row,
-                prNumber: pull?.number,
-                desiredBase,
-                status: "rebase",
-                note: `would rebase onto ${desiredBase}`,
-            })
+        if (blockedByClosedUnmerged) {
+            if (pull?.number && pull.state === "OPEN") {
+                rowEffects.push({
+                    type: "close-pr",
+                    bookmark: bookmark.name,
+                    prNumber: pull.number,
+                    reason: `parent #${blockedByClosedUnmerged.number} was closed without merging`,
+                })
+            } else {
+                rowEffects.push({
+                    type: "blocked",
+                    bookmark: bookmark.name,
+                    reason: `parent #${blockedByClosedUnmerged.number} was closed without merging`,
+                })
+            }
+            effects.push(...rowEffects)
+            planRows.push(
+                rowPlan(
+                    row,
+                    pull,
+                    desiredBase,
+                    rowEffects,
+                    syncNote(rowEffects, desiredBase),
+                ),
+            )
             continue
         }
 
-        planRows.push({
-            row,
-            prNumber: pull?.number,
-            desiredBase,
-            status: "current",
-            note: `targets ${desiredBase}`,
-        })
+        if (pull?.state === "CLOSED" && pull.merged === false) {
+            blockedByClosedUnmerged = pull
+            rowEffects.push({
+                type: "blocked",
+                bookmark: bookmark.name,
+                prNumber: pull.number,
+                reason: "PR was closed without merging",
+            })
+        } else if (desiredBase !== localBase) {
+            rowEffects.push({
+                type: "rebase",
+                bookmark: bookmark.name,
+                prNumber: pull?.number,
+                from: localBase,
+                to: desiredBase,
+            })
+        }
+
+        effects.push(...rowEffects)
+        planRows.push(
+            rowPlan(
+                row,
+                pull,
+                desiredBase,
+                rowEffects,
+                syncNote(rowEffects, desiredBase),
+            ),
+        )
     }
 
+    return makePlan("sync", stackRootName, planRows, effects, "stack sync")
+}
+
+function rowPlan<TBookmark extends StackBookmarkInput>(
+    row: BookmarkStackRow<TBookmark>,
+    pull: StackPullRequestInput | undefined,
+    desiredBase: string,
+    effects: readonly StackPlanEffect[],
+    fallbackNote: string,
+): StackPlanRow<TBookmark> {
     return {
-        kind: "sync",
-        stackRootName,
-        rows: planRows,
-        updatePrNumbers: [],
-        createPrBookmarks: [],
-        pushBookmarks: [],
-        rebaseBookmarks: uniqueStrings(rebaseBookmarks),
-        applyCommand: "stack sync",
+        row,
+        prNumber: pull?.number,
+        desiredBase,
+        status: effects[0]?.type ?? "current",
+        note: fallbackNote,
+        effects,
     }
+}
+
+function makePlan<TBookmark extends StackBookmarkInput>(
+    kind: "submit" | "sync",
+    stackRootName: string,
+    rows: readonly StackPlanRow<TBookmark>[],
+    effects: readonly StackPlanEffect[],
+    applyCommand: string,
+): StackPlan<TBookmark> {
+    return {
+        kind,
+        stackRootName,
+        rows,
+        effects,
+        updatePrNumbers: uniqueNumbers(
+            effects
+                .filter((e) => e.type === "update-pr" && e.prNumber)
+                .map((e) => e.prNumber ?? 0),
+        ),
+        createPrBookmarks: uniqueStrings(
+            effects
+                .filter((e) => e.type === "create-pr")
+                .map((e) => e.bookmark),
+        ),
+        pushBookmarks: uniqueStrings(
+            effects.filter((e) => e.type === "push").map((e) => e.bookmark),
+        ),
+        rebaseBookmarks: uniqueStrings(
+            effects.filter((e) => e.type === "rebase").map((e) => e.bookmark),
+        ),
+        closePrNumbers: uniqueNumbers(
+            effects
+                .filter((e) => e.type === "close-pr" && e.prNumber)
+                .map((e) => e.prNumber ?? 0),
+        ),
+        applyCommand,
+    }
+}
+
+function submitNote(effects: readonly StackPlanEffect[], desiredBase: string) {
+    if (effects.some((effect) => effect.type === "create-pr")) {
+        return `would create PR onto ${desiredBase}`
+    }
+    if (effects.some((effect) => effect.type === "update-pr")) {
+        return `would retarget PR onto ${desiredBase}`
+    }
+    if (effects.some((effect) => effect.type === "push"))
+        return "would push bookmark"
+    if (effects.some((effect) => effect.type === "update-comment"))
+        return "would update stack comment"
+    return `targets ${desiredBase}`
+}
+
+function syncNote(effects: readonly StackPlanEffect[], desiredBase: string) {
+    const closePr = effects.find((effect) => effect.type === "close-pr")
+    if (closePr) return closePr.reason ?? "would close descendant PR"
+    const blocked = effects.find((effect) => effect.type === "blocked")
+    if (blocked) return blocked.reason ?? "blocked"
+    if (effects.some((effect) => effect.type === "rebase"))
+        return `would rebase onto ${desiredBase}`
+    return `targets ${desiredBase}`
 }
 
 function stackRows<TBookmark extends StackBookmarkInput>(

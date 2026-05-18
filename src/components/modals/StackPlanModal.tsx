@@ -80,6 +80,13 @@ export function StackPlanModal(props: StackPlanModalProps) {
                         {`Would rebase: ${props.plan.rebaseBookmarks.join(", ")}`}
                     </text>
                 </Show>
+                <Show when={props.plan.closePrNumbers.length > 0}>
+                    <text wrapMode="none" fg={colors().text}>
+                        {`Would close PRs: ${props.plan.closePrNumbers
+                            .map((number) => `#${number}`)
+                            .join(", ")}`}
+                    </text>
+                </Show>
             </box>
         </box>
     )

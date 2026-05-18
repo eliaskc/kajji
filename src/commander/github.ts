@@ -67,6 +67,7 @@ export interface GitHubPullRequestSummary {
     headRefName: string
     baseRefName?: string
     state?: string
+    merged?: boolean
 }
 
 export function parseGhRepositoryJson(stdout: string): {
@@ -91,6 +92,19 @@ export function parseGhRepositoryJson(stdout: string): {
 
 export function parseGhPullRequestsByHeadGraphqlJson(
     stdout: string,
+): Map<string, GitHubPullRequestSummary> {
+    return parseGhPullRequestsByHeadGraphqlJsonInternal(stdout, false)
+}
+
+export function parseGhPullRequestsByHeadGraphqlJsonIncludingClosed(
+    stdout: string,
+): Map<string, GitHubPullRequestSummary> {
+    return parseGhPullRequestsByHeadGraphqlJsonInternal(stdout, true)
+}
+
+function parseGhPullRequestsByHeadGraphqlJsonInternal(
+    stdout: string,
+    includeClosed: boolean,
 ): Map<string, GitHubPullRequestSummary> {
     const value = JSON.parse(stdout) as unknown
     if (!value || typeof value !== "object") return new Map()
@@ -117,7 +131,11 @@ export function parseGhPullRequestsByHeadGraphqlJson(
             const record = node as Record<string, unknown>
             if (typeof record.number !== "number") continue
             if (typeof record.headRefName !== "string") continue
-            if (typeof record.state === "string" && record.state !== "OPEN") {
+            if (
+                !includeClosed &&
+                typeof record.state === "string" &&
+                record.state !== "OPEN"
+            ) {
                 continue
             }
             pulls.set(record.headRefName, {
@@ -128,6 +146,9 @@ export function parseGhPullRequestsByHeadGraphqlJson(
                     : {}),
                 ...(typeof record.state === "string"
                     ? { state: record.state }
+                    : {}),
+                ...(typeof record.merged === "boolean"
+                    ? { merged: record.merged }
                     : {}),
             })
         }
@@ -160,6 +181,7 @@ async function ghOutput(
 
 export async function ghListPullRequestsByHead(
     heads: readonly string[] = [],
+    options: { includeClosed?: boolean } = {},
 ): Promise<Map<string, GitHubPullRequestSummary>> {
     const uniqueHeads = [...new Set(heads)].filter(Boolean)
     if (uniqueHeads.length === 0) return new Map()
@@ -167,6 +189,7 @@ export async function ghListPullRequestsByHead(
     const repo = parseGhRepositoryJson(
         await ghOutput(["repo", "view", "--json", "owner,name"]),
     )
+    const states = options.includeClosed ? "[OPEN, CLOSED]" : "OPEN"
     const query = `query PullRequestsByHead($owner: String!, $name: String!) {
   repository(owner: $owner, name: $name) {
 ${uniqueHeads
@@ -174,7 +197,7 @@ ${uniqueHeads
         (head, index) =>
             `    h${index}: ref(qualifiedName: ${JSON.stringify(
                 `refs/heads/${head}`,
-            )}) { associatedPullRequests(first: 1, states: OPEN) { nodes { number headRefName baseRefName state } } }`,
+            )}) { associatedPullRequests(first: 1, states: ${states}) { nodes { number headRefName baseRefName state merged } } }`,
     )
     .join("\n")}
   }
@@ -189,7 +212,9 @@ ${uniqueHeads
         "-f",
         `query=${query}`,
     ])
-    return parseGhPullRequestsByHeadGraphqlJson(stdout)
+    return options.includeClosed
+        ? parseGhPullRequestsByHeadGraphqlJsonIncludingClosed(stdout)
+        : parseGhPullRequestsByHeadGraphqlJson(stdout)
 }
 
 export async function ghPrCreateWeb(
@@ -274,4 +299,147 @@ export async function ghBrowseCommit(
             command,
         }
     }
+}
+
+async function ghOperation(
+    args: readonly string[],
+    options?: OperationRunOptions & { stdin?: string; command?: string },
+): Promise<OperationResult> {
+    const command = options?.command ?? `gh ${args.join(" ")}`
+    try {
+        const proc = Bun.spawn(["gh", ...args], {
+            cwd: getRepoPath(),
+            stdin: options?.stdin === undefined ? "ignore" : "pipe",
+            stdout: "pipe",
+            stderr: "pipe",
+        })
+        if (options?.stdin !== undefined && proc.stdin) {
+            proc.stdin.write(options.stdin)
+            proc.stdin.end()
+        }
+        const { stdout, stderr, logId } = await readGhOutput(
+            command,
+            proc,
+            options?.observer,
+        )
+        const exitCode = await proc.exited
+        const result = {
+            stdout,
+            stderr,
+            exitCode,
+            success: exitCode === 0,
+            command,
+            logged: Boolean(logId),
+        }
+        finishObservedGhCommand(options?.observer, logId, result)
+        return result
+    } catch (error) {
+        return {
+            stdout: "",
+            stderr: error instanceof Error ? error.message : String(error),
+            exitCode: 1,
+            success: false,
+            command,
+        }
+    }
+}
+
+export async function ghPrCreate(
+    input: { head: string; base: string; title: string; body?: string },
+    options?: OperationRunOptions,
+): Promise<OperationResult> {
+    return ghOperation(
+        [
+            "pr",
+            "create",
+            "--head",
+            input.head,
+            "--base",
+            input.base,
+            "--title",
+            input.title,
+            "--body",
+            input.body ?? "",
+        ],
+        options,
+    )
+}
+
+export async function ghPrEditBase(
+    prNumber: number,
+    base: string,
+    options?: OperationRunOptions,
+): Promise<OperationResult> {
+    return ghOperation(
+        ["pr", "edit", String(prNumber), "--base", base],
+        options,
+    )
+}
+
+export async function ghPrClose(
+    prNumber: number,
+    options?: OperationRunOptions,
+): Promise<OperationResult> {
+    return ghOperation(["pr", "close", String(prNumber)], options)
+}
+
+export async function ghPrViewWeb(
+    prNumber: number,
+    options?: OperationRunOptions,
+): Promise<OperationResult> {
+    return ghOperation(["pr", "view", String(prNumber), "--web"], options)
+}
+
+export async function ghUpsertStackComment(
+    prNumber: number,
+    body: string,
+    options?: OperationRunOptions,
+): Promise<OperationResult> {
+    const repo = parseGhRepositoryJson(
+        await ghOutput(["repo", "view", "--json", "owner,name"]),
+    )
+    const marker = `<!-- kajji-stack pr=${prNumber} -->`
+    const commentsJson = await ghOutput([
+        "api",
+        `repos/${repo.owner}/${repo.name}/issues/${prNumber}/comments`,
+    ])
+    const comments = JSON.parse(commentsJson) as unknown
+    const existing = Array.isArray(comments)
+        ? comments.find((comment) => {
+              if (!comment || typeof comment !== "object") return false
+              const record = comment as Record<string, unknown>
+              return (
+                  typeof record.body === "string" &&
+                  record.body.includes(marker)
+              )
+          })
+        : undefined
+    const existingId =
+        existing && typeof existing === "object"
+            ? (existing as Record<string, unknown>).id
+            : undefined
+    if (typeof existingId === "number") {
+        return ghOperation(
+            [
+                "api",
+                "--method",
+                "PATCH",
+                `repos/${repo.owner}/${repo.name}/issues/comments/${existingId}`,
+                "-f",
+                `body=${body}`,
+            ],
+            options,
+        )
+    }
+    return ghOperation(
+        [
+            "api",
+            "--method",
+            "POST",
+            `repos/${repo.owner}/${repo.name}/issues/${prNumber}/comments`,
+            "-f",
+            `body=${body}`,
+        ],
+        options,
+    )
 }

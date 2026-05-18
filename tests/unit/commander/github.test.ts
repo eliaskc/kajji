@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import {
     parseGhPullRequestsByHeadGraphqlJson,
+    parseGhPullRequestsByHeadGraphqlJsonIncludingClosed,
     parseGhRepositoryJson,
 } from "../../../src/commander/github"
 
@@ -81,6 +82,38 @@ describe("parseGhPullRequestsByHeadGraphqlJson", () => {
         )
 
         expect([...pulls.values()]).toEqual([])
+    })
+
+    test("can include closed PRs with merged state for sync planning", () => {
+        const pulls = parseGhPullRequestsByHeadGraphqlJsonIncludingClosed(
+            JSON.stringify({
+                data: {
+                    repository: {
+                        h0: {
+                            associatedPullRequests: {
+                                nodes: [
+                                    {
+                                        number: 123,
+                                        headRefName: "feature-a",
+                                        baseRefName: "main",
+                                        state: "CLOSED",
+                                        merged: false,
+                                    },
+                                ],
+                            },
+                        },
+                    },
+                },
+            }),
+        )
+
+        expect(pulls.get("feature-a")).toEqual({
+            number: 123,
+            headRefName: "feature-a",
+            baseRefName: "main",
+            state: "CLOSED",
+            merged: false,
+        })
     })
 
     test("skips missing refs and malformed entries", () => {

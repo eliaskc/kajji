@@ -292,7 +292,7 @@ export function isImmutableError(result: OperationResult): boolean {
     )
 }
 
-export interface RebaseOptions {
+export interface RebaseOptions extends OperationRunOptions {
     mode?: "revision" | "descendants" | "branch"
     targetMode?: "onto" | "insertAfter" | "insertBefore"
     skipEmptied?: boolean
@@ -330,7 +330,12 @@ export async function jjRebase(
     if (options?.ignoreImmutable) {
         args.push("--ignore-immutable")
     }
-    const result = await execute(args)
+    const result = options?.observer
+        ? await execute(args, {
+              observer: options.observer,
+              command: `jj ${args.join(" ")}`,
+          })
+        : await execute(args)
     return {
         ...result,
         command: `jj ${args.join(" ")}`,

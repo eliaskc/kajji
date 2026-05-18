@@ -8,6 +8,7 @@ export interface StackBookmarkInput {
     readonly name: string
     readonly commitId: string
     readonly changeId?: string
+    readonly description?: string
 }
 
 export interface BookmarkStackRow<TBookmark extends StackBookmarkInput> {
@@ -29,6 +30,8 @@ export interface StackPullRequestInput {
     readonly number: number
     readonly headRefName: string
     readonly baseRefName?: string
+    readonly state?: string
+    readonly merged?: boolean
 }
 
 export interface StackRemoteBookmarkInput {
@@ -37,12 +40,25 @@ export interface StackRemoteBookmarkInput {
 }
 
 export type StackPlanKind = "submit" | "sync"
-export type StackPlanRowStatus =
-    | "current"
+export type StackPlanEffectType =
     | "create-pr"
     | "update-pr"
     | "push"
     | "rebase"
+    | "update-comment"
+    | "close-pr"
+    | "blocked"
+
+export interface StackPlanEffect {
+    readonly type: StackPlanEffectType
+    readonly bookmark: string
+    readonly prNumber?: number
+    readonly from?: string
+    readonly to?: string
+    readonly reason?: string
+}
+
+export type StackPlanRowStatus = "current" | StackPlanEffectType
 
 export interface StackPlanRow<TBookmark extends StackBookmarkInput> {
     readonly row: BookmarkStackRow<TBookmark>
@@ -50,15 +66,18 @@ export interface StackPlanRow<TBookmark extends StackBookmarkInput> {
     readonly desiredBase?: string
     readonly status: StackPlanRowStatus
     readonly note: string
+    readonly effects: readonly StackPlanEffect[]
 }
 
 export interface StackPlan<TBookmark extends StackBookmarkInput> {
     readonly kind: StackPlanKind
     readonly stackRootName: string
     readonly rows: readonly StackPlanRow<TBookmark>[]
+    readonly effects: readonly StackPlanEffect[]
     readonly updatePrNumbers: readonly number[]
     readonly createPrBookmarks: readonly string[]
     readonly pushBookmarks: readonly string[]
     readonly rebaseBookmarks: readonly string[]
+    readonly closePrNumbers: readonly number[]
     readonly applyCommand: string
 }
