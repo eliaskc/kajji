@@ -27,6 +27,7 @@ describe("parseGhPullRequestsByHeadGraphqlJson", () => {
                                         number: 123,
                                         headRefName: "feature-a",
                                         baseRefName: "main",
+                                        state: "OPEN",
                                     },
                                 ],
                             },
@@ -46,10 +47,40 @@ describe("parseGhPullRequestsByHeadGraphqlJson", () => {
         expect([...pulls.entries()]).toEqual([
             [
                 "feature-a",
-                { number: 123, headRefName: "feature-a", baseRefName: "main" },
+                {
+                    number: 123,
+                    headRefName: "feature-a",
+                    baseRefName: "main",
+                    state: "OPEN",
+                },
             ],
             ["feature-b", { number: 124, headRefName: "feature-b" }],
         ])
+    })
+
+    test("skips closed PRs defensively", () => {
+        const pulls = parseGhPullRequestsByHeadGraphqlJson(
+            JSON.stringify({
+                data: {
+                    repository: {
+                        h0: {
+                            associatedPullRequests: {
+                                nodes: [
+                                    {
+                                        number: 123,
+                                        headRefName: "feature-a",
+                                        baseRefName: "main",
+                                        state: "CLOSED",
+                                    },
+                                ],
+                            },
+                        },
+                    },
+                },
+            }),
+        )
+
+        expect([...pulls.values()]).toEqual([])
     })
 
     test("skips missing refs and malformed entries", () => {

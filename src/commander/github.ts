@@ -66,6 +66,7 @@ export interface GitHubPullRequestSummary {
     number: number
     headRefName: string
     baseRefName?: string
+    state?: string
 }
 
 export function parseGhRepositoryJson(stdout: string): {
@@ -116,11 +117,17 @@ export function parseGhPullRequestsByHeadGraphqlJson(
             const record = node as Record<string, unknown>
             if (typeof record.number !== "number") continue
             if (typeof record.headRefName !== "string") continue
+            if (typeof record.state === "string" && record.state !== "OPEN") {
+                continue
+            }
             pulls.set(record.headRefName, {
                 number: record.number,
                 headRefName: record.headRefName,
                 ...(typeof record.baseRefName === "string"
                     ? { baseRefName: record.baseRefName }
+                    : {}),
+                ...(typeof record.state === "string"
+                    ? { state: record.state }
                     : {}),
             })
         }
@@ -167,7 +174,7 @@ ${uniqueHeads
         (head, index) =>
             `    h${index}: ref(qualifiedName: ${JSON.stringify(
                 `refs/heads/${head}`,
-            )}) { associatedPullRequests(first: 1) { nodes { number headRefName baseRefName } } }`,
+            )}) { associatedPullRequests(first: 1, states: OPEN) { nodes { number headRefName baseRefName state } } }`,
     )
     .join("\n")}
   }
