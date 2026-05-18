@@ -15,10 +15,11 @@ interface StackPlanModalProps {
 export function StackPlanModal(props: StackPlanModalProps) {
     const dialog = useDialog()
     const { colors } = useTheme()
+    const hasEffects = () => props.plan.effects.length > 0
     let applying = false
 
     const apply = () => {
-        if (applying) return
+        if (!hasEffects() || applying) return
         applying = true
         dialog.close()
         props.onApply()
@@ -43,6 +44,16 @@ export function StackPlanModal(props: StackPlanModalProps) {
     return (
         <box flexDirection="column" gap={1} minHeight={10}>
             <box flexDirection="column">
+                <Show when={!hasEffects()}>
+                    <box flexDirection="column" gap={1} paddingLeft={1}>
+                        <text wrapMode="none" fg={colors().success}>
+                            Nothing to do
+                        </text>
+                        <text wrapMode="none" fg={colors().textMuted}>
+                            This stack is already in sync with GitHub.
+                        </text>
+                    </box>
+                </Show>
                 <For each={props.plan.rows}>
                     {(row) => (
                         <box flexDirection="row" overflow="hidden">
@@ -57,42 +68,44 @@ export function StackPlanModal(props: StackPlanModalProps) {
                 </For>
             </box>
 
-            <box flexDirection="column">
-                <Show when={props.plan.updatePrNumbers.length > 0}>
-                    <text wrapMode="none" fg={colors().text}>
-                        {`Would update PRs: ${props.plan.updatePrNumbers
-                            .map((number) => `#${number}`)
-                            .join(", ")}`}
-                    </text>
-                </Show>
-                <Show when={props.plan.createPrBookmarks.length > 0}>
-                    <text wrapMode="none" fg={colors().text}>
-                        {`Would create PRs: ${props.plan.createPrBookmarks.join(", ")}`}
-                    </text>
-                </Show>
-                <Show when={props.plan.pushBookmarks.length > 0}>
-                    <text wrapMode="none" fg={colors().text}>
-                        {`Would push: ${props.plan.pushBookmarks.join(", ")}`}
-                    </text>
-                </Show>
-                <Show when={props.plan.rebaseBookmarks.length > 0}>
-                    <text wrapMode="none" fg={colors().text}>
-                        {`Would rebase: ${props.plan.rebaseBookmarks.join(", ")}`}
-                    </text>
-                </Show>
-                <Show when={props.plan.abandonBookmarks.length > 0}>
-                    <text wrapMode="none" fg={colors().text}>
-                        {`Would abandon: ${props.plan.abandonBookmarks.join(", ")}`}
-                    </text>
-                </Show>
-                <Show when={props.plan.closePrNumbers.length > 0}>
-                    <text wrapMode="none" fg={colors().text}>
-                        {`Would close PRs: ${props.plan.closePrNumbers
-                            .map((number) => `#${number}`)
-                            .join(", ")}`}
-                    </text>
-                </Show>
-            </box>
+            <Show when={hasEffects()}>
+                <box flexDirection="column">
+                    <Show when={props.plan.updatePrNumbers.length > 0}>
+                        <text wrapMode="none" fg={colors().text}>
+                            {`Would update PRs: ${props.plan.updatePrNumbers
+                                .map((number) => `#${number}`)
+                                .join(", ")}`}
+                        </text>
+                    </Show>
+                    <Show when={props.plan.createPrBookmarks.length > 0}>
+                        <text wrapMode="none" fg={colors().text}>
+                            {`Would create PRs: ${props.plan.createPrBookmarks.join(", ")}`}
+                        </text>
+                    </Show>
+                    <Show when={props.plan.pushBookmarks.length > 0}>
+                        <text wrapMode="none" fg={colors().text}>
+                            {`Would push: ${props.plan.pushBookmarks.join(", ")}`}
+                        </text>
+                    </Show>
+                    <Show when={props.plan.rebaseBookmarks.length > 0}>
+                        <text wrapMode="none" fg={colors().text}>
+                            {`Would rebase: ${props.plan.rebaseBookmarks.join(", ")}`}
+                        </text>
+                    </Show>
+                    <Show when={props.plan.abandonBookmarks.length > 0}>
+                        <text wrapMode="none" fg={colors().text}>
+                            {`Would abandon: ${props.plan.abandonBookmarks.join(", ")}`}
+                        </text>
+                    </Show>
+                    <Show when={props.plan.closePrNumbers.length > 0}>
+                        <text wrapMode="none" fg={colors().text}>
+                            {`Would close PRs: ${props.plan.closePrNumbers
+                                .map((number) => `#${number}`)
+                                .join(", ")}`}
+                        </text>
+                    </Show>
+                </box>
+            </Show>
         </box>
     )
 }
