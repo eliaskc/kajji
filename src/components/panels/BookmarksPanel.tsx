@@ -62,6 +62,7 @@ import { BookmarkNameModal } from "../modals/BookmarkNameModal"
 import { RevisionPickerModal } from "../modals/RevisionPickerModal"
 import { StackActionsModal } from "../modals/StackActionsModal"
 import { StackPlanModal } from "../modals/StackPlanModal"
+import { StackPreparingModal } from "../modals/StackPreparingModal"
 
 type BookmarkRow = BookmarkStackRow<Bookmark>
 
@@ -404,8 +405,34 @@ export function BookmarksPanel() {
         kind: "submit" | "sync",
         stackRootName: string,
     ) => {
+        dialog.open(
+            () => (
+                <StackPreparingModal
+                    kind={kind}
+                    stackRootName={stackRootName}
+                />
+            ),
+            {
+                id: `bookmark-stack-${kind}-preparing`,
+                title: [
+                    {
+                        text:
+                            kind === "submit"
+                                ? "Submit preview"
+                                : "Sync preview",
+                        style: "action",
+                    },
+                    " for ",
+                    { text: stackRootName, style: "target" },
+                ],
+                ...DIALOG_SIZE.confirmWide,
+                closeOnEsc: false,
+                hints: [],
+            },
+        )
         try {
             const plan = await preparePlan(kind, stackRootName)
+            dialog.close()
             dialog.open(
                 () => (
                     <StackPlanModal
@@ -436,6 +463,7 @@ export function BookmarksPanel() {
                 },
             )
         } catch (error) {
+            dialog.close()
             status.show(
                 error instanceof Error ? error.message : String(error),
                 {
