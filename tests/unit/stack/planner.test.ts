@@ -87,7 +87,77 @@ describe("stack planners", () => {
             ["feature-a", "blocked"],
             ["feature-b", "close-pr"],
         ])
+        expect(plan.rows[2]?.note).toBe(
+            "would close PR: parent #10 was closed without merging",
+        )
         expect(plan.closePrNumbers).toEqual([11])
+    })
+
+    test("sync plans descendant PR closure even if GitHub state is missing", async () => {
+        const plan = buildSyncPlanSync({
+            stackRootName: "feature-a",
+            stackModel: await model(),
+            pullRequestsByHead: new Map([
+                [
+                    "feature-a",
+                    {
+                        number: 10,
+                        headRefName: "feature-a",
+                        baseRefName: "main",
+                        state: "CLOSED",
+                        merged: false,
+                    },
+                ],
+                [
+                    "feature-b",
+                    {
+                        number: 11,
+                        headRefName: "feature-b",
+                        baseRefName: "feature-a",
+                    },
+                ],
+            ]),
+        })
+
+        expect(plan.rows[2]?.status).toBe("close-pr")
+        expect(plan.closePrNumbers).toEqual([11])
+    })
+
+    test("sync plans rebase and retarget descendants of merged parents", async () => {
+        const plan = buildSyncPlanSync({
+            stackRootName: "feature-a",
+            stackModel: await model(),
+            pullRequestsByHead: new Map([
+                [
+                    "feature-a",
+                    {
+                        number: 10,
+                        headRefName: "feature-a",
+                        baseRefName: "main",
+                        state: "MERGED",
+                        merged: true,
+                    },
+                ],
+                [
+                    "feature-b",
+                    {
+                        number: 11,
+                        headRefName: "feature-b",
+                        baseRefName: "feature-a",
+                        state: "OPEN",
+                    },
+                ],
+            ]),
+        })
+
+        expect(plan.rows[1]?.note).toBe("would abandon merged local change")
+        expect(plan.rows[2]?.note).toBe(
+            "would rebase, push, and retarget onto main",
+        )
+        expect(plan.abandonBookmarks).toEqual(["feature-a"])
+        expect(plan.rebaseBookmarks).toEqual(["feature-b"])
+        expect(plan.pushBookmarks).toEqual(["feature-b"])
+        expect(plan.updatePrNumbers).toEqual([11])
     })
 
     test("sync plans rebases when GitHub PR base differs from local target", async () => {
@@ -111,7 +181,7 @@ describe("stack planners", () => {
         ).toEqual([
             ["main", ""],
             ["feature-a", "targets main"],
-            ["feature-b", "would rebase onto main"],
+            ["feature-b", "would rebase and push onto main"],
         ])
         expect(plan.rebaseBookmarks).toEqual(["feature-b"])
     })

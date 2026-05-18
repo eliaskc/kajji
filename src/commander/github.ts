@@ -68,6 +68,8 @@ export interface GitHubPullRequestSummary {
     baseRefName?: string
     state?: string
     merged?: boolean
+    updatedAt?: string
+    createdAt?: string
 }
 
 export function parseGhRepositoryJson(stdout: string): {
@@ -138,7 +140,7 @@ function parseGhPullRequestsByHeadGraphqlJsonInternal(
             ) {
                 continue
             }
-            pulls.set(record.headRefName, {
+            const summary = {
                 number: record.number,
                 headRefName: record.headRefName,
                 ...(typeof record.baseRefName === "string"
@@ -150,10 +152,40 @@ function parseGhPullRequestsByHeadGraphqlJsonInternal(
                 ...(typeof record.merged === "boolean"
                     ? { merged: record.merged }
                     : {}),
-            })
+                ...(typeof record.updatedAt === "string"
+                    ? { updatedAt: record.updatedAt }
+                    : {}),
+                ...(typeof record.createdAt === "string"
+                    ? { createdAt: record.createdAt }
+                    : {}),
+            } satisfies GitHubPullRequestSummary
+            const existing = pulls.get(record.headRefName)
+            if (!existing || preferPullRequest(summary, existing)) {
+                pulls.set(record.headRefName, summary)
+            }
         }
     }
     return pulls
+}
+
+function preferPullRequest(
+    candidate: GitHubPullRequestSummary,
+    existing: GitHubPullRequestSummary,
+): boolean {
+    if (candidate.state === "OPEN" && existing.state !== "OPEN") return true
+    if (candidate.state !== "OPEN" && existing.state === "OPEN") return false
+    if (candidate.merged === true && existing.merged !== true) return true
+    if (candidate.merged !== true && existing.merged === true) return false
+    const candidateTime = Date.parse(
+        candidate.updatedAt ?? candidate.createdAt ?? "",
+    )
+    const existingTime = Date.parse(
+        existing.updatedAt ?? existing.createdAt ?? "",
+    )
+    if (!Number.isNaN(candidateTime) && !Number.isNaN(existingTime)) {
+        return candidateTime > existingTime
+    }
+    return candidate.number > existing.number
 }
 
 async function ghOutput(
@@ -189,7 +221,7 @@ export async function ghListPullRequestsByHead(
     const repo = parseGhRepositoryJson(
         await ghOutput(["repo", "view", "--json", "owner,name"]),
     )
-    const states = options.includeClosed ? "[OPEN, CLOSED]" : "OPEN"
+    const states = options.includeClosed ? "[OPEN, CLOSED, MERGED]" : "OPEN"
     const query = `query PullRequestsByHead($owner: String!, $name: String!) {
   repository(owner: $owner, name: $name) {
 ${uniqueHeads
@@ -197,7 +229,7 @@ ${uniqueHeads
         (head, index) =>
             `    h${index}: ref(qualifiedName: ${JSON.stringify(
                 `refs/heads/${head}`,
-            )}) { associatedPullRequests(first: 1, states: ${states}) { nodes { number headRefName baseRefName state merged } } }`,
+            )}) { associatedPullRequests(first: 20, states: ${states}) { nodes { number headRefName baseRefName state merged updatedAt createdAt } } }`,
     )
     .join("\n")}
   }
@@ -422,6 +454,7 @@ export async function ghUpsertStackComment(
         return ghOperation(
             [
                 "api",
+                "--silent",
                 "--method",
                 "PATCH",
                 `repos/${repo.owner}/${repo.name}/issues/comments/${existingId}`,
@@ -434,6 +467,7 @@ export async function ghUpsertStackComment(
     return ghOperation(
         [
             "api",
+            "--silent",
             "--method",
             "POST",
             `repos/${repo.owner}/${repo.name}/issues/${prNumber}/comments`,

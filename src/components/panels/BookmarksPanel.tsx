@@ -26,6 +26,7 @@ import {
     ghBrowseCommit,
     ghListPullRequestsByHead,
     ghPrCreateWeb,
+    ghPrViewWeb,
 } from "../../commander/github"
 import {
     type OperationResult,
@@ -142,6 +143,14 @@ export function BookmarksPanel() {
             }
         } catch {
             // fall through to PR open
+        }
+
+        const knownPrNumber = bookmarkPrNumbers().get(bookmark.name)
+        if (knownPrNumber) {
+            const observer = commandLog.observer()
+            const viewResult = await ghPrViewWeb(knownPrNumber, { observer })
+            commandLog.addEntry(viewResult)
+            return
         }
 
         await loadRemoteBookmarks()

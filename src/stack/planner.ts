@@ -111,12 +111,15 @@ export function buildSyncPlanSync<TBookmark extends StackBookmarkInput>({
     const planRows: StackPlanRow<TBookmark>[] = []
     const effects: StackPlanEffect[] = []
     let blockedByClosedUnmerged: StackPullRequestInput | undefined
+    const mergedTargetByName = new Map<string, string>()
 
     for (const row of rows) {
         const bookmark = row.bookmark
         const pull = pullRequestsByHead.get(bookmark.name)
         const localBase = desiredLocalBase(bookmark.name, stackModel)
-        const desiredBase = pull?.baseRefName ?? localBase
+        const inheritedMergedTarget = mergedTargetByName.get(localBase)
+        const desiredBase =
+            inheritedMergedTarget ?? pull?.baseRefName ?? localBase
         const isTrunk = stackModel.trunkNames.has(bookmark.name)
         const rowEffects: StackPlanEffect[] = []
 
@@ -126,7 +129,7 @@ export function buildSyncPlanSync<TBookmark extends StackBookmarkInput>({
         }
 
         if (blockedByClosedUnmerged) {
-            if (pull?.number && pull.state === "OPEN") {
+            if (pull?.number && pull.state !== "CLOSED") {
                 rowEffects.push({
                     type: "close-pr",
                     bookmark: bookmark.name,
@@ -161,14 +164,46 @@ export function buildSyncPlanSync<TBookmark extends StackBookmarkInput>({
                 prNumber: pull.number,
                 reason: "PR was closed without merging",
             })
-        } else if (desiredBase !== localBase) {
-            rowEffects.push({
-                type: "rebase",
-                bookmark: bookmark.name,
-                prNumber: pull?.number,
-                from: localBase,
-                to: desiredBase,
-            })
+        } else {
+            if (pull?.merged === true) {
+                mergedTargetByName.set(
+                    bookmark.name,
+                    pull.baseRefName ?? localBase,
+                )
+                rowEffects.push({
+                    type: "abandon",
+                    bookmark: bookmark.name,
+                    prNumber: pull.number,
+                    reason: "PR was merged",
+                })
+            }
+            if (desiredBase !== localBase) {
+                rowEffects.push({
+                    type: "rebase",
+                    bookmark: bookmark.name,
+                    prNumber: pull?.number,
+                    from: localBase,
+                    to: desiredBase,
+                })
+                rowEffects.push({
+                    type: "push",
+                    bookmark: bookmark.name,
+                })
+            }
+            if (
+                pull?.number &&
+                pull.state !== "CLOSED" &&
+                pull.state !== "MERGED" &&
+                pull.baseRefName !== desiredBase
+            ) {
+                rowEffects.push({
+                    type: "update-pr",
+                    bookmark: bookmark.name,
+                    prNumber: pull.number,
+                    from: pull.baseRefName,
+                    to: desiredBase,
+                })
+            }
         }
 
         effects.push(...rowEffects)
@@ -231,6 +266,9 @@ function makePlan<TBookmark extends StackBookmarkInput>(
         rebaseBookmarks: uniqueStrings(
             effects.filter((e) => e.type === "rebase").map((e) => e.bookmark),
         ),
+        abandonBookmarks: uniqueStrings(
+            effects.filter((e) => e.type === "abandon").map((e) => e.bookmark),
+        ),
         closePrNumbers: uniqueNumbers(
             effects
                 .filter((e) => e.type === "close-pr" && e.prNumber)
@@ -256,11 +294,27 @@ function submitNote(effects: readonly StackPlanEffect[], desiredBase: string) {
 
 function syncNote(effects: readonly StackPlanEffect[], desiredBase: string) {
     const closePr = effects.find((effect) => effect.type === "close-pr")
-    if (closePr) return closePr.reason ?? "would close descendant PR"
+    if (closePr) {
+        return closePr.reason
+            ? `would close PR: ${closePr.reason}`
+            : "would close descendant PR"
+    }
     const blocked = effects.find((effect) => effect.type === "blocked")
-    if (blocked) return blocked.reason ?? "blocked"
-    if (effects.some((effect) => effect.type === "rebase"))
-        return `would rebase onto ${desiredBase}`
+    if (blocked) {
+        return blocked.reason ? `blocked: ${blocked.reason}` : "blocked"
+    }
+    const abandons = effects.some((effect) => effect.type === "abandon")
+    const rebases = effects.some((effect) => effect.type === "rebase")
+    const pushes = effects.some((effect) => effect.type === "push")
+    const retargets = effects.some((effect) => effect.type === "update-pr")
+    if (abandons) return "would abandon merged local change"
+    if (rebases && retargets && pushes)
+        return `would rebase, push, and retarget onto ${desiredBase}`
+    if (rebases && retargets)
+        return `would rebase and retarget onto ${desiredBase}`
+    if (rebases && pushes) return `would rebase and push onto ${desiredBase}`
+    if (rebases) return `would rebase onto ${desiredBase}`
+    if (retargets) return `would retarget PR onto ${desiredBase}`
     return `targets ${desiredBase}`
 }
 

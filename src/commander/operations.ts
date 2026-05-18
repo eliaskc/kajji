@@ -414,13 +414,18 @@ export async function jjShowDescriptionStyled(
 
 export async function jjAbandon(
     revision: string,
-    options?: { ignoreImmutable?: boolean },
+    options?: { ignoreImmutable?: boolean } & OperationRunOptions,
 ): Promise<OperationResult> {
     const args = ["abandon", revision]
     if (options?.ignoreImmutable) {
         args.push("--ignore-immutable")
     }
-    const result = await execute(args)
+    const result = options?.observer
+        ? await execute(args, {
+              observer: options.observer,
+              command: `jj ${args.join(" ")}`,
+          })
+        : await execute(args)
     return {
         ...result,
         command: `jj ${args.join(" ")}`,

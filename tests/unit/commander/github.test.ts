@@ -84,6 +84,107 @@ describe("parseGhPullRequestsByHeadGraphqlJson", () => {
         expect([...pulls.values()]).toEqual([])
     })
 
+    test("prefers open PRs over older closed PRs for the same head", () => {
+        const pulls = parseGhPullRequestsByHeadGraphqlJsonIncludingClosed(
+            JSON.stringify({
+                data: {
+                    repository: {
+                        h0: {
+                            associatedPullRequests: {
+                                nodes: [
+                                    {
+                                        number: 100,
+                                        headRefName: "feature-a",
+                                        baseRefName: "main",
+                                        state: "CLOSED",
+                                        merged: false,
+                                        updatedAt: "2026-01-01T00:00:00Z",
+                                    },
+                                    {
+                                        number: 110,
+                                        headRefName: "feature-a",
+                                        baseRefName: "main",
+                                        state: "OPEN",
+                                        merged: false,
+                                        updatedAt: "2026-01-02T00:00:00Z",
+                                    },
+                                ],
+                            },
+                        },
+                    },
+                },
+            }),
+        )
+
+        expect(pulls.get("feature-a")?.number).toBe(110)
+    })
+
+    test("prefers merged closed PR over newer unmerged closed PR", () => {
+        const pulls = parseGhPullRequestsByHeadGraphqlJsonIncludingClosed(
+            JSON.stringify({
+                data: {
+                    repository: {
+                        h0: {
+                            associatedPullRequests: {
+                                nodes: [
+                                    {
+                                        number: 112,
+                                        headRefName: "feature-a",
+                                        state: "CLOSED",
+                                        merged: false,
+                                        updatedAt: "2026-01-03T00:00:00Z",
+                                    },
+                                    {
+                                        number: 114,
+                                        headRefName: "feature-a",
+                                        state: "MERGED",
+                                        merged: true,
+                                        updatedAt: "2026-01-02T00:00:00Z",
+                                    },
+                                ],
+                            },
+                        },
+                    },
+                },
+            }),
+        )
+
+        expect(pulls.get("feature-a")?.number).toBe(114)
+    })
+
+    test("prefers newest closed PR when no open or merged PR exists for the same head", () => {
+        const pulls = parseGhPullRequestsByHeadGraphqlJsonIncludingClosed(
+            JSON.stringify({
+                data: {
+                    repository: {
+                        h0: {
+                            associatedPullRequests: {
+                                nodes: [
+                                    {
+                                        number: 100,
+                                        headRefName: "feature-a",
+                                        state: "CLOSED",
+                                        merged: false,
+                                        updatedAt: "2026-01-01T00:00:00Z",
+                                    },
+                                    {
+                                        number: 110,
+                                        headRefName: "feature-a",
+                                        state: "CLOSED",
+                                        merged: false,
+                                        updatedAt: "2026-01-02T00:00:00Z",
+                                    },
+                                ],
+                            },
+                        },
+                    },
+                },
+            }),
+        )
+
+        expect(pulls.get("feature-a")?.number).toBe(110)
+    })
+
     test("can include closed PRs with merged state for sync planning", () => {
         const pulls = parseGhPullRequestsByHeadGraphqlJsonIncludingClosed(
             JSON.stringify({

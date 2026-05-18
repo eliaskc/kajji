@@ -13,6 +13,7 @@ import { fetchLogPage } from "../commander/log"
 import type { CommandObserver } from "../commander/observer"
 import {
     fetchOpLogId,
+    jjAbandon,
     jjGitFetch,
     jjGitPushBookmark,
     jjRebase,
@@ -225,6 +226,28 @@ async function applySyncPlan(
                 to: effect.to,
             })
         }
+        if (effect.type === "push") {
+            const result = await jjGitPushBookmark(effect.bookmark, options)
+            if (!result.success) throw new Error(result.stderr || result.stdout)
+            journal.entries.push({
+                type: "BookmarkPushed",
+                bookmark: effect.bookmark,
+            })
+        }
+        if (effect.type === "update-pr" && effect.prNumber && effect.to) {
+            const result = await ghPrEditBase(
+                effect.prNumber,
+                effect.to,
+                options,
+            )
+            if (!result.success) throw new Error(result.stderr || result.stdout)
+            journal.entries.push({
+                type: "PrBaseChanged",
+                prNumber: effect.prNumber,
+                from: effect.from,
+                to: effect.to,
+            })
+        }
         if (effect.type === "close-pr" && effect.prNumber) {
             const result = await ghPrClose(effect.prNumber, options)
             if (!result.success) throw new Error(result.stderr || result.stdout)
@@ -233,6 +256,19 @@ async function applySyncPlan(
                 prNumber: effect.prNumber,
             })
         }
+    }
+
+    for (const effect of plan.effects) {
+        if (effect.type !== "abandon") continue
+        const result = await jjAbandon(effect.bookmark, {
+            observer: options.observer,
+        })
+        if (!result.success) throw new Error(result.stderr || result.stdout)
+        journal.entries.push({
+            type: "BookmarkAbandoned",
+            bookmark: effect.bookmark,
+            prNumber: effect.prNumber,
+        })
     }
 }
 

@@ -45,6 +45,7 @@ export type StackPlanEffectType =
     | "update-pr"
     | "push"
     | "rebase"
+    | "abandon"
     | "update-comment"
     | "close-pr"
     | "blocked"
@@ -78,6 +79,7 @@ export interface StackPlan<TBookmark extends StackBookmarkInput> {
     readonly createPrBookmarks: readonly string[]
     readonly pushBookmarks: readonly string[]
     readonly rebaseBookmarks: readonly string[]
+    readonly abandonBookmarks: readonly string[]
     readonly closePrNumbers: readonly number[]
     readonly applyCommand: string
 }
