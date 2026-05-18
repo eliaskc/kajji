@@ -465,10 +465,13 @@ export function BookmarksPanel() {
                     ],
                     ...DIALOG_SIZE.confirmWide,
                     closeOnEsc: false,
-                    hints: [
-                        { key: "enter", label: "apply" },
-                        { key: "esc", label: "back" },
-                    ],
+                    hints:
+                        plan.effects.length > 0
+                            ? [
+                                  { key: "enter", label: "apply" },
+                                  { key: "esc", label: "back" },
+                              ]
+                            : [{ key: "esc", label: "back" }],
                 },
             )
         } catch (error) {
@@ -489,6 +492,10 @@ export function BookmarksPanel() {
         const observer = commandLog.observer()
         try {
             const plan = await preparePlan(kind, stackRootName, observer)
+            if (plan.effects.length === 0) {
+                status.show("Nothing to do; stack is already in sync.")
+                return
+            }
             await applyPreparedPlan(plan)
         } catch (error) {
             commandLog.addEntry({

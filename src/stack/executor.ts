@@ -76,6 +76,7 @@ export const prepareSyncPlan = Effect.fn("Stack.prepareSyncPlan")(
 export const applyStackPlan = Effect.fn("Stack.applyPlan")(
     (plan: StackPlan<FreshBookmark>, options: ApplyStackPlanOptions = {}) =>
         Effect.promise(async () => {
+            if (plan.effects.length === 0) return
             const beforeOp = await fetchOpLogId()
             const journal = stackJournal(plan, beforeOp)
             if (plan.kind === "submit") {
@@ -94,13 +95,13 @@ async function loadFreshState(options: {
     readonly includeClosedPulls: boolean
 }) {
     const preFetchState = options.includeClosedPulls
-        ? await readStackState(options.stackRootName)
+        ? await readStackState()
         : undefined
     const fetchResult = await jjGitFetch({ observer: options.observer })
     if (!fetchResult.success)
         throw new Error(fetchResult.stderr || fetchResult.stdout)
 
-    const freshState = await readStackState(options.stackRootName)
+    const freshState = await readStackState()
     const localBookmarks = reconcileFetchedLocalBookmarks(
         freshState.localBookmarks,
         preFetchState?.stackModel,
@@ -127,7 +128,7 @@ async function loadFreshState(options: {
     return { stackModel, pullRequestsByHead, remoteBookmarksByName }
 }
 
-async function readStackState(stackRootName: string) {
+async function readStackState() {
     const [{ commits }, allBookmarks] = await Promise.all([
         fetchLogPage({ limit: 1000 }),
         fetchBookmarks({ allRemotes: true }),
@@ -145,7 +146,6 @@ async function readStackState(stackRootName: string) {
             bookmarks: localBookmarks,
         }),
     )
-    void stackRootName
     return {
         commits: commitInputs,
         localBookmarks,

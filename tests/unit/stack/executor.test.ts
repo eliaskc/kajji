@@ -122,6 +122,28 @@ describe("stack executor", () => {
         ).toBe("parent-change")
     })
 
+    test("apply skips empty plans", async () => {
+        calls.length = 0
+        const plan: StackPlan<Bookmark> = {
+            kind: "sync",
+            stackRootName: "test/stack",
+            rows: [],
+            effects: [],
+            updatePrNumbers: [],
+            createPrBookmarks: [],
+            pushBookmarks: [],
+            rebaseBookmarks: [],
+            abandonBookmarks: [],
+            closePrNumbers: [],
+            applyCommand: "stack sync",
+        }
+
+        const { applyStackPlan } = await import("../../../src/stack/executor")
+        await Effect.runPromise(applyStackPlan(plan))
+
+        expect(calls).toEqual([])
+    })
+
     test("sync apply abandons merged roots before rebasing and pushing descendants", async () => {
         calls.length = 0
         const plan: StackPlan<Bookmark> = {
