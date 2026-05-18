@@ -43,6 +43,7 @@ export const prepareSubmitPlan = Effect.fn("Stack.prepareSubmitPlan")(
     (options: PrepareStackPlanOptions) =>
         Effect.promise(async () => {
             const state = await loadFreshState({
+                stackRootName: options.stackRootName,
                 observer: options.observer,
                 includeClosedPulls: false,
             })
@@ -59,6 +60,7 @@ export const prepareSyncPlan = Effect.fn("Stack.prepareSyncPlan")(
     (options: PrepareStackPlanOptions) =>
         Effect.promise(async () => {
             const state = await loadFreshState({
+                stackRootName: options.stackRootName,
                 observer: options.observer,
                 includeClosedPulls: true,
             })
@@ -87,26 +89,27 @@ export const applyStackPlan = Effect.fn("Stack.applyPlan")(
 )
 
 async function loadFreshState(options: {
+    readonly stackRootName: string
     readonly observer?: CommandObserver
     readonly includeClosedPulls: boolean
 }) {
+    const preFetchState = options.includeClosedPulls
+        ? await readStackState(options.stackRootName)
+        : undefined
     const fetchResult = await jjGitFetch({ observer: options.observer })
     if (!fetchResult.success)
         throw new Error(fetchResult.stderr || fetchResult.stdout)
 
-    const [{ commits }, allBookmarks] = await Promise.all([
-        fetchLogPage({ limit: 1000 }),
-        fetchBookmarks({ allRemotes: true }),
-    ])
-    const localBookmarks = allBookmarks.filter((bookmark) => bookmark.isLocal)
-    const remoteBookmarks = allBookmarks.filter((bookmark) => !bookmark.isLocal)
+    const freshState = await readStackState(options.stackRootName)
+    const localBookmarks = reconcileFetchedLocalBookmarks(
+        freshState.localBookmarks,
+        preFetchState?.stackModel,
+        options.stackRootName,
+    )
+    const remoteBookmarks = freshState.remoteBookmarks
     const stackModel = Effect.runSync(
         buildBookmarkStackModel({
-            commits: commits.map((commit) => ({
-                commitId: commit.commitId,
-                parentCommitIds: commit.parentCommitIds ?? [],
-                immutable: commit.immutable,
-            })),
+            commits: freshState.commits,
             bookmarks: localBookmarks,
         }),
     )
@@ -122,6 +125,54 @@ async function loadFreshState(options: {
         remoteBookmarks.map((bookmark) => [bookmark.name, bookmark]),
     )
     return { stackModel, pullRequestsByHead, remoteBookmarksByName }
+}
+
+async function readStackState(stackRootName: string) {
+    const [{ commits }, allBookmarks] = await Promise.all([
+        fetchLogPage({ limit: 1000 }),
+        fetchBookmarks({ allRemotes: true }),
+    ])
+    const localBookmarks = allBookmarks.filter((bookmark) => bookmark.isLocal)
+    const remoteBookmarks = allBookmarks.filter((bookmark) => !bookmark.isLocal)
+    const commitInputs = commits.map((commit) => ({
+        commitId: commit.commitId,
+        parentCommitIds: commit.parentCommitIds ?? [],
+        immutable: commit.immutable,
+    }))
+    const stackModel = Effect.runSync(
+        buildBookmarkStackModel({
+            commits: commitInputs,
+            bookmarks: localBookmarks,
+        }),
+    )
+    void stackRootName
+    return {
+        commits: commitInputs,
+        localBookmarks,
+        remoteBookmarks,
+        stackModel,
+    }
+}
+
+function reconcileFetchedLocalBookmarks(
+    localBookmarks: readonly FreshBookmark[],
+    preFetchStackModel: BookmarkStackModel<FreshBookmark> | undefined,
+    stackRootName: string,
+): readonly FreshBookmark[] {
+    if (!preFetchStackModel) return localBookmarks
+    if (localBookmarks.some((bookmark) => bookmark.name === stackRootName)) {
+        return localBookmarks
+    }
+    const preFetchRows = preFetchStackModel.rows.filter((row) =>
+        row.stackKeys.includes(stackRootName),
+    )
+    if (preFetchRows.length === 0) return localBookmarks
+    const localNames = new Set(localBookmarks.map((bookmark) => bookmark.name))
+    const restoredBookmarks = preFetchRows
+        .map((row) => row.bookmark)
+        .filter((bookmark) => !localNames.has(bookmark.name))
+    if (restoredBookmarks.length === 0) return localBookmarks
+    return [...localBookmarks, ...restoredBookmarks]
 }
 
 async function applySubmitPlan(
@@ -212,6 +263,19 @@ async function applySyncPlan(
     options: ApplyStackPlanOptions,
 ) {
     for (const effect of plan.effects) {
+        if (effect.type !== "abandon") continue
+        const result = await jjAbandon(effect.revision ?? effect.bookmark, {
+            observer: options.observer,
+        })
+        if (!result.success) throw new Error(result.stderr || result.stdout)
+        journal.entries.push({
+            type: "BookmarkAbandoned",
+            bookmark: effect.bookmark,
+            prNumber: effect.prNumber,
+        })
+    }
+
+    for (const effect of plan.effects) {
         if (effect.type === "rebase" && effect.to) {
             const result = await jjRebase(effect.bookmark, effect.to, {
                 mode: "branch",
@@ -256,19 +320,6 @@ async function applySyncPlan(
                 prNumber: effect.prNumber,
             })
         }
-    }
-
-    for (const effect of plan.effects) {
-        if (effect.type !== "abandon") continue
-        const result = await jjAbandon(effect.bookmark, {
-            observer: options.observer,
-        })
-        if (!result.success) throw new Error(result.stderr || result.stdout)
-        journal.entries.push({
-            type: "BookmarkAbandoned",
-            bookmark: effect.bookmark,
-            prNumber: effect.prNumber,
-        })
     }
 }
 

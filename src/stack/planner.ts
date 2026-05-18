@@ -175,6 +175,7 @@ export function buildSyncPlanSync<TBookmark extends StackBookmarkInput>({
                     bookmark: bookmark.name,
                     prNumber: pull.number,
                     reason: "PR was merged",
+                    revision: bookmark.changeId ?? bookmark.name,
                 })
             }
             if (desiredBase !== localBase) {

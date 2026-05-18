@@ -116,17 +116,14 @@ function parseGhPullRequestsByHeadGraphqlJsonInternal(
     if (!repository || typeof repository !== "object") return new Map()
 
     const pulls = new Map<string, GitHubPullRequestSummary>()
-    for (const ref of Object.values(repository as Record<string, unknown>)) {
-        if (!ref || typeof ref !== "object") continue
-        const associatedPullRequests = (ref as Record<string, unknown>)
-            .associatedPullRequests
-        if (
-            !associatedPullRequests ||
-            typeof associatedPullRequests !== "object"
-        ) {
-            continue
-        }
-        const nodes = (associatedPullRequests as Record<string, unknown>).nodes
+    for (const connection of Object.values(
+        repository as Record<string, unknown>,
+    )) {
+        if (!connection || typeof connection !== "object") continue
+        const record = connection as Record<string, unknown>
+        const pullConnection = record.associatedPullRequests ?? connection
+        if (!pullConnection || typeof pullConnection !== "object") continue
+        const nodes = (pullConnection as Record<string, unknown>).nodes
         if (!Array.isArray(nodes)) continue
         for (const node of nodes) {
             if (!node || typeof node !== "object") continue
@@ -172,10 +169,6 @@ function preferPullRequest(
     candidate: GitHubPullRequestSummary,
     existing: GitHubPullRequestSummary,
 ): boolean {
-    if (candidate.state === "OPEN" && existing.state !== "OPEN") return true
-    if (candidate.state !== "OPEN" && existing.state === "OPEN") return false
-    if (candidate.merged === true && existing.merged !== true) return true
-    if (candidate.merged !== true && existing.merged === true) return false
     const candidateTime = Date.parse(
         candidate.updatedAt ?? candidate.createdAt ?? "",
     )
@@ -229,7 +222,10 @@ ${uniqueHeads
         (head, index) =>
             `    h${index}: ref(qualifiedName: ${JSON.stringify(
                 `refs/heads/${head}`,
-            )}) { associatedPullRequests(first: 20, states: ${states}) { nodes { number headRefName baseRefName state merged updatedAt createdAt } } }`,
+            )}) { associatedPullRequests(first: 20, states: ${states}) { nodes { number headRefName baseRefName state merged updatedAt createdAt } } }
+    p${index}: pullRequests(first: 20, states: ${states}, headRefName: ${JSON.stringify(
+        head,
+    )}) { nodes { number headRefName baseRefName state merged updatedAt createdAt } }`,
     )
     .join("\n")}
   }

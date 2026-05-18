@@ -84,7 +84,7 @@ describe("parseGhPullRequestsByHeadGraphqlJson", () => {
         expect([...pulls.values()]).toEqual([])
     })
 
-    test("prefers open PRs over older closed PRs for the same head", () => {
+    test("prefers latest PR for the same head", () => {
         const pulls = parseGhPullRequestsByHeadGraphqlJsonIncludingClosed(
             JSON.stringify({
                 data: {
@@ -119,7 +119,7 @@ describe("parseGhPullRequestsByHeadGraphqlJson", () => {
         expect(pulls.get("feature-a")?.number).toBe(110)
     })
 
-    test("prefers merged closed PR over newer unmerged closed PR", () => {
+    test("prefers newer unmerged closed PR over older merged PR", () => {
         const pulls = parseGhPullRequestsByHeadGraphqlJsonIncludingClosed(
             JSON.stringify({
                 data: {
@@ -149,10 +149,10 @@ describe("parseGhPullRequestsByHeadGraphqlJson", () => {
             }),
         )
 
-        expect(pulls.get("feature-a")?.number).toBe(114)
+        expect(pulls.get("feature-a")?.number).toBe(112)
     })
 
-    test("prefers newest closed PR when no open or merged PR exists for the same head", () => {
+    test("prefers newest closed PR for the same head", () => {
         const pulls = parseGhPullRequestsByHeadGraphqlJsonIncludingClosed(
             JSON.stringify({
                 data: {
@@ -214,6 +214,39 @@ describe("parseGhPullRequestsByHeadGraphqlJson", () => {
             baseRefName: "main",
             state: "CLOSED",
             merged: false,
+        })
+    })
+
+    test("finds PRs by head name when the branch ref was deleted", () => {
+        const pulls = parseGhPullRequestsByHeadGraphqlJsonIncludingClosed(
+            JSON.stringify({
+                data: {
+                    repository: {
+                        h0: null,
+                        p0: {
+                            nodes: [
+                                {
+                                    number: 120,
+                                    headRefName: "feature-a",
+                                    baseRefName: "main",
+                                    state: "MERGED",
+                                    merged: true,
+                                    updatedAt: "2026-01-02T00:00:00Z",
+                                },
+                            ],
+                        },
+                    },
+                },
+            }),
+        )
+
+        expect(pulls.get("feature-a")).toEqual({
+            number: 120,
+            headRefName: "feature-a",
+            baseRefName: "main",
+            state: "MERGED",
+            merged: true,
+            updatedAt: "2026-01-02T00:00:00Z",
         })
     })
 

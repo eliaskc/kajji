@@ -57,6 +57,7 @@ export interface StackPlanEffect {
     readonly from?: string
     readonly to?: string
     readonly reason?: string
+    readonly revision?: string
 }
 
 export type StackPlanRowStatus = "current" | StackPlanEffectType
