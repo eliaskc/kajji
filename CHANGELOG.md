@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.14.1
+
+### improved
+- ux: bookmark names shown before revision ids ([`e717ad4`](../../commit/e717ad4))
+- ux: origin compare feedback shown as transient status bar message instead of modal ([`bff4a20`](../../commit/bff4a20))
+- ux: origin compare keybind hidden when bookmark has no local changes ([`bf8b106`](../../commit/bf8b106))
+
+### fixed
+- log: selection preserved after new, duplicate, edit, rebase, and squash operations ([`ab89e9c`](../../commit/ab89e9c))
+- theming: bookmark dirty indicator color matches bookmark color ([`b8653f6`](../../commit/b8653f6))
+
 ## 0.14.0
 
 ### new
