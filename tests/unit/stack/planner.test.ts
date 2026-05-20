@@ -158,6 +158,9 @@ describe("stack planners", () => {
         expect(plan.rebaseBookmarks).toEqual(["feature-b"])
         expect(plan.pushBookmarks).toEqual(["feature-b"])
         expect(plan.updatePrNumbers).toEqual([11])
+        expect(
+            plan.effects.find((effect) => effect.type === "abandon")?.revision,
+        ).toBe("main..a")
     })
 
     test("sync plans rebases when GitHub PR base differs from local target", async () => {

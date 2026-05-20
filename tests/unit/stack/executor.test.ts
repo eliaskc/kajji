@@ -119,7 +119,7 @@ describe("stack executor", () => {
         expect(plan.updatePrNumbers).toEqual([117])
         expect(
             plan.effects.find((effect) => effect.type === "abandon")?.revision,
-        ).toBe("parent-change")
+        ).toBe("main..parent-change")
     })
 
     test("apply skips empty plans", async () => {
