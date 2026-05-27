@@ -23,7 +23,11 @@ import {
     jjBookmarkSet,
 } from "../../commander/bookmarks"
 import { withCommandObserver } from "../../commander/executor"
-import { ghBrowseCommit, ghPrCreateWeb } from "../../commander/github"
+import {
+    ghBrowseCommit,
+    ghPrCreateWeb,
+    ghPrViewWeb,
+} from "../../commander/github"
 import { fetchLogPage } from "../../commander/log"
 import {
     type OpLogEntry,
@@ -246,6 +250,8 @@ export function LogPanel() {
         logLoadingMore,
         activeBookmarkDiff,
         enterBookmarkDiffView,
+        bookmarkPrNumbers,
+        refreshPullRequestMetadata,
     } = useSync()
     const focus = useFocus()
     const command = useCommand()
@@ -786,9 +792,15 @@ export function LogPanel() {
             await refresh()
         }
 
+        const existingPrNumber = bookmarkPrNumbers().get(bookmark.name)
         const observer = commandLog.observer()
-        const prResult = await ghPrCreateWeb(bookmark.name, { observer })
+        const prResult = existingPrNumber
+            ? await ghPrViewWeb(existingPrNumber, { observer })
+            : await ghPrCreateWeb(bookmark.name, { observer })
         commandLog.addEntry(prResult)
+        if (prResult.success) {
+            refreshPullRequestMetadata()
+        }
     }
 
     const openForCommit = async (options?: { direct?: boolean }) => {

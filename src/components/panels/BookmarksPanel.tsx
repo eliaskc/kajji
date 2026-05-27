@@ -22,9 +22,7 @@ import {
 } from "../../commander/bookmarks"
 import { withCommandObserver } from "../../commander/executor"
 import {
-    type GitHubPullRequestSummary,
     ghBrowseCommit,
-    ghListPullRequestsByHead,
     ghPrCreateWeb,
     ghPrViewWeb,
 } from "../../commander/github"
@@ -94,6 +92,9 @@ export function BookmarksPanel() {
         loadRemoteBookmarks,
         activeBookmarkDiff,
         enterBookmarkDiffView,
+        pullRequestsByHead,
+        bookmarkPrNumbers,
+        refreshPullRequestMetadata,
     } = useSync()
     const focus = useFocus()
     const command = useCommand()
@@ -174,7 +175,7 @@ export function BookmarksPanel() {
         const prResult = await ghPrCreateWeb(bookmark.name, { observer })
         commandLog.addEntry(prResult)
         if (prResult.success) {
-            refreshPrMetadataAfterPrCreateWeb()
+            refreshPullRequestMetadata()
         }
     }
 
@@ -222,24 +223,6 @@ export function BookmarksPanel() {
     const [filterSelectedIndex, setFilterSelectedIndex] = createSignal(0)
     const [showRemoteOnly, setShowRemoteOnly] = createSignal(false)
     const [remoteSelectedIndex, setRemoteSelectedIndex] = createSignal(0)
-    const [pullRequestsByHead, setPullRequestsByHead] = createSignal<
-        ReadonlyMap<string, GitHubPullRequestSummary>
-    >(new Map())
-    const bookmarkPrNumbers = createMemo(
-        () =>
-            new Map(
-                [...pullRequestsByHead()].map(([head, pull]) => [
-                    head,
-                    pull.number,
-                ]),
-            ),
-    )
-    const [prMetadataRefreshToken, setPrMetadataRefreshToken] = createSignal(0)
-    const refreshPrMetadataAfterPrCreateWeb = () => {
-        setTimeout(() => setPrMetadataRefreshToken((token) => token + 1), 15000)
-        setTimeout(() => setPrMetadataRefreshToken((token) => token + 1), 30000)
-        setTimeout(() => setPrMetadataRefreshToken((token) => token + 1), 60000)
-    }
     const selectedBookmarkHasOriginDiff = createMemo(() => {
         if (showRemoteOnly()) return false
         const bookmark = selectedBookmark()
@@ -267,31 +250,6 @@ export function BookmarksPanel() {
     const hasActiveFilter = createMemo(
         () => activeFilterQuery().trim().length > 0,
     )
-
-    createEffect(() => {
-        prMetadataRefreshToken()
-        const names = activeLocalBookmarks()
-            .map((bookmark) => bookmark.name)
-            .sort()
-        if (names.length === 0) {
-            setPullRequestsByHead(new Map())
-            return
-        }
-
-        let cancelled = false
-        ghListPullRequestsByHead(names)
-            .then((pullsByHead) => {
-                if (cancelled) return
-                setPullRequestsByHead(pullsByHead)
-            })
-            .catch(() => {
-                if (!cancelled) setPullRequestsByHead(new Map())
-            })
-
-        onCleanup(() => {
-            cancelled = true
-        })
-    })
 
     const filteredBookmarks = createMemo(() => {
         const q = activeFilterQuery().trim()
@@ -386,8 +344,8 @@ export function BookmarksPanel() {
         const observer = commandLog.observer()
         try {
             await Effect.runPromise(applyStackPlan(plan, { observer }))
-            refresh()
-            setPrMetadataRefreshToken((token) => token + 1)
+            await refresh()
+            refreshPullRequestMetadata()
         } catch (error) {
             commandLog.addEntry({
                 command: plan.applyCommand,
