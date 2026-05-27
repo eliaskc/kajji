@@ -197,6 +197,8 @@ async function applySubmitPlan(
         }
     }
 
+    let firstCreatedPrNumber: number | undefined
+
     for (const row of plan.rows) {
         const bookmark = row.row.bookmark
         const createEffect = row.effects.find(
@@ -215,6 +217,7 @@ async function applySubmitPlan(
         const pull = fresh.get(bookmark.name)
         if (pull) {
             prByBookmark.set(bookmark.name, pull.number)
+            firstCreatedPrNumber ??= pull.number
             journal.entries.push({
                 type: "PrCreated",
                 prNumber: pull.number,
@@ -251,8 +254,8 @@ async function applySubmitPlan(
         journal.entries.push({ type: "StackCommentUpdated", prNumber })
     }
 
-    const firstPr = stackPrNumbers[0]
-    if (firstPr) await ghPrViewWeb(firstPr, options)
+    const prToOpen = firstCreatedPrNumber ?? stackPrNumbers[0]
+    if (prToOpen) await ghPrViewWeb(prToOpen, options)
 }
 
 async function applySyncPlan(
