@@ -207,8 +207,6 @@ async function applySubmitPlan(
             {
                 head: bookmark.name,
                 base: row.desiredBase ?? plan.stackRootName,
-                title: bookmark.description || bookmark.name,
-                body: "",
             },
             options,
         )

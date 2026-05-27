@@ -373,22 +373,11 @@ async function ghOperation(
 }
 
 export async function ghPrCreate(
-    input: { head: string; base: string; title: string; body?: string },
+    input: { head: string; base: string },
     options?: OperationRunOptions,
 ): Promise<OperationResult> {
     return ghOperation(
-        [
-            "pr",
-            "create",
-            "--head",
-            input.head,
-            "--base",
-            input.base,
-            "--title",
-            input.title,
-            "--body",
-            input.body ?? "",
-        ],
+        ["pr", "create", "--head", input.head, "--base", input.base, "--fill"],
         options,
     )
 }
