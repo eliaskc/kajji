@@ -72,7 +72,7 @@ describe("findCommitBookmarkWithOriginDiff", () => {
         expect(result).toBeNull()
     })
 
-    test("returns null when there is no origin bookmark", () => {
+    test("returns a selected commit bookmark when there is no origin bookmark", () => {
         const result = findCommitBookmarkWithOriginDiff(
             makeCommit({ bookmarks: ["feature"] }),
             [makeBookmark()],
@@ -85,6 +85,6 @@ describe("findCommitBookmarkWithOriginDiff", () => {
             ],
         )
 
-        expect(result).toBeNull()
+        expect(result).toBe("feature")
     })
 })

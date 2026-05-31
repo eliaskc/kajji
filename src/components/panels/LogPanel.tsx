@@ -61,7 +61,10 @@ import { useSync } from "../../context/sync"
 import { useTheme } from "../../context/theme"
 import type { Context } from "../../context/types"
 import { getRepoPath } from "../../repo"
-import { findCommitBookmarkWithOriginDiff } from "../../utils/bookmark-origin-diff"
+import {
+    findCommitBookmarkWithOriginDiff,
+    hasOriginDiff,
+} from "../../utils/bookmark-origin-diff"
 import { blendColors } from "../../utils/color"
 import { createDoubleClickDetector } from "../../utils/double-click"
 import { openInEditor, shouldSuspendForEditor } from "../../utils/editor"
@@ -228,6 +231,7 @@ export function LogPanel() {
         remoteBookmarksError,
         revsetFilter,
         loadBookmarks,
+        loadRemoteBookmarks,
         setRevsetFilter,
         revsetError,
         clearRevsetFilter,
@@ -740,10 +744,7 @@ export function LogPanel() {
         )
     }
 
-    const openForBookmark = async (
-        bookmark: Bookmark,
-        options?: { confirmPush?: boolean },
-    ) => {
+    const openForBookmark = async (bookmark: Bookmark) => {
         if (!bookmark.changeId) {
             commandLog.addEntry({
                 command: "open",
@@ -768,29 +769,14 @@ export function LogPanel() {
             // fall through to PR open
         }
 
+        await loadRemoteBookmarks()
+
         let needsPush = false
         if (!remoteBookmarksLoading() && !remoteBookmarksError()) {
-            const remote = remoteBookmarks().find(
-                (b) => !b.isLocal && b.name === bookmark.name,
-            )
-            needsPush =
-                !remote?.changeId || remote.changeId !== bookmark.changeId
+            needsPush = hasOriginDiff(bookmark, remoteBookmarks())
         }
 
         if (needsPush) {
-            if (options?.confirmPush !== false) {
-                const confirmed = await dialog.confirm({
-                    ...DIALOG_SIZE.confirmWide,
-                    message: [
-                        "Bookmark ",
-                        { text: bookmark.name, style: "target" },
-                        " isn't pushed. ",
-                        { text: "Push", style: "action" },
-                        " before opening PR?",
-                    ],
-                })
-                if (!confirmed) return
-            }
             const observer = commandLog.observer()
             const pushResult = await jjGitPushBookmark(bookmark.name, {
                 observer,
@@ -857,9 +843,7 @@ export function LogPanel() {
             }
         }
 
-        await openForBookmark(targetBookmark, {
-            confirmPush: options?.direct !== true,
-        })
+        await openForBookmark(targetBookmark)
     }
 
     let scrollRef: ScrollBoxRenderable | undefined

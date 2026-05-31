@@ -9,7 +9,7 @@ export function hasOriginDiff(bookmark: Bookmark, remoteBookmarks: Bookmark[]) {
             remoteBookmark.remote === "origin" &&
             remoteBookmark.name === bookmark.name,
     )
-    return Boolean(remote?.commitId && remote.commitId !== bookmark.commitId)
+    return !remote?.commitId || remote.commitId !== bookmark.commitId
 }
 
 export function findCommitBookmarkWithOriginDiff(

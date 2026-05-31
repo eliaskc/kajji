@@ -78,6 +78,7 @@ export function BookmarksPanel() {
         setActiveBookmarkFilter,
         setPreviousRevsetFilter,
         loadLog,
+        loadRemoteBookmarks,
         activeBookmarkDiff,
         enterBookmarkDiffView,
     } = useSync()
@@ -131,27 +132,14 @@ export function BookmarksPanel() {
             // fall through to PR open
         }
 
+        await loadRemoteBookmarks()
+
         let needsPush = false
         if (!remoteBookmarksLoading() && !remoteBookmarksError()) {
-            const remote = remoteBookmarks().find(
-                (b) => !b.isLocal && b.name === bookmark.name,
-            )
-            needsPush =
-                !remote?.changeId || remote.changeId !== bookmark.changeId
+            needsPush = hasOriginDiff(bookmark, remoteBookmarks())
         }
 
         if (needsPush) {
-            const confirmed = await dialog.confirm({
-                ...DIALOG_SIZE.confirmWide,
-                message: [
-                    "Bookmark ",
-                    { text: bookmark.name, style: "target" },
-                    " isn't pushed. ",
-                    { text: "Push", style: "action" },
-                    " before opening PR?",
-                ],
-            })
-            if (!confirmed) return
             const observer = commandLog.observer()
             const pushResult = await jjGitPushBookmark(bookmark.name, {
                 observer,
