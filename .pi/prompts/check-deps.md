@@ -8,8 +8,8 @@ Check for useful updates in key TUI dependencies.
 
 | Package | Current | Release notes entry point | Source clone |
 |---------|---------|---------------------------|--------------|
-| `@opentui/core` | Check package.json | https://github.com/sst/opentui/releases | `git clone https://github.com/sst/opentui /tmp/opentui` |
-| `@opentui/solid` | Check package.json | https://github.com/sst/opentui/releases | `git clone https://github.com/sst/opentui /tmp/opentui` |
+| `@opentui/core` | Check package.json | https://github.com/anomalyco/opentui/releases | `git clone https://github.com/anomalyco/opentui /tmp/opentui` |
+| `@opentui/solid` | Check package.json | https://github.com/anomalyco/opentui/releases | `git clone https://github.com/anomalyco/opentui /tmp/opentui` |
 | `@pierre/diffs` | Check package.json | https://github.com/pierrecomputer/pierre/releases | `git clone https://github.com/pierrecomputer/pierre /tmp/pierre` |
 | `bun` | Run `bun --version` | https://github.com/oven-sh/bun/releases | `git clone https://github.com/oven-sh/bun /tmp/bun` |
 
