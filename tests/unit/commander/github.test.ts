@@ -3,6 +3,7 @@ import {
     parseGhPullRequestsByHeadGraphqlJson,
     parseGhPullRequestsByHeadGraphqlJsonIncludingClosed,
     parseGhRepositoryJson,
+    parseGitHubRemoteUrl,
 } from "../../../src/commander/github"
 
 describe("parseGhRepositoryJson", () => {
@@ -12,6 +13,26 @@ describe("parseGhRepositoryJson", () => {
                 JSON.stringify({ owner: { login: "eliaskc" }, name: "kajji" }),
             ),
         ).toEqual({ owner: "eliaskc", name: "kajji" })
+    })
+})
+
+describe("parseGitHubRemoteUrl", () => {
+    test("parses ssh and https GitHub remotes", () => {
+        expect(
+            parseGitHubRemoteUrl("git@github.com:MDLabs/apnea-sdk-ios"),
+        ).toEqual({
+            owner: "MDLabs",
+            name: "apnea-sdk-ios",
+        })
+        expect(
+            parseGitHubRemoteUrl("https://github.com/eliaskc/kajji.git"),
+        ).toEqual({ owner: "eliaskc", name: "kajji" })
+    })
+
+    test("ignores non-GitHub remotes", () => {
+        expect(
+            parseGitHubRemoteUrl("git@example.com:owner/repo.git"),
+        ).toBeUndefined()
     })
 })
 

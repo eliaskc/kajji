@@ -72,10 +72,12 @@ export interface GitHubPullRequestSummary {
     createdAt?: string
 }
 
-export function parseGhRepositoryJson(stdout: string): {
+export interface GitHubRepository {
     owner: string
     name: string
-} {
+}
+
+export function parseGhRepositoryJson(stdout: string): GitHubRepository {
     const value = JSON.parse(stdout) as unknown
     if (!value || typeof value !== "object") {
         throw new Error("Invalid gh repo view response")
@@ -90,6 +92,19 @@ export function parseGhRepositoryJson(stdout: string): {
         throw new Error("Invalid gh repo view response")
     }
     return { owner: ownerLogin, name: record.name }
+}
+
+export function parseGitHubRemoteUrl(
+    url: string,
+): GitHubRepository | undefined {
+    const trimmed = url.trim()
+    const match = trimmed.match(
+        /^(?:https:\/\/github\.com\/|git@github\.com:)([^/]+)\/([^/]+?)(?:\.git)?$/,
+    )
+    const owner = match?.[1]
+    const name = match?.[2]
+    if (!owner || !name) return undefined
+    return { owner, name }
 }
 
 export function parseGhPullRequestsByHeadGraphqlJson(
@@ -181,6 +196,40 @@ function preferPullRequest(
     return candidate.number > existing.number
 }
 
+async function gitOutput(args: readonly string[]): Promise<string | undefined> {
+    const proc = Bun.spawn(["git", ...args], {
+        cwd: getRepoPath(),
+        stdin: "ignore",
+        stdout: "pipe",
+        stderr: "pipe",
+    })
+    const [stdout, exitCode] = await Promise.all([
+        new Response(proc.stdout as ReadableStream<Uint8Array>).text(),
+        proc.exited,
+    ])
+    if (exitCode !== 0) return undefined
+    return stdout.trim()
+}
+
+async function resolveGitHubRepository(): Promise<GitHubRepository> {
+    const originUrl = await gitOutput(["remote", "get-url", "origin"])
+    const originRepo = originUrl ? parseGitHubRemoteUrl(originUrl) : undefined
+    if (originRepo) return originRepo
+
+    return parseGhRepositoryJson(
+        await ghOutput(["repo", "view", "--json", "owner,name"]),
+    )
+}
+
+function repoFullName(repo: GitHubRepository): string {
+    return `${repo.owner}/${repo.name}`
+}
+
+async function withResolvedRepo(args: readonly string[]): Promise<string[]> {
+    const repo = await resolveGitHubRepository()
+    return [...args, "--repo", repoFullName(repo)]
+}
+
 async function ghOutput(
     args: readonly string[],
     stdin?: string,
@@ -211,9 +260,7 @@ export async function ghListPullRequestsByHead(
     const uniqueHeads = [...new Set(heads)].filter(Boolean)
     if (uniqueHeads.length === 0) return new Map()
 
-    const repo = parseGhRepositoryJson(
-        await ghOutput(["repo", "view", "--json", "owner,name"]),
-    )
+    const repo = await resolveGitHubRepository()
     const states = options.includeClosed ? "[OPEN, CLOSED, MERGED]" : "OPEN"
     const query = `query PullRequestsByHead($owner: String!, $name: String!) {
   repository(owner: $owner, name: $name) {
@@ -377,7 +424,15 @@ export async function ghPrCreate(
     options?: OperationRunOptions,
 ): Promise<OperationResult> {
     return ghOperation(
-        ["pr", "create", "--head", input.head, "--base", input.base, "--fill"],
+        await withResolvedRepo([
+            "pr",
+            "create",
+            "--head",
+            input.head,
+            "--base",
+            input.base,
+            "--fill",
+        ]),
         options,
     )
 }
@@ -388,7 +443,13 @@ export async function ghPrEditBase(
     options?: OperationRunOptions,
 ): Promise<OperationResult> {
     return ghOperation(
-        ["pr", "edit", String(prNumber), "--base", base],
+        await withResolvedRepo([
+            "pr",
+            "edit",
+            String(prNumber),
+            "--base",
+            base,
+        ]),
         options,
     )
 }
@@ -397,14 +458,20 @@ export async function ghPrClose(
     prNumber: number,
     options?: OperationRunOptions,
 ): Promise<OperationResult> {
-    return ghOperation(["pr", "close", String(prNumber)], options)
+    return ghOperation(
+        await withResolvedRepo(["pr", "close", String(prNumber)]),
+        options,
+    )
 }
 
 export async function ghPrViewWeb(
     prNumber: number,
     options?: OperationRunOptions,
 ): Promise<OperationResult> {
-    return ghOperation(["pr", "view", String(prNumber), "--web"], options)
+    return ghOperation(
+        await withResolvedRepo(["pr", "view", String(prNumber), "--web"]),
+        options,
+    )
 }
 
 export async function ghUpsertStackComment(
@@ -412,9 +479,7 @@ export async function ghUpsertStackComment(
     body: string,
     options?: OperationRunOptions,
 ): Promise<OperationResult> {
-    const repo = parseGhRepositoryJson(
-        await ghOutput(["repo", "view", "--json", "owner,name"]),
-    )
+    const repo = await resolveGitHubRepository()
     const marker = `<!-- kajji-stack pr=${prNumber} -->`
     const commentsJson = await ghOutput([
         "api",
