@@ -9,7 +9,40 @@ export interface WordDiffSegment {
 }
 
 /**
- * Compute word-level differences between two lines.
+ * Push a segment, joining it into the previous one when possible ("word-alt"
+ * style, mirroring @pierre/diffs). Adjacent segments of the same kind are
+ * merged, and a single-character unchanged gap (typically a space) between
+ * two changed segments is absorbed into the highlight so changed runs read
+ * as one continuous span instead of speckled fragments.
+ */
+function pushOrJoinSegment(
+    segments: WordDiffSegment[],
+    text: string,
+    type: WordDiffSegment["type"],
+    isLastItem: boolean,
+): void {
+    const last = segments[segments.length - 1]
+    if (!last || isLastItem) {
+        segments.push({ text, type })
+        return
+    }
+    const isNeutral = type === "unchanged"
+    const isLastNeutral = last.type === "unchanged"
+    if (
+        isNeutral === isLastNeutral ||
+        // Absorb a single-character unchanged gap into a preceding highlight
+        (isNeutral && text.length === 1 && !isLastNeutral)
+    ) {
+        last.text += text
+        return
+    }
+    segments.push({ text, type })
+}
+
+/**
+ * Compute word-level differences between two lines using "word-alt"
+ * highlighting: word diffs with single-space gaps joined into continuous
+ * highlight spans.
  * Returns an array of segments for highlighting.
  */
 export function computeWordDiff(
@@ -21,15 +54,17 @@ export function computeWordDiff(
     const oldSegments: WordDiffSegment[] = []
     const newSegments: WordDiffSegment[] = []
 
+    const lastChange = changes[changes.length - 1]
     for (const change of changes) {
+        const isLastItem = change === lastChange
         if (change.added) {
-            newSegments.push({ text: change.value, type: "added" })
+            pushOrJoinSegment(newSegments, change.value, "added", isLastItem)
         } else if (change.removed) {
-            oldSegments.push({ text: change.value, type: "removed" })
+            pushOrJoinSegment(oldSegments, change.value, "removed", isLastItem)
         } else {
             // Unchanged - appears in both
-            oldSegments.push({ text: change.value, type: "unchanged" })
-            newSegments.push({ text: change.value, type: "unchanged" })
+            pushOrJoinSegment(oldSegments, change.value, "unchanged", isLastItem)
+            pushOrJoinSegment(newSegments, change.value, "unchanged", isLastItem)
         }
     }
 
