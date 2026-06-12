@@ -3,7 +3,7 @@ import { homedir } from "node:os"
 import { basename, isAbsolute, join, resolve } from "node:path"
 import type { ExecuteResult } from "../commander/executor"
 import type { CommandObserver } from "../commander/observer"
-import { readConfig } from "../config"
+import { applyRepoConfig, readConfig } from "../config"
 import { getRepoPath } from "../repo"
 
 export interface HookRunOptions {
@@ -74,8 +74,12 @@ async function readGitHooksPath(): Promise<string | undefined> {
     return path.length > 0 ? path : undefined
 }
 
+function readHooksConfig() {
+    return applyRepoConfig(readConfig(), getRepoPath())
+}
+
 async function resolveGitHooksPath(): Promise<string | undefined> {
-    const configuredPath = readConfig().gitHooksPath
+    const configuredPath = readHooksConfig().gitHooksPath
     if (configuredPath === false) return undefined
     return configuredPath ?? (await readGitHooksPath())
 }
@@ -213,7 +217,7 @@ export async function runPreHooks(
         return []
     }
 
-    const hook = readConfig().hooks[operationId]
+    const hook = readHooksConfig().hooks[operationId]
     const results: ExecuteResult[] = []
 
     let configuredHookCommands = hook?.pre ?? []

@@ -97,9 +97,9 @@
                 }
             ]
         },
-        "hooks": {
+        "repos": {
             "default": {},
-            "description": "Hooks keyed by operation id, for example jj.new",
+            "description": "Repository-specific configuration keyed by repository path",
             "type": "object",
             "propertyNames": {
                 "type": "string"

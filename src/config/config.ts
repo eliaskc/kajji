@@ -30,6 +30,55 @@ function hasLegacyTheme(raw: unknown): boolean {
     return theme === "lazygit" || theme === "opencode"
 }
 
+export function migrateLegacyHooks(raw: unknown): unknown {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return raw
+
+    const config = { ...(raw as Record<string, unknown>) }
+    const hooks = config.hooks
+    if (!hooks || typeof hooks !== "object" || Array.isArray(hooks)) return raw
+
+    const repos =
+        config.repos &&
+        typeof config.repos === "object" &&
+        !Array.isArray(config.repos)
+            ? { ...(config.repos as Record<string, unknown>) }
+            : {}
+
+    for (const [operationId, hook] of Object.entries(
+        hooks as Record<string, unknown>,
+    )) {
+        if (!hook || typeof hook !== "object" || Array.isArray(hook)) continue
+        const hookRecord = hook as Record<string, unknown>
+        const onlyIn = hookRecord.onlyIn
+        const repoPath =
+            typeof onlyIn === "string" && onlyIn.length > 0 ? onlyIn : "/"
+
+        const existingRepo = repos[repoPath]
+        const repoConfig =
+            existingRepo &&
+            typeof existingRepo === "object" &&
+            !Array.isArray(existingRepo)
+                ? { ...(existingRepo as Record<string, unknown>) }
+                : {}
+        const repoHooks =
+            repoConfig.hooks &&
+            typeof repoConfig.hooks === "object" &&
+            !Array.isArray(repoConfig.hooks)
+                ? { ...(repoConfig.hooks as Record<string, unknown>) }
+                : {}
+
+        const migratedHook = { ...hookRecord }
+        delete migratedHook.onlyIn
+        repoHooks[operationId] = migratedHook
+        repoConfig.hooks = repoHooks
+        repos[repoPath] = repoConfig
+    }
+
+    config.repos = repos
+    delete config.hooks
+    return config
+}
+
 function migrateConfigFile(config: AppConfig): void {
     try {
         writeFileAtomic(getConfigPath(), JSON.stringify(config, null, "\t"))
@@ -58,10 +107,11 @@ export function readConfig(): AppConfig {
     try {
         const content = readFileSync(configPath, "utf-8")
         const raw = parseJsonc(content)
-        const result = ConfigSchema.safeParse(raw ?? {})
+        const migratedRaw = migrateLegacyHooks(raw ?? {})
+        const result = ConfigSchema.safeParse(migratedRaw)
         if (result.success) {
             cachedConfig = result.data
-            if (hasLegacyTheme(raw)) {
+            if (hasLegacyTheme(raw) || raw !== migratedRaw) {
                 migrateConfigFile(cachedConfig)
             }
         } else {

@@ -14,7 +14,7 @@ describe("ConfigSchema", () => {
         expect(config.whatsNewDisabled).toBe(false)
         expect(config.autoUpdatesDisabled).toBe(false)
         expect(config.gitHooksPath).toBeUndefined()
-        expect(config.hooks).toEqual({})
+        expect(config.repos).toEqual({})
     })
 
     test("partial config merges with defaults", () => {
@@ -114,22 +114,39 @@ describe("ConfigSchema", () => {
         expect(disabled.gitHooksPath).toBe(false)
     })
 
-    test("hooks can be configured for jj.new", () => {
+    test("top-level hooks are no longer accepted", () => {
         const config = ConfigSchema.parse({
             hooks: {
                 "jj.new": {
-                    onlyIn: "~/sleepcycle/apnea/ios",
-                    pre: [
-                        "swiftlint lint . --config .swiftlint.yml --fix",
-                        {
-                            command:
-                                "swift format --configuration .swift-format --recursive . -i",
-                        },
-                    ],
+                    pre: ["bun test"],
                 },
             },
         })
 
-        expect(config.hooks["jj.new"]?.pre).toHaveLength(2)
+        expect("hooks" in config).toBe(false)
+    })
+
+    test("repos can configure repository-specific hooks", () => {
+        const config = ConfigSchema.parse({
+            repos: {
+                "~/code/my-repo": {
+                    gitHooksPath: ".githooks",
+                    hooks: {
+                        "jj.new": {
+                            pre: ["bun test"],
+                        },
+                    },
+                },
+                "~/work/other-repo": {
+                    gitHooksPath: false,
+                },
+            },
+        })
+
+        expect(config.repos["~/code/my-repo"]?.gitHooksPath).toBe(".githooks")
+        expect(config.repos["~/code/my-repo"]?.hooks?.["jj.new"]?.pre).toEqual([
+            "bun test",
+        ])
+        expect(config.repos["~/work/other-repo"]?.gitHooksPath).toBe(false)
     })
 })

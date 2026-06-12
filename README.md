@@ -132,7 +132,8 @@ Common settings include:
 - `diff.autoSwitchWidth`: terminal width where `auto` switches to split view
 - `diff.wrap`: wrap long diff lines
 - `diff.useJjFormatter`: use jj's configured diff formatter in the detail pane
-- `hooks`: commands to run before specific operations
+- `gitHooksPath`: default Git-compatible hooks directory to check for `pre-commit` before `jj.new` (`.git/hooks` enables standard per-repo Git hooks in every repo)
+- `repos`: repo-specific `gitHooksPath` and operation hooks keyed by repository path
 - `whatsNewDisabled` / `autoUpdatesDisabled`: update notification controls
 
 ## Keybindings

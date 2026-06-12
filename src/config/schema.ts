@@ -77,6 +77,21 @@ export const HookSchema = z
     })
     .describe("Command hook")
 
+export const RepoConfigSchema = z
+    .object({
+        gitHooksPath: z
+            .union([z.string(), z.literal(false)])
+            .optional()
+            .describe(
+                "Path to a Git-compatible hooks directory for this repository, or false to disable core.hooksPath discovery",
+            ),
+        hooks: z
+            .record(z.string(), HookSchema)
+            .optional()
+            .describe("Hooks keyed by operation id for this repository"),
+    })
+    .describe("Repository-specific kajji configuration")
+
 export const ConfigSchema = z
     .object({
         $schema: z
@@ -109,10 +124,12 @@ export const ConfigSchema = z
                 "Path to a Git-compatible hooks directory, or false to disable core.hooksPath discovery",
             ),
 
-        hooks: z
-            .record(z.string(), HookSchema)
+        repos: z
+            .record(z.string(), RepoConfigSchema)
             .default({})
-            .describe("Hooks keyed by operation id, for example jj.new"),
+            .describe(
+                "Repository-specific configuration keyed by repository path",
+            ),
 
         whatsNewDisabled: z
             .boolean()
@@ -126,6 +143,10 @@ export const ConfigSchema = z
     })
     .describe("kajji configuration")
 
+export type RepoConfig = z.infer<typeof RepoConfigSchema>
 export type AppConfig = z.infer<typeof ConfigSchema>
+export type EffectiveConfig = AppConfig & {
+    hooks: Record<string, z.infer<typeof HookSchema>>
+}
 
 export { SCHEMA_URL }
