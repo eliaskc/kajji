@@ -65,11 +65,11 @@ export interface InitResult {
 }
 
 export async function initJjRepo(path: string): Promise<InitResult> {
-    const result = await execute(["init"], { cwd: path })
+    const result = await execute(["git", "init"], { cwd: path })
     if (result.success) {
         return { success: true }
     }
-    return { success: false, error: result.stderr.trim() || "jj init failed" }
+    return { success: false, error: result.stderr.trim() || "jj git init failed" }
 }
 
 export async function initJjGitRepo(

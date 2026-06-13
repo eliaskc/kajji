@@ -284,7 +284,7 @@ function NoVcsScreen(props: NoVcsScreenProps) {
                         handleInitDoubleClick()
                     }}
                 >
-                    <text fg={colors().text}>jj init</text>
+                    <text fg={colors().text}>jj git init</text>
                     <text fg={colors().primary}>i</text>
                 </box>
                 <Show
