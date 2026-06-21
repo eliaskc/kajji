@@ -915,24 +915,32 @@ export function LogPanel() {
         setScrollLeft: (value: number) => void,
         maxLength: () => number,
         viewportWidth: () => number,
+        getScrollRef: () => ScrollBoxRenderable | undefined,
     ) => {
         return (event: MouseEvent) => {
             if (!event.scroll) return
-            const delta = event.scroll.delta || 1
             const direction = event.scroll.direction
+            if (direction !== "left" && direction !== "right") return
+
+            const viewport = getScrollRef()?.viewport
+            if (
+                viewport &&
+                (event.x < viewport.screenX ||
+                    event.x >= viewport.screenX + viewport.width ||
+                    event.y < viewport.screenY ||
+                    event.y >= viewport.screenY + viewport.height)
+            ) {
+                return
+            }
+
+            const delta = event.scroll.delta || 1
             const next =
                 direction === "left"
                     ? getScrollLeft() - delta
-                    : direction === "right"
-                      ? getScrollLeft() + delta
-                      : getScrollLeft()
-            if (direction === "left" || direction === "right") {
-                setScrollLeft(
-                    clampScrollLeft(next, maxLength(), viewportWidth()),
-                )
-                event.preventDefault()
-                event.stopPropagation()
-            }
+                    : getScrollLeft() + delta
+            setScrollLeft(clampScrollLeft(next, maxLength(), viewportWidth()))
+            event.preventDefault()
+            event.stopPropagation()
         }
     }
 
@@ -2322,6 +2330,7 @@ export function LogPanel() {
                                     setLogScrollLeft,
                                     logMaxLineLength,
                                     logViewportWidth,
+                                    () => scrollRef,
                                 )}
                                 cropStart={logScrollLeft()}
                                 cropWidth={Math.max(1, logViewportWidth())}
@@ -2351,6 +2360,7 @@ export function LogPanel() {
                         setLogScrollLeft,
                         logMaxLineLength,
                         logViewportWidth,
+                        () => scrollRef,
                     )}
                     scrollbarOptions={{ visible: false }}
                 >
@@ -2526,6 +2536,7 @@ export function LogPanel() {
                     setOpLogScrollLeft,
                     opLogMaxLineLength,
                     opLogViewportWidth,
+                    () => opLogScrollRef,
                 )}
                 scrollbarOptions={{ visible: false }}
             >
@@ -2562,6 +2573,7 @@ export function LogPanel() {
                                                 setOpLogScrollLeft,
                                                 opLogMaxLineLength,
                                                 opLogViewportWidth,
+                                                () => opLogScrollRef,
                                             )}
                                             cropStart={opLogScrollLeft()}
                                             cropWidth={Math.max(
