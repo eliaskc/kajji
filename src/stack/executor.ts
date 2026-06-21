@@ -1,7 +1,6 @@
 import { Effect } from "effect"
 import { type Bookmark, fetchBookmarks } from "../commander/bookmarks"
 import {
-    type GitHubPullRequestSummary,
     ghListPullRequestsByHead,
     ghPrClose,
     ghPrCreate,
@@ -17,16 +16,21 @@ import {
     jjGitFetch,
     jjGitPushBookmark,
     jjRebase,
+    jjRevsetHasMatches,
 } from "../commander/operations"
 import { getRepoPath } from "../repo"
 import { buildBookmarkStackModel } from "./discovery"
 import type {
     BookmarkStackModel,
     StackPlan,
-    StackPlanEffect,
     StackPullRequestInput,
 } from "./model"
-import { buildSubmitPlanSync, buildSyncPlanSync } from "./planner"
+import { buildSyncPlanSync } from "./planner"
+import {
+    type PersistedStackEntry,
+    readPersistedStackState,
+    writePersistedStackState,
+} from "./state"
 
 export interface PrepareStackPlanOptions {
     readonly stackRootName: string
@@ -39,23 +43,6 @@ export interface ApplyStackPlanOptions {
 
 type FreshBookmark = Bookmark
 
-export const prepareSubmitPlan = Effect.fn("Stack.prepareSubmitPlan")(
-    (options: PrepareStackPlanOptions) =>
-        Effect.promise(async () => {
-            const state = await loadFreshState({
-                stackRootName: options.stackRootName,
-                observer: options.observer,
-                includeClosedPulls: false,
-            })
-            return buildSubmitPlanSync({
-                stackRootName: options.stackRootName,
-                stackModel: state.stackModel,
-                pullRequestsByHead: state.pullRequestsByHead,
-                remoteBookmarksByName: state.remoteBookmarksByName,
-            })
-        }),
-)
-
 export const prepareSyncPlan = Effect.fn("Stack.prepareSyncPlan")(
     (options: PrepareStackPlanOptions) =>
         Effect.promise(async () => {
@@ -64,11 +51,16 @@ export const prepareSyncPlan = Effect.fn("Stack.prepareSyncPlan")(
                 observer: options.observer,
                 includeClosedPulls: true,
             })
+            const landedRangesByBookmark = await detectLandedParentRanges(
+                state.stackModel,
+                state.pullRequestsByHead,
+            )
             return buildSyncPlanSync({
                 stackRootName: options.stackRootName,
                 stackModel: state.stackModel,
                 pullRequestsByHead: state.pullRequestsByHead,
                 remoteBookmarksByName: state.remoteBookmarksByName,
+                landedRangesByBookmark,
             })
         }),
 )
@@ -79,11 +71,8 @@ export const applyStackPlan = Effect.fn("Stack.applyPlan")(
             if (plan.effects.length === 0) return
             const beforeOp = await fetchOpLogId()
             const journal = stackJournal(plan, beforeOp)
-            if (plan.kind === "submit") {
-                await applySubmitPlan(plan, journal, options)
-            } else {
-                await applySyncPlan(plan, journal, options)
-            }
+            const prByBookmark = await applySyncPlan(plan, journal, options)
+            await persistStackStateFromPlan(plan, prByBookmark)
             journal.afterOperationId = await fetchOpLogId()
             await writeJournal(journal)
         }),
@@ -102,10 +91,14 @@ async function loadFreshState(options: {
         throw new Error(fetchResult.stderr || fetchResult.stdout)
 
     const freshState = await readStackState()
-    const localBookmarks = reconcileFetchedLocalBookmarks(
-        freshState.localBookmarks,
-        preFetchState?.stackModel,
-        options.stackRootName,
+    const persistedState = await readPersistedStackState()
+    const localBookmarks = restorePersistedLocalBookmarks(
+        reconcileFetchedLocalBookmarks(
+            freshState.localBookmarks,
+            preFetchState?.stackModel,
+            options.stackRootName,
+        ),
+        persistedState.entries,
     )
     const remoteBookmarks = freshState.remoteBookmarks
     const stackModel = Effect.runSync(
@@ -114,7 +107,10 @@ async function loadFreshState(options: {
             bookmarks: localBookmarks,
         }),
     )
-    const heads = stackModel.rows.map((row) => row.bookmark.name)
+    const heads = uniqueStrings([
+        ...stackModel.rows.map((row) => row.bookmark.name),
+        ...persistedState.entries.map((entry) => entry.bookmark),
+    ])
     const pullRequestsByHead = new Map<string, StackPullRequestInput>(
         [
             ...(await ghListPullRequestsByHead(heads, {
@@ -154,6 +150,36 @@ async function readStackState() {
     }
 }
 
+function restorePersistedLocalBookmarks(
+    localBookmarks: readonly FreshBookmark[],
+    entries: readonly PersistedStackEntry[],
+): readonly FreshBookmark[] {
+    const localNames = new Set(localBookmarks.map((bookmark) => bookmark.name))
+    const restored = entries.flatMap((entry) => {
+        if (localNames.has(entry.bookmark)) return []
+        const headCommitId = entry.headCommitId
+        const headChangeId = entry.headChangeId
+        if (!headCommitId || !headChangeId) return []
+        return [
+            {
+                name: entry.bookmark,
+                nameDisplay: entry.bookmark,
+                commitId: headCommitId,
+                commitIdDisplay: headCommitId.slice(0, 8),
+                changeId: headChangeId,
+                changeIdDisplay: headChangeId,
+                description: "",
+                descriptionDisplay: "",
+                isLocal: true,
+                remote: undefined,
+            } satisfies FreshBookmark,
+        ]
+    })
+    return restored.length > 0
+        ? [...localBookmarks, ...restored]
+        : localBookmarks
+}
+
 function reconcileFetchedLocalBookmarks(
     localBookmarks: readonly FreshBookmark[],
     preFetchStackModel: BookmarkStackModel<FreshBookmark> | undefined,
@@ -175,7 +201,41 @@ function reconcileFetchedLocalBookmarks(
     return [...localBookmarks, ...restoredBookmarks]
 }
 
-async function applySubmitPlan(
+async function detectLandedParentRanges(
+    stackModel: BookmarkStackModel<FreshBookmark>,
+    pullRequestsByHead: ReadonlyMap<string, StackPullRequestInput>,
+): Promise<ReadonlyMap<string, string>> {
+    const persisted = await readPersistedStackState()
+    const persistedByBookmark = new Map(
+        persisted.entries.map((entry) => [entry.bookmark, entry]),
+    )
+    const ranges = new Map<string, string>()
+
+    for (const row of stackModel.rows) {
+        const bookmark = row.bookmark
+        const entry = persistedByBookmark.get(bookmark.name)
+        if (!entry) continue
+        const previousParent = persistedByBookmark.get(entry.parent)
+        if (!previousParent) continue
+        const parentPull = pullRequestsByHead.get(previousParent.bookmark)
+        if (parentPull?.merged !== true && parentPull?.state !== "MERGED") {
+            continue
+        }
+        const currentBase =
+            parentPull.baseRefName ?? stackModel.parentByName.get(bookmark.name)
+        const oldBase = previousParent.parentChangeId ?? previousParent.parent
+        const oldHead = previousParent.headChangeId ?? previousParent.bookmark
+        if (!currentBase) continue
+        const range = `(${oldBase}..${oldHead}) & ancestors(${bookmark.changeId ?? bookmark.name}) ~ ancestors(${currentBase})`
+        if (await jjRevsetHasMatches(range)) {
+            ranges.set(bookmark.name, range)
+        }
+    }
+
+    return ranges
+}
+
+async function applySyncPlan(
     plan: StackPlan<FreshBookmark>,
     journal: StackJournalFile,
     options: ApplyStackPlanOptions,
@@ -187,9 +247,33 @@ async function applySubmitPlan(
     )
 
     for (const effect of plan.effects) {
-        if (effect.type === "push") {
+        if (effect.type !== "abandon" && effect.type !== "abandon-landed-range")
+            continue
+        const result = await jjAbandon(
+            effect.range ?? effect.revision ?? effect.bookmark,
+            {
+                observer: options.observer,
+            },
+        )
+        if (!result.success) throw new Error(result.stderr || result.stdout)
+        journal.entries.push({
+            type:
+                effect.type === "abandon-landed-range"
+                    ? "LandedRangeAbandoned"
+                    : "BookmarkAbandoned",
+            bookmark: effect.bookmark,
+            prNumber: effect.prNumber,
+        })
+    }
+
+    const pushedBookmarks = new Set<string>()
+    for (const row of plan.rows) {
+        if (!row.effects.some((effect) => effect.type === "create-pr")) continue
+        for (const effect of row.effects) {
+            if (effect.type !== "push") continue
             const result = await jjGitPushBookmark(effect.bookmark, options)
             if (!result.success) throw new Error(result.stderr || result.stdout)
+            pushedBookmarks.add(effect.bookmark)
             journal.entries.push({
                 type: "BookmarkPushed",
                 bookmark: effect.bookmark,
@@ -227,56 +311,6 @@ async function applySubmitPlan(
     }
 
     for (const effect of plan.effects) {
-        if (effect.type !== "update-pr" || !effect.prNumber || !effect.to)
-            continue
-        const result = await ghPrEditBase(effect.prNumber, effect.to, options)
-        if (!result.success) throw new Error(result.stderr || result.stdout)
-        journal.entries.push({
-            type: "PrBaseChanged",
-            prNumber: effect.prNumber,
-            from: effect.from,
-            to: effect.to,
-        })
-    }
-
-    const stackPrNumbers = plan.rows
-        .map((row) => prByBookmark.get(row.row.bookmark.name) ?? row.prNumber)
-        .filter((number): number is number => typeof number === "number")
-    for (const row of plan.rows) {
-        const prNumber = prByBookmark.get(row.row.bookmark.name) ?? row.prNumber
-        if (!prNumber) continue
-        const result = await ghUpsertStackComment(
-            prNumber,
-            renderStackComment(prNumber, stackPrNumbers),
-            options,
-        )
-        if (!result.success) throw new Error(result.stderr || result.stdout)
-        journal.entries.push({ type: "StackCommentUpdated", prNumber })
-    }
-
-    const prToOpen = firstCreatedPrNumber ?? stackPrNumbers[0]
-    if (prToOpen) await ghPrViewWeb(prToOpen, options)
-}
-
-async function applySyncPlan(
-    plan: StackPlan<FreshBookmark>,
-    journal: StackJournalFile,
-    options: ApplyStackPlanOptions,
-) {
-    for (const effect of plan.effects) {
-        if (effect.type !== "abandon") continue
-        const result = await jjAbandon(effect.revision ?? effect.bookmark, {
-            observer: options.observer,
-        })
-        if (!result.success) throw new Error(result.stderr || result.stdout)
-        journal.entries.push({
-            type: "BookmarkAbandoned",
-            bookmark: effect.bookmark,
-            prNumber: effect.prNumber,
-        })
-    }
-
-    for (const effect of plan.effects) {
         if (effect.type === "rebase" && effect.to) {
             const result = await jjRebase(effect.bookmark, effect.to, {
                 mode: "branch",
@@ -292,6 +326,7 @@ async function applySyncPlan(
             })
         }
         if (effect.type === "push") {
+            if (pushedBookmarks.has(effect.bookmark)) continue
             const result = await jjGitPushBookmark(effect.bookmark, options)
             if (!result.success) throw new Error(result.stderr || result.stdout)
             journal.entries.push({
@@ -322,6 +357,80 @@ async function applySyncPlan(
             })
         }
     }
+
+    const stackPrNumbers = plan.rows
+        .map((row) => prByBookmark.get(row.row.bookmark.name) ?? row.prNumber)
+        .filter((number): number is number => typeof number === "number")
+    for (const row of plan.rows) {
+        const prNumber = prByBookmark.get(row.row.bookmark.name) ?? row.prNumber
+        if (!prNumber) continue
+        const result = await ghUpsertStackComment(
+            prNumber,
+            renderStackComment(prNumber, stackPrNumbers),
+            options,
+        )
+        if (!result.success) throw new Error(result.stderr || result.stdout)
+        journal.entries.push({ type: "StackCommentUpdated", prNumber })
+    }
+
+    const prToOpen = firstCreatedPrNumber ?? stackPrNumbers[0]
+    if (prToOpen) await ghPrViewWeb(prToOpen, options)
+    return prByBookmark
+}
+
+async function persistStackStateFromPlan(
+    plan: StackPlan<FreshBookmark>,
+    prByBookmark: ReadonlyMap<string, number>,
+) {
+    const previous = await readPersistedStackState()
+    const nextByBookmark = new Map(
+        previous.entries.map((entry) => [entry.bookmark, entry]),
+    )
+    const syncedAt = new Date().toISOString()
+
+    for (const row of plan.rows) {
+        const bookmark = row.row.bookmark
+        const parent = row.desiredBase
+        if (!parent || parent === bookmark.name) continue
+        const isTrunk =
+            row.row.depth === 0 && plan.stackRootName !== bookmark.name
+        if (isTrunk) continue
+        const prNumber = prByBookmark.get(bookmark.name) ?? row.prNumber
+        if (
+            !prNumber &&
+            row.effects.some((effect) => effect.type === "create-pr")
+        ) {
+            continue
+        }
+        const parentRow = plan.rows.find(
+            (candidate) => candidate.row.bookmark.name === parent,
+        )
+        const entry: PersistedStackEntry = {
+            bookmark: bookmark.name,
+            parent,
+            ...(prNumber ? { prNumber } : {}),
+            ...(bookmark.changeId ? { headChangeId: bookmark.changeId } : {}),
+            headCommitId: bookmark.commitId,
+            ...(parentRow?.row.bookmark.changeId
+                ? { parentChangeId: parentRow.row.bookmark.changeId }
+                : {}),
+            ...(parentRow?.row.bookmark.commitId
+                ? { parentCommitId: parentRow.row.bookmark.commitId }
+                : {}),
+            baseRefName: parent,
+            syncedAt,
+        }
+        nextByBookmark.set(bookmark.name, entry)
+    }
+
+    await writePersistedStackState({
+        version: 1,
+        entries: [...nextByBookmark.values()],
+    })
+}
+
+function uniqueStrings(values: readonly string[]): readonly string[] {
+    return [...new Set(values)]
 }
 
 function renderStackComment(
@@ -345,7 +454,7 @@ function renderStackComment(
 interface StackJournalFile {
     version: 1
     id: string
-    kind: "submit" | "sync"
+    kind: "sync"
     stackRootName: string
     beforeOperationId: string
     afterOperationId?: string

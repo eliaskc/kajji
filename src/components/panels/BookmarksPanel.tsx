@@ -44,12 +44,9 @@ import { useStatus } from "../../context/status"
 import { useSync } from "../../context/sync"
 import { useTheme } from "../../context/theme"
 import { buildBookmarkStackModel } from "../../stack/discovery"
-import {
-    applyStackPlan,
-    prepareSubmitPlan,
-    prepareSyncPlan,
-} from "../../stack/executor"
+import { applyStackPlan, prepareSyncPlan } from "../../stack/executor"
 import type { BookmarkStackModel, BookmarkStackRow } from "../../stack/model"
+import { readPersistedStackState } from "../../stack/state"
 import { hasOriginDiff } from "../../utils/bookmark-origin-diff"
 import { createDoubleClickDetector } from "../../utils/double-click"
 import { FUZZY_THRESHOLD, scrollIntoView } from "../../utils/scroll"
@@ -358,47 +355,33 @@ export function BookmarksPanel() {
     }
 
     const preparePlan = async (
-        kind: "submit" | "sync",
         stackRootName: string,
         observer?: ReturnType<typeof commandLog.observer>,
-    ) =>
-        Effect.runPromise(
-            kind === "submit"
-                ? prepareSubmitPlan({ stackRootName, observer })
-                : prepareSyncPlan({ stackRootName, observer }),
-        )
+    ) => Effect.runPromise(prepareSyncPlan({ stackRootName, observer }))
 
-    const openStackPlan = async (
-        kind: "submit" | "sync",
-        stackRootName: string,
-    ) => {
+    const openStackPlan = async (stackRootName: string) => {
         dialog.open(
             () => (
                 <StackPreparingModal
-                    kind={kind}
+                    kind="sync"
                     stackRootName={stackRootName}
                 />
             ),
             {
-                id: `bookmark-stack-${kind}-preparing`,
+                id: "bookmark-stack-sync-preparing",
                 title: [
-                    {
-                        text:
-                            kind === "submit"
-                                ? "Submit preview"
-                                : "Sync preview",
-                        style: "action",
-                    },
-                    " for ",
+                    { text: "sync", style: "action" },
+                    " preview for ",
                     { text: stackRootName, style: "target" },
                 ],
                 ...DIALOG_SIZE.confirmWide,
+                minHeight: 18,
                 closeOnEsc: false,
                 hints: [],
             },
         )
         try {
-            const plan = await preparePlan(kind, stackRootName)
+            const plan = await preparePlan(stackRootName)
             dialog.close()
             dialog.open(
                 () => (
@@ -409,19 +392,14 @@ export function BookmarksPanel() {
                     />
                 ),
                 {
-                    id: `bookmark-stack-${kind}-plan`,
+                    id: "bookmark-stack-sync-plan",
                     title: [
-                        {
-                            text:
-                                kind === "submit"
-                                    ? "Submit preview"
-                                    : "Sync preview",
-                            style: "action",
-                        },
-                        " for ",
+                        { text: "sync", style: "action" },
+                        " preview for ",
                         { text: stackRootName, style: "target" },
                     ],
                     ...DIALOG_SIZE.confirmWide,
+                    minHeight: 18,
                     closeOnEsc: false,
                     hints:
                         plan.effects.length > 0
@@ -443,13 +421,10 @@ export function BookmarksPanel() {
         }
     }
 
-    const prepareAndApplyStack = async (
-        kind: "submit" | "sync",
-        stackRootName: string,
-    ) => {
+    const prepareAndApplyStack = async (stackRootName: string) => {
         const observer = commandLog.observer()
         try {
-            const plan = await preparePlan(kind, stackRootName, observer)
+            const plan = await preparePlan(stackRootName, observer)
             if (plan.effects.length === 0) {
                 status.show("Nothing to do; stack is already in sync.")
                 return
@@ -457,7 +432,7 @@ export function BookmarksPanel() {
             await applyPreparedPlan(plan)
         } catch (error) {
             commandLog.addEntry({
-                command: kind === "submit" ? "stack submit" : "stack sync",
+                command: "stack sync",
                 success: false,
                 exitCode: 1,
                 stdout: "",
@@ -470,26 +445,8 @@ export function BookmarksPanel() {
         {
             key: "s",
             mutedPrefix: "stack ",
-            label: "submit --dry-run",
-            onSelect: () => openStackPlan("submit", stackRootName),
-        },
-        {
-            key: "S",
-            mutedPrefix: "stack ",
-            label: "submit",
-            onSelect: () => prepareAndApplyStack("submit", stackRootName),
-        },
-        {
-            key: "f",
-            mutedPrefix: "stack ",
-            label: "sync --dry-run",
-            onSelect: () => openStackPlan("sync", stackRootName),
-        },
-        {
-            key: "F",
-            mutedPrefix: "stack ",
             label: "sync",
-            onSelect: () => prepareAndApplyStack("sync", stackRootName),
+            onSelect: () => openStackPlan(stackRootName),
         },
     ]
 
@@ -522,6 +479,7 @@ export function BookmarksPanel() {
                     { text: stackRootName, style: "target" },
                 ],
                 ...DIALOG_SIZE.confirmWide,
+                minHeight: 18,
                 hints: [
                     { key: "enter", label: "run" },
                     { key: "esc", label: "close" },
@@ -556,11 +514,19 @@ export function BookmarksPanel() {
         )
     }
 
-    const openSelectedStack = () => {
+    const openSelectedStack = async () => {
         if (showRemoteOnly()) return
         const row = selectedBookmarkRow()
         if (!row) return
         if (row.stackKeys.length === 0) {
+            const persisted = await readPersistedStackState()
+            const entry = persisted.entries.find(
+                (item) => item.bookmark === row.bookmark.name,
+            )
+            if (entry?.parent) {
+                openStackPlan(entry.parent)
+                return
+            }
             status.show(`No stack for ${row.bookmark.name}.`)
             return
         }

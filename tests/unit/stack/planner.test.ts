@@ -1,10 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { Effect } from "effect"
 import { buildBookmarkStackModel } from "../../../src/stack/discovery"
-import {
-    buildSubmitPlanSync,
-    buildSyncPlanSync,
-} from "../../../src/stack/planner"
+import { buildSyncPlanSync } from "../../../src/stack/planner"
 
 const commits = [
     { commitId: "main", parentCommitIds: [], immutable: true },
@@ -22,8 +19,8 @@ const model = async () =>
     Effect.runPromise(buildBookmarkStackModel({ commits, bookmarks }))
 
 describe("stack planners", () => {
-    test("submit plans PR creation, retargeting and pushes", async () => {
-        const plan = buildSubmitPlanSync({
+    test("sync plans PR creation, retargeting and pushes", async () => {
+        const plan = buildSyncPlanSync({
             stackRootName: "feature-a",
             stackModel: await model(),
             pullRequestsByHead: new Map([
@@ -45,8 +42,8 @@ describe("stack planners", () => {
             plan.rows.map((row) => [row.row.bookmark.name, row.note]),
         ).toEqual([
             ["main", ""],
-            ["feature-a", "would retarget PR onto main"],
-            ["feature-b", "would create PR onto feature-a"],
+            ["feature-a", "would push and retarget PR onto main"],
+            ["feature-b", "would push and create PR onto feature-a"],
         ])
         expect(plan.updatePrNumbers).toEqual([10])
         expect(plan.createPrBookmarks).toEqual(["feature-b"])
@@ -163,7 +160,32 @@ describe("stack planners", () => {
         ).toBe("main..a")
     })
 
-    test("sync plans rebases when GitHub PR base differs from local target", async () => {
+    test("sync plans landed parent range repair from persisted state", async () => {
+        const plan = buildSyncPlanSync({
+            stackRootName: "feature-a",
+            stackModel: await model(),
+            pullRequestsByHead: new Map([
+                [
+                    "feature-b",
+                    {
+                        number: 11,
+                        headRefName: "feature-b",
+                        baseRefName: "main",
+                        state: "OPEN",
+                    },
+                ],
+            ]),
+            landedRangesByBookmark: new Map([
+                ["feature-b", "(main..a) & ancestors(b) ~ ancestors(main)"],
+            ]),
+        })
+
+        expect(plan.rows[2]?.status).toBe("abandon-landed-range")
+        expect(plan.rows[2]?.note).toBe("would abandon landed parent range")
+        expect(plan.abandonBookmarks).toEqual(["feature-b"])
+    })
+
+    test("sync plans PR retargets when GitHub PR base differs from local target", async () => {
         const plan = buildSyncPlanSync({
             stackRootName: "feature-a",
             stackModel: await model(),
@@ -183,9 +205,9 @@ describe("stack planners", () => {
             plan.rows.map((row) => [row.row.bookmark.name, row.note]),
         ).toEqual([
             ["main", ""],
-            ["feature-a", "targets main"],
-            ["feature-b", "would rebase and push onto main"],
+            ["feature-a", "would push and create PR onto main"],
+            ["feature-b", "would push and retarget PR onto feature-a"],
         ])
-        expect(plan.rebaseBookmarks).toEqual(["feature-b"])
+        expect(plan.updatePrNumbers).toEqual([11])
     })
 })

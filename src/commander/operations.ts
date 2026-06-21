@@ -412,6 +412,20 @@ export async function jjShowDescriptionStyled(
     return { subject, body }
 }
 
+export async function jjRevsetHasMatches(revset: string): Promise<boolean> {
+    const result = await execute([
+        "log",
+        "-r",
+        revset,
+        "--no-graph",
+        "--limit",
+        "1",
+        "-T",
+        "commit_id",
+    ])
+    return result.success && result.stdout.trim().length > 0
+}
+
 export async function jjAbandon(
     revision: string,
     options?: { ignoreImmutable?: boolean } & OperationRunOptions,

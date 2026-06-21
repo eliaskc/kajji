@@ -61,7 +61,7 @@ export function StackPlanModal(props: StackPlanModalProps) {
                                 row={row.row}
                                 prNumber={row.prNumber}
                                 annotation={row.note}
-                                hideRevisionId
+                                hideDescription
                             />
                         </box>
                     )}

@@ -39,13 +39,14 @@ export interface StackRemoteBookmarkInput {
     readonly commitId: string
 }
 
-export type StackPlanKind = "submit" | "sync"
+export type StackPlanKind = "sync"
 export type StackPlanEffectType =
     | "create-pr"
     | "update-pr"
     | "push"
     | "rebase"
     | "abandon"
+    | "abandon-landed-range"
     | "update-comment"
     | "close-pr"
     | "blocked"
@@ -58,6 +59,7 @@ export interface StackPlanEffect {
     readonly to?: string
     readonly reason?: string
     readonly revision?: string
+    readonly range?: string
 }
 
 export type StackPlanRowStatus = "current" | StackPlanEffectType

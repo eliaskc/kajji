@@ -100,6 +100,7 @@ export function StackActionsModal(props: StackActionsModalProps) {
                                 prNumber={props.prNumbers.get(
                                     row.bookmark.name,
                                 )}
+                                hideDescription
                             />
                         </box>
                     )}

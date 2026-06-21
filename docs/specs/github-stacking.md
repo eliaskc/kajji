@@ -26,8 +26,8 @@ This keeps the hierarchy meaningful while still making trunk/main visible as the
 - **Bookmarks panel is the stack UX.** The jj log remains the commit graph; stack presentation and actions live in bookmarks.
 - **Dependent stacks by default.** A child PR targets the nearest ancestor bookmark; a stack root targets trunk.
 - **Standalone bookmarks stay standalone.** A bookmark that would target trunk is not shown as a stack unless it has stack children.
-- **Submit is local → GitHub.** Submit makes GitHub PR state match the local jj/bookmark stack.
-- **Sync is GitHub/trunk → local.** Sync reconciles local jj/bookmark state after remote or PR state changes.
+- **Sync is the single reconcile operation.** Sync makes the GitHub PR stack and local jj/bookmark stack match, creating/retargeting PRs and repairing local branches after remote or PR state changes.
+- **Merge is stack-aware.** Merge should land the stack root through the code host, then repair descendants so already-approved child PRs are not needlessly rewritten by an out-of-band merge/fetch flow.
 - **Fetch does not auto-sync.** If fetch reveals that local stacks may be stale, kajji should surface that sync is available, but sync remains an explicit user action.
 - **Dry-run first in UI.** Lowercase modal actions compute a plan and ask for confirmation; uppercase variants execute directly.
 - **CLI mirrors UI later.** Stack operations should eventually be available to agents via `kajji stack ...` commands, but the TUI flow is the priority.
@@ -167,10 +167,7 @@ main                                  #150  xsnpmwxy  feat(APN-572): add audio t
   ↳ audio-tracking-visuals            #152  szvuqomv  code cleanup for PR
     ↳ poc/demo-results-detail...            xyluqyrl  DEMO: transition
 
-s  stack submit --dry-run
-S  stack submit
-f  stack sync --dry-run
-F  stack sync
+s  stack sync
 
 Esc cancel
 ```
@@ -180,7 +177,7 @@ Notes:
 - Initial actions operate on the whole stack.
 - Do not show which child bookmark opened the modal unless an action specifically targets that bookmark.
 - Reuse bookmark row rendering where possible.
-- Include descriptions.
+- Omit descriptions in the modal to avoid horizontal overflow.
 - Include PR numbers when known.
 
 ## Standalone Bookmark Behavior
@@ -204,19 +201,15 @@ Rationale:
 Initial stack actions:
 
 ```text
-s  stack submit --dry-run
-S  stack submit
-f  stack sync --dry-run
-F  stack sync
+s  stack sync
 ```
 
-This mapping may be revisited after the flow settles. One possible future simplification is `s` for sync preview, `S` for submit preview, and a separate apply key from the preview/action modal. For now, keep the explicit four-action modal.
+`sync` opens a preview first; applying happens from the preview modal. Direct apply keybinds can be added later if needed, but they are not first-class in the initial UX.
 
 Do not include initially:
 
 - push stack
 - update comments/snippets
-- merge
 - doctor/status
 - undo
 
@@ -224,20 +217,20 @@ These may be added later if needed. Undo needs its own design because stack oper
 
 ### Why no push action initially?
 
-`push` and `submit` are easy to confuse:
+`push` is a lower-level implementation detail of sync:
 
 - Push bookmarks: update remote bookmark refs.
-- Submit stack: make GitHub PR state match the local jj/bookmark stack.
+- Sync stack: reconcile local jj bookmarks, remote bookmark refs, GitHub PR bases, and stack comments.
 
 Since kajji already has push flows, the stack modal should avoid this ambiguity initially.
 
 ### Why no comments/snippets action?
 
-Stack snippets are part of submit. Users should not need to run a separate "update comments" action.
+Stack snippets are part of sync. Users should not need to run a separate "update comments" action.
 
-## Submit
+## Sync
 
-`stack submit` is the local-to-GitHub operation.
+`stack sync` is the reconcile operation.
 
 Definition:
 
@@ -251,13 +244,13 @@ Responsibilities may include:
 - update stack snippets/comments/bodies
 - report conflicts or GitHub state mismatches
 
-`stack submit --dry-run` computes and displays the planned changes without applying them.
+`stack sync` first computes and displays the planned changes without applying them.
 
 ### UI behavior
 
 Lowercase `s`:
 
-1. Compute the submit plan.
+1. Compute the sync plan.
 2. Show a confirmation/plan modal.
 3. Apply only if the user confirms with `enter`.
 4. `esc` returns to the Stack Actions modal for the same stack.
@@ -268,7 +261,7 @@ The plan modal should reuse the same stack row rendering as the bookmarks panel 
 Example:
 
 ```text
-Submit preview for APN-607/deployment-ard-platform
+Sync preview for APN-607/deployment-ard-platform
 
 main                                  #150
 ↳ APN-607/deployment-ard-platform     #151  would retarget PR onto main
@@ -339,7 +332,7 @@ Rationale:
 - The snippet links to GitHub PRs by number.
 - GitHub's native links show whether PRs are open/merged/closed.
 - PR base/state is already visible in GitHub.
-- Snippets only need updating when submit adds or reshapes the PR stack.
+- Snippets only need updating when sync adds or reshapes the PR stack.
 
 This policy can be revisited later if we add explicit pruning/refresh behavior.
 
@@ -353,7 +346,7 @@ Lowercase `f`:
 4. `esc` returns to the Stack Actions modal for the same stack.
 5. Do not write the dry-run preview to the command log by default.
 
-The sync preview should use the same stack-connected modal style as submit, with concise per-row annotations.
+The sync preview should use the same stack-connected modal style as the stack actions modal, with concise per-row annotations.
 
 Example:
 
@@ -395,7 +388,7 @@ For kajji, the exact mechanism should be designed during implementation, but the
 
 - jj-local changes can lean on `jj op log` / `jj undo` where appropriate.
 - GitHub mutations need explicit before/after state recorded by kajji.
-- Applied `stack submit` / `stack sync` should record enough information to report what changed and what can be undone.
+- Applied `stack sync` should record enough information to report what changed and what can be undone.
 - Dry-run/plan previews do not need undo entries because they do not mutate state.
 
 Potential journal entries:
@@ -417,7 +410,7 @@ In the UI:
 - Actual executions are written to the command log.
 - Execution output should be streamed if possible.
 - Execution issues should be visible in the command log.
-- Do not use transient status-bar success/failure messages for completed stack submit/sync operations; the command log is the feedback surface for performed actions.
+- Do not use transient status-bar success/failure messages for completed stack sync operations; the command log is the feedback surface for performed actions.
 - Reserve transient status-bar messages for unavailable/no-op/lightweight feedback, such as `No stack for ...` or `Nothing to sync.`
 
 For CLI:
@@ -478,9 +471,6 @@ Initial command shape:
 
 ```bash
 kajji stack list
-kajji stack submit [bookmark] --dry-run
-kajji stack submit [bookmark]
-kajji stack sync [bookmark] --dry-run
 kajji stack sync [bookmark]
 ```
 
@@ -494,7 +484,7 @@ Rationale:
 
 - Stack operations combine jj/local mutations, GitHub mutations, dry-run planning, command streaming, and future undo journaling.
 - Failures need to be typed and surfaced with actionable recovery guidance.
-- Submit/sync should be testable with mocked jj and GitHub services, especially for partial failure and conflict scenarios.
+- Sync should be testable with mocked jj and GitHub services, especially for partial failure and conflict scenarios.
 - UI and CLI should share the same stack planner/interpreter rather than duplicating orchestration logic.
 
 The first production implementation should focus Effect usage on the stack core and adjacent command boundaries, not on rewriting the TUI.
@@ -504,12 +494,12 @@ Recommended service boundaries:
 - `Jj`: stack-relevant jj queries and mutations, including graph/bookmark state, `jj rebase -s`, operation ids, and undo-related queries.
 - `GitHub`: PR lookup/creation/update, base retargeting, body/comment snippet updates, and PR state reads.
 - `StackJournal`: durable operation journal for applied mutations and future undo support.
-- `StackPlanner`: pure or mostly pure discovery/planning for submit/sync dry-runs.
+- `StackPlanner`: pure or mostly pure discovery/planning for sync previews.
 - `StackExecutor`: apply-mode interpreter that executes a plan, streams/logs progress, and records journal entries.
 
 Initial Effect scope:
 
-- Build stack discovery, submit planning, sync planning, and apply-mode execution in an Effect subsystem.
+- Build stack discovery, sync planning, and apply-mode execution in an Effect subsystem.
 - Keep the Solid/OpenTUI UI mostly outside Effect; call into the stack runtime at modal/action boundaries.
 - Keep existing non-stack commander code unless it becomes a natural dependency of stack services.
 
@@ -543,7 +533,7 @@ Rationale:
 
 Before shipping, refine edge cases and presentation:
 
-- no-op plan messaging when submit/sync has nothing to do
+- no-op plan messaging when sync has nothing to do
 - stale or missing PR metadata handling
 - clearer conflict/error guidance for failed apply operations
 - stable modal layout when moving between actions and previews
@@ -578,7 +568,7 @@ When moving from PoC to production implementation, consider extracting stack dis
 Useful references:
 
 - `kitlangton/stack`: concise `sync` workflow, GitHub-native stack block, agent-friendly CLI shape.
-- Graphite: stack navigation snippets and submit/sync mental model.
+- Graphite: stack navigation snippets and stack operation mental model.
 - jj-native tools such as jj-ryu, jjpr, jj-stack, and jj-domino: validate bookmark-centric stacks for jj.
 
 This spec intentionally keeps only the decisions relevant to kajji's current direction rather than carrying forward all earlier research details.

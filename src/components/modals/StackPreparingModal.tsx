@@ -2,7 +2,7 @@ import { createSignal, onCleanup, onMount } from "solid-js"
 import { useTheme } from "../../context/theme"
 
 interface StackPreparingModalProps {
-    kind: "submit" | "sync"
+    kind: "sync"
     stackRootName: string
 }
 
@@ -33,10 +33,7 @@ export function StackPreparingModal(props: StackPreparingModalProps) {
         onCleanup(() => clearInterval(interval))
     })
 
-    const label = () =>
-        props.kind === "submit"
-            ? "Preparing submit plan"
-            : "Preparing sync plan"
+    const label = () => "Preparing sync plan"
     const wave = () =>
         Array.from({ length: 24 }, (_, index) => {
             const offset = (index + tick()) % waveGlyphs.length

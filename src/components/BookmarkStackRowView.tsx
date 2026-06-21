@@ -18,6 +18,7 @@ interface BookmarkStackRowViewProps {
     showRemote?: boolean
     annotation?: string
     hideRevisionId?: boolean
+    hideDescription?: boolean
 }
 
 export function BookmarkStackRowView(props: BookmarkStackRowViewProps) {
@@ -119,7 +120,7 @@ export function BookmarkStackRowView(props: BookmarkStackRowViewProps) {
                     </Show>
                 </text>
             </box>
-            <Show when={!isDeleted()}>
+            <Show when={!isDeleted() && !props.hideDescription}>
                 <box flexDirection="row" flexGrow={1} overflow="hidden">
                     <Show
                         when={props.annotation !== undefined}
