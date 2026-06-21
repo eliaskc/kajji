@@ -35,6 +35,7 @@ import {
     jjNew,
 } from "../../commander/operations"
 import { getRevisionId } from "../../commander/types"
+import { featureFlags } from "../../feature-flags"
 import { useCommand } from "../../context/command"
 import { useCommandLog } from "../../context/commandlog"
 import { DIALOG_SIZE, useDialog } from "../../context/dialog"
@@ -101,6 +102,7 @@ export function BookmarksPanel() {
     const status = useStatus()
     const { colors } = useTheme()
     const { refresh } = useSync()
+    const githubStackingEnabled = featureFlags.githubStacking
 
     const runOperation = async (
         text: string,
@@ -272,6 +274,7 @@ export function BookmarksPanel() {
     const displayBookmarkStackModel = createMemo<
         BookmarkStackModel<Bookmark> | undefined
     >(() => {
+        if (!githubStackingEnabled()) return undefined
         if (hasActiveFilter() || showRemoteOnly()) return undefined
         return Effect.runSync(
             buildBookmarkStackModel({
@@ -287,7 +290,7 @@ export function BookmarksPanel() {
 
     const displayBookmarkRows = createMemo<readonly BookmarkRow[]>(() => {
         const source = displayBookmarks()
-        if (hasActiveFilter() || showRemoteOnly()) {
+        if (!githubStackingEnabled() || hasActiveFilter() || showRemoteOnly()) {
             return source.map((bookmark) => ({
                 bookmark,
                 depth: 0,
@@ -322,6 +325,7 @@ export function BookmarksPanel() {
         () => displayBookmarkRows()[currentSelectedIndex()],
     )
     const activeStackKey = createMemo(() => {
+        if (!githubStackingEnabled()) return undefined
         if (!isFocused()) return undefined
         const row = selectedBookmarkRow()
         if (!row) return undefined
@@ -513,6 +517,12 @@ export function BookmarksPanel() {
     }
 
     const openSelectedStack = async () => {
+        if (!githubStackingEnabled()) {
+            status.show(
+                "GitHub stacking is disabled. Run with KAJJI_ENABLE_STACKING=1 to enable it.",
+            )
+            return
+        }
         if (showRemoteOnly()) return
         const row = selectedBookmarkRow()
         if (!row) return
@@ -1118,15 +1128,19 @@ export function BookmarksPanel() {
                 )
             },
         },
-        {
-            id: "refs.bookmarks.stack",
-            title: "stack",
-            keybind: "bookmark_stack",
-            context: "refs.bookmarks",
-            type: "action",
-            panel: "refs",
-            onSelect: openSelectedStack,
-        },
+        ...(githubStackingEnabled()
+            ? [
+                  {
+                      id: "refs.bookmarks.stack",
+                      title: "stack",
+                      keybind: "bookmark_stack" as const,
+                      context: "refs.bookmarks" as const,
+                      type: "action" as const,
+                      panel: "refs" as const,
+                      onSelect: openSelectedStack,
+                  },
+              ]
+            : []),
         {
             id: "refs.bookmarks.diff_origin",
             title: "compare to origin",
