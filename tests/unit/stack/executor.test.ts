@@ -87,6 +87,7 @@ mock.module("../../../src/commander/operations", () => ({
         calls.push(`rebase:${name}:${destination}`)
         return result("jj rebase")
     }),
+    jjRevsetHasMatches: mock(async () => false),
     jjAbandon: mock(async (revision: string) => {
         calls.push(`abandon:${revision}`)
         return result("jj abandon")

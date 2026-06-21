@@ -5,7 +5,6 @@ import {
     ghPrClose,
     ghPrCreate,
     ghPrEditBase,
-    ghPrViewWeb,
     ghUpsertStackComment,
 } from "../commander/github"
 import { fetchLogPage } from "../commander/log"
@@ -281,8 +280,6 @@ async function applySyncPlan(
         }
     }
 
-    let firstCreatedPrNumber: number | undefined
-
     for (const row of plan.rows) {
         const bookmark = row.row.bookmark
         const createEffect = row.effects.find(
@@ -301,7 +298,6 @@ async function applySyncPlan(
         const pull = fresh.get(bookmark.name)
         if (pull) {
             prByBookmark.set(bookmark.name, pull.number)
-            firstCreatedPrNumber ??= pull.number
             journal.entries.push({
                 type: "PrCreated",
                 prNumber: pull.number,
@@ -373,8 +369,6 @@ async function applySyncPlan(
         journal.entries.push({ type: "StackCommentUpdated", prNumber })
     }
 
-    const prToOpen = firstCreatedPrNumber ?? stackPrNumbers[0]
-    if (prToOpen) await ghPrViewWeb(prToOpen, options)
     return prByBookmark
 }
 
