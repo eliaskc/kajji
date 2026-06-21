@@ -65,7 +65,9 @@ const formula = `class Kajji < Formula
   version "${version}"
   license "MIT"
 
-  depends_on "jj"
+  def caveats
+    "kajji requires \`jj\` to be available on your PATH."
+  end
 
   on_macos do
     if Hardware::CPU.arm?
