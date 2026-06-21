@@ -112,14 +112,8 @@ function stackActionLines(
     plan: StackPlan<Bookmark>,
 ): readonly ActionLineSegment[][] {
     const lines: ActionLineSegment[][] = []
-    const effects = plan.effects
-    const pushBookmarks = unique(
-        effects
-            .filter((effect) => effect.type === "push")
-            .map((effect) => effect.bookmark),
-    )
 
-    for (const effect of effects) {
+    for (const effect of plan.effects) {
         if (effect.type === "abandon") {
             lines.push([
                 action("abandon"),
@@ -134,13 +128,9 @@ function stackActionLines(
                 identifier(effect.bookmark),
             ])
         }
-    }
-
-    if (pushBookmarks.length > 0) {
-        lines.push([action("push"), text(" "), identifiers(pushBookmarks)])
-    }
-
-    for (const effect of effects) {
+        if (effect.type === "push") {
+            lines.push([action("push"), text(" "), identifier(effect.bookmark)])
+        }
         if (effect.type === "create-pr") {
             lines.push([
                 action("create PR"),
@@ -150,9 +140,6 @@ function stackActionLines(
                 identifier(effect.to ?? plan.stackRootName),
             ])
         }
-    }
-
-    for (const effect of effects) {
         if (effect.type === "rebase") {
             lines.push(
                 effect.from
@@ -174,9 +161,6 @@ function stackActionLines(
                       ],
             )
         }
-    }
-
-    for (const effect of effects) {
         if (effect.type === "update-pr" && effect.prNumber) {
             lines.push(
                 effect.from
@@ -202,9 +186,6 @@ function stackActionLines(
                       ],
             )
         }
-    }
-
-    for (const effect of effects) {
         if (effect.type === "close-pr" && effect.prNumber) {
             lines.push([
                 action("close"),
@@ -223,28 +204,14 @@ function stackActionLines(
                 text(effect.reason ? `: ${effect.reason}` : ""),
             ])
         }
-    }
-
-    const commentPrNumbers = unique(
-        effects
-            .filter(
-                (effect) => effect.type === "update-comment" && effect.prNumber,
-            )
-            .map((effect) => effect.prNumber ?? 0),
-    )
-    if (commentPrNumbers.length === 1) {
-        lines.push([
-            action("update"),
-            text(" "),
-            identifier(`#${commentPrNumbers[0]}`),
-            text(" stack block"),
-        ])
-    } else if (commentPrNumbers.length > 1) {
-        lines.push([
-            action("update"),
-            text(" stack blocks for "),
-            identifiers(commentPrNumbers.map((number) => `#${number}`)),
-        ])
+        if (effect.type === "update-comment" && effect.prNumber) {
+            lines.push([
+                action("update"),
+                text(" "),
+                identifier(`#${effect.prNumber}`),
+                text(" stack block"),
+            ])
+        }
     }
 
     return lines
@@ -264,8 +231,4 @@ function identifiers(values: readonly string[]): ActionLineSegment {
 
 function text(textValue: string): ActionLineSegment {
     return { text: textValue }
-}
-
-function unique<T>(items: readonly T[]): readonly T[] {
-    return [...new Set(items)]
 }

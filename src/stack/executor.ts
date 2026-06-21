@@ -313,7 +313,7 @@ async function applySyncPlan(
     for (const effect of plan.effects) {
         if (effect.type === "rebase" && effect.to) {
             const result = await jjRebase(effect.bookmark, effect.to, {
-                mode: "branch",
+                mode: "descendants",
                 skipEmptied: true,
                 observer: options.observer,
             })

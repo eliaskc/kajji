@@ -39,6 +39,10 @@ export function buildSyncPlanSync<TBookmark extends StackBookmarkInput>({
     const effects: StackPlanEffect[] = []
     let blockedByClosedUnmerged: StackPullRequestInput | undefined
     const mergedTargetByName = new Map<string, string>()
+    const stackHasMergedPull = rows.some(
+        (row) => pullRequestsByHead.get(row.bookmark.name)?.merged === true,
+    )
+    const rebasedBranchNames = new Set<string>()
 
     for (const row of rows) {
         const bookmark = row.bookmark
@@ -110,16 +114,22 @@ export function buildSyncPlanSync<TBookmark extends StackBookmarkInput>({
                     bookmark.name,
                     pull.baseRefName ?? localBase,
                 )
-                rowEffects.push({
-                    type: "abandon",
-                    bookmark: bookmark.name,
-                    prNumber: pull.number,
-                    reason: "PR was merged",
-                    revision: `${desiredBase}..${bookmark.changeId ?? bookmark.name}`,
-                })
+                if (!remote) {
+                    rowEffects.push({
+                        type: "abandon",
+                        bookmark: bookmark.name,
+                        prNumber: pull.number,
+                        reason: "PR was merged and remote bookmark is gone",
+                        revision: `${desiredBase}..${bookmark.changeId ?? bookmark.name}`,
+                    })
+                }
             }
             const landedRange = landedRangesByBookmark.get(bookmark.name)
-            if (landedRange) {
+            if (
+                landedRange &&
+                pull?.merged !== true &&
+                !mergedTargetByName.has(localBase)
+            ) {
                 rowEffects.push({
                     type: "abandon-landed-range",
                     bookmark: bookmark.name,
@@ -128,7 +138,16 @@ export function buildSyncPlanSync<TBookmark extends StackBookmarkInput>({
                     reason: "parent PR was merged outside kajji",
                 })
             }
-            if (pull && needsPush && pull.merged !== true) {
+            if (
+                pull &&
+                needsPush &&
+                pull.merged !== true &&
+                desiredBase === localBase &&
+                !rebasedBranchNames.has(localBase)
+            ) {
+                rowEffects.push({ type: "push", bookmark: bookmark.name })
+            }
+            if (rebasedBranchNames.has(localBase) && pull?.merged !== true) {
                 rowEffects.push({ type: "push", bookmark: bookmark.name })
             }
             if (desiredBase !== localBase) {
@@ -139,10 +158,13 @@ export function buildSyncPlanSync<TBookmark extends StackBookmarkInput>({
                     from: localBase,
                     to: desiredBase,
                 })
-                rowEffects.push({
-                    type: "push",
-                    bookmark: bookmark.name,
-                })
+                if (!rowEffects.some((effect) => effect.type === "push")) {
+                    rowEffects.push({
+                        type: "push",
+                        bookmark: bookmark.name,
+                    })
+                }
+                rebasedBranchNames.add(bookmark.name)
             }
             if (
                 pull?.number &&
@@ -161,7 +183,8 @@ export function buildSyncPlanSync<TBookmark extends StackBookmarkInput>({
             if (
                 pull?.number &&
                 pull.state !== "CLOSED" &&
-                pull.state !== "MERGED"
+                pull.state !== "MERGED" &&
+                !stackHasMergedPull
             ) {
                 rowEffects.push({
                     type: "update-comment",
@@ -210,29 +233,34 @@ function makePlan<TBookmark extends StackBookmarkInput>(
     effects: readonly StackPlanEffect[],
     applyCommand: string,
 ): StackPlan<TBookmark> {
+    const orderedEffects = orderStackEffects(effects)
     return {
         kind,
         stackRootName,
         rows,
-        effects,
+        effects: orderedEffects,
         updatePrNumbers: uniqueNumbers(
-            effects
+            orderedEffects
                 .filter((e) => e.type === "update-pr" && e.prNumber)
                 .map((e) => e.prNumber ?? 0),
         ),
         createPrBookmarks: uniqueStrings(
-            effects
+            orderedEffects
                 .filter((e) => e.type === "create-pr")
                 .map((e) => e.bookmark),
         ),
         pushBookmarks: uniqueStrings(
-            effects.filter((e) => e.type === "push").map((e) => e.bookmark),
+            orderedEffects
+                .filter((e) => e.type === "push")
+                .map((e) => e.bookmark),
         ),
         rebaseBookmarks: uniqueStrings(
-            effects.filter((e) => e.type === "rebase").map((e) => e.bookmark),
+            orderedEffects
+                .filter((e) => e.type === "rebase")
+                .map((e) => e.bookmark),
         ),
         abandonBookmarks: uniqueStrings(
-            effects
+            orderedEffects
                 .filter(
                     (e) =>
                         e.type === "abandon" ||
@@ -241,11 +269,46 @@ function makePlan<TBookmark extends StackBookmarkInput>(
                 .map((e) => e.bookmark),
         ),
         closePrNumbers: uniqueNumbers(
-            effects
+            orderedEffects
                 .filter((e) => e.type === "close-pr" && e.prNumber)
                 .map((e) => e.prNumber ?? 0),
         ),
         applyCommand,
+    }
+}
+
+function orderStackEffects(
+    effects: readonly StackPlanEffect[],
+): readonly StackPlanEffect[] {
+    return effects
+        .map((effect, index) => ({ effect, index }))
+        .sort((a, b) => {
+            const priorityDiff =
+                stackEffectPriority(a.effect) - stackEffectPriority(b.effect)
+            return priorityDiff || a.index - b.index
+        })
+        .map(({ effect }) => effect)
+}
+
+function stackEffectPriority(effect: StackPlanEffect) {
+    switch (effect.type) {
+        case "blocked":
+            return 0
+        case "close-pr":
+            return 10
+        case "abandon":
+        case "abandon-landed-range":
+            return 20
+        case "rebase":
+            return 30
+        case "push":
+            return 40
+        case "create-pr":
+            return 50
+        case "update-pr":
+            return 60
+        case "update-comment":
+            return 70
     }
 }
 
