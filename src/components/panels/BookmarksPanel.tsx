@@ -1,7 +1,7 @@
 import type { ScrollBoxRenderable, TextareaRenderable } from "@opentui/core"
 import { useKeyboard } from "@opentui/solid"
+import { Effect } from "effect"
 import fuzzysort from "fuzzysort"
-import { ptyToJson } from "ghostty-opentui"
 import {
     For,
     Show,
@@ -21,7 +21,11 @@ import {
     jjBookmarkSet,
 } from "../../commander/bookmarks"
 import { withCommandObserver } from "../../commander/executor"
-import { ghBrowseCommit, ghPrCreateWeb } from "../../commander/github"
+import {
+    ghBrowseCommit,
+    ghPrCreateWeb,
+    ghPrViewWeb,
+} from "../../commander/github"
 import {
     type OperationResult,
     isImmutableError,
@@ -31,6 +35,7 @@ import {
     jjNew,
 } from "../../commander/operations"
 import { getRevisionId } from "../../commander/types"
+import { featureFlags } from "../../feature-flags"
 import { useCommand } from "../../context/command"
 import { useCommandLog } from "../../context/commandlog"
 import { DIALOG_SIZE, useDialog } from "../../context/dialog"
@@ -39,20 +44,24 @@ import { useKeybind } from "../../context/keybind"
 import { useStatus } from "../../context/status"
 import { useSync } from "../../context/sync"
 import { useTheme } from "../../context/theme"
-import { resolveAnsiForeground } from "../../theme/ansi"
+import { buildBookmarkStackModel } from "../../stack/discovery"
+import { applyStackPlan, prepareSyncPlan } from "../../stack/executor"
+import type { BookmarkStackModel, BookmarkStackRow } from "../../stack/model"
+import { readPersistedStackState } from "../../stack/state"
 import { hasOriginDiff } from "../../utils/bookmark-origin-diff"
 import { createDoubleClickDetector } from "../../utils/double-click"
 import { FUZZY_THRESHOLD, scrollIntoView } from "../../utils/scroll"
-import { AnsiText } from "../AnsiText"
+import { BookmarkStackRowView } from "../BookmarkStackRowView"
 import { FilterInput } from "../FilterInput"
 import { Panel } from "../Panel"
+import { ActionMenuModal } from "../modals/ActionMenuModal"
 import { BookmarkNameModal } from "../modals/BookmarkNameModal"
 import { RevisionPickerModal } from "../modals/RevisionPickerModal"
+import { StackActionsModal } from "../modals/StackActionsModal"
+import { StackPlanModal } from "../modals/StackPlanModal"
+import { StackPreparingModal } from "../modals/StackPreparingModal"
 
-// biome-ignore lint/suspicious/noControlCharactersInRegex: intentional ANSI escape sequence
-const stripAnsi = (str: string) => str.replace(/\x1b\[[0-9;]*m/g, "")
-
-const emptyDescriptionPrefix = "(empty) "
+type BookmarkRow = BookmarkStackRow<Bookmark>
 
 export function BookmarksPanel() {
     const {
@@ -81,6 +90,9 @@ export function BookmarksPanel() {
         loadRemoteBookmarks,
         activeBookmarkDiff,
         enterBookmarkDiffView,
+        pullRequestsByHead,
+        bookmarkPrNumbers,
+        refreshPullRequestMetadata,
     } = useSync()
     const focus = useFocus()
     const command = useCommand()
@@ -88,8 +100,9 @@ export function BookmarksPanel() {
     const commandLog = useCommandLog()
     const dialog = useDialog()
     const status = useStatus()
-    const { colors, mode } = useTheme()
+    const { colors } = useTheme()
     const { refresh } = useSync()
+    const githubStackingEnabled = featureFlags.githubStacking
 
     const runOperation = async (
         text: string,
@@ -132,6 +145,14 @@ export function BookmarksPanel() {
             // fall through to PR open
         }
 
+        const knownPrNumber = bookmarkPrNumbers().get(bookmark.name)
+        if (knownPrNumber) {
+            const observer = commandLog.observer()
+            const viewResult = await ghPrViewWeb(knownPrNumber, { observer })
+            commandLog.addEntry(viewResult)
+            return
+        }
+
         await loadRemoteBookmarks()
 
         let needsPush = false
@@ -152,45 +173,13 @@ export function BookmarksPanel() {
         const observer = commandLog.observer()
         const prResult = await ghPrCreateWeb(bookmark.name, { observer })
         commandLog.addEntry(prResult)
+        if (prResult.success) {
+            refreshPullRequestMetadata()
+        }
     }
 
     const isFocused = () => focus.isPanel("refs")
     const localBookmarks = () => bookmarks().filter((b) => b.isLocal)
-    const inlineAnsiSpans = (content: string, defaultFg?: string) => {
-        const spans =
-            ptyToJson(content, { cols: 9999, rows: 1 }).lines[0]?.spans ?? []
-        return spans
-            .filter((span) => span.text.length > 0)
-            .map((span) => ({
-                text: span.text,
-                fg: resolveAnsiForeground({
-                    fg: span.fg,
-                    mode: mode(),
-                    text: colors().text,
-                    textMuted: colors().textMuted,
-                    defaultFg,
-                }),
-                bg: span.bg ?? undefined,
-            }))
-    }
-    const bookmarkNameFg = (bookmark: Bookmark, defaultFg?: string) =>
-        inlineAnsiSpans(bookmark.nameDisplay || bookmark.name, defaultFg).at(-1)
-            ?.fg ??
-        defaultFg ??
-        colors().text
-    const remoteBookmarkNames = createMemo(() => {
-        const names = new Set<string>()
-        for (const bookmark of remoteBookmarks()) {
-            if (!bookmark.isLocal) {
-                names.add(bookmark.name)
-            }
-        }
-        return names
-    })
-    const canSplitByUntracked = createMemo(
-        () => !remoteBookmarksLoading() && !remoteBookmarksError(),
-    )
-
     const activeLocalBookmarks = createMemo(() =>
         visibleBookmarks().filter((b) => b.isLocal && b.changeId),
     )
@@ -214,14 +203,6 @@ export function BookmarksPanel() {
     })
     const deletedLocalBookmarks = createMemo(() =>
         visibleBookmarks().filter((b) => b.isLocal && !b.changeId),
-    )
-    const localOnlyBookmarks = createMemo(() =>
-        activeLocalBookmarks().filter(
-            (b) => !remoteBookmarkNames().has(b.name),
-        ),
-    )
-    const trackedLocalBookmarks = createMemo(() =>
-        activeLocalBookmarks().filter((b) => remoteBookmarkNames().has(b.name)),
     )
     const remoteOnlyBookmarks = createMemo(() => {
         const localNames = new Set(localBookmarks().map((b) => b.name))
@@ -287,17 +268,43 @@ export function BookmarksPanel() {
     const displayBookmarks = createMemo(() => {
         if (hasActiveFilter()) return filteredBookmarks()
         if (showRemoteOnly()) return remoteOnlyBookmarks()
-        if (!canSplitByUntracked()) return visibleLocalBookmarks()
-        return [
-            ...localOnlyBookmarks(),
-            ...trackedLocalBookmarks(),
-            ...deletedLocalBookmarks(),
-        ]
+        return visibleLocalBookmarks()
     })
 
-    const currentBookmarks = () => displayBookmarks()
+    const displayBookmarkStackModel = createMemo<
+        BookmarkStackModel<Bookmark> | undefined
+    >(() => {
+        if (!githubStackingEnabled()) return undefined
+        if (hasActiveFilter() || showRemoteOnly()) return undefined
+        return Effect.runSync(
+            buildBookmarkStackModel({
+                commits: commits().map((commit) => ({
+                    commitId: commit.commitId,
+                    parentCommitIds: commit.parentCommitIds ?? [],
+                    immutable: commit.immutable,
+                })),
+                bookmarks: displayBookmarks(),
+            }),
+        )
+    })
 
-    const listTotalRows = createMemo(() => displayBookmarks().length)
+    const displayBookmarkRows = createMemo<readonly BookmarkRow[]>(() => {
+        const source = displayBookmarks()
+        if (!githubStackingEnabled() || hasActiveFilter() || showRemoteOnly()) {
+            return source.map((bookmark) => ({
+                bookmark,
+                depth: 0,
+                stackKeys: [],
+            }))
+        }
+
+        return displayBookmarkStackModel()?.rows ?? []
+    })
+
+    const currentBookmarks = () =>
+        displayBookmarkRows().map((row) => row.bookmark)
+
+    const listTotalRows = createMemo(() => displayBookmarkRows().length)
     const canPageBookmarks = createMemo(
         () => !showRemoteOnly() && !hasActiveFilter() && bookmarksHasMore(),
     )
@@ -307,24 +314,240 @@ export function BookmarksPanel() {
         if (showRemoteOnly()) return remoteSelectedIndex()
         const selected = selectedBookmark()
         if (!selected) return 0
-        const idx = displayBookmarks().findIndex(
+        const idx = currentBookmarks().findIndex(
             (b) => b.name === selected.name,
         )
         return idx >= 0 ? idx : 0
     })
 
     const currentSelectedIndex = () => displaySelectedIndex()
-    const localOnlySeparatorIndex = createMemo(
-        () => localOnlyBookmarks().length,
+    const selectedBookmarkRow = createMemo(
+        () => displayBookmarkRows()[currentSelectedIndex()],
     )
-    const showUntrackedSeparator = createMemo(
-        () =>
-            !hasActiveFilter() &&
-            !showRemoteOnly() &&
-            canSplitByUntracked() &&
-            localOnlyBookmarks().length > 0 &&
-            trackedLocalBookmarks().length + deletedLocalBookmarks().length > 0,
-    )
+    const activeStackKey = createMemo(() => {
+        if (!githubStackingEnabled()) return undefined
+        if (!isFocused()) return undefined
+        const row = selectedBookmarkRow()
+        if (!row) return undefined
+        if (
+            commits().find(
+                (commit) => commit.commitId === row.bookmark.commitId,
+            )?.immutable
+        ) {
+            return undefined
+        }
+        return row.stackKeys[0]
+    })
+
+    const applyPreparedPlan = async (
+        plan: Parameters<typeof applyStackPlan>[0],
+    ) => {
+        const observer = commandLog.observer()
+        try {
+            await Effect.runPromise(applyStackPlan(plan, { observer }))
+            await refresh()
+            refreshPullRequestMetadata()
+        } catch (error) {
+            commandLog.addEntry({
+                command: plan.applyCommand,
+                success: false,
+                exitCode: 1,
+                stdout: "",
+                stderr: error instanceof Error ? error.message : String(error),
+            })
+        }
+    }
+
+    const preparePlan = async (
+        stackRootName: string,
+        observer?: ReturnType<typeof commandLog.observer>,
+    ) => Effect.runPromise(prepareSyncPlan({ stackRootName, observer }))
+
+    const stackDialogMinHeight = (rowCount: number) =>
+        Math.max(18, rowCount + 14)
+
+    const openStackPlan = async (stackRootName: string) => {
+        const preparingRows = stackRows(stackRootName)
+        const minHeight = stackDialogMinHeight(preparingRows.length)
+        dialog.open(
+            () => (
+                <StackPreparingModal
+                    kind="sync"
+                    stackRootName={stackRootName}
+                />
+            ),
+            {
+                id: "bookmark-stack-sync-preparing",
+                ...DIALOG_SIZE.confirmWide,
+                minHeight,
+                closeOnEsc: false,
+                hints: [],
+            },
+        )
+        try {
+            const plan = await preparePlan(stackRootName)
+            dialog.close()
+            dialog.open(
+                () => (
+                    <StackPlanModal
+                        plan={plan}
+                        onApply={() => applyPreparedPlan(plan)}
+                        onBack={() => openStackActions(stackRootName)}
+                    />
+                ),
+                {
+                    id: "bookmark-stack-sync-plan",
+                    title: [
+                        { text: "Sync", style: "action" },
+                        " preview for ",
+                        { text: stackRootName, style: "target" },
+                    ],
+                    ...DIALOG_SIZE.confirmWide,
+                    minHeight: stackDialogMinHeight(plan.rows.length),
+                    closeOnEsc: false,
+                    hints:
+                        plan.effects.length > 0
+                            ? [
+                                  { key: "esc", label: "back" },
+                                  { key: "enter", label: "apply" },
+                              ]
+                            : [{ key: "esc", label: "back" }],
+                },
+            )
+        } catch (error) {
+            dialog.close()
+            status.show(
+                error instanceof Error ? error.message : String(error),
+                {
+                    kind: "error",
+                },
+            )
+        }
+    }
+
+    const prepareAndApplyStack = async (stackRootName: string) => {
+        const observer = commandLog.observer()
+        try {
+            const plan = await preparePlan(stackRootName, observer)
+            if (plan.effects.length === 0) {
+                status.show("Nothing to do; stack is already in sync.")
+                return
+            }
+            await applyPreparedPlan(plan)
+        } catch (error) {
+            commandLog.addEntry({
+                command: "stack sync",
+                success: false,
+                exitCode: 1,
+                stdout: "",
+                stderr: error instanceof Error ? error.message : String(error),
+            })
+        }
+    }
+
+    const stackActionOptions = (stackRootName: string) => [
+        {
+            key: "s",
+            mutedPrefix: "stack ",
+            label: "sync",
+            onSelect: () => openStackPlan(stackRootName),
+        },
+    ]
+
+    const stackRows = (stackRootName: string) => {
+        const rows = displayBookmarkRows().filter((row) =>
+            row.stackKeys.includes(stackRootName),
+        )
+        const minDepth = Math.min(...rows.map((row) => row.depth))
+        return rows.map((row) => ({
+            ...row,
+            depth: Math.max(0, row.depth - minDepth),
+        }))
+    }
+
+    const openStackActions = (stackRootName: string) => {
+        const rows = stackRows(stackRootName)
+        dialog.open(
+            () => (
+                <StackActionsModal
+                    stackRootName={stackRootName}
+                    rows={rows}
+                    prNumbers={bookmarkPrNumbers()}
+                    actions={stackActionOptions(stackRootName)}
+                />
+            ),
+            {
+                id: "bookmark-stack-actions",
+                title: [
+                    { text: "Stack", style: "action" },
+                    " options for ",
+                    { text: stackRootName, style: "target" },
+                ],
+                ...DIALOG_SIZE.confirmWide,
+                minHeight: stackDialogMinHeight(rows.length),
+                hints: [{ key: "enter", label: "run" }],
+            },
+        )
+    }
+
+    const openStackPicker = (stackRootNames: readonly string[]) => {
+        dialog.open(
+            () => (
+                <ActionMenuModal
+                    options={stackRootNames.map((name, index) => ({
+                        key: String(index + 1),
+                        label: name,
+                        detail: bookmarkPrNumbers().get(name)
+                            ? `#${bookmarkPrNumbers().get(name)}`
+                            : undefined,
+                        onSelect: () => openStackActions(name),
+                    }))}
+                />
+            ),
+            {
+                id: "bookmark-stack-picker",
+                title: [{ text: "Select stack", style: "action" }],
+                ...DIALOG_SIZE.confirm,
+                hints: [
+                    { key: "enter", label: "select" },
+                    { key: "esc", label: "close" },
+                ],
+            },
+        )
+    }
+
+    const openSelectedStack = async () => {
+        if (!githubStackingEnabled()) {
+            status.show(
+                "GitHub stacking is disabled. Run with KAJJI_ENABLE_STACKING=1 to enable it.",
+            )
+            return
+        }
+        if (showRemoteOnly()) return
+        const row = selectedBookmarkRow()
+        if (!row) return
+        if (row.stackKeys.length === 0) {
+            const persisted = await readPersistedStackState()
+            const entry = persisted.entries.find(
+                (item) => item.bookmark === row.bookmark.name,
+            )
+            if (entry?.parent) {
+                openStackPlan(entry.parent)
+                return
+            }
+            status.show(`No stack for ${row.bookmark.name}.`)
+            return
+        }
+        const isTrunk = commits().find(
+            (commit) => commit.commitId === row.bookmark.commitId,
+        )?.immutable
+        if (isTrunk) {
+            openStackPicker(row.stackKeys)
+            return
+        }
+        const stackKey = row.stackKeys[0]
+        if (stackKey) openStackActions(stackKey)
+    }
 
     createEffect(
         on(
@@ -377,7 +600,7 @@ export function BookmarksPanel() {
     )
 
     const selectNextBookmarkInView = () => {
-        const max = displayBookmarks().length - 1
+        const max = currentBookmarks().length - 1
         if (max < 0) return
         if (hasActiveFilter()) {
             setFilterSelectedIndex((i) => Math.min(max, i + 1))
@@ -388,7 +611,7 @@ export function BookmarksPanel() {
             return
         }
         const nextIndex = Math.min(max, displaySelectedIndex() + 1)
-        const nextBookmark = displayBookmarks()[nextIndex]
+        const nextBookmark = currentBookmarks()[nextIndex]
         if (!nextBookmark) return
         const localIndex = localBookmarks().findIndex(
             (b) => b.name === nextBookmark.name,
@@ -408,7 +631,7 @@ export function BookmarksPanel() {
             return
         }
         const prevIndex = Math.max(0, displaySelectedIndex() - 1)
-        const prevBookmark = displayBookmarks()[prevIndex]
+        const prevBookmark = currentBookmarks()[prevIndex]
         if (!prevBookmark) return
         const localIndex = localBookmarks().findIndex(
             (b) => b.name === prevBookmark.name,
@@ -905,6 +1128,19 @@ export function BookmarksPanel() {
                 )
             },
         },
+        ...(githubStackingEnabled()
+            ? [
+                  {
+                      id: "refs.bookmarks.stack",
+                      title: "stack",
+                      keybind: "bookmark_stack" as const,
+                      context: "refs.bookmarks" as const,
+                      type: "action" as const,
+                      panel: "refs" as const,
+                      onSelect: openSelectedStack,
+                  },
+              ]
+            : []),
         {
             id: "refs.bookmarks.diff_origin",
             title: "compare to origin",
@@ -963,8 +1199,9 @@ export function BookmarksPanel() {
                                 backgroundColor: colors().background,
                             }}
                         >
-                            <For each={currentBookmarks()}>
-                                {(bookmark, index) => {
+                            <For each={displayBookmarkRows()}>
+                                {(row, index) => {
+                                    const bookmark = row.bookmark
                                     const isSelected = () =>
                                         index() === currentSelectedIndex()
                                     const showSelection = () =>
@@ -996,27 +1233,22 @@ export function BookmarksPanel() {
                                         handleDoubleClick()
                                     }
                                     const isDeleted = () => !bookmark.changeId
+                                    const prNumber = () =>
+                                        bookmarkPrNumbers().get(bookmark.name)
+                                    const isInActiveStack = () =>
+                                        Boolean(
+                                            activeStackKey() &&
+                                                row.stackKeys.includes(
+                                                    activeStackKey() ?? "",
+                                                ),
+                                        )
+                                    const isMutedByActiveStack = () =>
+                                        Boolean(
+                                            activeStackKey() &&
+                                                !isInActiveStack(),
+                                        )
                                     return (
                                         <>
-                                            <Show
-                                                when={
-                                                    showUntrackedSeparator() &&
-                                                    index() ===
-                                                        localOnlySeparatorIndex()
-                                                }
-                                            >
-                                                <box
-                                                    height={1}
-                                                    overflow="hidden"
-                                                >
-                                                    <text
-                                                        fg={colors().textMuted}
-                                                        wrapMode="none"
-                                                    >
-                                                        {"─".repeat(200)}
-                                                    </text>
-                                                </box>
-                                            </Show>
                                             <box
                                                 width="100%"
                                                 height={1}
@@ -1032,203 +1264,21 @@ export function BookmarksPanel() {
                                                 }
                                                 overflow="hidden"
                                                 onMouseDown={handleMouseDown}
+                                                opacity={
+                                                    isMutedByActiveStack()
+                                                        ? 0.6
+                                                        : 1
+                                                }
                                             >
-                                                <box
-                                                    flexDirection="row"
-                                                    flexGrow={1}
-                                                    overflow="hidden"
-                                                >
-                                                    <box
-                                                        flexShrink={0}
-                                                        overflow="hidden"
-                                                    >
-                                                        <text wrapMode="none">
-                                                            <For
-                                                                each={inlineAnsiSpans(
-                                                                    bookmark.nameDisplay ||
-                                                                        bookmark.name,
-                                                                    showSelection()
-                                                                        ? colors()
-                                                                              .selectionText
-                                                                        : undefined,
-                                                                )}
-                                                            >
-                                                                {(span) => (
-                                                                    <span
-                                                                        style={{
-                                                                            fg: span.fg,
-                                                                            bg: span.bg,
-                                                                        }}
-                                                                    >
-                                                                        {
-                                                                            span.text
-                                                                        }
-                                                                    </span>
-                                                                )}
-                                                            </For>
-                                                            <Show
-                                                                when={
-                                                                    bookmark.isLocal &&
-                                                                    originChangedBookmarkNames().has(
-                                                                        bookmark.name,
-                                                                    )
-                                                                }
-                                                            >
-                                                                <span
-                                                                    style={{
-                                                                        fg: bookmarkNameFg(
-                                                                            bookmark,
-                                                                            showSelection()
-                                                                                ? colors()
-                                                                                      .selectionText
-                                                                                : undefined,
-                                                                        ),
-                                                                    }}
-                                                                >
-                                                                    *
-                                                                </span>
-                                                            </Show>
-                                                            <Show
-                                                                when={
-                                                                    !isDeleted()
-                                                                }
-                                                                fallback={
-                                                                    <span
-                                                                        style={{
-                                                                            fg: colors()
-                                                                                .error,
-                                                                        }}
-                                                                    >
-                                                                        {
-                                                                            " –deleted "
-                                                                        }
-                                                                    </span>
-                                                                }
-                                                            >
-                                                                <span
-                                                                    style={{
-                                                                        fg: colors()
-                                                                            .textMuted,
-                                                                    }}
-                                                                >
-                                                                    {" "}
-                                                                </span>
-                                                                <For
-                                                                    each={inlineAnsiSpans(
-                                                                        bookmark.changeIdDisplay ||
-                                                                            bookmark.changeId,
-                                                                        showSelection()
-                                                                            ? colors()
-                                                                                  .selectionText
-                                                                            : colors()
-                                                                                  .textMuted,
-                                                                    )}
-                                                                >
-                                                                    {(span) => (
-                                                                        <span
-                                                                            style={{
-                                                                                fg: span.fg,
-                                                                                bg: span.bg,
-                                                                            }}
-                                                                        >
-                                                                            {
-                                                                                span.text
-                                                                            }
-                                                                        </span>
-                                                                    )}
-                                                                </For>
-                                                                <span
-                                                                    style={{
-                                                                        fg: colors()
-                                                                            .textMuted,
-                                                                    }}
-                                                                >
-                                                                    {" "}
-                                                                </span>
-                                                            </Show>
-                                                            <Show
-                                                                when={
-                                                                    showRemoteOnly() &&
-                                                                    bookmark.remote
-                                                                }
-                                                            >
-                                                                <span
-                                                                    style={{
-                                                                        fg: colors()
-                                                                            .textMuted,
-                                                                    }}
-                                                                >
-                                                                    @
-                                                                    {
-                                                                        bookmark.remote
-                                                                    }{" "}
-                                                                </span>
-                                                            </Show>
-                                                        </text>
-                                                    </box>
-                                                    <Show when={!isDeleted()}>
-                                                        <box
-                                                            flexDirection="row"
-                                                            flexGrow={1}
-                                                            overflow="hidden"
-                                                        >
-                                                            <Show
-                                                                when={stripAnsi(
-                                                                    bookmark.descriptionDisplay,
-                                                                ).startsWith(
-                                                                    emptyDescriptionPrefix,
-                                                                )}
-                                                                fallback={
-                                                                    <text
-                                                                        fg={
-                                                                            colors()
-                                                                                .textMuted
-                                                                        }
-                                                                        content={
-                                                                            bookmark.description
-                                                                        }
-                                                                        wrapMode="none"
-                                                                    />
-                                                                }
-                                                            >
-                                                                <box
-                                                                    width={
-                                                                        emptyDescriptionPrefix.length
-                                                                    }
-                                                                    flexShrink={
-                                                                        0
-                                                                    }
-                                                                >
-                                                                    <text
-                                                                        fg={
-                                                                            colors()
-                                                                                .success
-                                                                        }
-                                                                        content={
-                                                                            emptyDescriptionPrefix
-                                                                        }
-                                                                        wrapMode="none"
-                                                                    />
-                                                                </box>
-                                                                <box
-                                                                    flexGrow={1}
-                                                                    overflow="hidden"
-                                                                >
-                                                                    <text
-                                                                        fg={
-                                                                            colors()
-                                                                                .textMuted
-                                                                        }
-                                                                        content={bookmark.description.slice(
-                                                                            emptyDescriptionPrefix.length,
-                                                                        )}
-                                                                        wrapMode="none"
-                                                                    />
-                                                                </box>
-                                                            </Show>
-                                                        </box>
-                                                    </Show>
-                                                </box>
+                                                <BookmarkStackRowView
+                                                    row={row}
+                                                    selected={showSelection()}
+                                                    prNumber={prNumber()}
+                                                    showOriginChanged={originChangedBookmarkNames().has(
+                                                        bookmark.name,
+                                                    )}
+                                                    showRemote={showRemoteOnly()}
+                                                />
                                             </box>
                                         </>
                                     )

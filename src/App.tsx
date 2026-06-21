@@ -271,7 +271,7 @@ function AppContent() {
                 mutedPrefix: "jj git fetch ",
                 label: "--branch glob:push-*",
                 onSelect: () =>
-                    void runGitFetch("Fetching stack branches...", {
+                    void runGitFetch("Fetching push branches...", {
                         branches: ["glob:push-*"],
                     }),
             },

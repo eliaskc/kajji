@@ -15,6 +15,10 @@ import {
     fetchBookmarks,
     fetchBookmarksStream,
 } from "../commander/bookmarks"
+import {
+    type GitHubPullRequestSummary,
+    ghListPullRequestsByHead,
+} from "../commander/github"
 import { getRepoPath } from "../repo"
 import { addRecentRepo } from "../utils/state"
 import { getVisibleBookmarks } from "./sync-bookmarks"
@@ -134,6 +138,9 @@ interface SyncContextValue {
     selectFirstBookmark: () => void
     selectLastBookmark: () => void
     jumpToBookmarkCommit: () => number | null
+    pullRequestsByHead: () => ReadonlyMap<string, GitHubPullRequestSummary>
+    bookmarkPrNumbers: () => ReadonlyMap<string, number>
+    refreshPullRequestMetadata: () => void
 
     refresh: (options?: RefreshOptions) => Promise<void>
     refreshCounter: () => number
@@ -190,6 +197,27 @@ export function SyncProvider(props: { children: JSX.Element }) {
     const visibleBookmarks = createMemo(() =>
         getVisibleBookmarks(bookmarks(), bookmarkLimit()),
     )
+    const [pullRequestsByHead, setPullRequestsByHead] = createSignal<
+        ReadonlyMap<string, GitHubPullRequestSummary>
+    >(new Map())
+    const bookmarkPrNumbers = createMemo(
+        () =>
+            new Map(
+                [...pullRequestsByHead()].map(([head, pull]) => [
+                    head,
+                    pull.number,
+                ]),
+            ),
+    )
+    const [prMetadataRefreshToken, setPrMetadataRefreshToken] = createSignal(0)
+    const refreshPullRequestMetadata = () => {
+        setPrMetadataRefreshToken((token) => token + 1)
+    }
+    const refreshPullRequestMetadataSoon = () => {
+        setTimeout(refreshPullRequestMetadata, 15000)
+        setTimeout(refreshPullRequestMetadata, 30000)
+        setTimeout(refreshPullRequestMetadata, 60000)
+    }
 
     const [commitDetails, setCommitDetails] =
         createSignal<CommitDetails | null>(null)
@@ -536,6 +564,32 @@ export function SyncProvider(props: { children: JSX.Element }) {
 
     const localBookmarks = () => bookmarks().filter((b) => b.isLocal)
     const selectedBookmark = () => localBookmarks()[selectedBookmarkIndex()]
+
+    createEffect(() => {
+        prMetadataRefreshToken()
+        const names = localBookmarks()
+            .filter((bookmark) => bookmark.changeId)
+            .map((bookmark) => bookmark.name)
+            .sort()
+        if (names.length === 0) {
+            setPullRequestsByHead(new Map())
+            return
+        }
+
+        let cancelled = false
+        ghListPullRequestsByHead(names)
+            .then((pullsByHead) => {
+                if (cancelled) return
+                setPullRequestsByHead(pullsByHead)
+            })
+            .catch(() => {
+                if (!cancelled) setPullRequestsByHead(new Map())
+            })
+
+        onCleanup(() => {
+            cancelled = true
+        })
+    })
 
     createEffect(() => {
         const maxIndex = localBookmarks().length - 1
@@ -1048,6 +1102,9 @@ export function SyncProvider(props: { children: JSX.Element }) {
         selectFirstBookmark,
         selectLastBookmark,
         jumpToBookmarkCommit,
+        pullRequestsByHead,
+        bookmarkPrNumbers,
+        refreshPullRequestMetadata: refreshPullRequestMetadataSoon,
 
         refresh: doFullRefresh,
         refreshCounter,

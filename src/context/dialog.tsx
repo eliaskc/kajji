@@ -24,6 +24,7 @@ type Dimension = number | "auto" | `${number}%`
 export interface DialogSize {
     width?: Dimension
     maxWidth?: number
+    minHeight?: number
 }
 
 export const DIALOG_SIZE = {
@@ -51,6 +52,8 @@ interface DialogState {
     title?: string | StyledSegment[]
     width?: DimensionOrAccessor
     maxWidth?: number
+    minHeight?: number
+    closeOnEsc?: boolean
 }
 
 export type StyledSegment =
@@ -179,7 +182,12 @@ export const { use: useDialog, provider: DialogProvider } = createSimpleContext(
             }
 
             useKeyboard((evt) => {
-                if (stack().length > 0 && evt.name === "escape") {
+                const current = stack().at(-1)
+                if (
+                    current &&
+                    current.closeOnEsc !== false &&
+                    evt.name === "escape"
+                ) {
                     evt.preventDefault()
                     evt.stopPropagation()
                     close()
@@ -195,6 +203,8 @@ export const { use: useDialog, provider: DialogProvider } = createSimpleContext(
                     title?: string | StyledSegment[]
                     width?: DimensionOrAccessor
                     maxWidth?: number
+                    minHeight?: number
+                    closeOnEsc?: boolean
                 },
             ) => {
                 setStack((s) => [
@@ -207,6 +217,8 @@ export const { use: useDialog, provider: DialogProvider } = createSimpleContext(
                         title: options?.title,
                         width: options?.width,
                         maxWidth: options?.maxWidth,
+                        minHeight: options?.minHeight,
+                        closeOnEsc: options?.closeOnEsc,
                     },
                 ])
             }
@@ -220,6 +232,8 @@ export const { use: useDialog, provider: DialogProvider } = createSimpleContext(
                     title?: string | StyledSegment[]
                     width?: DimensionOrAccessor
                     maxWidth?: number
+                    minHeight?: number
+                    closeOnEsc?: boolean
                 },
             ) => {
                 const current = stack().at(-1)
@@ -233,6 +247,8 @@ export const { use: useDialog, provider: DialogProvider } = createSimpleContext(
                         title: options?.title,
                         width: options?.width,
                         maxWidth: options?.maxWidth,
+                        minHeight: options?.minHeight,
+                        closeOnEsc: options?.closeOnEsc,
                     })
                 }
             }
@@ -285,6 +301,7 @@ export const { use: useDialog, provider: DialogProvider } = createSimpleContext(
                 resolvedWidth: () =>
                     resolveWidth(stack().at(-1)?.width) ?? "50%",
                 maxWidth: () => stack().at(-1)?.maxWidth,
+                minHeight: () => stack().at(-1)?.minHeight,
                 setHints: (hints: DialogHint[]) => {
                     setStack((s) => {
                         if (s.length === 0) return s
@@ -398,6 +415,7 @@ function DialogBackdrop(props: { children: JSX.Element }) {
                 flexDirection="column"
                 width={dialog.resolvedWidth()}
                 maxWidth={dialog.maxWidth()}
+                minHeight={dialog.minHeight()}
                 backgroundColor={colors().background}
                 paddingLeft={2}
                 paddingRight={2}
@@ -410,7 +428,9 @@ function DialogBackdrop(props: { children: JSX.Element }) {
                         <StyledText content={title()} bold />
                     )}
                 </Show>
-                {props.children}
+                <box flexDirection="column" flexGrow={1}>
+                    {props.children}
+                </box>
                 <DialogHints hints={dialog.hints()} />
             </box>
         </box>
