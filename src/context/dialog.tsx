@@ -428,7 +428,9 @@ function DialogBackdrop(props: { children: JSX.Element }) {
                         <StyledText content={title()} bold />
                     )}
                 </Show>
-                {props.children}
+                <box flexDirection="column" flexGrow={1}>
+                    {props.children}
+                </box>
                 <DialogHints hints={dialog.hints()} />
             </box>
         </box>

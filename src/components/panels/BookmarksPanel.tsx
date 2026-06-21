@@ -359,7 +359,12 @@ export function BookmarksPanel() {
         observer?: ReturnType<typeof commandLog.observer>,
     ) => Effect.runPromise(prepareSyncPlan({ stackRootName, observer }))
 
+    const stackDialogMinHeight = (rowCount: number) =>
+        Math.max(18, rowCount + 14)
+
     const openStackPlan = async (stackRootName: string) => {
+        const preparingRows = stackRows(stackRootName)
+        const minHeight = stackDialogMinHeight(preparingRows.length)
         dialog.open(
             () => (
                 <StackPreparingModal
@@ -370,12 +375,12 @@ export function BookmarksPanel() {
             {
                 id: "bookmark-stack-sync-preparing",
                 title: [
-                    { text: "sync", style: "action" },
+                    { text: "Sync", style: "action" },
                     " preview for ",
                     { text: stackRootName, style: "target" },
                 ],
                 ...DIALOG_SIZE.confirmWide,
-                minHeight: 18,
+                minHeight,
                 closeOnEsc: false,
                 hints: [],
             },
@@ -394,12 +399,12 @@ export function BookmarksPanel() {
                 {
                     id: "bookmark-stack-sync-plan",
                     title: [
-                        { text: "sync", style: "action" },
+                        { text: "Sync", style: "action" },
                         " preview for ",
                         { text: stackRootName, style: "target" },
                     ],
                     ...DIALOG_SIZE.confirmWide,
-                    minHeight: 18,
+                    minHeight: stackDialogMinHeight(plan.rows.length),
                     closeOnEsc: false,
                     hints:
                         plan.effects.length > 0
@@ -462,11 +467,12 @@ export function BookmarksPanel() {
     }
 
     const openStackActions = (stackRootName: string) => {
+        const rows = stackRows(stackRootName)
         dialog.open(
             () => (
                 <StackActionsModal
                     stackRootName={stackRootName}
-                    rows={stackRows(stackRootName)}
+                    rows={rows}
                     prNumbers={bookmarkPrNumbers()}
                     actions={stackActionOptions(stackRootName)}
                 />
@@ -479,7 +485,7 @@ export function BookmarksPanel() {
                     { text: stackRootName, style: "target" },
                 ],
                 ...DIALOG_SIZE.confirmWide,
-                minHeight: 18,
+                minHeight: stackDialogMinHeight(rows.length),
                 hints: [
                     { key: "enter", label: "run" },
                     { key: "esc", label: "close" },
