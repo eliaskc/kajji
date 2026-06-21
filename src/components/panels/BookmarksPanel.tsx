@@ -374,11 +374,6 @@ export function BookmarksPanel() {
             ),
             {
                 id: "bookmark-stack-sync-preparing",
-                title: [
-                    { text: "Sync", style: "action" },
-                    " preview for ",
-                    { text: stackRootName, style: "target" },
-                ],
                 ...DIALOG_SIZE.confirmWide,
                 minHeight,
                 closeOnEsc: false,
@@ -409,8 +404,8 @@ export function BookmarksPanel() {
                     hints:
                         plan.effects.length > 0
                             ? [
-                                  { key: "enter", label: "apply" },
                                   { key: "esc", label: "back" },
+                                  { key: "enter", label: "apply" },
                               ]
                             : [{ key: "esc", label: "back" }],
                 },
@@ -486,10 +481,7 @@ export function BookmarksPanel() {
                 ],
                 ...DIALOG_SIZE.confirmWide,
                 minHeight: stackDialogMinHeight(rows.length),
-                hints: [
-                    { key: "enter", label: "run" },
-                    { key: "esc", label: "close" },
-                ],
+                hints: [{ key: "enter", label: "run" }],
             },
         )
     }
