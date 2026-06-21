@@ -49,6 +49,54 @@ const SPLIT_RIGHT_PADDING = 0
 const SCROLLBAR_GUTTER = 1
 const HORIZONTAL_SCROLL_STEP = 5
 
+// Mirrors OpenTUI's MacOSScrollAccel defaults. We keep this local because
+// @opentui/core does not export the acceleration helper through its package
+// exports in our version.
+class MacOSLikeScrollAccel {
+    private lastTickTime = 0
+    private velocityHistory: number[] = []
+    private readonly historySize = 3
+    private readonly streakTimeout = 150
+    private readonly minTickInterval = 6
+    private readonly curveA = 0.8
+    private readonly curveTau = 3
+    private readonly maxMultiplier = 6
+    private readonly referenceInterval = 100
+
+    tick(now = Date.now()): number {
+        if (this.lastTickTime === 0) {
+            this.lastTickTime = now
+            return 1
+        }
+
+        const interval = now - this.lastTickTime
+        this.lastTickTime = now
+        if (interval > this.streakTimeout) {
+            this.velocityHistory = []
+            return 1
+        }
+        if (interval < this.minTickInterval) return 1
+
+        this.velocityHistory.push(interval)
+        if (this.velocityHistory.length > this.historySize) {
+            this.velocityHistory.shift()
+        }
+
+        const averageInterval =
+            this.velocityHistory.reduce((sum, value) => sum + value, 0) /
+            this.velocityHistory.length
+        const velocity = this.referenceInterval / averageInterval
+        const x = velocity / this.curveTau
+        const multiplier = 1 + this.curveA * (Math.exp(x) - 1)
+        return Math.min(multiplier, this.maxMultiplier)
+    }
+
+    reset(): void {
+        this.lastTickTime = 0
+        this.velocityHistory = []
+    }
+}
+
 let sessionViewStyleOverride: DiffViewStyle | null = null
 let sessionWrapOverride: boolean | null = null
 let sessionUseJjFormatterOverride: boolean | null = null
@@ -569,20 +617,44 @@ export function MainArea() {
         if (next !== scrollLeft()) setScrollLeft(next)
     }
 
+    const horizontalScrollAccel = new MacOSLikeScrollAccel()
+    let horizontalScrollAccumulator = 0
+
+    const resetHorizontalScrollState = () => {
+        horizontalScrollAccel.reset()
+        horizontalScrollAccumulator = 0
+    }
+
     const handleHorizontalScroll = (event: MouseEvent) => {
-        if (!event.scroll || wrapEnabled()) return
-        const delta = event.scroll.delta || 1
-        if (event.scroll.direction === "left") {
-            setScrollLeftClamped(scrollLeft() - delta)
-            event.preventDefault()
-            event.stopPropagation()
+        if (!event.scroll || wrapEnabled()) {
+            resetHorizontalScrollState()
             return
         }
-        if (event.scroll.direction === "right") {
-            setScrollLeftClamped(scrollLeft() + delta)
-            event.preventDefault()
-            event.stopPropagation()
+
+        let direction = event.scroll.direction
+        if (event.modifiers.shift) {
+            direction =
+                direction === "up"
+                    ? "left"
+                    : direction === "down"
+                      ? "right"
+                      : direction === "right"
+                        ? "down"
+                        : "up"
         }
+        if (direction !== "left" && direction !== "right") return
+
+        const baseDelta = event.scroll.delta || 1
+        const scrollAmount = baseDelta * horizontalScrollAccel.tick()
+        horizontalScrollAccumulator +=
+            direction === "left" ? -scrollAmount : scrollAmount
+        const integerScroll = Math.trunc(horizontalScrollAccumulator)
+        if (integerScroll !== 0) {
+            setScrollLeftClamped(scrollLeft() + integerScroll)
+            horizontalScrollAccumulator -= integerScroll
+        }
+        event.preventDefault()
+        event.stopPropagation()
     }
 
     // Navigation functions
