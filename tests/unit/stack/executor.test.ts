@@ -208,6 +208,7 @@ function commit(
         authorEmail: "test@example.com",
         timestamp: "2026-01-01T00:00:00Z",
         lines: [],
+        displayLines: [],
         refLine: "",
         isWorkingCopy: false,
         immutable,

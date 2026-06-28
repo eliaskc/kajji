@@ -7,6 +7,39 @@ const MARKER = "__LJ__"
 // biome-ignore lint/suspicious/noControlCharactersInRegex: intentional ANSI escape sequence
 const stripAnsi = (str: string) => str.replace(/\x1b\[[0-9;]*m/g, "")
 
+function splitAnsiAtVisibleWidth(line: string, visibleWidth: number) {
+    if (visibleWidth <= 0) return { gutter: "", content: line }
+
+    let visible = 0
+    let index = 0
+    while (index < line.length && visible < visibleWidth) {
+        if (line[index] === "\x1b" && line[index + 1] === "[") {
+            index += 2
+            while (index < line.length && line[index] !== "m") index += 1
+            if (index < line.length) index += 1
+            continue
+        }
+        index += 1
+        visible += 1
+    }
+
+    return {
+        gutter: line.slice(0, index),
+        content: line.slice(index),
+    }
+}
+
+function getVisibleWidth(line: string) {
+    return stripAnsi(line).length
+}
+
+function createCommitDisplayLine(gutter: string, content: string) {
+    return {
+        gutter,
+        content,
+    }
+}
+
 function buildTemplate(): string {
     const styledDescription = `if(empty, label("empty", "(empty) "), "") ++ if(description.first_line(), description.first_line(), label("description placeholder", "(no description set)"))`
 
@@ -92,6 +125,12 @@ export function parseLogOutput(output: string): Commit[] {
                     isWorkingCopy: gutter.includes("@"),
                     refLine: parts[hasParentIds ? 14 : 13] ?? "",
                     lines: [gutter + (parts[hasParentIds ? 14 : 13] ?? "")],
+                    displayLines: [
+                        createCommitDisplayLine(
+                            gutter,
+                            parts[hasParentIds ? 14 : 13] ?? "",
+                        ),
+                    ],
                 }
                 continue
             }
@@ -99,6 +138,12 @@ export function parseLogOutput(output: string): Commit[] {
 
         if (current && line.trim() !== "") {
             current.lines.push(line)
+            const gutterWidth = getVisibleWidth(
+                current.displayLines[0]?.gutter ?? "",
+            )
+            current.displayLines.push(
+                splitAnsiAtVisibleWidth(line, gutterWidth),
+            )
         }
     }
 
@@ -152,6 +197,12 @@ function parseLogLine(line: string, state: LogStreamState): Commit | null {
                 isWorkingCopy: gutter.includes("@"),
                 refLine: parts[hasParentIds ? 14 : 13] ?? "",
                 lines: [gutter + (parts[hasParentIds ? 14 : 13] ?? "")],
+                displayLines: [
+                    createCommitDisplayLine(
+                        gutter,
+                        parts[hasParentIds ? 14 : 13] ?? "",
+                    ),
+                ],
             }
             return completed
         }
@@ -159,6 +210,12 @@ function parseLogLine(line: string, state: LogStreamState): Commit | null {
 
     if (state.current && line.trim() !== "") {
         state.current.lines.push(line)
+        const gutterWidth = getVisibleWidth(
+            state.current.displayLines[0]?.gutter ?? "",
+        )
+        state.current.displayLines.push(
+            splitAnsiAtVisibleWidth(line, gutterWidth),
+        )
     }
 
     return null

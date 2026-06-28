@@ -893,13 +893,28 @@ export function LogPanel() {
     const logMaxLineLength = createMemo(() => {
         let maxLength = 0
         for (const commit of commits()) {
-            for (const line of commit.lines) {
-                const length = stripAnsi(line).length
+            for (const line of commit.displayLines) {
+                const length = stripAnsi(line.content).length
                 if (length > maxLength) maxLength = length
             }
         }
         return maxLength
     })
+
+    const logMaxGutterWidth = createMemo(() => {
+        let maxWidth = 0
+        for (const commit of commits()) {
+            for (const line of commit.displayLines) {
+                const width = stripAnsi(line.gutter).length
+                if (width > maxWidth) maxWidth = width
+            }
+        }
+        return maxWidth
+    })
+
+    const logContentViewportWidth = createMemo(() =>
+        Math.max(1, logViewportWidth() - logMaxGutterWidth()),
+    )
 
     const opLogMaxLineLength = createMemo(() => {
         let maxLength = 0
@@ -1068,7 +1083,7 @@ export function LogPanel() {
             clampScrollLeft(
                 logScrollLeft(),
                 logMaxLineLength(),
-                logViewportWidth(),
+                logContentViewportWidth(),
             ),
         )
     })
@@ -2318,37 +2333,53 @@ export function LogPanel() {
                 : inactiveSelectionBackground()
         return (
             <box onMouseDown={handleMouseDown}>
-                <For each={props.commit.lines}>
-                    {(line) => (
-                        <box
-                            backgroundColor={
-                                props.selected()
-                                    ? selectionBackground()
-                                    : undefined
-                            }
-                            overflow="hidden"
-                        >
-                            <AnsiText
-                                content={line}
-                                defaultFg={
-                                    props.selected() && isFocused()
-                                        ? colors().selectionText
+                <For each={props.commit.displayLines}>
+                    {(line) => {
+                        const gutterWidth = () => stripAnsi(line.gutter).length
+                        const contentWidth = () =>
+                            Math.max(1, logViewportWidth() - gutterWidth())
+                        const defaultFg = () =>
+                            props.selected() && isFocused()
+                                ? colors().selectionText
+                                : undefined
+                        return (
+                            <box
+                                backgroundColor={
+                                    props.selected()
+                                        ? selectionBackground()
                                         : undefined
                                 }
-                                bold={props.commit.isWorkingCopy}
-                                wrapMode="none"
-                                onMouseScroll={createHorizontalScrollHandler(
-                                    logScrollLeft,
-                                    setLogScrollLeft,
-                                    logMaxLineLength,
-                                    logViewportWidth,
-                                    () => scrollRef,
-                                )}
-                                cropStart={logScrollLeft()}
-                                cropWidth={Math.max(1, logViewportWidth())}
-                            />
-                        </box>
-                    )}
+                                overflow="hidden"
+                                flexDirection="row"
+                            >
+                                <box flexShrink={0} overflow="hidden">
+                                    <AnsiText
+                                        content={line.gutter}
+                                        defaultFg={defaultFg()}
+                                        bold={props.commit.isWorkingCopy}
+                                        wrapMode="none"
+                                    />
+                                </box>
+                                <box flexGrow={1} overflow="hidden">
+                                    <AnsiText
+                                        content={line.content}
+                                        defaultFg={defaultFg()}
+                                        bold={props.commit.isWorkingCopy}
+                                        wrapMode="none"
+                                        onMouseScroll={createHorizontalScrollHandler(
+                                            logScrollLeft,
+                                            setLogScrollLeft,
+                                            logMaxLineLength,
+                                            logContentViewportWidth,
+                                            () => scrollRef,
+                                        )}
+                                        cropStart={logScrollLeft()}
+                                        cropWidth={contentWidth()}
+                                    />
+                                </box>
+                            </box>
+                        )
+                    }}
                 </For>
             </box>
         )
@@ -2371,7 +2402,7 @@ export function LogPanel() {
                         logScrollLeft,
                         setLogScrollLeft,
                         logMaxLineLength,
-                        logViewportWidth,
+                        logContentViewportWidth,
                         () => scrollRef,
                     )}
                     scrollbarOptions={{ visible: false }}

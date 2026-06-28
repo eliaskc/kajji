@@ -12,6 +12,7 @@ function makeCommit(overrides: Partial<Commit> = {}): Commit {
         authorEmail: "test@example.com",
         timestamp: "2026-01-01 00:00:00",
         lines: [],
+        displayLines: [],
         refLine: "",
         isWorkingCopy: false,
         immutable: false,
