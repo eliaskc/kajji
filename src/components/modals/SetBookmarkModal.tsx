@@ -14,7 +14,8 @@ import type { OperationResult } from "../../commander/operations"
 import { useCommandInputGuard } from "../../context/command"
 import { DIALOG_SIZE, useDialog } from "../../context/dialog"
 import { useTheme } from "../../context/theme"
-import { FUZZY_THRESHOLD, scrollIntoView } from "../../utils/scroll"
+import { createSelectableList } from "../../hooks/selectable-list"
+import { FUZZY_THRESHOLD } from "../../utils/scroll"
 
 const SINGLE_LINE_KEYBINDINGS = [
     { name: "return", action: "submit" as const },
@@ -45,7 +46,6 @@ export function SetBookmarkModal(props: SetBookmarkModalProps) {
     const [query, setQuery] = createSignal("")
     const [selectedIndex, setSelectedIndex] = createSignal(0)
     const [error, setError] = createSignal<string | null>(null)
-    const [scrollTop, setScrollTop] = createSignal(0)
 
     let inputRef: TextareaRenderable | undefined
     let scrollRef: ScrollBoxRenderable | undefined
@@ -98,6 +98,13 @@ export function SetBookmarkModal(props: SetBookmarkModalProps) {
     })
 
     const totalItems = createMemo(() => listItems().length)
+
+    const list = createSelectableList({
+        count: totalItems,
+        selectedIndex,
+        setSelectedIndex,
+        scrollRef: () => scrollRef,
+    })
 
     const firstSelectableIndex = createMemo(() => {
         const items = listItems()
@@ -155,20 +162,14 @@ export function SetBookmarkModal(props: SetBookmarkModalProps) {
     })
 
     createEffect(() => {
-        scrollIntoView({
-            ref: scrollRef,
-            index: selectedIndex(),
-            currentScrollTop: scrollTop(),
-            listLength: totalItems(),
-            setScrollTop,
-        })
+        list.scrollSelectedIntoView()
     })
 
     const selectPrev = () => {
         const current = selectedIndex()
         for (let i = current - 1; i >= 0; i--) {
             if (isSelectableIndex(i)) {
-                setSelectedIndex(i)
+                list.selectByKeyboard(i)
                 return
             }
         }
@@ -180,7 +181,7 @@ export function SetBookmarkModal(props: SetBookmarkModalProps) {
         const current = selectedIndex()
         for (let i = current + 1; i <= max; i++) {
             if (isSelectableIndex(i)) {
-                setSelectedIndex(i)
+                list.selectByKeyboard(i)
                 return
             }
         }
@@ -328,7 +329,7 @@ export function SetBookmarkModal(props: SetBookmarkModalProps) {
                                                 : undefined
                                         }
                                         onMouseDown={() =>
-                                            setSelectedIndex(index())
+                                            list.selectByMouse(index())
                                         }
                                     >
                                         <text wrapMode="none">
@@ -368,7 +369,7 @@ export function SetBookmarkModal(props: SetBookmarkModalProps) {
                                             : undefined
                                     }
                                     onMouseDown={() =>
-                                        setSelectedIndex(index())
+                                        list.selectByMouse(index())
                                     }
                                 >
                                     <text

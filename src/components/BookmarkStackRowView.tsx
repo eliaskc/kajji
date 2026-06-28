@@ -4,11 +4,10 @@ import type { Bookmark } from "../commander/bookmarks"
 import { useTheme } from "../context/theme"
 import type { BookmarkStackRow } from "../stack/model"
 import { resolveAnsiForeground } from "../theme/ansi"
+import { stripAnsi } from "../utils/ansi"
+import { AnsiText } from "./AnsiText"
 
 const emptyDescriptionPrefix = "(empty) "
-
-// biome-ignore lint/suspicious/noControlCharactersInRegex: intentional ANSI escape sequence
-const stripAnsi = (str: string) => str.replace(/\x1b\[[0-9;]*m/g, "")
 
 interface BookmarkStackRowViewProps {
     row: BookmarkStackRow<Bookmark>
@@ -19,6 +18,10 @@ interface BookmarkStackRowViewProps {
     annotation?: string
     hideRevisionId?: boolean
     hideDescription?: boolean
+    horizontalScroll?: {
+        cropStart: number
+        cropWidth: number
+    }
 }
 
 export function BookmarkStackRowView(props: BookmarkStackRowViewProps) {
@@ -54,6 +57,34 @@ export function BookmarkStackRowView(props: BookmarkStackRowViewProps) {
         defaultFg ??
         colors().text
 
+    const scrollableContent = () => {
+        if (isDeleted()) return "–deleted "
+        const parts = []
+        if (props.prNumber) parts.push(`#${props.prNumber}`)
+        if (!props.hideRevisionId) {
+            parts.push(bookmark().changeIdDisplay || bookmark().changeId)
+        }
+        if (props.showRemote && bookmark().remote) {
+            parts.push(`@${bookmark().remote}`)
+        }
+        if (!props.hideDescription) {
+            parts.push(
+                props.annotation ??
+                    bookmark().descriptionDisplay ??
+                    bookmark().description,
+            )
+        }
+        return parts.join(" ")
+    }
+
+    const contentFg = () => {
+        if (props.selected) return colors().selectionText
+        if (isDeleted()) return colors().error
+        return props.annotation !== undefined
+            ? colors().text
+            : colors().textMuted
+    }
+
     return (
         <box flexDirection="row" flexGrow={1} overflow="hidden">
             <box flexShrink={0} overflow="hidden">
@@ -80,91 +111,138 @@ export function BookmarkStackRowView(props: BookmarkStackRowViewProps) {
                             *
                         </span>
                     </Show>
-                    <Show when={props.prNumber}>
-                        <span style={{ fg: colors().textMuted }}>
-                            {` #${props.prNumber}`}
-                        </span>
-                    </Show>
-                    <Show
-                        when={!isDeleted()}
-                        fallback={
-                            <span style={{ fg: colors().error }}>
-                                {" –deleted "}
-                            </span>
-                        }
-                    >
-                        <span style={{ fg: colors().textMuted }}> </span>
-                        <Show when={!props.hideRevisionId}>
-                            <For
-                                each={inlineAnsiSpans(
-                                    bookmark().changeIdDisplay ||
-                                        bookmark().changeId,
-                                    props.selected
-                                        ? colors().selectionText
-                                        : colors().textMuted,
-                                )}
-                            >
-                                {(span) => (
-                                    <span style={{ fg: span.fg, bg: span.bg }}>
-                                        {span.text}
-                                    </span>
-                                )}
-                            </For>
-                            <span style={{ fg: colors().textMuted }}> </span>
-                        </Show>
-                    </Show>
-                    <Show when={props.showRemote && bookmark().remote}>
-                        <span style={{ fg: colors().textMuted }}>
-                            @{bookmark().remote}{" "}
-                        </span>
-                    </Show>
                 </text>
             </box>
-            <Show when={!isDeleted() && !props.hideDescription}>
-                <box flexDirection="row" flexGrow={1} overflow="hidden">
-                    <Show
-                        when={props.annotation !== undefined}
-                        fallback={
-                            <Show
-                                when={stripAnsi(
-                                    bookmark().descriptionDisplay,
-                                ).startsWith(emptyDescriptionPrefix)}
-                                fallback={
-                                    <text
-                                        fg={colors().textMuted}
-                                        content={bookmark().description}
-                                        wrapMode="none"
-                                    />
-                                }
+            <Show
+                when={props.horizontalScroll}
+                fallback={
+                    <>
+                        <Show when={props.prNumber}>
+                            <text fg={colors().textMuted} wrapMode="none">
+                                {` #${props.prNumber}`}
+                            </text>
+                        </Show>
+                        <Show
+                            when={!isDeleted()}
+                            fallback={
+                                <text fg={colors().error} wrapMode="none">
+                                    {" –deleted "}
+                                </text>
+                            }
+                        >
+                            <text fg={colors().textMuted} wrapMode="none">
+                                {" "}
+                            </text>
+                            <Show when={!props.hideRevisionId}>
+                                <text wrapMode="none">
+                                    <For
+                                        each={inlineAnsiSpans(
+                                            bookmark().changeIdDisplay ||
+                                                bookmark().changeId,
+                                            props.selected
+                                                ? colors().selectionText
+                                                : colors().textMuted,
+                                        )}
+                                    >
+                                        {(span) => (
+                                            <span
+                                                style={{
+                                                    fg: span.fg,
+                                                    bg: span.bg,
+                                                }}
+                                            >
+                                                {span.text}
+                                            </span>
+                                        )}
+                                    </For>
+                                    <span style={{ fg: colors().textMuted }}>
+                                        {" "}
+                                    </span>
+                                </text>
+                            </Show>
+                        </Show>
+                        <Show when={props.showRemote && bookmark().remote}>
+                            <text fg={colors().textMuted} wrapMode="none">
+                                @{bookmark().remote}{" "}
+                            </text>
+                        </Show>
+                        <Show when={!isDeleted() && !props.hideDescription}>
+                            <box
+                                flexDirection="row"
+                                flexGrow={1}
+                                overflow="hidden"
                             >
-                                <box
-                                    width={emptyDescriptionPrefix.length}
-                                    flexShrink={0}
+                                <Show
+                                    when={props.annotation !== undefined}
+                                    fallback={
+                                        <Show
+                                            when={stripAnsi(
+                                                bookmark().descriptionDisplay,
+                                            ).startsWith(
+                                                emptyDescriptionPrefix,
+                                            )}
+                                            fallback={
+                                                <text
+                                                    fg={colors().textMuted}
+                                                    content={
+                                                        bookmark().description
+                                                    }
+                                                    wrapMode="none"
+                                                />
+                                            }
+                                        >
+                                            <box
+                                                width={
+                                                    emptyDescriptionPrefix.length
+                                                }
+                                                flexShrink={0}
+                                            >
+                                                <text
+                                                    fg={colors().success}
+                                                    content={
+                                                        emptyDescriptionPrefix
+                                                    }
+                                                    wrapMode="none"
+                                                />
+                                            </box>
+                                            <box flexGrow={1} overflow="hidden">
+                                                <text
+                                                    fg={colors().textMuted}
+                                                    content={bookmark().description.slice(
+                                                        emptyDescriptionPrefix.length,
+                                                    )}
+                                                    wrapMode="none"
+                                                />
+                                            </box>
+                                        </Show>
+                                    }
                                 >
                                     <text
-                                        fg={colors().success}
-                                        content={emptyDescriptionPrefix}
+                                        fg={colors().text}
+                                        content={props.annotation}
                                         wrapMode="none"
                                     />
-                                </box>
-                                <box flexGrow={1} overflow="hidden">
-                                    <text
-                                        fg={colors().textMuted}
-                                        content={bookmark().description.slice(
-                                            emptyDescriptionPrefix.length,
-                                        )}
-                                        wrapMode="none"
-                                    />
-                                </box>
-                            </Show>
-                        }
-                    >
-                        <text
-                            fg={colors().text}
-                            content={props.annotation}
+                                </Show>
+                            </box>
+                        </Show>
+                    </>
+                }
+            >
+                <box flexDirection="row" flexGrow={1} overflow="hidden">
+                    <box width={1} flexShrink={0} overflow="hidden">
+                        <text fg={colors().textMuted} wrapMode="none">
+                            {" "}
+                        </text>
+                    </box>
+                    <box flexGrow={1} overflow="hidden">
+                        <AnsiText
+                            content={scrollableContent()}
+                            defaultFg={contentFg()}
                             wrapMode="none"
+                            cropStart={props.horizontalScroll?.cropStart ?? 0}
+                            cropWidth={props.horizontalScroll?.cropWidth ?? 1}
                         />
-                    </Show>
+                    </box>
                 </box>
             </Show>
         </box>

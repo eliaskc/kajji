@@ -2,6 +2,11 @@ import type { ScrollBoxRenderable } from "@opentui/core"
 
 export const FUZZY_THRESHOLD = -500
 
+export type SelectionSource = "keyboard" | "mouse" | "programmatic"
+
+export const shouldAutoScrollSelection = (source: SelectionSource) =>
+    source !== "mouse"
+
 export interface ScrollIntoViewOptions {
     ref: ScrollBoxRenderable | undefined
     index: number
@@ -9,6 +14,7 @@ export interface ScrollIntoViewOptions {
     listLength: number
     margin?: number
     itemSize?: number
+    selectionSource?: SelectionSource
 }
 
 export function calculateScrollPosition(
@@ -24,6 +30,7 @@ export function calculateScrollPosition(
     } = options
 
     if (!ref || listLength === 0) return null
+    if (options.selectionSource === "mouse") return null
 
     // OpenTUI ScrollBoxRenderable doesn't expose height directly on the type,
     // but it's available at runtime via viewport or internal properties

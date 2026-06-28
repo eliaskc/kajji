@@ -2,6 +2,7 @@ import { useKeyboard } from "@opentui/solid"
 import { For, createSignal } from "solid-js"
 import { useDialog } from "../../context/dialog"
 import { useTheme } from "../../context/theme"
+import { createSelectableList } from "../../hooks/selectable-list"
 
 export interface ActionMenuOption {
     key: string
@@ -21,6 +22,11 @@ export function ActionMenuModal(props: ActionMenuModalProps) {
     const dialog = useDialog()
     const { colors } = useTheme()
     const [selectedIndex, setSelectedIndex] = createSignal(0)
+    const list = createSelectableList({
+        count: () => props.options.length,
+        selectedIndex,
+        setSelectedIndex,
+    })
 
     let executing = false
 
@@ -34,12 +40,12 @@ export function ActionMenuModal(props: ActionMenuModalProps) {
 
     const selectNext = () => {
         if (props.options.length === 0) return
-        setSelectedIndex((i) => Math.min(props.options.length - 1, i + 1))
+        list.selectNextByKeyboard()
     }
 
     const selectPrev = () => {
         if (props.options.length === 0) return
-        setSelectedIndex((i) => Math.max(0, i - 1))
+        list.selectPrevByKeyboard()
     }
 
     useKeyboard((evt) => {
@@ -94,11 +100,11 @@ export function ActionMenuModal(props: ActionMenuModalProps) {
                         paddingLeft={props.paddingLeft ?? 0}
                         paddingRight={props.paddingRight ?? 0}
                         backgroundColor={
-                            index() === selectedIndex()
+                            list.isSelected(index())
                                 ? colors().selectionBackground
                                 : undefined
                         }
-                        onMouseDown={() => setSelectedIndex(index())}
+                        onMouseDown={() => list.selectByMouse(index())}
                     >
                         <text wrapMode="none" flexGrow={1}>
                             {option.mutedPrefix ? (

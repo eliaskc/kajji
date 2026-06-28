@@ -1,9 +1,19 @@
 import type { ScrollBoxRenderable } from "@opentui/core"
 import { useKeyboard } from "@opentui/solid"
-import { For, Show, createEffect, createSignal, onMount } from "solid-js"
+import {
+    For,
+    Show,
+    createEffect,
+    createMemo,
+    createSignal,
+    onCleanup,
+    onMount,
+} from "solid-js"
 import { type Commit, getRevisionId } from "../commander/types"
 import { useTheme } from "../context/theme"
-import { calculateScrollPosition } from "../utils/scroll"
+import { createHorizontalCropScroll } from "../hooks/horizontal-crop-scroll"
+import { createSelectableList } from "../hooks/selectable-list"
+import { getVisibleWidth } from "../utils/ansi"
 import { AnsiText } from "./AnsiText"
 
 export interface RevisionPickerProps {
@@ -34,50 +44,86 @@ export function RevisionPicker(props: RevisionPickerProps) {
 
     let scrollRef: ScrollBoxRenderable | undefined
 
-    const scrollToIndex = (index: number, force = false) => {
-        const commitList = props.commits
-        if (!scrollRef || commitList.length === 0) return
-
+    const itemOffset = (index: number) => {
         let lineOffset = 0
-        const clampedIndex = Math.min(index, commitList.length)
-        for (const commit of commitList.slice(0, clampedIndex)) {
+        const clampedIndex = Math.min(index, props.commits.length)
+        for (const commit of props.commits.slice(0, clampedIndex)) {
             lineOffset += commit.lines.length
         }
+        return lineOffset
+    }
 
-        const selectedHeight =
-            commitList[Math.min(index, commitList.length - 1)]?.lines.length ??
-            1
+    const itemSize = (index: number) =>
+        props.commits[Math.min(index, props.commits.length - 1)]?.lines
+            .length ?? 1
 
-        const currentScrollTop = scrollRef.scrollTop ?? 0
+    const list = createSelectableList({
+        count: () => props.commits.length,
+        selectedIndex,
+        setSelectedIndex,
+        scrollRef: () => scrollRef,
+        scrollMargin: 2,
+        getItemOffset: itemOffset,
+        getItemSize: itemSize,
+    })
 
+    const maxContentWidth = createMemo(() =>
+        props.commits.reduce(
+            (max, commit) =>
+                Math.max(
+                    max,
+                    ...commit.displayLines.map((line) =>
+                        getVisibleWidth(line.content),
+                    ),
+                ),
+            0,
+        ),
+    )
+
+    const maxGutterWidth = createMemo(() =>
+        props.commits.reduce(
+            (max, commit) =>
+                Math.max(
+                    max,
+                    ...commit.displayLines.map((line) =>
+                        getVisibleWidth(line.gutter),
+                    ),
+                ),
+            0,
+        ),
+    )
+
+    const horizontal = createHorizontalCropScroll({
+        scrollRef: () => scrollRef,
+        maxContentWidth: maxContentWidth,
+        viewportContentWidth: () =>
+            Math.max(1, horizontal.viewportWidth() - maxGutterWidth()),
+    })
+
+    const scrollToIndex = (index: number, force = false) => {
+        if (!scrollRef || props.commits.length === 0) return
         if (force) {
-            const targetScroll = Math.max(0, lineOffset - 2)
+            const targetScroll = Math.max(0, itemOffset(index) - 2)
             scrollRef.scrollTo(targetScroll)
+            list.setScrollTop(targetScroll)
             return
         }
-
-        const newScrollTop = calculateScrollPosition({
-            ref: scrollRef,
-            index: lineOffset,
-            currentScrollTop,
-            listLength: commitList.length,
-            margin: 2,
-            itemSize: selectedHeight,
-        })
-
-        if (newScrollTop !== null) {
-            scrollRef.scrollTo(newScrollTop)
-        }
+        list.scrollSelectedIntoView()
     }
 
     createEffect(() => {
         const _ = props.commits
         const __ = props.defaultRevision
-        setSelectedIndex(findDefaultIndex())
+        list.selectProgrammatically(findDefaultIndex())
     })
 
     onMount(() => {
         setTimeout(() => scrollToIndex(selectedIndex(), true), 1)
+        const interval = setInterval(() => {
+            list.syncScrollTop()
+            horizontal.syncViewportWidth()
+        }, 100)
+        onCleanup(() => clearInterval(interval))
     })
 
     createEffect(() => {
@@ -85,21 +131,11 @@ export function RevisionPicker(props: RevisionPickerProps) {
     })
 
     const selectPrev = () => {
-        setSelectedIndex((i) => {
-            const newIndex = Math.max(0, i - 1)
-            const commit = props.commits[newIndex]
-            if (commit) props.onSelect?.(commit)
-            return newIndex
-        })
+        list.selectPrevByKeyboard()
     }
 
     const selectNext = () => {
-        setSelectedIndex((i) => {
-            const newIndex = Math.min(props.commits.length - 1, i + 1)
-            const commit = props.commits[newIndex]
-            if (commit) props.onSelect?.(commit)
-            return newIndex
-        })
+        list.selectNextByKeyboard()
     }
 
     useKeyboard((evt) => {
@@ -131,34 +167,71 @@ export function RevisionPicker(props: RevisionPickerProps) {
                 focused={props.focused}
                 flexGrow={1}
                 height={props.height}
+                onMouseScroll={horizontal.onMouseScroll}
                 scrollbarOptions={{ visible: false }}
             >
                 <For each={props.commits}>
                     {(commit, index) => {
-                        const isSelected = () => index() === selectedIndex()
+                        const isSelected = () => list.isSelected(index())
+                        const handleMouseDown = () =>
+                            list.selectByMouse(index())
                         return (
-                            <For each={commit.lines}>
-                                {(line) => (
-                                    <box
-                                        backgroundColor={
-                                            isSelected()
-                                                ? colors().selectionBackground
-                                                : undefined
-                                        }
-                                        overflow="hidden"
-                                    >
-                                        <AnsiText
-                                            content={line}
-                                            defaultFg={
+                            <For each={commit.displayLines}>
+                                {(line) => {
+                                    const gutterWidth = () =>
+                                        getVisibleWidth(line.gutter)
+                                    const contentWidth = () =>
+                                        Math.max(
+                                            1,
+                                            horizontal.viewportWidth() -
+                                                gutterWidth(),
+                                        )
+                                    return (
+                                        <box
+                                            backgroundColor={
                                                 isSelected()
-                                                    ? colors().selectionText
+                                                    ? colors()
+                                                          .selectionBackground
                                                     : undefined
                                             }
-                                            bold={commit.isWorkingCopy}
-                                            wrapMode="none"
-                                        />
-                                    </box>
-                                )}
+                                            overflow="hidden"
+                                            flexDirection="row"
+                                            onMouseDown={handleMouseDown}
+                                        >
+                                            <box
+                                                flexShrink={0}
+                                                overflow="hidden"
+                                            >
+                                                <AnsiText
+                                                    content={line.gutter}
+                                                    defaultFg={
+                                                        isSelected()
+                                                            ? colors()
+                                                                  .selectionText
+                                                            : undefined
+                                                    }
+                                                    bold={commit.isWorkingCopy}
+                                                    wrapMode="none"
+                                                />
+                                            </box>
+                                            <box flexGrow={1} overflow="hidden">
+                                                <AnsiText
+                                                    content={line.content}
+                                                    defaultFg={
+                                                        isSelected()
+                                                            ? colors()
+                                                                  .selectionText
+                                                            : undefined
+                                                    }
+                                                    bold={commit.isWorkingCopy}
+                                                    wrapMode="none"
+                                                    cropStart={horizontal.cropStart()}
+                                                    cropWidth={contentWidth()}
+                                                />
+                                            </box>
+                                        </box>
+                                    )
+                                }}
                             </For>
                         )
                     }}

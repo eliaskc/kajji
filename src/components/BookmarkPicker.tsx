@@ -1,8 +1,16 @@
 import type { ScrollBoxRenderable } from "@opentui/core"
 import { useKeyboard } from "@opentui/solid"
-import { For, Show, createEffect, createSignal, onMount } from "solid-js"
+import {
+    For,
+    Show,
+    createEffect,
+    createSignal,
+    onCleanup,
+    onMount,
+} from "solid-js"
 import type { Bookmark } from "../commander/bookmarks"
 import { useTheme } from "../context/theme"
+import { createSelectableList } from "../hooks/selectable-list"
 
 export interface BookmarkPickerProps {
     bookmarks: Bookmark[]
@@ -28,76 +36,43 @@ export function BookmarkPicker(props: BookmarkPickerProps) {
     const [selectedIndex, setSelectedIndex] = createSignal(findDefaultIndex())
 
     let scrollRef: ScrollBoxRenderable | undefined
-    const [scrollTop, setScrollTop] = createSignal(0)
+    const list = createSelectableList({
+        count: () => props.bookmarks.length,
+        selectedIndex,
+        setSelectedIndex,
+        scrollRef: () => scrollRef,
+        scrollMargin: 2,
+    })
 
     const scrollToIndex = (index: number, force = false) => {
-        const bookmarkList = props.bookmarks
-        if (!scrollRef || bookmarkList.length === 0) return
-
-        const margin = 2
-        const refAny = scrollRef as unknown as Record<string, unknown>
-        const viewportHeight =
-            (typeof refAny.height === "number" ? refAny.height : null) ??
-            (typeof refAny.rows === "number" ? refAny.rows : null) ??
-            10
-        const currentScrollTop = scrollTop()
-
+        if (!scrollRef || props.bookmarks.length === 0) return
         if (force) {
-            const targetScroll = Math.max(0, index - margin)
+            const targetScroll = Math.max(0, index - 2)
             scrollRef.scrollTo(targetScroll)
-            setScrollTop(targetScroll)
+            list.setScrollTop(targetScroll)
             return
         }
-
-        const visibleStart = currentScrollTop
-        const visibleEnd = currentScrollTop + viewportHeight - 1
-        const safeStart = visibleStart + margin
-        const safeEnd = visibleEnd - margin
-
-        let newScrollTop = currentScrollTop
-        if (index < safeStart) {
-            newScrollTop = Math.max(0, index - margin)
-        } else if (index > safeEnd) {
-            newScrollTop = Math.max(0, index - viewportHeight + margin + 1)
-        }
-
-        if (newScrollTop !== currentScrollTop) {
-            scrollRef.scrollTo(newScrollTop)
-            setScrollTop(newScrollTop)
-        }
+        list.scrollSelectedIntoView()
     }
 
     createEffect(() => {
         const _ = props.bookmarks
         const __ = props.defaultBookmark
-        setSelectedIndex(findDefaultIndex())
+        list.selectProgrammatically(findDefaultIndex())
     })
 
     onMount(() => {
         setTimeout(() => scrollToIndex(selectedIndex(), true), 1)
+        const interval = setInterval(list.syncScrollTop, 100)
+        onCleanup(() => clearInterval(interval))
     })
 
     createEffect(() => {
         scrollToIndex(selectedIndex())
     })
 
-    const selectPrev = () => {
-        setSelectedIndex((i) => {
-            const newIndex = Math.max(0, i - 1)
-            const bookmark = props.bookmarks[newIndex]
-            if (bookmark) props.onSelect?.(bookmark)
-            return newIndex
-        })
-    }
-
-    const selectNext = () => {
-        setSelectedIndex((i) => {
-            const newIndex = Math.min(props.bookmarks.length - 1, i + 1)
-            const bookmark = props.bookmarks[newIndex]
-            if (bookmark) props.onSelect?.(bookmark)
-            return newIndex
-        })
-    }
+    const selectPrev = () => list.selectPrevByKeyboard()
+    const selectNext = () => list.selectNextByKeyboard()
 
     useKeyboard((evt) => {
         if (!props.focused) return
@@ -132,7 +107,7 @@ export function BookmarkPicker(props: BookmarkPickerProps) {
             >
                 <For each={props.bookmarks}>
                     {(bookmark, index) => {
-                        const isSelected = () => index() === selectedIndex()
+                        const isSelected = () => list.isSelected(index())
                         return (
                             <box
                                 backgroundColor={
@@ -141,6 +116,7 @@ export function BookmarkPicker(props: BookmarkPickerProps) {
                                         : undefined
                                 }
                                 overflow="hidden"
+                                onMouseDown={() => list.selectByMouse(index())}
                             >
                                 <text wrapMode="none">
                                     <span style={{ fg: colors().primary }}>

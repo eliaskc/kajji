@@ -73,6 +73,10 @@ import { blendColors } from "../../utils/color"
 import { createDoubleClickDetector } from "../../utils/double-click"
 import { openInEditor, shouldSuspendForEditor } from "../../utils/editor"
 import type { FileTreeNode } from "../../utils/file-tree"
+import {
+    type SelectionSource,
+    shouldAutoScrollSelection,
+} from "../../utils/scroll"
 import { AnsiText } from "../AnsiText"
 import { FilterInput } from "../FilterInput"
 import {
@@ -863,6 +867,8 @@ export function LogPanel() {
     const [logViewportHeight, setLogViewportHeight] = createSignal(30)
     const [logViewportWidth, setLogViewportWidth] = createSignal(80)
     const [logScrollLeft, setLogScrollLeft] = createSignal(0)
+    const [logSelectionSource, setLogSelectionSource] =
+        createSignal<SelectionSource>("programmatic")
 
     const logTotalLines = createMemo(() =>
         commits().reduce((sum, commit) => sum + commit.lines.length, 0),
@@ -974,6 +980,7 @@ export function LogPanel() {
     createEffect(
         on([selectedIndex, commits], ([index, commitList]) => {
             if (!scrollRef || commitList.length === 0) return
+            if (!shouldAutoScrollSelection(logSelectionSource())) return
 
             let lineOffset = 0
             const clampedIndex = Math.min(index, commitList.length)
@@ -1180,6 +1187,7 @@ export function LogPanel() {
             return
         }
         if (logLoadingMore()) return
+        setLogSelectionSource("keyboard")
         selectNext()
         const list = commits()
         const index = selectedIndex()
@@ -1193,6 +1201,7 @@ export function LogPanel() {
             selectGroupedCommitByOffset(-1)
             return
         }
+        setLogSelectionSource("keyboard")
         selectPrev()
     }
 
@@ -2323,8 +2332,8 @@ export function LogPanel() {
     }) => {
         const handleClick = createDoubleClickDetector(props.onOpen)
         const handleMouseDown = () => {
+            setLogSelectionSource("mouse")
             props.onSelect()
-            props.onNearEnd?.()
             handleClick()
         }
         const selectionBackground = () =>

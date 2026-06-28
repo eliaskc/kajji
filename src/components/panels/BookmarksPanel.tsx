@@ -35,7 +35,6 @@ import {
     jjNew,
 } from "../../commander/operations"
 import { getRevisionId } from "../../commander/types"
-import { featureFlags } from "../../feature-flags"
 import { useCommand } from "../../context/command"
 import { useCommandLog } from "../../context/commandlog"
 import { DIALOG_SIZE, useDialog } from "../../context/dialog"
@@ -44,13 +43,21 @@ import { useKeybind } from "../../context/keybind"
 import { useStatus } from "../../context/status"
 import { useSync } from "../../context/sync"
 import { useTheme } from "../../context/theme"
+import { featureFlags } from "../../feature-flags"
+import { createHorizontalCropScroll } from "../../hooks/horizontal-crop-scroll"
 import { buildBookmarkStackModel } from "../../stack/discovery"
 import { applyStackPlan, prepareSyncPlan } from "../../stack/executor"
 import type { BookmarkStackModel, BookmarkStackRow } from "../../stack/model"
 import { readPersistedStackState } from "../../stack/state"
+import { resolveAnsiForeground } from "../../theme/ansi"
+import { getVisibleWidth } from "../../utils/ansi"
 import { hasOriginDiff } from "../../utils/bookmark-origin-diff"
 import { createDoubleClickDetector } from "../../utils/double-click"
-import { FUZZY_THRESHOLD, scrollIntoView } from "../../utils/scroll"
+import {
+    FUZZY_THRESHOLD,
+    type SelectionSource,
+    scrollIntoView,
+} from "../../utils/scroll"
 import { BookmarkStackRowView } from "../BookmarkStackRowView"
 import { FilterInput } from "../FilterInput"
 import { Panel } from "../Panel"
@@ -600,6 +607,7 @@ export function BookmarksPanel() {
     )
 
     const selectNextBookmarkInView = () => {
+        setListSelectionSource("keyboard")
         const max = currentBookmarks().length - 1
         if (max < 0) return
         if (hasActiveFilter()) {
@@ -622,6 +630,7 @@ export function BookmarksPanel() {
     }
 
     const selectPrevBookmarkInView = () => {
+        setListSelectionSource("keyboard")
         if (hasActiveFilter()) {
             setFilterSelectedIndex((i) => Math.max(0, i - 1))
             return
@@ -739,9 +748,56 @@ export function BookmarksPanel() {
 
     const [listScrollTop, setListScrollTop] = createSignal(0)
     const [listViewportHeight, setListViewportHeight] = createSignal(30)
+    const [listSelectionSource, setListSelectionSource] =
+        createSignal<SelectionSource>("programmatic")
     const listThreshold = createMemo(() => {
         const buffer = Math.max(20, listViewportHeight() * 4)
         return Math.max(0, listTotalRows() - buffer)
+    })
+    const bookmarkContentText = (row: BookmarkRow) => {
+        const bookmark = row.bookmark
+        if (!bookmark.changeId) return "–deleted "
+        const parts = []
+        const prNumber = bookmarkPrNumbers().get(bookmark.name)
+        if (prNumber) parts.push(`#${prNumber}`)
+        parts.push(bookmark.changeIdDisplay || bookmark.changeId)
+        if (showRemoteOnly() && bookmark.remote)
+            parts.push(`@${bookmark.remote}`)
+        parts.push(bookmark.descriptionDisplay || bookmark.description)
+        return parts.join(" ")
+    }
+    const bookmarkGutterWidth = (row: BookmarkRow) =>
+        (row.depth > 0 ? Math.max(0, row.depth - 1) * 2 + 2 : 0) +
+        getVisibleWidth(row.bookmark.nameDisplay || row.bookmark.name) +
+        (row.bookmark.isLocal &&
+        originChangedBookmarkNames().has(row.bookmark.name)
+            ? 1
+            : 0) +
+        1
+    const bookmarkMaxContentWidth = createMemo(() => {
+        let maxWidth = 0
+        for (const row of displayBookmarkRows()) {
+            const width = getVisibleWidth(bookmarkContentText(row))
+            if (width > maxWidth) maxWidth = width
+        }
+        return maxWidth
+    })
+    const bookmarkMaxGutterWidth = createMemo(() => {
+        let maxWidth = 0
+        for (const row of displayBookmarkRows()) {
+            const width = bookmarkGutterWidth(row)
+            if (width > maxWidth) maxWidth = width
+        }
+        return maxWidth
+    })
+    const bookmarkHorizontal = createHorizontalCropScroll({
+        scrollRef: () => listScrollRef,
+        maxContentWidth: bookmarkMaxContentWidth,
+        viewportContentWidth: () =>
+            Math.max(
+                1,
+                bookmarkHorizontal.viewportWidth() - bookmarkMaxGutterWidth(),
+            ),
     })
 
     createEffect(
@@ -754,6 +810,7 @@ export function BookmarksPanel() {
                     currentScrollTop: listScrollTop(),
                     listLength: currentBookmarks().length,
                     setScrollTop: setListScrollTop,
+                    selectionSource: listSelectionSource(),
                 })
             },
         ),
@@ -775,6 +832,7 @@ export function BookmarksPanel() {
             if (currentViewport !== listViewportHeight()) {
                 setListViewportHeight(currentViewport)
             }
+            bookmarkHorizontal.syncViewportWidth()
 
             if (!bookmarksLoadingMore() && canPageBookmarks()) {
                 if (currentScroll + currentViewport >= listThreshold()) {
@@ -1195,6 +1253,7 @@ export function BookmarksPanel() {
                             flexGrow={1}
                             backgroundColor={colors().background}
                             scrollbarOptions={{ visible: false }}
+                            onMouseScroll={bookmarkHorizontal.onMouseScroll}
                             contentOptions={{
                                 backgroundColor: colors().background,
                             }}
@@ -1213,6 +1272,7 @@ export function BookmarksPanel() {
                                             handleListEnter()
                                         })
                                     const handleMouseDown = () => {
+                                        setListSelectionSource("mouse")
                                         if (hasActiveFilter()) {
                                             setFilterSelectedIndex(index())
                                         } else if (showRemoteOnly()) {
@@ -1247,6 +1307,12 @@ export function BookmarksPanel() {
                                             activeStackKey() &&
                                                 !isInActiveStack(),
                                         )
+                                    const bookmarkContentWidth = () =>
+                                        Math.max(
+                                            1,
+                                            bookmarkHorizontal.viewportWidth() -
+                                                bookmarkGutterWidth(row),
+                                        )
                                     return (
                                         <>
                                             <box
@@ -1278,6 +1344,12 @@ export function BookmarksPanel() {
                                                         bookmark.name,
                                                     )}
                                                     showRemote={showRemoteOnly()}
+                                                    horizontalScroll={{
+                                                        cropStart:
+                                                            bookmarkHorizontal.cropStart(),
+                                                        cropWidth:
+                                                            bookmarkContentWidth(),
+                                                    }}
                                                 />
                                             </box>
                                         </>
