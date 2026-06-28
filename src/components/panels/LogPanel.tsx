@@ -670,6 +670,19 @@ export function LogPanel() {
         return prefixIndex >= 0 ? prefixIndex : null
     }
 
+    const getFirstParentRevisionId = (
+        commit: Commit,
+        commitList: Commit[],
+    ): string | undefined => {
+        const parentCommitId = commit.parentCommitIds?.[0]
+        if (!parentCommitId) return undefined
+
+        const parentCommit = commitList.find(
+            (candidate) => candidate.commitId === parentCommitId,
+        )
+        return parentCommit ? getRevisionId(parentCommit) : undefined
+    }
+
     const findWorkingCopyCommitIndex = (commitList: Commit[]) => {
         const index = commitList.findIndex((commit) => commit.isWorkingCopy)
         return index >= 0 ? index : null
@@ -1549,27 +1562,19 @@ export function LogPanel() {
                 const commit = selectedLogCommit()
                 if (!commit) return
 
-                // Find parent (next commit in list is typically the parent)
                 const commitList = commits()
                 const revId = getRevisionId(commit)
-                const currentIndex = commitList.findIndex(
-                    (c) => c.changeId === commit.changeId,
+                const parentRevisionId = getFirstParentRevisionId(
+                    commit,
+                    commitList,
                 )
-                const parentCommit =
-                    currentIndex >= 0 && currentIndex < commitList.length - 1
-                        ? commitList[currentIndex + 1]
-                        : undefined
 
                 dialog.open(
                     () => (
                         <SquashModal
                             source={commit}
                             commits={commitList}
-                            defaultTarget={
-                                parentCommit
-                                    ? getRevisionId(parentCommit)
-                                    : undefined
-                            }
+                            defaultTarget={parentRevisionId}
                             onSquash={async (target, options) => {
                                 if (options.interactive) {
                                     // Check if immutable first (before suspending TUI)
@@ -1724,13 +1729,18 @@ export function LogPanel() {
             onSelect: () => {
                 const commit = selectedLogCommit()
                 if (!commit) return
+                const commitList = commits()
                 const revId = getRevisionId(commit)
+                const parentRevisionId = getFirstParentRevisionId(
+                    commit,
+                    commitList,
+                )
                 dialog.open(
                     () => (
                         <RebaseModal
                             source={commit}
-                            commits={commits()}
-                            defaultTarget={revId}
+                            commits={commitList}
+                            defaultTarget={parentRevisionId}
                             onRebase={async (destination, options) => {
                                 const result = await jjRebase(
                                     revId,
