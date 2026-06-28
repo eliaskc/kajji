@@ -20,6 +20,7 @@ import { WhatsNewScreen } from "./components/WhatsNewScreen"
 import { ThemeProvider } from "./context/theme"
 import { initHighlighter } from "./diff"
 import { type MockMode, mockMode, setMockMode } from "./mock"
+import { disableOpenTuiSelection } from "./opentui-selection"
 import { getRepoPath, setRepoPath } from "./repo"
 import { getChangesSince, parseChangelog } from "./utils/changelog"
 import { checkRepoStatus, initJjGitRepo, initJjRepo } from "./utils/repo-check"
@@ -37,6 +38,7 @@ For more information, see https://martinvonz.github.io/jj/latest/working-copy/`,
 }
 
 _trace("before extend()")
+disableOpenTuiSelection()
 extend({ "ghostty-terminal": GhosttyTerminalRenderable })
 _trace("after extend()")
 
