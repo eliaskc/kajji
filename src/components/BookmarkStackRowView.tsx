@@ -22,6 +22,7 @@ interface BookmarkStackRowViewProps {
         cropStart: number
         cropWidth: number
     }
+    maxNameWidth?: number
 }
 
 export function BookmarkStackRowView(props: BookmarkStackRowViewProps) {
@@ -56,6 +57,16 @@ export function BookmarkStackRowView(props: BookmarkStackRowViewProps) {
         ).at(-1)?.fg ??
         defaultFg ??
         colors().text
+    const visibleBookmarkName = () => {
+        const name = bookmark().name
+        const maxWidth = props.maxNameWidth
+        if (!maxWidth || name.length <= maxWidth) return name
+        if (maxWidth <= 1) return "…"
+        if (maxWidth <= 4) return `${name.slice(0, maxWidth - 1)}…`
+        const prefixWidth = Math.max(1, Math.floor((maxWidth - 1) * 0.35))
+        const suffixWidth = Math.max(1, maxWidth - 1 - prefixWidth)
+        return `${name.slice(0, prefixWidth)}…${name.slice(-suffixWidth)}`
+    }
 
     const scrollableContent = () => {
         if (isDeleted()) return "–deleted "
@@ -94,18 +105,27 @@ export function BookmarkStackRowView(props: BookmarkStackRowViewProps) {
                             {"  ".repeat(Math.max(0, props.row.depth - 1))}↳{" "}
                         </span>
                     </Show>
-                    <For
-                        each={inlineAnsiSpans(
-                            bookmark().nameDisplay || bookmark().name,
-                            selectedFg(),
-                        )}
+                    <Show
+                        when={props.maxNameWidth}
+                        fallback={
+                            <For
+                                each={inlineAnsiSpans(
+                                    bookmark().nameDisplay || bookmark().name,
+                                    selectedFg(),
+                                )}
+                            >
+                                {(span) => (
+                                    <span style={{ fg: span.fg, bg: span.bg }}>
+                                        {span.text}
+                                    </span>
+                                )}
+                            </For>
+                        }
                     >
-                        {(span) => (
-                            <span style={{ fg: span.fg, bg: span.bg }}>
-                                {span.text}
-                            </span>
-                        )}
-                    </For>
+                        <span style={{ fg: bookmarkNameFg(selectedFg()) }}>
+                            {visibleBookmarkName()}
+                        </span>
+                    </Show>
                     <Show when={bookmark().isLocal && props.showOriginChanged}>
                         <span style={{ fg: bookmarkNameFg(selectedFg()) }}>
                             *

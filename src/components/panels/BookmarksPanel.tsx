@@ -745,9 +745,11 @@ export function BookmarksPanel() {
     })
 
     let listScrollRef: ScrollBoxRenderable | undefined
+    let listScrollResizeCleanup: (() => void) | undefined
 
     const [listScrollTop, setListScrollTop] = createSignal(0)
     const [listViewportHeight, setListViewportHeight] = createSignal(30)
+    const [listViewportWidth, setListViewportWidth] = createSignal(40)
     const [listSelectionSource, setListSelectionSource] =
         createSignal<SelectionSource>("programmatic")
     const listThreshold = createMemo(() => {
@@ -766,13 +768,24 @@ export function BookmarksPanel() {
         parts.push(bookmark.descriptionDisplay || bookmark.description)
         return parts.join(" ")
     }
-    const bookmarkGutterWidth = (row: BookmarkRow) =>
-        (row.depth > 0 ? Math.max(0, row.depth - 1) * 2 + 2 : 0) +
-        getVisibleWidth(row.bookmark.nameDisplay || row.bookmark.name) +
-        (row.bookmark.isLocal &&
+    const bookmarkOriginChangedWidth = (row: BookmarkRow) =>
+        row.bookmark.isLocal &&
         originChangedBookmarkNames().has(row.bookmark.name)
             ? 1
-            : 0) +
+            : 0
+    const bookmarkNameWidth = (row: BookmarkRow) =>
+        Math.min(
+            getVisibleWidth(row.bookmark.nameDisplay || row.bookmark.name),
+            Math.max(
+                1,
+                Math.max(8, Math.floor(listViewportWidth() * 0.6)) -
+                    bookmarkOriginChangedWidth(row),
+            ),
+        )
+    const bookmarkGutterWidth = (row: BookmarkRow) =>
+        (row.depth > 0 ? Math.max(0, row.depth - 1) * 2 + 2 : 0) +
+        bookmarkNameWidth(row) +
+        bookmarkOriginChangedWidth(row) +
         1
     const bookmarkMaxContentWidth = createMemo(() => {
         let maxWidth = 0
@@ -800,6 +813,33 @@ export function BookmarksPanel() {
             ),
     })
 
+    const syncListViewport = () => {
+        if (!listScrollRef) return
+        const currentViewport = listScrollRef.viewport?.height ?? 30
+        if (currentViewport !== listViewportHeight()) {
+            setListViewportHeight(currentViewport)
+        }
+        const currentViewportWidth = listScrollRef.viewport?.width ?? 40
+        if (currentViewportWidth !== listViewportWidth()) {
+            setListViewportWidth(currentViewportWidth)
+        }
+        bookmarkHorizontal.syncViewportWidth()
+    }
+
+    const setListScrollRef = (ref: ScrollBoxRenderable) => {
+        listScrollResizeCleanup?.()
+        listScrollRef = ref
+        const resizeable = ref as ScrollBoxRenderable & {
+            on?: (event: "resize", callback: () => void) => void
+            off?: (event: "resize", callback: () => void) => void
+        }
+        const handleResize = () => syncListViewport()
+        resizeable.on?.("resize", handleResize)
+        listScrollResizeCleanup = () => resizeable.off?.("resize", handleResize)
+        syncListViewport()
+        queueMicrotask(syncListViewport)
+    }
+
     createEffect(
         on(
             () => currentSelectedIndex(),
@@ -819,23 +859,21 @@ export function BookmarksPanel() {
     onCleanup(() => {
         setListScrollTop(0)
         setListViewportHeight(30)
+        listScrollResizeCleanup?.()
+        listScrollResizeCleanup = undefined
     })
 
     onMount(() => {
         const pollInterval = setInterval(() => {
             if (!listScrollRef) return
             const currentScroll = listScrollRef.scrollTop ?? 0
-            const currentViewport = listScrollRef.viewport?.height ?? 30
             if (currentScroll !== listScrollTop()) {
                 setListScrollTop(currentScroll)
             }
-            if (currentViewport !== listViewportHeight()) {
-                setListViewportHeight(currentViewport)
-            }
-            bookmarkHorizontal.syncViewportWidth()
+            syncListViewport()
 
             if (!bookmarksLoadingMore() && canPageBookmarks()) {
-                if (currentScroll + currentViewport >= listThreshold()) {
+                if (currentScroll + listViewportHeight() >= listThreshold()) {
                     loadMoreBookmarks()
                 }
             }
@@ -1249,7 +1287,7 @@ export function BookmarksPanel() {
 
                     <Show when={currentBookmarks().length > 0}>
                         <scrollbox
-                            ref={listScrollRef}
+                            ref={setListScrollRef}
                             flexGrow={1}
                             backgroundColor={colors().background}
                             scrollbarOptions={{ visible: false }}
@@ -1350,6 +1388,9 @@ export function BookmarksPanel() {
                                                         cropWidth:
                                                             bookmarkContentWidth(),
                                                     }}
+                                                    maxNameWidth={bookmarkNameWidth(
+                                                        row,
+                                                    )}
                                                 />
                                             </box>
                                         </>
