@@ -24,6 +24,7 @@ export function ErrorScreen(props: ErrorScreenProps) {
     const parsedError = (): ParsedJjError => parseJjError(props.error)
 
     const canFix = () => parsedError().fixCommand !== null && props.onFix
+    const showRetry = () => !canFix()
 
     type Action = "fix" | "retry"
     const [selectedAction, setSelectedAction] = createSignal<Action>(
@@ -58,7 +59,7 @@ export function ErrorScreen(props: ErrorScreenProps) {
             evt.preventDefault()
             evt.stopPropagation()
             props.onQuit()
-        } else if (evt.name === "r") {
+        } else if (evt.name === "r" && showRetry()) {
             evt.preventDefault()
             evt.stopPropagation()
             handleRetry()
@@ -69,13 +70,13 @@ export function ErrorScreen(props: ErrorScreenProps) {
         } else if (evt.name === "j" || evt.name === "down") {
             evt.preventDefault()
             evt.stopPropagation()
-            if (canFix()) {
+            if (canFix() && showRetry()) {
                 setSelectedAction((a) => (a === "fix" ? "retry" : "fix"))
             }
         } else if (evt.name === "k" || evt.name === "up") {
             evt.preventDefault()
             evt.stopPropagation()
-            if (canFix()) {
+            if (canFix() && showRetry()) {
                 setSelectedAction((a) => (a === "fix" ? "retry" : "fix"))
             }
         } else if (evt.name === "return" || evt.name === "enter") {
@@ -178,28 +179,30 @@ export function ErrorScreen(props: ErrorScreenProps) {
                             </box>
                         </Show>
 
-                        <box
-                            flexDirection="row"
-                            justifyContent="space-between"
-                            paddingLeft={1}
-                            paddingRight={1}
-                            backgroundColor={
-                                selectedAction() === "retry" && !isLoading()
-                                    ? colors().selectionBackground
-                                    : undefined
-                            }
-                        >
-                            <text
-                                fg={
-                                    isLoading()
-                                        ? colors().textMuted
-                                        : colors().text
+                        <Show when={showRetry()}>
+                            <box
+                                flexDirection="row"
+                                justifyContent="space-between"
+                                paddingLeft={1}
+                                paddingRight={1}
+                                backgroundColor={
+                                    selectedAction() === "retry" && !isLoading()
+                                        ? colors().selectionBackground
+                                        : undefined
                                 }
                             >
-                                {isRetrying() ? "Retrying..." : "retry"}
-                            </text>
-                            <text fg={colors().primary}>r</text>
-                        </box>
+                                <text
+                                    fg={
+                                        isLoading()
+                                            ? colors().textMuted
+                                            : colors().text
+                                    }
+                                >
+                                    {isRetrying() ? "Retrying..." : "retry"}
+                                </text>
+                                <text fg={colors().primary}>r</text>
+                            </box>
+                        </Show>
                     </box>
                     <FooterHints
                         hints={[

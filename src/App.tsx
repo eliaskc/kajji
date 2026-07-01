@@ -114,9 +114,8 @@ function AppContent() {
         return !isLoading && hasNoData && isCriticalStartupError(err)
     }
 
-    const handleRetry = () => {
-        loadLog()
-        loadBookmarks()
+    const handleRetry = async () => {
+        await refresh()
     }
 
     const handleFix = async () => {
@@ -125,9 +124,13 @@ function AppContent() {
 
         const parsed = parseJjError(err)
         if (parsed.errorType === "stale-working-copy") {
-            const result = await jjWorkspaceUpdateStale()
+            const result = await withCommandObserver(
+                commandLog.observer(),
+                jjWorkspaceUpdateStale,
+            )
+            commandLog.addEntry(result)
             if (result.success) {
-                handleRetry()
+                await handleRetry()
             }
         }
     }
