@@ -2,20 +2,19 @@
 
 Follow the Boy Scout rule:
 - For minor things, just improve them
-- For larger improvements, create a GitHub issue or lift to the user
+- For larger improvements, lift to the user before expanding scope
 - If you see a lack of testing in an area, offer to add
 
 ## Task management
 
-All work is tracked in [GitHub Issues](https://github.com/eliaskc/kajji/issues).
+Project work may be tracked in [GitHub Issues](https://github.com/eliaskc/kajji/issues), but do not create new issues unless the user explicitly asks.
 
-- Check existing issues before starting work
-- Create issues for new bugs, features, improvements
-- Use labels: `bug`, `feature`, `needs-exploration`, `ui-polish`, `tech-debt`, `docs`
+- Do not create GitHub issues proactively for bugs, features, improvements, or follow-up work
+- Check existing issues only when the user asks, or when needed to reference issue-specific work
+- Use labels when creating issues by explicit request: `bug`, `feature`, `needs-exploration`, `ui-polish`, `tech-debt`, `docs`
 - Use Conventional Commits for commit messages (`feat(scope): ...`, `fix(scope): ...`, `docs(scope): ...`, `test(scope): ...`, `refactor(scope): ...`, `chore(scope): ...`)
-- Reference issues in commit messages when applicable
-- Close issues when work is done: prefer magic words in commits/PRs (`Fixes #123` for bugs, `Closes #123` for features/improvements)
-- If needed, close manually with GitHub CLI: `gh issue close 123 --comment "Fixed by <commit-or-pr>"`
+- Reference issues in commit messages only when applicable and requested, or when already part of the task
+- Close issues only when explicitly asked, or when completing work that the user clearly tied to an existing issue
 
 ## Build/Test Commands
 
