@@ -115,7 +115,7 @@ function AppContent() {
     }
 
     const handleRetry = async () => {
-        await refresh()
+        await Promise.all([loadLog(), loadBookmarks(), loadRemoteBookmarks()])
     }
 
     const handleFix = async () => {

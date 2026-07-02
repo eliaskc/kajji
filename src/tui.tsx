@@ -200,10 +200,18 @@ export async function runTui(args: string[]): Promise<void> {
         }
 
         const handleFixStartup = async () => {
-            const result = await jjWorkspaceUpdateStale()
+            const repoPath = getRepoPath()
+            const result = await jjWorkspaceUpdateStale({ cwd: repoPath })
             if (result.success) {
-                await handleRetryStartup()
+                setStartupError(null)
+                setIsJjRepo(true)
+                return
             }
+
+            setStartupError(
+                [result.stdout, result.stderr].filter(Boolean).join("") ||
+                    `jj workspace update-stale failed with exit code ${result.exitCode}`,
+            )
         }
 
         // Show error screen for critical startup errors (like stale working copy)

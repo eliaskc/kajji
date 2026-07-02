@@ -540,12 +540,20 @@ export async function jjOpRestore(
     }
 }
 
-export async function jjWorkspaceUpdateStale(): Promise<OperationResult> {
+export async function jjWorkspaceUpdateStale(options?: {
+    cwd?: string
+    observer?: OperationRunOptions["observer"]
+}): Promise<OperationResult> {
     const args = ["workspace", "update-stale"]
-    const result = await execute(args)
+    const command = "jj workspace update-stale"
+    const result = await execute(args, {
+        cwd: options?.cwd,
+        observer: options?.observer,
+        command,
+    })
     return {
         ...result,
-        command: "jj workspace update-stale",
+        command,
     }
 }
 
