@@ -42,7 +42,7 @@ import { VirtualizedSplitView, VirtualizedUnifiedView } from "../diff"
 
 type DiffViewStyle = "unified" | "split"
 
-import { profileLog } from "../../utils/profiler"
+import { profileLog, profileMemory } from "../../utils/profiler"
 
 const UNIFIED_RIGHT_PADDING = 0
 const SPLIT_RIGHT_PADDING = 0
@@ -781,6 +781,7 @@ export function MainArea() {
                         files: 0,
                         lines: renderedDiff.split("\n").length,
                     })
+                    profileMemory("memory:diff-fetch-complete")
 
                     const renderStart = performance.now()
                     setParsedFiles([])
@@ -795,6 +796,7 @@ export function MainArea() {
                             totalRenderMs:
                                 Math.round(totalRenderMs * 100) / 100,
                         })
+                        profileMemory("memory:diff-render-complete")
                     })
                     return
                 }
@@ -816,6 +818,7 @@ export function MainArea() {
                     files: flattened.length,
                     lines: lineCount,
                 })
+                profileMemory("memory:diff-fetch-complete")
 
                 const renderStart = performance.now()
                 setRawDiffOutput("")
@@ -829,6 +832,7 @@ export function MainArea() {
                         signalMs: Math.round(signalMs * 100) / 100,
                         totalRenderMs: Math.round(totalRenderMs * 100) / 100,
                     })
+                    profileMemory("memory:diff-render-complete")
                 })
             })
             .catch((err) => {

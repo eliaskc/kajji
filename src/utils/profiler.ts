@@ -3,6 +3,12 @@ import { join } from "node:path"
 
 export const PROFILE_ENABLED = process.env.KAJJI_PROFILE === "1"
 
+const MEMORY_PROFILE_ENABLED =
+    PROFILE_ENABLED && process.env.KAJJI_PROFILE_MEMORY !== "0"
+const MEMORY_PROFILE_INTERVAL_MS = Number(
+    process.env.KAJJI_PROFILE_MEMORY_INTERVAL_MS ?? 10_000,
+)
+
 const PROFILE_NAME = process.env.KAJJI_PROFILE_NAME || "default"
 const PROFILE_MESSAGE = process.env.KAJJI_PROFILE_MESSAGE || ""
 const PROFILE_DIR = join(process.cwd(), ".kajji-profiles")
@@ -74,6 +80,31 @@ export function profile(label: string) {
 export function profileMsg(message: string) {
     if (!PROFILE_ENABLED) return
     profileLog(message)
+}
+
+function bytesToMiB(bytes: number): number {
+    return Math.round((bytes / 1024 / 1024) * 10) / 10
+}
+
+export function profileMemory(label = "memory") {
+    if (!PROFILE_ENABLED) return
+    const memory = process.memoryUsage()
+    profileLog(label, {
+        rssMiB: bytesToMiB(memory.rss),
+        heapTotalMiB: bytesToMiB(memory.heapTotal),
+        heapUsedMiB: bytesToMiB(memory.heapUsed),
+        externalMiB: bytesToMiB(memory.external),
+        arrayBuffersMiB: bytesToMiB(memory.arrayBuffers),
+    })
+}
+
+if (MEMORY_PROFILE_ENABLED && MEMORY_PROFILE_INTERVAL_MS > 0) {
+    profileMemory("memory-start")
+    const memoryTimer = setInterval(
+        () => profileMemory(),
+        MEMORY_PROFILE_INTERVAL_MS,
+    )
+    ;(memoryTimer as unknown as { unref?: () => void }).unref?.()
 }
 
 let renderStart: number | null = null

@@ -22,10 +22,30 @@ export interface CommandLogEntry {
     completedAt?: Date
 }
 
+const MAX_COMMAND_LOG_ENTRIES = 200
+const MAX_COMMAND_LOG_OUTPUT_CHARS = 100_000
+const TRUNCATED_OUTPUT_PREFIX = `[output truncated to last ${MAX_COMMAND_LOG_OUTPUT_CHARS.toLocaleString()} chars]\n`
+
+function limitOutput(output: string): string {
+    if (output.length <= MAX_COMMAND_LOG_OUTPUT_CHARS) return output
+    return (
+        TRUNCATED_OUTPUT_PREFIX +
+        output.slice(
+            -(MAX_COMMAND_LOG_OUTPUT_CHARS - TRUNCATED_OUTPUT_PREFIX.length),
+        )
+    )
+}
+
+function limitEntries(entries: CommandLogEntry[]): CommandLogEntry[] {
+    return entries.length <= MAX_COMMAND_LOG_ENTRIES
+        ? entries
+        : entries.slice(-MAX_COMMAND_LOG_ENTRIES)
+}
+
 function combinedOutput(
     result: Pick<OperationResult, "stdout" | "stderr">,
 ): string {
-    return [result.stdout, result.stderr].filter(Boolean).join("")
+    return limitOutput([result.stdout, result.stderr].filter(Boolean).join(""))
 }
 
 export const { use: useCommandLog, provider: CommandLogProvider } =
@@ -36,17 +56,19 @@ export const { use: useCommandLog, provider: CommandLogProvider } =
 
             const start = (command: string, kind?: CommandKind): string => {
                 const id = crypto.randomUUID()
-                setEntries((prev) => [
-                    ...prev,
-                    {
-                        id,
-                        command,
-                        output: "",
-                        kind,
-                        status: "running",
-                        timestamp: new Date(),
-                    },
-                ])
+                setEntries((prev) =>
+                    limitEntries([
+                        ...prev,
+                        {
+                            id,
+                            command,
+                            output: "",
+                            kind,
+                            status: "running",
+                            timestamp: new Date(),
+                        },
+                    ]),
+                )
                 return id
             }
 
@@ -54,7 +76,10 @@ export const { use: useCommandLog, provider: CommandLogProvider } =
                 setEntries((prev) =>
                     prev.map((entry) =>
                         entry.id === id
-                            ? { ...entry, output: entry.output + chunk }
+                            ? {
+                                  ...entry,
+                                  output: limitOutput(entry.output + chunk),
+                              }
                             : entry,
                     ),
                 )
@@ -80,29 +105,33 @@ export const { use: useCommandLog, provider: CommandLogProvider } =
             }
 
             const skip = (message: string) => {
-                setEntries((prev) => [
-                    ...prev,
-                    {
-                        id: crypto.randomUUID(),
-                        message,
-                        output: "",
-                        status: "skipped",
-                        timestamp: new Date(),
-                    },
-                ])
+                setEntries((prev) =>
+                    limitEntries([
+                        ...prev,
+                        {
+                            id: crypto.randomUUID(),
+                            message,
+                            output: "",
+                            status: "skipped",
+                            timestamp: new Date(),
+                        },
+                    ]),
+                )
             }
 
             const info = (message: string) => {
-                setEntries((prev) => [
-                    ...prev,
-                    {
-                        id: crypto.randomUUID(),
-                        message,
-                        output: "",
-                        status: "info",
-                        timestamp: new Date(),
-                    },
-                ])
+                setEntries((prev) =>
+                    limitEntries([
+                        ...prev,
+                        {
+                            id: crypto.randomUUID(),
+                            message,
+                            output: "",
+                            status: "info",
+                            timestamp: new Date(),
+                        },
+                    ]),
+                )
             }
 
             const addEntry = (result: OperationResult) => {
@@ -116,7 +145,7 @@ export const { use: useCommandLog, provider: CommandLogProvider } =
                     timestamp: new Date(),
                     completedAt: new Date(),
                 }
-                setEntries((prev) => [...prev, entry])
+                setEntries((prev) => limitEntries([...prev, entry]))
             }
 
             const observer = (): CommandObserver => ({

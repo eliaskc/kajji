@@ -213,11 +213,20 @@ export function SyncProvider(props: { children: JSX.Element }) {
     const refreshPullRequestMetadata = () => {
         setPrMetadataRefreshToken((token) => token + 1)
     }
-    const refreshPullRequestMetadataSoon = () => {
-        setTimeout(refreshPullRequestMetadata, 15000)
-        setTimeout(refreshPullRequestMetadata, 30000)
-        setTimeout(refreshPullRequestMetadata, 60000)
+    const prMetadataRefreshTimers: ReturnType<typeof setTimeout>[] = []
+    const clearPrMetadataRefreshTimers = () => {
+        for (const timer of prMetadataRefreshTimers) clearTimeout(timer)
+        prMetadataRefreshTimers.length = 0
     }
+    const refreshPullRequestMetadataSoon = () => {
+        clearPrMetadataRefreshTimers()
+        for (const delay of [15000, 30000, 60000]) {
+            prMetadataRefreshTimers.push(
+                setTimeout(refreshPullRequestMetadata, delay),
+            )
+        }
+    }
+    onCleanup(clearPrMetadataRefreshTimers)
 
     const [commitDetails, setCommitDetails] =
         createSignal<CommitDetails | null>(null)

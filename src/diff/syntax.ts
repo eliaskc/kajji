@@ -18,7 +18,57 @@ const [tokenVersion, setTokenVersion] = createSignal(0)
 export { tokenVersion }
 
 // Token cache: Map<"theme:language:content", tokens>
+// Keep this bounded: users can view many unique diff lines in a long-running
+// session, and an unbounded syntax cache looks like a memory leak.
+const MAX_TOKEN_CACHE_ENTRIES = 5000
+const MAX_TOKEN_CACHE_KEY_CHARS = 1_000_000
 const tokenCache = new Map<string, SyntaxToken[]>()
+let tokenCacheKeyChars = 0
+
+function getCachedTokens(cacheKey: string): SyntaxToken[] | undefined {
+    const cached = tokenCache.get(cacheKey)
+    if (!cached) return undefined
+
+    // Refresh insertion order so the Map behaves as an LRU cache.
+    tokenCache.delete(cacheKey)
+    tokenCache.set(cacheKey, cached)
+    return cached
+}
+
+function setCachedTokens(cacheKey: string, tokens: SyntaxToken[]): void {
+    if (tokenCache.has(cacheKey)) {
+        tokenCache.delete(cacheKey)
+        tokenCacheKeyChars -= cacheKey.length
+    }
+
+    tokenCache.set(cacheKey, tokens)
+    tokenCacheKeyChars += cacheKey.length
+
+    while (
+        tokenCache.size > 1 &&
+        (tokenCache.size > MAX_TOKEN_CACHE_ENTRIES ||
+            tokenCacheKeyChars > MAX_TOKEN_CACHE_KEY_CHARS)
+    ) {
+        const oldestKey = tokenCache.keys().next().value
+        if (!oldestKey) break
+        tokenCache.delete(oldestKey)
+        tokenCacheKeyChars -= oldestKey.length
+    }
+}
+
+export function getTokenCacheStats(): {
+    entries: number
+    keyChars: number
+    maxEntries: number
+    maxKeyChars: number
+} {
+    return {
+        entries: tokenCache.size,
+        keyChars: tokenCacheKeyChars,
+        maxEntries: MAX_TOKEN_CACHE_ENTRIES,
+        maxKeyChars: MAX_TOKEN_CACHE_KEY_CHARS,
+    }
+}
 
 // Pending tokenization requests to avoid duplicates
 const pendingRequests = new Set<string>()
@@ -51,7 +101,7 @@ function handleWorkerMessage(event: MessageEvent<WorkerResponse>) {
         case "tokens": {
             const cacheKey = requestToCacheKey.get(msg.id)
             if (cacheKey) {
-                tokenCache.set(cacheKey, msg.tokens)
+                setCachedTokens(cacheKey, msg.tokens)
                 requestToCacheKey.delete(msg.id)
                 pendingRequests.delete(cacheKey)
                 // Trigger re-render by incrementing version
@@ -154,7 +204,7 @@ export function tokenizeLineSync(
     const cacheKey = getCacheKey(content, language, theme)
 
     // Check cache first
-    const cached = tokenCache.get(cacheKey)
+    const cached = getCachedTokens(cacheKey)
     if (cached) {
         return cached
     }
@@ -180,7 +230,7 @@ export async function tokenizeLine(
     const cacheKey = getCacheKey(content, language, theme)
 
     // Check cache first
-    const cached = tokenCache.get(cacheKey)
+    const cached = getCachedTokens(cacheKey)
     if (cached) {
         return cached
     }
@@ -190,40 +240,37 @@ export async function tokenizeLine(
         return [{ content }]
     }
 
+    if (!worker) return [{ content }]
+    const w = worker
+
     // Request and wait for result
     return new Promise((resolve) => {
         const id = requestId++
         requestToCacheKey.set(id, cacheKey)
         pendingRequests.add(cacheKey)
 
-        // Set up one-time listener for this specific request
+        const cleanup = () => {
+            w.removeEventListener("message", handler)
+            requestToCacheKey.delete(id)
+            pendingRequests.delete(cacheKey)
+        }
+
+        // Set up one-time listener for this specific request. Do not wrap
+        // worker.onmessage; repeated async calls would otherwise build a chain
+        // of handlers that retain old closures.
         const handler = (event: MessageEvent<WorkerResponse>) => {
             const msg = event.data
             if (msg.type === "tokens" && msg.id === id) {
-                tokenCache.set(cacheKey, msg.tokens)
-                requestToCacheKey.delete(id)
-                pendingRequests.delete(cacheKey)
+                setCachedTokens(cacheKey, msg.tokens)
+                cleanup()
                 resolve(msg.tokens)
             } else if (msg.type === "error" && msg.id === id) {
-                requestToCacheKey.delete(id)
-                pendingRequests.delete(cacheKey)
+                cleanup()
                 resolve([{ content }])
             }
         }
 
-        if (!worker) {
-            resolve([{ content }])
-            return
-        }
-        const w = worker
-
-        // Temporarily add listener
-        const originalHandler = w.onmessage
-        w.onmessage = (event) => {
-            originalHandler?.call(w, event)
-            handler(event)
-        }
-
+        w.addEventListener("message", handler)
         w.postMessage({
             type: "tokenize",
             id,
@@ -243,5 +290,6 @@ export function isHighlighterReady(): boolean {
  */
 export function clearTokenCache(): void {
     tokenCache.clear()
+    tokenCacheKeyChars = 0
     setTokenVersion((v) => v + 1)
 }

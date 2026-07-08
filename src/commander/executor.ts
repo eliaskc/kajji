@@ -169,10 +169,13 @@ export function executeStreaming(
     let cancelled = false
     let stdout = ""
     let lineCount = 0
+    let stdoutReader: ReturnType<typeof proc.stdout.getReader> | undefined
+    const stderrPromise = new Response(proc.stderr).text()
 
     const readStream = async () => {
         try {
             const reader = proc.stdout.getReader()
+            stdoutReader = reader
             const decoder = new TextDecoder()
             let chunkCount = 0
 
@@ -196,8 +199,17 @@ export function executeStreaming(
                 await new Promise((r) => setImmediate(r))
             }
 
-            const stderr = await new Response(proc.stderr).text()
-            const exitCode = await proc.exited
+            const tail = decoder.decode()
+            if (!cancelled && tail) {
+                stdout += tail
+                lineCount += tail.split("\n").length - 1
+                callbacks.onChunk(stdout, lineCount, tail)
+            }
+
+            const [stderr, exitCode] = await Promise.all([
+                stderrPromise,
+                proc.exited,
+            ])
 
             endTotal()
 
@@ -215,6 +227,9 @@ export function executeStreaming(
                     error instanceof Error ? error : new Error(String(error)),
                 )
             }
+        } finally {
+            stdoutReader?.releaseLock()
+            stdoutReader = undefined
         }
     }
 
@@ -222,7 +237,9 @@ export function executeStreaming(
 
     return {
         cancel: () => {
+            if (cancelled) return
             cancelled = true
+            stdoutReader?.cancel().catch(() => {})
             proc.kill()
         },
     }

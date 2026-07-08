@@ -63,6 +63,7 @@ export {
 export {
     clearTokenCache,
     getLanguage,
+    getTokenCacheStats,
     highlighterReady,
     initHighlighter,
     isHighlighterReady,
