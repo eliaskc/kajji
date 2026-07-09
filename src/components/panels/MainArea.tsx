@@ -536,33 +536,50 @@ export function MainArea() {
 
     const maxLineLengths = createMemo(() => {
         if (useJjFormatter()) {
-            return { maxUnified: 0, maxLeft: 0, maxRight: 0 }
+            return { maxUnified: 0, maxLeft: 0, maxRight: 0, maxOneSided: 0 }
         }
 
         let maxUnified = 0
         let maxLeft = 0
         let maxRight = 0
+        let maxOneSided = 0
         for (const file of parsedFiles()) {
+            let fileHasOldSide = false
+            let fileHasNewSide = false
+            let fileMax = 0
+            let fileMaxLeft = 0
+            let fileMaxRight = 0
+
             for (const hunk of file.hunks) {
                 for (const line of hunk.lines) {
                     const length = line.content.replace(/\n$/, "").length
                     if (length > maxUnified) maxUnified = length
+                    if (length > fileMax) fileMax = length
+                    if (line.oldLineNumber !== undefined) fileHasOldSide = true
+                    if (line.newLineNumber !== undefined) fileHasNewSide = true
                     switch (line.type) {
                         case "context":
-                            if (length > maxLeft) maxLeft = length
-                            if (length > maxRight) maxRight = length
+                            if (length > fileMaxLeft) fileMaxLeft = length
+                            if (length > fileMaxRight) fileMaxRight = length
                             break
                         case "deletion":
-                            if (length > maxLeft) maxLeft = length
+                            if (length > fileMaxLeft) fileMaxLeft = length
                             break
                         case "addition":
-                            if (length > maxRight) maxRight = length
+                            if (length > fileMaxRight) fileMaxRight = length
                             break
                     }
                 }
             }
+
+            if (fileHasOldSide !== fileHasNewSide) {
+                if (fileMax > maxOneSided) maxOneSided = fileMax
+            } else {
+                if (fileMaxLeft > maxLeft) maxLeft = fileMaxLeft
+                if (fileMaxRight > maxRight) maxRight = fileMaxRight
+            }
         }
-        return { maxUnified, maxLeft, maxRight }
+        return { maxUnified, maxLeft, maxRight, maxOneSided }
     })
 
     const rawMaxLineLength = createMemo(() => {
@@ -609,6 +626,19 @@ export function MainArea() {
 
     const maxScrollLeft = createMemo(() => {
         if (wrapEnabled()) return 0
+        if (!useJjFormatter() && viewStyle() === "split") {
+            const width = Math.max(1, viewportWidth())
+            const prefixWidth = lineNumWidth() + 5 + SPLIT_RIGHT_PADDING
+            const columnWidth = Math.max(1, Math.floor((width - 1) / 2))
+            const splitContentWidth = Math.max(1, columnWidth - prefixWidth)
+            const unifiedContentWidth = Math.max(1, width - prefixWidth)
+            const { maxLeft, maxRight, maxOneSided } = maxLineLengths()
+            return Math.max(
+                0,
+                Math.max(maxLeft, maxRight) - splitContentWidth,
+                maxOneSided - unifiedContentWidth,
+            )
+        }
         return Math.max(0, maxScrollableWidth() - diffContentWidth())
     })
 

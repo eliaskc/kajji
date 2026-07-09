@@ -46,6 +46,7 @@ interface SplitRow {
     right: DiffLine | null
     leftWordDiff?: WordDiffSegment[]
     rightWordDiff?: WordDiffSegment[]
+    fullWidth?: boolean
     gapLines?: number
     rowIndex: number
 }
@@ -55,6 +56,8 @@ function flattenToSplitRows(files: FlattenedFile[]): SplitRow[] {
     let rowIndex = 0
 
     for (const [fileIndex, file] of files.entries()) {
+        const renderUnified = fileHasSingleDiffSide(file)
+
         rows.push({
             type: "file-header",
             fileId: file.fileId,
@@ -103,19 +106,34 @@ function flattenToSplitRows(files: FlattenedFile[]): SplitRow[] {
                 }
             }
 
-            const alignedRows = buildAlignedRows(hunk.lines)
-            for (const aligned of alignedRows) {
-                rows.push({
-                    type: "content",
-                    fileId: file.fileId,
-                    hunkId: hunk.hunkId,
-                    fileName: file.name,
-                    left: aligned.left,
-                    right: aligned.right,
-                    leftWordDiff: aligned.leftWordDiff,
-                    rightWordDiff: aligned.rightWordDiff,
-                    rowIndex: rowIndex++,
-                })
+            if (renderUnified) {
+                for (const line of hunk.lines) {
+                    rows.push({
+                        type: "content",
+                        fileId: file.fileId,
+                        hunkId: hunk.hunkId,
+                        fileName: file.name,
+                        left: line.type === "addition" ? null : line,
+                        right: line.type === "deletion" ? null : line,
+                        fullWidth: true,
+                        rowIndex: rowIndex++,
+                    })
+                }
+            } else {
+                const alignedRows = buildAlignedRows(hunk.lines)
+                for (const aligned of alignedRows) {
+                    rows.push({
+                        type: "content",
+                        fileId: file.fileId,
+                        hunkId: hunk.hunkId,
+                        fileName: file.name,
+                        left: aligned.left,
+                        right: aligned.right,
+                        leftWordDiff: aligned.leftWordDiff,
+                        rightWordDiff: aligned.rightWordDiff,
+                        rowIndex: rowIndex++,
+                    })
+                }
             }
 
             prevHunk = hunk
@@ -135,6 +153,21 @@ function flattenToSplitRows(files: FlattenedFile[]): SplitRow[] {
     }
 
     return rows
+}
+
+function fileHasSingleDiffSide(file: FlattenedFile): boolean {
+    let hasOldSide = false
+    let hasNewSide = false
+
+    for (const hunk of file.hunks) {
+        for (const line of hunk.lines) {
+            if (line.oldLineNumber !== undefined) hasOldSide = true
+            if (line.newLineNumber !== undefined) hasNewSide = true
+            if (hasOldSide && hasNewSide) return false
+        }
+    }
+
+    return hasOldSide !== hasNewSide
 }
 
 interface AlignedRow {
@@ -219,6 +252,7 @@ type WrappedSplitRow =
     | { type: "file-header" | "gap" | "file-gap"; row: SplitRow }
     | {
           type: "content"
+          layout: "split"
           row: SplitRow
           leftStart: number | null
           leftLength: number
@@ -226,6 +260,15 @@ type WrappedSplitRow =
           rightLength: number
           leftWrapped: boolean
           rightWrapped: boolean
+      }
+    | {
+          type: "content"
+          layout: "unified"
+          row: SplitRow
+          line: DiffLine
+          lineStart: number
+          lineLength: number
+          isWrapped: boolean
       }
 
 export function VirtualizedSplitView(props: VirtualizedSplitViewProps) {
@@ -255,6 +298,12 @@ export function VirtualizedSplitView(props: VirtualizedSplitViewProps) {
         return Math.max(1, columnWidth - prefixWidth - RIGHT_PADDING)
     })
 
+    const unifiedWrapWidth = createMemo(() => {
+        const width = Math.max(1, props.viewportWidth)
+        const prefixWidth = lineNumWidth() + 5
+        return Math.max(1, width - prefixWidth - RIGHT_PADDING)
+    })
+
     const columnWidth = createMemo(() => {
         const width = Math.max(1, props.viewportWidth)
         return Math.max(1, Math.floor((width - 1) / 2))
@@ -264,6 +313,7 @@ export function VirtualizedSplitView(props: VirtualizedSplitViewProps) {
         buildWrappedSplitRows(
             rows(),
             wrapWidth(),
+            unifiedWrapWidth(),
             props.wrapEnabled,
             props.scrollLeft,
         ),
@@ -455,6 +505,16 @@ function VirtualizedSplitRow(props: VirtualizedSplitRowProps) {
 
     if (props.row.type !== "content") return null
 
+    if (props.row.layout === "unified") {
+        return (
+            <UnifiedContentRow
+                row={props.row}
+                lineNumWidth={props.lineNumWidth}
+                highlighterReady={props.highlighterReady}
+            />
+        )
+    }
+
     return (
         <SplitContentRow
             row={props.row}
@@ -466,7 +526,7 @@ function VirtualizedSplitRow(props: VirtualizedSplitRowProps) {
 }
 
 interface SplitContentRowProps {
-    row: Extract<WrappedSplitRow, { type: "content" }>
+    row: Extract<WrappedSplitRow, { type: "content"; layout: "split" }>
     lineNumWidth: number
     highlighterReady: () => boolean
     columnWidth: number
@@ -737,14 +797,109 @@ function SplitContentRow(props: SplitContentRowProps) {
     )
 }
 
+interface UnifiedContentRowProps {
+    row: Extract<WrappedSplitRow, { type: "content"; layout: "unified" }>
+    lineNumWidth: number
+    highlighterReady: () => boolean
+}
+
+function UnifiedContentRow(props: UnifiedContentRowProps) {
+    const { colors, syntaxTheme } = useTheme()
+
+    const language = createMemo(() => getLanguage(props.row.row.fileName))
+
+    const lineBg = createMemo(() => {
+        switch (props.row.line.type) {
+            case "addition":
+                return colors().diff.additionBackground
+            case "deletion":
+                return colors().diff.deletionBackground
+            default:
+                return undefined
+        }
+    })
+
+    const tokens = createMemo((): SyntaxToken[] => {
+        tokenVersion()
+
+        const content = props.row.line.content.replace(/\n$/, "")
+        const defaultColor = colors().text
+
+        if (!props.highlighterReady()) {
+            return [{ content, color: defaultColor }]
+        }
+
+        const result = tokenizeLineSync(content, language(), syntaxTheme())
+        return result.map((token) => ({
+            content: token.content,
+            color: token.color ?? defaultColor,
+        }))
+    })
+
+    const lineNum = createMemo(() => {
+        if (props.row.isWrapped) return " ".repeat(props.lineNumWidth)
+        const num =
+            props.row.line.type === "deletion"
+                ? props.row.line.oldLineNumber
+                : props.row.line.newLineNumber
+        return (num?.toString() ?? "").padStart(props.lineNumWidth, " ")
+    })
+
+    const lineNumColor = createMemo(() => {
+        switch (props.row.line.type) {
+            case "deletion":
+                return colors().diff.deletionText
+            case "addition":
+                return colors().diff.additionText
+            default:
+                return colors().diff.lineNumber
+        }
+    })
+
+    const bar = createMemo(() => {
+        switch (props.row.line.type) {
+            case "addition":
+                return { char: BAR_CHAR, color: colors().diff.additionText }
+            case "deletion":
+                return { char: BAR_CHAR, color: colors().diff.deletionText }
+            default:
+                return { char: " ", color: undefined }
+        }
+    })
+
+    return (
+        <box flexDirection="row" backgroundColor={lineBg()} flexGrow={1}>
+            <text wrapMode="none">
+                <span style={{ fg: bar().color }}>{bar().char}</span>
+                <span style={{ fg: lineNumColor() }}> {lineNum()} </span>
+                <span style={{ fg: SEPARATOR_COLOR }}>│</span>
+                <span> </span>
+                <For
+                    each={sliceTokens(
+                        tokens(),
+                        props.row.lineStart,
+                        props.row.lineLength,
+                    )}
+                >
+                    {(token) => (
+                        <span style={{ fg: token.color }}>{token.content}</span>
+                    )}
+                </For>
+            </text>
+        </box>
+    )
+}
+
 function buildWrappedSplitRows(
     rows: SplitRow[],
     wrapWidth: number,
+    unifiedWrapWidth: number,
     wrapEnabled: boolean,
     scrollLeft: number,
 ): WrappedSplitRow[] {
     const result: WrappedSplitRow[] = []
     const width = Math.max(1, wrapWidth)
+    const fullWidth = Math.max(1, unifiedWrapWidth)
 
     for (const row of rows) {
         if (
@@ -753,6 +908,49 @@ function buildWrappedSplitRows(
             row.type === "file-gap"
         ) {
             result.push({ type: row.type, row })
+            continue
+        }
+
+        if (row.fullWidth) {
+            const line = row.left ?? row.right
+            if (!line) continue
+
+            const content = line.content.replace(/\n$/, "")
+            const contentLength = content.length
+
+            if (!wrapEnabled) {
+                const start = scrollLeft
+                result.push({
+                    type: "content",
+                    layout: "unified",
+                    row,
+                    line,
+                    lineStart: start,
+                    lineLength: Math.min(
+                        fullWidth - 1,
+                        Math.max(0, contentLength - start),
+                    ),
+                    isWrapped: false,
+                })
+                continue
+            }
+
+            const totalLines = Math.max(1, Math.ceil(contentLength / fullWidth))
+            for (let i = 0; i < totalLines; i += 1) {
+                const start = i * fullWidth
+                result.push({
+                    type: "content",
+                    layout: "unified",
+                    row,
+                    line,
+                    lineStart: start,
+                    lineLength: Math.min(
+                        fullWidth,
+                        Math.max(0, contentLength - start),
+                    ),
+                    isWrapped: i > 0,
+                })
+            }
             continue
         }
 
@@ -766,6 +964,7 @@ function buildWrappedSplitRows(
             const rightStart = row.right ? scrollLeft : null
             result.push({
                 type: "content",
+                layout: "split",
                 row,
                 leftStart,
                 leftLength:
@@ -810,6 +1009,7 @@ function buildWrappedSplitRows(
 
             result.push({
                 type: "content",
+                layout: "split",
                 row,
                 leftStart,
                 leftLength: leftSegmentLength,
