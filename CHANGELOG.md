@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.15.0
+
+### new
+- github pr stacking for jj bookmarks, enabled with `KAJJI_ENABLE_STACKING=1` ([#124](../../pull/124))
+- repository-scoped hook configuration ([`dee7ad5`](../../commit/dee7ad5))
+
+### improved
+- layout: one-sided diffs render as unified in split view ([`e3057d2`](../../commit/e3057d2))
+- ux: text selection disabled globally ([`e891095`](../../commit/e891095))
+- ux: long bookmark names truncate in the list gutter ([`dff89be`](../../commit/dff89be))
+- theming: word diff highlights use word-alt style joining ([`5a9bec2`](../../commit/5a9bec2))
+
+### fixed
+- perf: long-lived memory retention is bounded ([`7038571`](../../commit/7038571))
+- error-screen: stale workspaces recover and refresh when opened ([`699c836`](../../commit/699c836), [`d9cae6b`](../../commit/d9cae6b))
+- log: squash and rebase default to the parent revision ([`471b9bf`](../../commit/471b9bf))
+- layout: log line gutter remains fixed during horizontal scrolling ([`8138881`](../../commit/8138881))
+- log: horizontal scrolling ignores input outside the viewport ([`84a3e75`](../../commit/84a3e75))
+- diff: horizontal wheel scrolling is improved ([`d888d09`](../../commit/d888d09))
+- build: homebrew installation no longer requires jj ([`53f2772`](../../commit/53f2772))
+- startup: new repositories initialize with `jj git init` ([`f43a0bb`](../../commit/f43a0bb))
+- ux: stale bookmarks push before opening pull requests ([`eb74ed7`](../../commit/eb74ed7))
+
 ## 0.14.1
 
 ### improved
