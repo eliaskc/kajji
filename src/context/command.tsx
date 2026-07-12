@@ -54,6 +54,18 @@ export const { use: useCommand, provider: CommandProvider } =
                 inputMode: isBlockingCommands(),
             })
 
+            const paletteEnvironment = () => {
+                const current = dialog.current()
+                if (current?.id !== "commandPalette") return environment()
+                const previous = dialog.previous()
+                return {
+                    ...environment(),
+                    dialogOpen: previous !== undefined,
+                    dialogId: previous?.id,
+                    inputMode: false,
+                }
+            }
+
             useKeyboard((evt) => {
                 const dialogOpen = dialog.isOpen()
                 const isInputMode = isBlockingCommands()
@@ -93,7 +105,7 @@ export const { use: useCommand, provider: CommandProvider } =
 
                 execute: (id: string) => {
                     const cmd = allCommands().find((c) => c.id === id)
-                    if (!cmd || !isCommandApplicable(cmd, environment()))
+                    if (!cmd || !canDispatchCommand(cmd, environment()))
                         return false
                     cmd.execute()
                     return true
@@ -110,7 +122,9 @@ export const { use: useCommand, provider: CommandProvider } =
                     ),
                 isActive: (id: string) => {
                     const cmd = allCommands().find((item) => item.id === id)
-                    return cmd ? isCommandApplicable(cmd, environment()) : false
+                    return cmd
+                        ? canDispatchCommand(cmd, paletteEnvironment())
+                        : false
                 },
                 keyLabel: (id: string) => {
                     const cmd = allCommands().find((item) => item.id === id)

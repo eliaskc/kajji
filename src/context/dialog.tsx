@@ -303,6 +303,7 @@ export const { use: useDialog, provider: DialogProvider } = createSimpleContext(
             return {
                 isOpen: () => stack().length > 0,
                 current: () => stack().at(-1),
+                previous: () => stack().at(-2),
                 currentId: () => {
                     const id = stack().at(-1)?.id
                     if (!id) throw new Error("No active dialog")
