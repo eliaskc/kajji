@@ -212,6 +212,7 @@ function commit(
         refLine: "",
         isWorkingCopy: false,
         immutable,
+        inTrunk: immutable,
         empty: false,
         divergent: false,
         bookmarks: [],

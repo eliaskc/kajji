@@ -942,21 +942,6 @@ export function BookmarksPanel() {
             execute: handleListEnter,
         },
         {
-            id: "refs.bookmarks.open",
-            title: "open",
-            keybind: "open",
-            context: "refs.bookmarks",
-
-            panel: "refs",
-            visibleIn: ["palette", "statusBar"] as const,
-            execute: () => {
-                if (showRemoteOnly()) return
-                const bookmark = selectedBookmark()
-                if (!bookmark) return
-                openForBookmark(bookmark)
-            },
-        },
-        {
             id: "refs.bookmarks.new",
             title: "new",
             keybind: "jj_new",
@@ -1161,6 +1146,25 @@ export function BookmarksPanel() {
                         hints: [{ key: "enter", label: "save" }],
                     },
                 )
+            },
+        },
+        {
+            id: "refs.bookmarks.open",
+            title: commits().find(
+                (commit) => commit.commitId === selectedBookmark()?.commitId,
+            )?.inTrunk
+                ? "open commit"
+                : "open PR",
+            keybind: "open",
+            context: "refs.bookmarks",
+
+            panel: "refs",
+            visibleIn: ["palette", "statusBar"] as const,
+            execute: () => {
+                if (showRemoteOnly()) return
+                const bookmark = selectedBookmark()
+                if (!bookmark) return
+                openForBookmark(bookmark)
             },
         },
         {

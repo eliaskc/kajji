@@ -20,6 +20,7 @@ export interface Commit {
     refLine: string
     isWorkingCopy: boolean
     immutable: boolean
+    inTrunk: boolean
     empty: boolean
     divergent: boolean
     bookmarks: string[]

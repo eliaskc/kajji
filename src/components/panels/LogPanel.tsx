@@ -1960,7 +1960,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
         },
         {
             id: "log.revisions.open",
-            title: "open",
+            title: selectedLogCommit()?.inTrunk ? "open commit" : "open PR",
             keybind: "open",
             context: "log.revisions",
 

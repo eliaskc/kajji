@@ -14,6 +14,7 @@ function makeCommit(overrides: Partial<Commit> = {}): Commit {
         refLine: "",
         isWorkingCopy: false,
         immutable: false,
+        inTrunk: false,
         empty: false,
         divergent: false,
         bookmarks: [],

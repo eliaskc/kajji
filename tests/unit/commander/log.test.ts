@@ -19,12 +19,12 @@ beforeEach(() => {
     mockExecute.mockClear()
 })
 
-// Template format: gutter + MARKER + changeId + MARKER + commitId + MARKER + immutable + MARKER + empty + MARKER + divergent + MARKER + description + MARKER + author + MARKER + email + MARKER + timestamp + MARKER + bookmarks + MARKER + gitHead + MARKER + workingCopies + MARKER + refLine
-// Total: 14 parts (13 markers)
+// Template format: gutter + MARKER + changeId + MARKER + commitId + MARKER + immutable + MARKER + inTrunk + MARKER + empty + MARKER + divergent + MARKER + description + MARKER + author + MARKER + email + MARKER + timestamp + MARKER + bookmarks + MARKER + gitHead + MARKER + workingCopies + MARKER + refLine
+// Total: 15 parts (14 markers)
 
 describe("parseLogOutput", () => {
     test("parses single commit", () => {
-        const output = `○  __LJ__abc123__LJ__def456__LJ__false__LJ__false__LJ__false__LJ__feat: add feature__LJ__John Doe__LJ__john@example.com__LJ__2025-01-01 12:00:00__LJ____LJ__false__LJ____LJ__abc123 user@email.com
+        const output = `○  __LJ__abc123__LJ__def456__LJ__false__LJ__false__LJ__false__LJ__false__LJ__feat: add feature__LJ__John Doe__LJ__john@example.com__LJ__2025-01-01 12:00:00__LJ____LJ__false__LJ____LJ__abc123 user@email.com
 │  description continues here`
 
         const commits = parseLogOutput(output)
@@ -33,6 +33,7 @@ describe("parseLogOutput", () => {
         expect(commits[0]?.changeId).toBe("abc123")
         expect(commits[0]?.commitId).toBe("def456")
         expect(commits[0]?.immutable).toBe(false)
+        expect(commits[0]?.inTrunk).toBe(false)
         expect(commits[0]?.empty).toBe(false)
         expect(commits[0]?.divergent).toBe(false)
         expect(commits[0]?.isWorkingCopy).toBe(false)
@@ -45,7 +46,7 @@ describe("parseLogOutput", () => {
 
     test("detects working copy from @ in gutter", () => {
         const output =
-            "@  __LJ__abc123__LJ__def456__LJ__false__LJ__false__LJ__false__LJ__wip commit__LJ__Jane__LJ__jane@test.com__LJ__2025-01-02 10:00:00__LJ____LJ__false__LJ____LJ__abc123"
+            "@  __LJ__abc123__LJ__def456__LJ__false__LJ__false__LJ__false__LJ__false__LJ__wip commit__LJ__Jane__LJ__jane@test.com__LJ__2025-01-02 10:00:00__LJ____LJ__false__LJ____LJ__abc123"
 
         const commits = parseLogOutput(output)
 
@@ -55,19 +56,20 @@ describe("parseLogOutput", () => {
 
     test("parses immutable commit", () => {
         const output =
-            "◆  __LJ__abc123__LJ__def456__LJ__true__LJ__false__LJ__false__LJ__main commit__LJ__Admin__LJ__admin@test.com__LJ__2025-01-03 09:00:00__LJ____LJ__false__LJ____LJ__abc123"
+            "◆  __LJ__abc123__LJ__def456__LJ__true__LJ__true__LJ__false__LJ__false__LJ__main commit__LJ__Admin__LJ__admin@test.com__LJ__2025-01-03 09:00:00__LJ____LJ__false__LJ____LJ__abc123"
 
         const commits = parseLogOutput(output)
 
         expect(commits[0]?.immutable).toBe(true)
+        expect(commits[0]?.inTrunk).toBe(true)
         expect(commits[0]?.description).toBe("main commit")
     })
 
     test("parses multiple commits", () => {
-        const output = `@  __LJ__abc123__LJ__def456__LJ__false__LJ__false__LJ__false__LJ__current work__LJ__User1__LJ__u1@test.com__LJ__2025-01-01 12:00:00__LJ____LJ__false__LJ____LJ__abc123
-○  __LJ__ghi789__LJ__jkl012__LJ__false__LJ__false__LJ__false__LJ__previous commit__LJ__User2__LJ__u2@test.com__LJ__2025-01-01 11:00:00__LJ____LJ__false__LJ____LJ__ghi789
+        const output = `@  __LJ__abc123__LJ__def456__LJ__false__LJ__false__LJ__false__LJ__false__LJ__current work__LJ__User1__LJ__u1@test.com__LJ__2025-01-01 12:00:00__LJ____LJ__false__LJ____LJ__abc123
+○  __LJ__ghi789__LJ__jkl012__LJ__false__LJ__false__LJ__false__LJ__false__LJ__previous commit__LJ__User2__LJ__u2@test.com__LJ__2025-01-01 11:00:00__LJ____LJ__false__LJ____LJ__ghi789
 │  with description
-◆  __LJ__mno345__LJ__pqr678__LJ__true__LJ__false__LJ__false__LJ__root commit__LJ__User3__LJ__u3@test.com__LJ__2025-01-01 10:00:00__LJ____LJ__false__LJ____LJ__mno345`
+◆  __LJ__mno345__LJ__pqr678__LJ__true__LJ__true__LJ__false__LJ__false__LJ__root commit__LJ__User3__LJ__u3@test.com__LJ__2025-01-01 10:00:00__LJ____LJ__false__LJ____LJ__mno345`
 
         const commits = parseLogOutput(output)
 
@@ -88,7 +90,7 @@ describe("parseLogOutput", () => {
     })
 
     test("handles output with only whitespace lines", () => {
-        const output = `○  __LJ__abc123__LJ__def456__LJ__false__LJ__false__LJ__false__LJ__commit__LJ__Author__LJ__a@b.com__LJ__2025-01-01 00:00:00__LJ____LJ__false__LJ____LJ__abc123
+        const output = `○  __LJ__abc123__LJ__def456__LJ__false__LJ__false__LJ__false__LJ__false__LJ__commit__LJ__Author__LJ__a@b.com__LJ__2025-01-01 00:00:00__LJ____LJ__false__LJ____LJ__abc123
 
 `
         const commits = parseLogOutput(output)
@@ -99,7 +101,7 @@ describe("parseLogOutput", () => {
 
     test("strips ANSI codes from metadata but preserves in display", () => {
         const output =
-            "@  __LJ__\x1b[38;5;5mwzqtrynx\x1b[39m__LJ__\x1b[38;5;4mcec3ab64\x1b[39m__LJ__false__LJ__false__LJ__false__LJ__feat: test__LJ__Author__LJ__a@b.com__LJ__2025-01-01 12:00:00__LJ____LJ__false__LJ____LJ__\x1b[1m\x1b[38;5;13mw\x1b[38;5;8mzqtrynx\x1b[39m"
+            "@  __LJ__\x1b[38;5;5mwzqtrynx\x1b[39m__LJ__\x1b[38;5;4mcec3ab64\x1b[39m__LJ__false__LJ__false__LJ__false__LJ__false__LJ__feat: test__LJ__Author__LJ__a@b.com__LJ__2025-01-01 12:00:00__LJ____LJ__false__LJ____LJ__\x1b[1m\x1b[38;5;13mw\x1b[38;5;8mzqtrynx\x1b[39m"
 
         const commits = parseLogOutput(output)
 
@@ -112,7 +114,7 @@ describe("parseLogOutput", () => {
 
     test("parses empty commit", () => {
         const output =
-            "@  __LJ__abc123__LJ__def456__LJ__false__LJ__true__LJ__false__LJ__\x1b[2m(empty)\x1b[0m test desc__LJ__Author__LJ__a@b.com__LJ__2025-01-01 12:00:00__LJ____LJ__false__LJ____LJ__abc123"
+            "@  __LJ__abc123__LJ__def456__LJ__false__LJ__false__LJ__true__LJ__false__LJ__\x1b[2m(empty)\x1b[0m test desc__LJ__Author__LJ__a@b.com__LJ__2025-01-01 12:00:00__LJ____LJ__false__LJ____LJ__abc123"
 
         const commits = parseLogOutput(output)
 
@@ -122,7 +124,7 @@ describe("parseLogOutput", () => {
 
     test("parses bookmarks", () => {
         const output =
-            "○  __LJ__abc123__LJ__def456__LJ__false__LJ__false__LJ__false__LJ__commit with bookmarks__LJ__Author__LJ__a@b.com__LJ__2025-01-01 12:00:00__LJ__main,feature__LJ__false__LJ____LJ__abc123"
+            "○  __LJ__abc123__LJ__def456__LJ__false__LJ__false__LJ__false__LJ__false__LJ__commit with bookmarks__LJ__Author__LJ__a@b.com__LJ__2025-01-01 12:00:00__LJ__main,feature__LJ__false__LJ____LJ__abc123"
 
         const commits = parseLogOutput(output)
 
@@ -131,7 +133,7 @@ describe("parseLogOutput", () => {
 
     test("parses git head", () => {
         const output =
-            "○  __LJ__abc123__LJ__def456__LJ__false__LJ__false__LJ__false__LJ__git head commit__LJ__Author__LJ__a@b.com__LJ__2025-01-01 12:00:00__LJ____LJ__true__LJ____LJ__abc123"
+            "○  __LJ__abc123__LJ__def456__LJ__false__LJ__false__LJ__false__LJ__false__LJ__git head commit__LJ__Author__LJ__a@b.com__LJ__2025-01-01 12:00:00__LJ____LJ__true__LJ____LJ__abc123"
 
         const commits = parseLogOutput(output)
 
@@ -140,7 +142,7 @@ describe("parseLogOutput", () => {
 
     test("parses working copies", () => {
         const output =
-            "@  __LJ__abc123__LJ__def456__LJ__false__LJ__false__LJ__false__LJ__multi workspace__LJ__Author__LJ__a@b.com__LJ__2025-01-01 12:00:00__LJ____LJ__false__LJ__default,secondary__LJ__abc123"
+            "@  __LJ__abc123__LJ__def456__LJ__false__LJ__false__LJ__false__LJ__false__LJ__multi workspace__LJ__Author__LJ__a@b.com__LJ__2025-01-01 12:00:00__LJ____LJ__false__LJ__default,secondary__LJ__abc123"
 
         const commits = parseLogOutput(output)
 
@@ -151,9 +153,9 @@ describe("parseLogOutput", () => {
 describe("fetchLogPage", () => {
     test("uses limit + 1 to detect more results", async () => {
         const output =
-            "○  __LJ__abc123__LJ__def456__LJ__false__LJ__false__LJ__false__LJ__commit one__LJ__Author__LJ__a@b.com__LJ__2025-01-01 12:00:00__LJ____LJ__false__LJ____LJ__abc123\n" +
-            "○  __LJ__ghi789__LJ__jkl012__LJ__false__LJ__false__LJ__false__LJ__commit two__LJ__Author__LJ__a@b.com__LJ__2025-01-01 12:01:00__LJ____LJ__false__LJ____LJ__ghi789\n" +
-            "○  __LJ__mno345__LJ__pqr678__LJ__false__LJ__false__LJ__false__LJ__commit three__LJ__Author__LJ__a@b.com__LJ__2025-01-01 12:02:00__LJ____LJ__false__LJ____LJ__mno345"
+            "○  __LJ__abc123__LJ__def456__LJ__false__LJ__false__LJ__false__LJ__false__LJ__commit one__LJ__Author__LJ__a@b.com__LJ__2025-01-01 12:00:00__LJ____LJ__false__LJ____LJ__abc123\n" +
+            "○  __LJ__ghi789__LJ__jkl012__LJ__false__LJ__false__LJ__false__LJ__false__LJ__commit two__LJ__Author__LJ__a@b.com__LJ__2025-01-01 12:01:00__LJ____LJ__false__LJ____LJ__ghi789\n" +
+            "○  __LJ__mno345__LJ__pqr678__LJ__false__LJ__false__LJ__false__LJ__false__LJ__commit three__LJ__Author__LJ__a@b.com__LJ__2025-01-01 12:02:00__LJ____LJ__false__LJ____LJ__mno345"
 
         mockExecute.mockResolvedValueOnce({
             stdout: output,
@@ -182,7 +184,7 @@ describe("fetchLogPage", () => {
 
     test("does not set hasMore when result fits limit", async () => {
         const output =
-            "○  __LJ__abc123__LJ__def456__LJ__false__LJ__false__LJ__false__LJ__commit one__LJ__Author__LJ__a@b.com__LJ__2025-01-01 12:00:00__LJ____LJ__false__LJ____LJ__abc123"
+            "○  __LJ__abc123__LJ__def456__LJ__false__LJ__false__LJ__false__LJ__false__LJ__commit one__LJ__Author__LJ__a@b.com__LJ__2025-01-01 12:00:00__LJ____LJ__false__LJ____LJ__abc123"
 
         mockExecute.mockResolvedValueOnce({
             stdout: output,
