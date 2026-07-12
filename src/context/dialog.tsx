@@ -53,6 +53,7 @@ interface DialogState {
     width?: DimensionOrAccessor
     maxWidth?: number
     minHeight?: number
+    paddingHorizontal?: number
     closeOnEsc?: boolean
 }
 
@@ -204,6 +205,7 @@ export const { use: useDialog, provider: DialogProvider } = createSimpleContext(
                     width?: DimensionOrAccessor
                     maxWidth?: number
                     minHeight?: number
+                    paddingHorizontal?: number
                     closeOnEsc?: boolean
                 },
             ) => {
@@ -218,6 +220,7 @@ export const { use: useDialog, provider: DialogProvider } = createSimpleContext(
                         width: options?.width,
                         maxWidth: options?.maxWidth,
                         minHeight: options?.minHeight,
+                        paddingHorizontal: options?.paddingHorizontal,
                         closeOnEsc: options?.closeOnEsc,
                     },
                 ])
@@ -233,6 +236,7 @@ export const { use: useDialog, provider: DialogProvider } = createSimpleContext(
                     width?: DimensionOrAccessor
                     maxWidth?: number
                     minHeight?: number
+                    paddingHorizontal?: number
                     closeOnEsc?: boolean
                 },
             ) => {
@@ -248,6 +252,7 @@ export const { use: useDialog, provider: DialogProvider } = createSimpleContext(
                         width: options?.width,
                         maxWidth: options?.maxWidth,
                         minHeight: options?.minHeight,
+                        paddingHorizontal: options?.paddingHorizontal,
                         closeOnEsc: options?.closeOnEsc,
                     })
                 }
@@ -302,6 +307,7 @@ export const { use: useDialog, provider: DialogProvider } = createSimpleContext(
                     resolveWidth(stack().at(-1)?.width) ?? "50%",
                 maxWidth: () => stack().at(-1)?.maxWidth,
                 minHeight: () => stack().at(-1)?.minHeight,
+                paddingHorizontal: () => stack().at(-1)?.paddingHorizontal ?? 2,
                 setHints: (hints: DialogHint[]) => {
                     setStack((s) => {
                         if (s.length === 0) return s
@@ -417,8 +423,8 @@ function DialogBackdrop(props: { children: JSX.Element }) {
                 maxWidth={dialog.maxWidth()}
                 minHeight={dialog.minHeight()}
                 backgroundColor={colors().background}
-                paddingLeft={2}
-                paddingRight={2}
+                paddingLeft={dialog.paddingHorizontal()}
+                paddingRight={dialog.paddingHorizontal()}
                 paddingTop={1}
                 paddingBottom={1}
                 gap={1}

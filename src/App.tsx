@@ -515,14 +515,11 @@ function AppContent() {
             visibleIn: ["palette", "statusBar"] as const,
             scope: "always",
             execute: () => {
-                const dialogPadding = 4
+                const dialogPadding = 6
                 dialog.toggle("commandPalette", () => <CommandPalette />, {
                     title: "Commands",
-                    width: () =>
-                        commandPaletteContentWidth(
-                            layout.commandPaletteColumns(),
-                        ) + dialogPadding,
-                    hints: [{ key: "enter", label: "execute" }],
+                    width: commandPaletteContentWidth() + dialogPadding,
+                    paddingHorizontal: dialogPadding / 2,
                 })
             },
         },

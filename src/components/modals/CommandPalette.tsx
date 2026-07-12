@@ -5,16 +5,10 @@ import {
 } from "@opentui/core"
 import { useKeyboard } from "@opentui/solid"
 
-const COMMAND_PALETTE_COLUMN_WIDTH = 32
-const COMMAND_PALETTE_SCROLLBAR_GUTTER = 2
+const COMMAND_PALETTE_CONTENT_WIDTH = 50
 
-export function commandPaletteContentWidth(columns: number) {
-    const colGap = columns === 3 ? 4 : 2
-    return (
-        columns * COMMAND_PALETTE_COLUMN_WIDTH +
-        (columns - 1) * colGap +
-        COMMAND_PALETTE_SCROLLBAR_GUTTER
-    )
+export function commandPaletteContentWidth() {
+    return COMMAND_PALETTE_CONTENT_WIDTH
 }
 
 const SINGLE_LINE_KEYBINDINGS = [
@@ -43,7 +37,6 @@ import { useTheme } from "../../context/theme"
 import type { KeybindConfigKey } from "../../keybind"
 
 interface ContextGroupData {
-    context: CommandGroup
     label: string
     commands: CommandOption[]
 }
@@ -70,19 +63,20 @@ const GROUP_LABELS: Record<CommandGroup, string> = {
     application: "application",
 }
 
+const capitalize = (value: string) =>
+    value.length > 0 ? value.charAt(0).toUpperCase() + value.slice(1) : value
+
 export function CommandPalette() {
     const command = useCommand()
     useCommandInputGuard()
     const dialog = useDialog()
     const layout = useLayout()
-    const { colors, style } = useTheme()
+    const { colors } = useTheme()
     const [filter, setFilter] = createSignal("")
-    const [selectedIndex, setSelectedIndex] = createSignal(-1)
+    const [selectedIndex, setSelectedIndex] = createSignal(0)
     const [scrollTop, setScrollTop] = createSignal(0)
     let searchInputRef: InputRenderable | undefined
     let scrollRef: ScrollBoxRenderable | undefined
-
-    const columnCount = () => layout.commandPaletteColumns()
 
     type SearchableCommand = CommandOption & { keybindStr: string }
 
@@ -116,18 +110,8 @@ export function CommandPalette() {
     const isActive = (cmd: CommandOption) => command.isActive(cmd.id)
 
     createEffect(() => {
-        const filterText = filter().trim()
-        if (filterText) {
-            setSelectedIndex(0)
-        } else {
-            setSelectedIndex(-1)
-        }
-    })
-
-    const selectedCommand = createMemo(() => {
-        const idx = selectedIndex()
-        if (idx < 0) return null
-        return matchedInColumnOrder()[idx] ?? null
+        filter()
+        setSelectedIndex(0)
     })
 
     const groupedCommands = createMemo((): ContextGroupData[] => {
@@ -145,7 +129,6 @@ export function CommandPalette() {
             const commands = groups.get(group)
             if (commands && commands.length > 0) {
                 result.push({
-                    context: group,
                     label: GROUP_LABELS[group],
                     commands,
                 })
@@ -155,70 +138,41 @@ export function CommandPalette() {
         return result
     })
 
-    const columns = createMemo(() => {
-        const groups = groupedCommands()
-        const numCols = columnCount()
-        const cols: ContextGroupData[][] = Array.from(
-            { length: numCols },
-            () => [],
-        )
-
-        let colIndex = 0
-        for (const group of groups) {
-            const col = cols[colIndex]
-            if (col) col.push(group)
-            colIndex = (colIndex + 1) % numCols
-        }
-
-        return cols
-    })
-
     const filteredGroups = createMemo((): ContextGroupData[] => {
         const matched = matchedIds()
-        return groupedCommands()
+        const groups = groupedCommands()
+        const activeGroups = groups
             .map((group) => ({
                 ...group,
-                commands: group.commands.filter((cmd) => matched.has(cmd.id)),
+                commands: group.commands.filter(
+                    (cmd) => matched.has(cmd.id) && isActive(cmd),
+                ),
             }))
             .filter((group) => group.commands.length > 0)
-    })
 
-    const filteredColumns = createMemo(() => {
-        const groups = filteredGroups()
-        const numCols = columnCount()
-        const cols: ContextGroupData[][] = Array.from(
-            { length: numCols },
-            () => [],
+        const unavailable = groups.flatMap((group) =>
+            group.commands.filter(
+                (cmd) => matched.has(cmd.id) && !isActive(cmd),
+            ),
         )
 
-        let colIndex = 0
-        for (const group of groups) {
-            const col = cols[colIndex]
-            if (col) col.push(group)
-            colIndex = (colIndex + 1) % numCols
+        if (unavailable.length > 0) {
+            activeGroups.push({ label: "unavailable", commands: unavailable })
         }
 
-        return cols
-    })
-
-    const commandsInColumnOrder = createMemo(() => {
-        const cols = columns()
-        const result: CommandOption[] = []
-        for (const column of cols) {
-            for (const group of column) {
-                for (const cmd of group.commands) {
-                    result.push(cmd)
-                }
-            }
-        }
-        return result
+        return activeGroups
     })
 
     const matchedInColumnOrder = createMemo(() => {
-        const matched = matchedIds()
-        return commandsInColumnOrder().filter(
-            (cmd) => matched.has(cmd.id) && isActive(cmd),
+        return filteredGroups().flatMap((group) =>
+            group.commands.filter(isActive),
         )
+    })
+
+    const selectedCommand = createMemo(() => {
+        const idx = selectedIndex()
+        if (idx < 0) return null
+        return matchedInColumnOrder()[idx] ?? null
     })
 
     const isNavigatable = (cmd: CommandOption) => {
@@ -226,31 +180,22 @@ export function CommandPalette() {
     }
 
     const getRowPositionForCommand = (cmd: CommandOption): number => {
-        const cols = filteredColumns()
         let row = 0
-        for (const column of cols) {
-            let colRow = 0
-            for (const group of column) {
-                colRow += 1
-                for (const c of group.commands) {
-                    if (c.id === cmd.id) {
-                        return row + colRow
-                    }
-                    colRow += 1
+        for (const group of filteredGroups()) {
+            row += 1
+            for (const command of group.commands) {
+                if (command.id === cmd.id) {
+                    return row
                 }
-                colRow += 1
+                row += 1
             }
-            if (columnCount() === 1) {
-                row = colRow
-            }
+            row += 1
         }
         return 0
     }
 
     const scrollIntoView = (cmd: CommandOption | null) => {
         if (!scrollRef || !cmd) return
-        if (columnCount() !== 1) return
-
         const rowPos = getRowPositionForCommand(cmd)
         const margin = 2
         const refAny = scrollRef as unknown as Record<string, unknown>
@@ -322,16 +267,16 @@ export function CommandPalette() {
         }
     })
 
-    const separator = () => style().statusBar.separator
-    const gap = () => (separator() ? 0 : 3)
-
-    const isMatched = (cmd: CommandOption) => matchedIds().has(cmd.id)
     const isSelected = (cmd: CommandOption) => selectedCommand()?.id === cmd.id
-    const columnGap = () => (columnCount() === 3 ? 4 : 2)
-    const modalWidth = () => commandPaletteContentWidth(columnCount())
+    const paletteHeight = () =>
+        Math.min(30, Math.max(12, layout.terminalHeight() - 6))
 
     return (
-        <box flexDirection="column" width={modalWidth()} height="80%">
+        <box
+            flexDirection="column"
+            width={commandPaletteContentWidth()}
+            height={paletteHeight()}
+        >
             <box height={1} flexShrink={0} overflow="hidden">
                 <input
                     ref={(r) => {
@@ -359,82 +304,94 @@ export function CommandPalette() {
 
             <scrollbox
                 ref={scrollRef}
-                flexGrow={1}
+                height={paletteHeight() - 2}
+                width={COMMAND_PALETTE_CONTENT_WIDTH + 4}
+                marginLeft={-2}
                 scrollX={false}
                 horizontalScrollbarOptions={{ visible: false }}
+                verticalScrollbarOptions={{ visible: false }}
             >
                 <box
-                    flexDirection="row"
-                    gap={columnGap()}
-                    paddingRight={COMMAND_PALETTE_SCROLLBAR_GUTTER}
+                    flexDirection="column"
+                    width={COMMAND_PALETTE_CONTENT_WIDTH + 4}
                 >
-                    <For each={filteredColumns()}>
-                        {(column) => (
-                            <box flexDirection="column" width={32}>
-                                <For each={column}>
-                                    {(group) => (
+                    <For each={filteredGroups()}>
+                        {(group) => (
+                            <box flexDirection="column" marginBottom={1}>
+                                <box paddingLeft={2} paddingRight={2}>
+                                    <text fg={colors().primary}>
+                                        {capitalize(group.label)}
+                                    </text>
+                                </box>
+                                <For each={group.commands}>
+                                    {(cmd) => (
                                         <box
-                                            flexDirection="column"
-                                            marginBottom={1}
+                                            flexDirection="row"
+                                            width={
+                                                COMMAND_PALETTE_CONTENT_WIDTH +
+                                                4
+                                            }
+                                            paddingLeft={2}
+                                            paddingRight={2}
+                                            justifyContent="space-between"
+                                            backgroundColor={
+                                                isSelected(cmd)
+                                                    ? colors()
+                                                          .selectionBackground
+                                                    : undefined
+                                            }
                                         >
-                                            <text fg={colors().primary}>
-                                                {group.label}
-                                            </text>
-                                            <For each={group.commands}>
-                                                {(cmd) => (
-                                                    <box
-                                                        flexDirection="row"
-                                                        justifyContent="space-between"
-                                                        backgroundColor={
-                                                            isSelected(cmd)
-                                                                ? colors()
-                                                                      .selectionBackground
-                                                                : undefined
-                                                        }
-                                                    >
-                                                        <text
-                                                            fg={
-                                                                isSelected(cmd)
+                                            <text
+                                                fg={
+                                                    isSelected(cmd)
+                                                        ? colors().selectionText
+                                                        : isNavigatable(cmd)
+                                                          ? colors().text
+                                                          : colors().textMuted
+                                                }
+                                                wrapMode="none"
+                                            >
+                                                {capitalize(cmd.title)}
+                                                <Show when={cmd.description}>
+                                                    {(
+                                                        description: Accessor<string>,
+                                                    ) => (
+                                                        <span
+                                                            style={{
+                                                                fg: isSelected(
+                                                                    cmd,
+                                                                )
                                                                     ? colors()
                                                                           .selectionText
-                                                                    : isNavigatable(
-                                                                            cmd,
-                                                                        )
-                                                                      ? colors()
-                                                                            .text
-                                                                      : colors()
-                                                                            .textMuted
-                                                            }
+                                                                    : colors()
+                                                                          .textMuted,
+                                                            }}
                                                         >
-                                                            {cmd.title}
-                                                        </text>
-                                                        <Show
-                                                            when={cmd.keybind}
-                                                        >
-                                                            {(
-                                                                kb: Accessor<KeybindConfigKey>,
-                                                            ) => (
-                                                                <text
-                                                                    fg={
-                                                                        isSelected(
-                                                                            cmd,
-                                                                        )
-                                                                            ? colors()
-                                                                                  .selectionText
-                                                                            : colors()
-                                                                                  .textMuted
-                                                                    }
-                                                                    wrapMode="none"
-                                                                >
-                                                                    {command.keyLabel(
-                                                                        cmd.id,
-                                                                    )}
-                                                                </text>
-                                                            )}
-                                                        </Show>
-                                                    </box>
+                                                            {` ${description()}`}
+                                                        </span>
+                                                    )}
+                                                </Show>
+                                            </text>
+                                            <Show when={cmd.keybind}>
+                                                {(
+                                                    kb: Accessor<KeybindConfigKey>,
+                                                ) => (
+                                                    <text
+                                                        fg={
+                                                            isSelected(cmd)
+                                                                ? colors()
+                                                                      .selectionText
+                                                                : colors()
+                                                                      .textMuted
+                                                        }
+                                                        wrapMode="none"
+                                                    >
+                                                        {command.keyLabel(
+                                                            cmd.id,
+                                                        )}
+                                                    </text>
                                                 )}
-                                            </For>
+                                            </Show>
                                         </box>
                                     )}
                                 </For>
