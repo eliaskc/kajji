@@ -1,4 +1,4 @@
-import { For, Show, createMemo } from "solid-js"
+import { For, Show, createEffect, createMemo } from "solid-js"
 import { useTheme } from "../../context/theme"
 import type {
     DiffLine,
@@ -10,6 +10,7 @@ import type {
 } from "../../diff"
 import {
     computeWordDiff,
+    getHunkRowOffsets,
     getLanguage,
     getLineNumWidth,
     getMaxLineNumber,
@@ -240,7 +241,7 @@ function buildAlignedRows(lines: DiffLine[]): AlignedRow[] {
 interface VirtualizedSplitViewProps {
     files: FlattenedFile[]
     activeFileId?: FileId | null
-    currentHunkId?: HunkId | null
+    onHunkRowOffsets?: (offsets: Map<HunkId, number>) => void
     scrollTop: number
     viewportHeight: number
     viewportWidth: number
@@ -319,6 +320,10 @@ export function VirtualizedSplitView(props: VirtualizedSplitViewProps) {
         ),
     )
 
+    createEffect(() => {
+        props.onHunkRowOffsets?.(getHunkRowOffsets(wrappedRows()))
+    })
+
     const visibleRange = createMemo(() =>
         getVisibleRange({
             scrollTop: props.scrollTop,
@@ -367,7 +372,6 @@ export function VirtualizedSplitView(props: VirtualizedSplitViewProps) {
                         <VirtualizedSplitRow
                             row={row}
                             lineNumWidth={lineNumWidth()}
-                            currentHunkId={props.currentHunkId}
                             fileStats={fileStats()}
                             highlighterReady={highlighterReady}
                             columnWidth={columnWidth()}
@@ -390,7 +394,6 @@ export function VirtualizedSplitView(props: VirtualizedSplitViewProps) {
 interface VirtualizedSplitRowProps {
     row: WrappedSplitRow
     lineNumWidth: number
-    currentHunkId?: HunkId | null
     fileStats: Map<
         FileId,
         {

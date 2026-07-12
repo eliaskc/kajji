@@ -1,4 +1,4 @@
-import { For, Show, createMemo } from "solid-js"
+import { For, Show, createEffect, createMemo } from "solid-js"
 import { useTheme } from "../../context/theme"
 import {
     type DiffRow,
@@ -7,6 +7,7 @@ import {
     type HunkId,
     type SyntaxToken,
     flattenToRows,
+    getHunkRowOffsets,
     getLanguage,
     getLineNumWidth,
     getMaxLineNumber,
@@ -32,7 +33,7 @@ const STAT_COLORS = {
 interface VirtualizedUnifiedViewProps {
     files: FlattenedFile[]
     activeFileId?: FileId | null
-    currentHunkId?: HunkId | null
+    onHunkRowOffsets?: (offsets: Map<HunkId, number>) => void
     scrollTop: number
     viewportHeight: number
     viewportWidth: number
@@ -85,6 +86,10 @@ export function VirtualizedUnifiedView(props: VirtualizedUnifiedViewProps) {
         ),
     )
 
+    createEffect(() => {
+        props.onHunkRowOffsets?.(getHunkRowOffsets(wrappedRows()))
+    })
+
     const visibleRange = createMemo(() =>
         getVisibleRange({
             scrollTop: props.scrollTop,
@@ -133,7 +138,6 @@ export function VirtualizedUnifiedView(props: VirtualizedUnifiedViewProps) {
                         <VirtualizedRow
                             row={row}
                             lineNumWidth={lineNumWidth()}
-                            currentHunkId={props.currentHunkId}
                             fileStats={fileStats()}
                             highlighterReady={highlighterReady}
                             maxHeaderWidth={Math.max(
@@ -155,7 +159,6 @@ export function VirtualizedUnifiedView(props: VirtualizedUnifiedViewProps) {
 interface VirtualizedRowProps {
     row: WrappedRow
     lineNumWidth: number
-    currentHunkId?: HunkId | null
     fileStats: Map<
         FileId,
         {

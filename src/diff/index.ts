@@ -80,8 +80,11 @@ export {
     findRowIndexByFileId,
     findRowIndexByHunkId,
     flattenToRows,
+    getAdjacentHunk,
+    getHunkRowOffsets,
     getVisibleRange,
     type DiffRow,
     type DiffRowType,
+    type HunkPosition,
     type ViewportState,
 } from "./virtualization"

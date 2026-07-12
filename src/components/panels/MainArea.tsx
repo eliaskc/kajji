@@ -25,9 +25,11 @@ import { type CommitDetails, useSync } from "../../context/sync"
 import { useTheme } from "../../context/theme"
 import {
     type FlattenedFile,
+    type HunkId,
     fetchParsedDiff,
     fetchParsedDiffRange,
     flattenDiff,
+    getAdjacentHunk,
     getLineNumWidth,
     getMaxLineNumber,
 } from "../../diff"
@@ -500,13 +502,9 @@ export function MainArea() {
         return files[idx]?.fileId ?? null
     })
 
-    const activeHunkId = createMemo(() => {
-        const files = textFiles()
-        const fileIdx = activeFileIndex()
-        const hunkIdx = activeHunkIndex()
-        const file = files[fileIdx]
-        return file?.hunks[hunkIdx]?.hunkId ?? null
-    })
+    const [hunkRowOffsets, setHunkRowOffsets] = createSignal(
+        new Map<HunkId, number>(),
+    )
 
     const diffStats = createMemo((): DiffStats | null => {
         const files = parsedFiles()
@@ -702,29 +700,21 @@ export function MainArea() {
 
     const navigateHunk = (direction: 1 | -1) => {
         const files = textFiles()
-        const fileIdx = activeFileIndex()
-        const file = files[fileIdx]
-        if (!file) return
+        const target = getAdjacentHunk(
+            files,
+            activeFileIndex(),
+            activeHunkIndex(),
+            direction,
+        )
+        if (!target) return
 
-        const hunkIdx = activeHunkIndex()
-        const newHunkIdx = hunkIdx + direction
-
-        if (newHunkIdx < 0) {
-            // Go to previous file's last hunk
-            if (fileIdx > 0) {
-                const prevFile = files[fileIdx - 1]
-                setActiveFileIndex(fileIdx - 1)
-                setActiveHunkIndex(prevFile ? prevFile.hunks.length - 1 : 0)
-            }
-        } else if (newHunkIdx >= file.hunks.length) {
-            // Go to next file's first hunk
-            if (fileIdx < files.length - 1) {
-                setActiveFileIndex(fileIdx + 1)
-                setActiveHunkIndex(0)
-            }
-        } else {
-            setActiveHunkIndex(newHunkIdx)
-        }
+        setActiveFileIndex(target.fileIndex)
+        setActiveHunkIndex(target.hunkIndex)
+        const rowOffset = hunkRowOffsets().get(target.hunkId)
+        if (rowOffset === undefined) return
+        const targetScrollTop = headerHeight() + rowOffset
+        scrollRef?.scrollTo(targetScrollTop)
+        setScrollTop(targetScrollTop)
     }
 
     // Track current fetch to prevent stale updates
@@ -1007,7 +997,7 @@ export function MainArea() {
         },
         {
             id: "detail.toggle_jj_formatter",
-            title: "formatter",
+            title: "diff mode",
             keybind: "toggle_diff_formatter",
             context: "detail",
 
@@ -1109,7 +1099,7 @@ export function MainArea() {
             keybind: "nav_prev_hunk",
             context: "detail.diff_custom",
             group: "navigation",
-            visibleIn: ["palette"] as const,
+            visibleIn: ["palette", "statusBar"] as const,
             execute: () => {
                 navigateHunk(-1)
             },
@@ -1120,7 +1110,7 @@ export function MainArea() {
             keybind: "nav_next_hunk",
             context: "detail.diff_custom",
             group: "navigation",
-            visibleIn: ["palette"] as const,
+            visibleIn: ["palette", "statusBar"] as const,
             execute: () => {
                 navigateHunk(1)
             },
@@ -1271,7 +1261,7 @@ export function MainArea() {
                                         <VirtualizedUnifiedView
                                             files={textFiles()}
                                             activeFileId={null}
-                                            currentHunkId={activeHunkId()}
+                                            onHunkRowOffsets={setHunkRowOffsets}
                                             scrollTop={adjustedScrollTop()}
                                             viewportHeight={viewportHeight()}
                                             viewportWidth={viewportWidth()}
@@ -1288,7 +1278,7 @@ export function MainArea() {
                                         <VirtualizedSplitView
                                             files={textFiles()}
                                             activeFileId={null}
-                                            currentHunkId={activeHunkId()}
+                                            onHunkRowOffsets={setHunkRowOffsets}
                                             scrollTop={adjustedScrollTop()}
                                             viewportHeight={viewportHeight()}
                                             viewportWidth={viewportWidth()}
