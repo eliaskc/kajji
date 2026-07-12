@@ -6,6 +6,7 @@ import {
     buildFileTree,
     flattenFlat,
     flattenTree,
+    getEffectiveCollapsedPaths,
     getFilePaths,
 } from "../../../src/utils/file-tree"
 
@@ -83,6 +84,20 @@ describe("buildFileTree", () => {
     it("handles empty input", () => {
         const tree = buildFileTree([])
         expect(tree.children).toHaveLength(0)
+    })
+})
+
+describe("getEffectiveCollapsedPaths", () => {
+    it("temporarily reveals ancestors of the current file", () => {
+        const collapsed = new Set(["src", "src/components", "docs"])
+        expect(
+            getEffectiveCollapsedPaths(collapsed, "src/components/App.tsx"),
+        ).toEqual(new Set(["docs"]))
+
+        expect(getEffectiveCollapsedPaths(collapsed, "docs/readme.md")).toEqual(
+            new Set(["src", "src/components"]),
+        )
+        expect(collapsed).toEqual(new Set(["src", "src/components", "docs"]))
     })
 })
 

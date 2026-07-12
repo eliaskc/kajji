@@ -35,12 +35,10 @@ import {
     getMaxLineNumber,
 } from "../../diff"
 import { getRepoPath } from "../../repo"
-import { getFilePaths } from "../../utils/file-tree"
 import { getFilesLayoutWeights } from "../../utils/layout"
 import { truncatePathMiddle } from "../../utils/path-truncate"
 import { AnsiText } from "../AnsiText"
 import { BinaryGroupFooter } from "../BinaryGroupFooter"
-import { BinaryPlaceholder } from "../BinaryPlaceholder"
 import { Panel } from "../Panel"
 import { BookmarkDiffHeader, stripEmailAndDate } from "../RevisionHeader"
 import { VirtualizedSplitView, VirtualizedUnifiedView } from "../diff"
@@ -292,7 +290,8 @@ export function MainArea() {
         activeBookmarkDiff,
         commitDetails,
         viewMode,
-        selectedFile,
+        fileNavigationRequest,
+        setCurrentDiffFilePath,
     } = useSync()
     const layout = useLayout()
     const { mainAreaWidth, terminalWidth } = layout
@@ -396,12 +395,6 @@ export function MainArea() {
     const [activeHunkIndex, setActiveHunkIndex] = createSignal(0)
     const [currentFileId, setCurrentFileId] = createSignal<FileId | null>(null)
 
-    const selectedFileIsBinary = createMemo(() => {
-        if (viewMode() !== "files") return false
-        const file = selectedFile()
-        return Boolean(file && !file.node.isDirectory && file.node.isBinary)
-    })
-
     const textFiles = createMemo(() => parsedFiles().filter((f) => !f.isBinary))
 
     const binaryPaths = createMemo(() =>
@@ -439,6 +432,9 @@ export function MainArea() {
 
     const [hunkRowOffsets, setHunkRowOffsets] = createSignal(
         new Map<HunkId, number>(),
+    )
+    const [fileRowOffsets, setFileRowOffsets] = createSignal(
+        new Map<FileId, number>(),
     )
 
     const diffStats = createMemo((): DiffStats | null => {
@@ -659,44 +655,18 @@ export function MainArea() {
     createEffect(() => {
         const commit = activeCommit()
         const bookmarkDiff = activeBookmarkDiff()
-        const vMode = viewMode()
+        viewMode()
         const showJjFormatter = useJjFormatter()
         if (!commit && !bookmarkDiff) return
 
-        let paths: string[] | undefined
-
-        // Determine file paths based on context (mirrors sync.tsx logic)
-        if (vMode === "files") {
-            const file = selectedFile()
-            if (file) {
-                paths = file.node.isDirectory
-                    ? getFilePaths(file.node)
-                    : [file.node.path]
-            }
-        }
-
-        if (selectedFileIsBinary()) {
-            const sourceKey = bookmarkDiff
-                ? `${bookmarkDiff.from}..${bookmarkDiff.to}`
-                : commit
-                  ? `${commit.changeId}:${commit.commitId}`
-                  : "none"
-            const fetchKey = `${sourceKey}:${paths?.join(",") ?? "all"}:binary`
-            if (fetchKey === currentFetchKey) return
-            currentFetchKey = fetchKey
-            setParsedFiles([])
-            setRawDiffOutput("")
-            setParsedDiffLoading(false)
-            setParsedDiffError(null)
-            return
-        }
+        const paths: string[] | undefined = undefined
 
         const sourceKey = bookmarkDiff
             ? `${bookmarkDiff.from}..${bookmarkDiff.to}`
             : commit
               ? `${commit.changeId}:${commit.commitId}`
               : "none"
-        const fetchKey = `${sourceKey}:${paths?.join(",") ?? "all"}:${showJjFormatter ? "jj" : "custom"}`
+        const fetchKey = `${sourceKey}:all:${showJjFormatter ? "jj" : "custom"}`
         if (fetchKey === currentFetchKey) return
         currentFetchKey = fetchKey
 
@@ -796,6 +766,33 @@ export function MainArea() {
                     setParsedDiffLoading(false)
                 }
             })
+    })
+
+    let handledFileNavigationRequest = 0
+    createEffect(() => {
+        if (viewMode() !== "files" || useJjFormatter()) return
+        const request = fileNavigationRequest()
+        if (!request || request.id === handledFileNavigationRequest) return
+        const file = parsedFiles().find(
+            (candidate) =>
+                candidate.name === request.path ||
+                candidate.prevName === request.path,
+        )
+        if (!file) return
+        const rowOffset = fileRowOffsets().get(file.fileId)
+        if (rowOffset === undefined) return
+        handledFileNavigationRequest = request.id
+        const targetScrollTop = headerHeight() + rowOffset
+        scrollRef?.scrollTo(targetScrollTop)
+        setScrollTop(targetScrollTop)
+    })
+
+    createEffect(() => {
+        if (viewMode() !== "files" || useJjFormatter()) {
+            setCurrentDiffFilePath(null)
+            return
+        }
+        setCurrentDiffFilePath(currentFile()?.name ?? null)
     })
 
     createEffect(() => {
@@ -1153,22 +1150,7 @@ export function MainArea() {
                                 </text>
                             </Show>
                             <Show when={!parsedDiffError()}>
-                                <Show when={selectedFileIsBinary()}>
-                                    <BinaryPlaceholder
-                                        width={Math.max(1, viewportWidth())}
-                                        height={Math.max(
-                                            1,
-                                            viewportHeight() - headerHeight(),
-                                        )}
-                                        path={selectedFile()?.node.path}
-                                    />
-                                </Show>
-                                <Show
-                                    when={
-                                        !selectedFileIsBinary() &&
-                                        useJjFormatter()
-                                    }
-                                >
+                                <Show when={useJjFormatter()}>
                                     <AnsiText
                                         content={rawDiffOutput()}
                                         wrapMode="none"
@@ -1178,7 +1160,6 @@ export function MainArea() {
                                 </Show>
                                 <Show
                                     when={
-                                        !selectedFileIsBinary() &&
                                         !useJjFormatter() &&
                                         parsedFiles().length > 0
                                     }
@@ -1195,6 +1176,9 @@ export function MainArea() {
                                                 activeFileId={null}
                                                 onHunkRowOffsets={
                                                     setHunkRowOffsets
+                                                }
+                                                onFileRowOffsets={
+                                                    setFileRowOffsets
                                                 }
                                                 onCurrentFileChange={
                                                     setCurrentFileId
@@ -1217,6 +1201,9 @@ export function MainArea() {
                                                 activeFileId={null}
                                                 onHunkRowOffsets={
                                                     setHunkRowOffsets
+                                                }
+                                                onFileRowOffsets={
+                                                    setFileRowOffsets
                                                 }
                                                 onCurrentFileChange={
                                                     setCurrentFileId
@@ -1244,9 +1231,7 @@ export function MainArea() {
                     </scrollbox>
                     <Show
                         when={
-                            !useJjFormatter() &&
-                            !selectedFileIsBinary() &&
-                            scrollTop() > headerHeight()
+                            !useJjFormatter() && scrollTop() > headerHeight()
                                 ? currentFile()
                                 : undefined
                         }

@@ -3,6 +3,7 @@ import type { FileId, HunkId } from "../../../src/diff/identifiers"
 import {
     getAdjacentHunk,
     getCurrentFileId,
+    getFileRowOffsets,
     getHunkRowOffsets,
 } from "../../../src/diff/virtualization"
 
@@ -37,6 +38,25 @@ describe("getHunkRowOffsets", () => {
         ])
 
         expect(offsets.get(second)).toBe(3)
+    })
+})
+
+describe("getFileRowOffsets", () => {
+    test("returns each file header's visual row", () => {
+        const first = "first" as FileId
+        const second = "second" as FileId
+        expect(
+            getFileRowOffsets([
+                { row: { fileId: first, type: "file-header" } },
+                { row: { fileId: first, type: "content" } },
+                { row: { fileId: second, type: "file-header" } },
+            ]),
+        ).toEqual(
+            new Map([
+                [first, 0],
+                [second, 2],
+            ]),
+        )
     })
 })
 

@@ -43,6 +43,7 @@ import {
     buildFileTree,
     flattenFlat,
     flattenTree,
+    getEffectiveCollapsedPaths,
 } from "../utils/file-tree"
 import { useFocus } from "./focus"
 import { useLayout } from "./layout"
@@ -106,6 +107,8 @@ interface SyncContextValue {
     filesLoading: () => boolean
     filesError: () => string | null
     selectedFile: () => FlatFileNode | undefined
+    fileNavigationRequest: () => { id: number; path: string } | null
+    setCurrentDiffFilePath: (path: string | null) => void
 
     showTree: () => boolean
     toggleShowTree: () => void
@@ -165,9 +168,17 @@ export function SyncProvider(props: { children: JSX.Element }) {
     const [files, setFiles] = createSignal<FileChange[]>([])
     const [fileTree, setFileTree] = createSignal<FileTreeNode | null>(null)
     const [selectedFileIndex, setSelectedFileIndexInternal] = createSignal(0)
-    const [collapsedPaths, setCollapsedPaths] = createSignal<Set<string>>(
-        new Set(),
-    )
+    const [userCollapsedPaths, setUserCollapsedPaths] = createSignal<
+        Set<string>
+    >(new Set())
+    const [currentDiffFilePath, setCurrentDiffFilePath] = createSignal<
+        string | null
+    >(null)
+    const [fileNavigationRequest, setFileNavigationRequest] = createSignal<{
+        id: number
+        path: string
+    } | null>(null)
+    let fileNavigationRequestId = 0
     const [filesLoading, setFilesLoading] = createSignal(false)
     const [filesError, setFilesError] = createSignal<string | null>(null)
     const [showTree, setShowTree] = createSignal(readConfig().ui.showFileTree)
@@ -275,6 +286,15 @@ export function SyncProvider(props: { children: JSX.Element }) {
         setPreviousRevsetFilterSignal(null)
     }
 
+    const collapsedPaths = createMemo(() => {
+        const collapsed = userCollapsedPaths()
+        const currentPath = currentDiffFilePath()
+        if (viewMode() !== "files" || !currentPath) {
+            return collapsed
+        }
+        return getEffectiveCollapsedPaths(collapsed, currentPath)
+    })
+
     const flatFiles = createMemo(() => {
         const tree = fileTree()
         if (!tree) return []
@@ -289,6 +309,13 @@ export function SyncProvider(props: { children: JSX.Element }) {
         const files = flatFiles()
         if (index < 0 || index >= files.length) return
         setSelectedFileIndexInternal(index)
+        const file = files[index]
+        if (file && !file.node.isDirectory) {
+            setFileNavigationRequest({
+                id: ++fileNavigationRequestId,
+                path: file.node.path,
+            })
+        }
     }
 
     createEffect(() => {
@@ -297,6 +324,16 @@ export function SyncProvider(props: { children: JSX.Element }) {
         const current = selectedFileIndex()
         if (current >= 0 && current < files.length) return
         setSelectedFileIndexInternal(0)
+    })
+
+    createEffect(() => {
+        if (viewMode() !== "files") return
+        const path = currentDiffFilePath()
+        if (!path) return
+        const index = flatFiles().findIndex(
+            (file) => !file.node.isDirectory && file.node.path === path,
+        )
+        if (index >= 0) setSelectedFileIndexInternal(index)
     })
 
     let lastOpLogId: string | null = null
@@ -1006,7 +1043,7 @@ export function SyncProvider(props: { children: JSX.Element }) {
         setFiles(result)
         setFileTree(buildFileTree(result))
         setSelectedFileIndexInternal(0)
-        setCollapsedPaths(new Set<string>())
+        setUserCollapsedPaths(new Set<string>())
         setViewMode("files")
     }
 
@@ -1054,12 +1091,14 @@ export function SyncProvider(props: { children: JSX.Element }) {
         setFiles([])
         setFileTree(null)
         setSelectedFileIndex(0)
-        setCollapsedPaths(new Set<string>())
+        setUserCollapsedPaths(new Set<string>())
+        setCurrentDiffFilePath(null)
+        setFileNavigationRequest(null)
         focus.setActiveContext("log.revisions")
     }
 
     const toggleFolder = (path: string) => {
-        setCollapsedPaths((prev) => {
+        setUserCollapsedPaths((prev) => {
             const next = new Set(prev)
             if (next.has(path)) {
                 next.delete(path)
@@ -1109,6 +1148,8 @@ export function SyncProvider(props: { children: JSX.Element }) {
         filesLoading,
         filesError,
         selectedFile,
+        fileNavigationRequest,
+        setCurrentDiffFilePath,
 
         showTree,
         toggleShowTree: () => setShowTree((v) => !v),

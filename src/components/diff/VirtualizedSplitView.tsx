@@ -11,6 +11,7 @@ import type {
 import {
     computeWordDiff,
     getCurrentFileId,
+    getFileRowOffsets,
     getHunkRowOffsets,
     getLanguage,
     getLineNumWidth,
@@ -243,6 +244,7 @@ interface VirtualizedSplitViewProps {
     files: FlattenedFile[]
     activeFileId?: FileId | null
     onHunkRowOffsets?: (offsets: Map<HunkId, number>) => void
+    onFileRowOffsets?: (offsets: Map<FileId, number>) => void
     onCurrentFileChange?: (fileId: FileId | null) => void
     scrollTop: number
     viewportHeight: number
@@ -324,6 +326,7 @@ export function VirtualizedSplitView(props: VirtualizedSplitViewProps) {
 
     createEffect(() => {
         props.onHunkRowOffsets?.(getHunkRowOffsets(wrappedRows()))
+        props.onFileRowOffsets?.(getFileRowOffsets(wrappedRows()))
         props.onCurrentFileChange?.(
             getCurrentFileId(wrappedRows(), props.scrollTop),
         )

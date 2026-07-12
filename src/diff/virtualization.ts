@@ -170,6 +170,18 @@ export function getHunkRowOffsets(
     return offsets
 }
 
+export function getFileRowOffsets(
+    rows: readonly { row: { fileId: FileId; type: string } }[],
+): Map<FileId, number> {
+    const offsets = new Map<FileId, number>()
+    for (const [index, { row }] of rows.entries()) {
+        if (row.type === "file-header" && !offsets.has(row.fileId)) {
+            offsets.set(row.fileId, index)
+        }
+    }
+    return offsets
+}
+
 export interface HunkPosition {
     fileIndex: number
     hunkIndex: number
