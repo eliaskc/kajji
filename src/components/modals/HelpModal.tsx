@@ -30,6 +30,7 @@ import {
     createMemo,
     createSignal,
 } from "solid-js"
+import { isCommandApplicable, isCommandVisible } from "../../command/policy"
 import {
     type CommandOption,
     type Context,
@@ -110,15 +111,6 @@ function contextToGroup(context: Context): ContextGroup {
     return "global"
 }
 
-function contextMatches(
-    commandContext: Context,
-    activeContext: Context,
-): boolean {
-    if (commandContext === "global") return true
-    if (commandContext === activeContext) return true
-    return activeContext.startsWith(`${commandContext}.`)
-}
-
 export function HelpModal() {
     const command = useCommand()
     useCommandInputGuard()
@@ -137,15 +129,10 @@ export function HelpModal() {
 
     type SearchableCommand = CommandOption & { keybindStr: string }
 
-    const isVisibleInHelp = (cmd: CommandOption) => {
-        const v = cmd.visibility ?? "all"
-        return v === "all" || v === "help-only"
-    }
-
     const allCommands = createMemo((): SearchableCommand[] => {
         return command
             .all()
-            .filter(isVisibleInHelp)
+            .filter((cmd) => isCommandVisible(cmd, "palette"))
             .map((cmd) => ({
                 ...cmd,
                 keybindStr: cmd.keybind ? keybind.print(cmd.keybind) : "",
@@ -173,9 +160,10 @@ export function HelpModal() {
     })
 
     const isActive = (cmd: CommandOption) => {
-        if (!contextMatches(cmd.context, focus.activeContext())) return false
-        if (cmd.panel && cmd.panel !== focus.panel()) return false
-        return true
+        return isCommandApplicable(cmd, {
+            context: focus.activeContext(),
+            panel: focus.panel(),
+        })
     }
 
     createEffect(() => {

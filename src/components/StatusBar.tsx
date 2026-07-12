@@ -1,22 +1,14 @@
 import { For, Show, createMemo, createSignal, onCleanup } from "solid-js"
+import { isCommandApplicable, isCommandVisible } from "../command/policy"
 import { useCommand } from "../context/command"
 import { useFocus } from "../context/focus"
 import { useKeybind } from "../context/keybind"
 import { useLayout } from "../context/layout"
 import { useStatus } from "../context/status"
 import { useTheme } from "../context/theme"
-import type { Context } from "../context/types"
 import { useUpdate } from "../context/update"
 import { blendColors } from "../utils/color"
 import { getCurrentVersion } from "../utils/update"
-
-function contextMatches(
-    commandContext: Context,
-    activeContext: Context,
-): boolean {
-    if (commandContext === "global") return true
-    return commandContext === activeContext
-}
 
 export function StatusBar() {
     const command = useCommand()
@@ -46,14 +38,10 @@ export function StatusBar() {
 
         const isRelevant = (cmd: (typeof all)[0]) => {
             if (!cmd.keybind) return false
-            if (!contextMatches(cmd.context, activeCtx)) return false
-            if (cmd.panel && cmd.panel !== activePanel) return false
-            return true
-        }
-
-        const isVisibleInStatusBar = (cmd: (typeof all)[0]) => {
-            const v = cmd.visibility ?? "all"
-            return v === "all" || v === "status-only"
+            return isCommandApplicable(cmd, {
+                context: activeCtx,
+                panel: activePanel,
+            })
         }
 
         const contextCmds = all.filter(
@@ -65,7 +53,7 @@ export function StatusBar() {
 
         const seen = new Set<string>()
         return [...contextCmds, ...globalCmds].filter((cmd) => {
-            if (!isVisibleInStatusBar(cmd)) return false
+            if (!isCommandVisible(cmd, "statusBar")) return false
             if (seen.has(cmd.id)) return false
             seen.add(cmd.id)
             return true

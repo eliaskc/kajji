@@ -6,34 +6,16 @@ import {
     onCleanup,
     onMount,
 } from "solid-js"
-import type { KeybindConfigKey } from "../keybind"
+import { type CommandDefinition, resolveCommandKey } from "../command/policy"
 import { useDialog } from "./dialog"
 import { useFocus } from "./focus"
 import { createSimpleContext } from "./helper"
 import { useKeybind } from "./keybind"
-import type { CommandType, CommandVisibility, Context, Panel } from "./types"
+import type { CommandType, CommandVisibility, Context } from "./types"
 
 export type { CommandType, CommandVisibility, Context }
 
-export type CommandOption = {
-    id: string
-    title: string
-    keybind?: KeybindConfigKey
-    context: Context
-    type: CommandType
-    panel?: Panel
-    visibility?: CommandVisibility
-    onSelect: () => void
-}
-
-function contextMatches(
-    commandContext: Context,
-    activeContext: Context,
-): boolean {
-    if (commandContext === "global") return true
-    if (commandContext === activeContext) return true
-    return activeContext.startsWith(`${commandContext}.`)
-}
+export type CommandOption = CommandDefinition
 
 export const { use: useCommand, provider: CommandProvider } =
     createSimpleContext({
@@ -61,40 +43,17 @@ export const { use: useCommand, provider: CommandProvider } =
                 const activeCtx = focus.activeContext()
                 const activePanel = focus.panel()
 
-                let mostSpecificMatch: CommandOption | null = null
-                let highestContextSpecificity = -1
-
-                for (const cmd of allCommands()) {
-                    // Block all commands when dialog is open (except help)
-                    if (dialogOpen && cmd.keybind !== "help") {
-                        continue
-                    }
-
-                    // Block all commands when in input mode (e.g., filtering/text entry)
-                    if (isInputMode) {
-                        continue
-                    }
-
-                    if (!dialogOpen) {
-                        if (!contextMatches(cmd.context, activeCtx)) {
-                            continue
-                        }
-                        if (cmd.panel && cmd.panel !== activePanel) {
-                            continue
-                        }
-                    }
-
-                    if (cmd.keybind && keybind.match(cmd.keybind, evt)) {
-                        const contextSpecificity =
-                            cmd.context === activeCtx
-                                ? Number.MAX_SAFE_INTEGER
-                                : cmd.context.length
-                        if (contextSpecificity > highestContextSpecificity) {
-                            mostSpecificMatch = cmd
-                            highestContextSpecificity = contextSpecificity
-                        }
-                    }
-                }
+                const mostSpecificMatch = resolveCommandKey(
+                    allCommands(),
+                    evt,
+                    {
+                        context: activeCtx,
+                        panel: activePanel,
+                        dialogOpen,
+                        inputMode: isInputMode,
+                    },
+                    (configKey, event) => keybind.match(configKey, event),
+                )
 
                 if (mostSpecificMatch) {
                     evt.preventDefault()
