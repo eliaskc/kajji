@@ -438,6 +438,7 @@ export function MainArea() {
     const [fileRowOffsets, setFileRowOffsets] = createSignal(
         new Map<FileId, number>(),
     )
+    const [scrollTailHeight, setScrollTailHeight] = createSignal(0)
 
     const diffStats = createMemo((): DiffStats | null => {
         const files = parsedFiles()
@@ -869,8 +870,11 @@ export function MainArea() {
     let scrollSyncTimer: ReturnType<typeof setTimeout> | undefined
     const handleScroll = (event: MouseEvent) => {
         handleHorizontalScroll(event)
-        clearTimeout(scrollSyncTimer)
-        scrollSyncTimer = setTimeout(syncScrollMetrics, 0)
+        if (scrollSyncTimer) return
+        scrollSyncTimer = setTimeout(() => {
+            scrollSyncTimer = undefined
+            syncScrollMetrics()
+        }, 0)
     }
 
     onMount(() => {
@@ -1198,8 +1202,12 @@ export function MainArea() {
                                                 onCurrentFileChange={
                                                     setCurrentFileId
                                                 }
+                                                onScrollTailHeight={
+                                                    setScrollTailHeight
+                                                }
                                                 scrollTop={adjustedScrollTop()}
                                                 viewportHeight={viewportHeight()}
+                                                leadingContentHeight={headerHeight()}
                                                 viewportWidth={viewportWidth()}
                                                 wrapEnabled={wrapEnabled()}
                                                 scrollLeft={scrollLeft()}
@@ -1223,8 +1231,12 @@ export function MainArea() {
                                                 onCurrentFileChange={
                                                     setCurrentFileId
                                                 }
+                                                onScrollTailHeight={
+                                                    setScrollTailHeight
+                                                }
                                                 scrollTop={adjustedScrollTop()}
                                                 viewportHeight={viewportHeight()}
+                                                leadingContentHeight={headerHeight()}
                                                 viewportWidth={viewportWidth()}
                                                 wrapEnabled={wrapEnabled()}
                                                 scrollLeft={scrollLeft()}
@@ -1237,6 +1249,12 @@ export function MainArea() {
                                                     viewportWidth(),
                                                 )}
                                                 paths={binaryPaths()}
+                                            />
+                                        </Show>
+                                        <Show when={textFiles().length > 0}>
+                                            <box
+                                                height={scrollTailHeight()}
+                                                flexShrink={0}
                                             />
                                         </Show>
                                     </box>

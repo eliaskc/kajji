@@ -4,6 +4,7 @@ import {
     getAdjacentHunk,
     getCurrentFileId,
     getFileRowOffsets,
+    getFileScrollTailHeight,
     getHunkRowOffsets,
 } from "../../../src/diff/virtualization"
 
@@ -57,6 +58,34 @@ describe("getFileRowOffsets", () => {
                 [second, 2],
             ]),
         )
+    })
+})
+
+describe("getFileScrollTailHeight", () => {
+    const first = "first" as FileId
+    const second = "second" as FileId
+    const rows = [
+        { row: { fileId: first, type: "file-header" } },
+        { row: { fileId: first, type: "content" } },
+        { row: { fileId: second, type: "file-header" } },
+        { row: { fileId: second, type: "content" } },
+        { row: { fileId: second, type: "content" } },
+    ]
+
+    test("adds only enough space for a short last file header to reach the top", () => {
+        expect(getFileScrollTailHeight(rows, 10, 6)).toBe(7)
+    })
+
+    test("adds no space when the last file already fills the viewport", () => {
+        expect(getFileScrollTailHeight(rows, 3)).toBe(0)
+    })
+
+    test("adds no space when all files fit without scrolling", () => {
+        expect(getFileScrollTailHeight(rows, 10)).toBe(0)
+    })
+
+    test("adds no space for a single file", () => {
+        expect(getFileScrollTailHeight(rows.slice(2), 3, 10)).toBe(0)
     })
 })
 

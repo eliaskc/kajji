@@ -83,6 +83,7 @@ export {
     getAdjacentHunk,
     getCurrentFileId,
     getFileRowOffsets,
+    getFileScrollTailHeight,
     getHunkRowOffsets,
     getVisibleRange,
     type DiffRow,

@@ -9,6 +9,7 @@ import {
     flattenToRows,
     getCurrentFileId,
     getFileRowOffsets,
+    getFileScrollTailHeight,
     getHunkRowOffsets,
     getLanguage,
     getLineNumWidth,
@@ -38,8 +39,10 @@ interface VirtualizedUnifiedViewProps {
     onHunkRowOffsets?: (offsets: Map<HunkId, number>) => void
     onFileRowOffsets?: (offsets: Map<FileId, number>) => void
     onCurrentFileChange?: (fileId: FileId | null) => void
+    onScrollTailHeight?: (height: number) => void
     scrollTop: number
     viewportHeight: number
+    leadingContentHeight: number
     viewportWidth: number
     wrapEnabled: boolean
     scrollLeft: number
@@ -93,8 +96,15 @@ export function VirtualizedUnifiedView(props: VirtualizedUnifiedViewProps) {
     createEffect(() => {
         props.onHunkRowOffsets?.(getHunkRowOffsets(wrappedRows()))
         props.onFileRowOffsets?.(getFileRowOffsets(wrappedRows()))
+        props.onScrollTailHeight?.(
+            getFileScrollTailHeight(
+                wrappedRows(),
+                props.viewportHeight,
+                props.leadingContentHeight,
+            ),
+        )
         props.onCurrentFileChange?.(
-            getCurrentFileId(wrappedRows(), props.scrollTop),
+            getCurrentFileId(wrappedRows(), props.scrollTop + 1),
         )
     })
 

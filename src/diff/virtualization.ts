@@ -128,6 +128,22 @@ export function getCurrentFileId<Row extends { row: { fileId: FileId } }>(
     return rows[index]?.row.fileId ?? null
 }
 
+export function getFileScrollTailHeight<
+    Row extends { row: { fileId: FileId; type: string } },
+>(
+    rows: readonly Row[],
+    viewportHeight: number,
+    leadingContentHeight = 0,
+): number {
+    const offsets = getFileRowOffsets(rows)
+    if (offsets.size <= 1) return 0
+    if (leadingContentHeight + rows.length <= viewportHeight) return 0
+    const lastHeaderOffset = Array.from(offsets.values()).at(-1)
+    if (lastHeaderOffset === undefined) return 0
+    const rowsAfterHeader = rows.length - lastHeaderOffset
+    return Math.max(0, viewportHeight - rowsAfterHeader)
+}
+
 const DEFAULT_OVERSCAN = 50
 
 export function getVisibleRange(
