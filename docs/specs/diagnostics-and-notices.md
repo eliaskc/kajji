@@ -360,6 +360,22 @@ so it can render when a normal provider or theme fails. It should include:
 
 ## Repository Health
 
+### Startup recovery
+
+Repository discovery must classify recoverable working-copy failures before
+mounting the normal application and starting parallel data loaders. In
+particular, jj reports both stale operation ancestry ("The working copy is
+stale") and missing or unreadable operation metadata ("Could not read working
+copy's operation") as conditions repaired by `jj workspace update-stale`.
+These messages should map to one semantic repository-health condition and one
+safe recovery action rather than leaking from log, bookmark, or file loading
+into the OpenTUI console.
+
+Startup recovery state must also participate in Solid reactivity. Successfully
+repairing the repository should replace the recovery screen with the normal
+application in the same process; retry counters and loading state belong only
+to attempts that leave the condition unresolved.
+
 ### Dedicated check
 
 Add a repository-health workflow over the Jj service. Initially it should run

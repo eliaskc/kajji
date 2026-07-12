@@ -18,6 +18,13 @@ export interface ParsedJjError {
 
 export type KnownErrorType = "stale-working-copy" | "immutable-commit"
 
+const STALE_WORKING_COPY_PATTERN =
+    /working copy is stale|stale working copy|working-copy is behind|could not read working copy's operation/i
+
+export function isStaleWorkingCopyError(message: string): boolean {
+    return STALE_WORKING_COPY_PATTERN.test(message)
+}
+
 /**
  * Known error patterns with their fix commands
  */
@@ -27,8 +34,7 @@ const KNOWN_ERRORS: Array<{
     fixCommand: string
 }> = [
     {
-        pattern:
-            /working copy is stale|stale working copy|working-copy is behind/i,
+        pattern: STALE_WORKING_COPY_PATTERN,
         type: "stale-working-copy",
         fixCommand: "jj workspace update-stale",
     },

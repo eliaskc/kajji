@@ -214,38 +214,41 @@ export async function runTui(args: string[]): Promise<void> {
             )
         }
 
-        // Show error screen for critical startup errors (like stale working copy)
-        const currentStartupError = startupError()
-        if (currentStartupError) {
-            return (
-                <ThemeProvider>
-                    <ErrorScreen
-                        error={currentStartupError}
-                        onRetry={handleRetryStartup}
-                        onFix={handleFixStartup}
-                        onQuit={handleQuit}
-                    />
-                </ThemeProvider>
-            )
-        }
-
         return (
             <Show
-                when={isJjRepo()}
+                when={startupError()}
                 fallback={
+                    <Show
+                        when={isJjRepo()}
+                        fallback={
+                            <ThemeProvider>
+                                <StartupScreen
+                                    hasGitRepo={hasGitRepo()}
+                                    recentRepos={
+                                        mockMode ? [] : getRecentRepos()
+                                    }
+                                    onSelectRepo={handleSelectRepo}
+                                    onInitJj={handleInitJj}
+                                    onInitJjGit={handleInitJjGit}
+                                    onQuit={handleQuit}
+                                />
+                            </ThemeProvider>
+                        }
+                    >
+                        <App />
+                    </Show>
+                }
+            >
+                {(error: () => string) => (
                     <ThemeProvider>
-                        <StartupScreen
-                            hasGitRepo={hasGitRepo()}
-                            recentRepos={mockMode ? [] : getRecentRepos()}
-                            onSelectRepo={handleSelectRepo}
-                            onInitJj={handleInitJj}
-                            onInitJjGit={handleInitJjGit}
+                        <ErrorScreen
+                            error={error()}
+                            onRetry={handleRetryStartup}
+                            onFix={handleFixStartup}
                             onQuit={handleQuit}
                         />
                     </ThemeProvider>
-                }
-            >
-                <App />
+                )}
             </Show>
         )
     }

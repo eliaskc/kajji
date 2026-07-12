@@ -1,4 +1,5 @@
 import { findBinaryFiles } from "../utils/diff-binary"
+import { isStaleWorkingCopyError } from "../utils/error-parser"
 import { execute } from "./executor"
 import type { FileChange, FileStatus } from "./types"
 
@@ -79,7 +80,7 @@ async function fetchFilesWithArgs(
         summaryResult.stderr +
         binaryResult.stdout +
         binaryResult.stderr
-    if (/working copy is stale|stale working copy/i.test(combinedOutput)) {
+    if (isStaleWorkingCopyError(combinedOutput)) {
         throw new Error(`The working copy is stale\n${combinedOutput}`)
     }
 

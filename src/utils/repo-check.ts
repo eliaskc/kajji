@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process"
 import { existsSync } from "node:fs"
 import { join } from "node:path"
 import { execute } from "../commander/executor"
+import { isStaleWorkingCopyError } from "./error-parser"
 
 export interface RepoStatus {
     isJjRepo: boolean
@@ -43,7 +44,7 @@ export function checkRepoStatus(path: string): RepoStatus {
                 timeout: 5000,
             })
             const output = (result.stdout || "") + (result.stderr || "")
-            if (/working copy is stale|stale working copy/i.test(output)) {
+            if (isStaleWorkingCopyError(output)) {
                 startupError = output
             }
         } catch {
@@ -69,7 +70,10 @@ export async function initJjRepo(path: string): Promise<InitResult> {
     if (result.success) {
         return { success: true }
     }
-    return { success: false, error: result.stderr.trim() || "jj git init failed" }
+    return {
+        success: false,
+        error: result.stderr.trim() || "jj git init failed",
+    }
 }
 
 export async function initJjGitRepo(
