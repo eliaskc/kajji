@@ -1,6 +1,6 @@
 import type { ScrollBoxRenderable } from "@opentui/core"
 import type { Accessor } from "solid-js"
-import { createSignal } from "solid-js"
+import { createSignal, untrack } from "solid-js"
 import { type SelectionSource, scrollIntoView } from "../utils/scroll"
 
 export interface SelectableListOptions {
@@ -83,7 +83,7 @@ export function createSelectableList(options: SelectableListOptions) {
         scrollIntoView({
             ref,
             index,
-            currentScrollTop: scrollTop(),
+            currentScrollTop: untrack(scrollTop),
             listLength: options.count(),
             margin: options.scrollMargin,
             itemSize: options.getItemSize?.(selected),
