@@ -30,7 +30,7 @@ import {
     fetchParsedDiff,
     fetchParsedDiffRange,
     flattenDiff,
-    getAdjacentHunk,
+    getAdjacentHunkFromRow,
     getLineNumWidth,
     getMaxLineNumber,
 } from "../../diff"
@@ -393,8 +393,6 @@ export function MainArea() {
     const [parsedDiffError, setParsedDiffError] = createSignal<string | null>(
         null,
     )
-    const [activeFileIndex, setActiveFileIndex] = createSignal(0)
-    const [activeHunkIndex, setActiveHunkIndex] = createSignal(0)
     const [currentFileId, setCurrentFileId] = createSignal<FileId | null>(null)
 
     const textFiles = createMemo(() => parsedFiles().filter((f) => !f.isBinary))
@@ -422,12 +420,6 @@ export function MainArea() {
     )
 
     // Derived state
-    const activeFileId = createMemo(() => {
-        const files = textFiles()
-        const idx = activeFileIndex()
-        return files[idx]?.fileId ?? null
-    })
-
     const currentFile = createMemo(() =>
         textFiles().find((file) => file.fileId === currentFileId()),
     )
@@ -439,6 +431,7 @@ export function MainArea() {
         new Map<FileId, number>(),
     )
     const [scrollTailHeight, setScrollTailHeight] = createSignal(0)
+    let hunkNavigationTarget: HunkId | null = null
 
     const diffStats = createMemo((): DiffStats | null => {
         const files = parsedFiles()
@@ -634,31 +627,43 @@ export function MainArea() {
 
     // Navigation functions
     const navigateFile = (direction: 1 | -1) => {
+        hunkNavigationTarget = null
         const files = textFiles()
         if (files.length === 0) return
+        const currentIndex = Math.max(
+            0,
+            files.findIndex((file) => file.fileId === currentFileId()),
+        )
         const newIdx = Math.max(
             0,
-            Math.min(files.length - 1, activeFileIndex() + direction),
+            Math.min(files.length - 1, currentIndex + direction),
         )
-        setActiveFileIndex(newIdx)
-        setActiveHunkIndex(0) // Reset hunk when changing files
-        scrollRef?.scrollTo(0)
+        const targetFile = files[newIdx]
+        if (!targetFile) return
+        const rowOffset = fileRowOffsets().get(targetFile.fileId)
+        if (rowOffset === undefined) return
+        const targetScrollTop = headerHeight() + rowOffset
+        scrollRef?.scrollTo(targetScrollTop)
+        setScrollTop(targetScrollTop)
     }
 
     const navigateHunk = (direction: 1 | -1) => {
         const files = textFiles()
-        const target = getAdjacentHunk(
+        const visibleRow =
+            (hunkNavigationTarget
+                ? hunkRowOffsets().get(hunkNavigationTarget)
+                : undefined) ?? adjustedScrollTop()
+        const target = getAdjacentHunkFromRow(
             files,
-            activeFileIndex(),
-            activeHunkIndex(),
+            hunkRowOffsets(),
+            visibleRow,
             direction,
         )
         if (!target) return
 
-        setActiveFileIndex(target.fileIndex)
-        setActiveHunkIndex(target.hunkIndex)
         const rowOffset = hunkRowOffsets().get(target.hunkId)
         if (rowOffset === undefined) return
+        hunkNavigationTarget = target.hunkId
         const targetScrollTop = headerHeight() + rowOffset
         scrollRef?.scrollTo(targetScrollTop)
         setScrollTop(targetScrollTop)
@@ -797,6 +802,7 @@ export function MainArea() {
         if (!file) return
         const rowOffset = fileRowOffsets().get(file.fileId)
         if (rowOffset === undefined) return
+        hunkNavigationTarget = null
         handledFileNavigationRequest = request.id
         const targetScrollTop = headerHeight() + rowOffset
         scrollRef?.scrollTo(targetScrollTop)
@@ -818,13 +824,11 @@ export function MainArea() {
             ? `${bookmarkDiff.from}..${bookmarkDiff.to}`
             : commit?.changeId
         if (nextId && nextId !== currentCommitId()) {
+            hunkNavigationTarget = null
             setCurrentCommitId(nextId)
             setScrollTop(0)
             setScrollLeft(0)
             scrollRef?.scrollTo(0)
-            // Reset navigation when switching commits (keep stale content for SWR)
-            setActiveFileIndex(0)
-            setActiveHunkIndex(0)
         }
     })
 
@@ -869,6 +873,7 @@ export function MainArea() {
 
     let scrollSyncTimer: ReturnType<typeof setTimeout> | undefined
     const handleScroll = (event: MouseEvent) => {
+        hunkNavigationTarget = null
         handleHorizontalScroll(event)
         if (scrollSyncTimer) return
         scrollSyncTimer = setTimeout(() => {
@@ -911,6 +916,7 @@ export function MainArea() {
             group: "navigation",
             visibleIn: ["palette", "statusBar"] as const,
             execute: () => {
+                hunkNavigationTarget = null
                 scrollRef?.scrollBy(-0.5, "viewport")
                 if (scrollRef) setScrollTop(scrollRef.scrollTop)
             },
@@ -923,6 +929,7 @@ export function MainArea() {
             group: "navigation",
             visibleIn: ["palette", "statusBar"] as const,
             execute: () => {
+                hunkNavigationTarget = null
                 scrollRef?.scrollBy(0.5, "viewport")
                 if (scrollRef) setScrollTop(scrollRef.scrollTop)
             },
@@ -935,6 +942,7 @@ export function MainArea() {
             group: "navigation",
             visibleIn: ["palette"] as const,
             execute: () => {
+                hunkNavigationTarget = null
                 scrollRef?.scrollTo((scrollTop() || 0) + 1)
                 setScrollTop((scrollTop() || 0) + 1)
             },
@@ -947,6 +955,7 @@ export function MainArea() {
             group: "navigation",
             visibleIn: ["palette"] as const,
             execute: () => {
+                hunkNavigationTarget = null
                 const newPos = Math.max(0, (scrollTop() || 0) - 1)
                 scrollRef?.scrollTo(newPos)
                 setScrollTop(newPos)

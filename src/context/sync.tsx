@@ -181,6 +181,8 @@ export function SyncProvider(props: { children: JSX.Element }) {
     let fileNavigationRequestId = 0
     const [filesLoading, setFilesLoading] = createSignal(false)
     const [filesError, setFilesError] = createSignal<string | null>(null)
+    let filesRequestId = 0
+    let filesRequestKind: "commit" | "bookmark" | null = null
     const [showTree, setShowTree] = createSignal(readConfig().ui.showFileTree)
     const [activeBookmarkDiff, setActiveBookmarkDiff] =
         createSignal<BookmarkDiffView | null>(null)
@@ -381,14 +383,23 @@ export function SyncProvider(props: { children: JSX.Element }) {
             if (viewMode() === "files") {
                 const diff = activeBookmarkDiff()
                 const commit = selectedCommit()
-                const result = diff
-                    ? await fetchFilesRange(diff.from, diff.to)
-                    : commit
-                      ? await fetchFiles(getRevisionId(commit))
-                      : null
-                if (result) {
-                    setFiles(result)
-                    setFileTree(buildFileTree(result))
+                const request = ++filesRequestId
+                filesRequestKind = diff ? "bookmark" : "commit"
+                try {
+                    const result = diff
+                        ? await fetchFilesRange(diff.from, diff.to)
+                        : commit
+                          ? await fetchFiles(getRevisionId(commit))
+                          : null
+                    if (result && request === filesRequestId) {
+                        setFiles(result)
+                        setFileTree(buildFileTree(result))
+                    }
+                } finally {
+                    if (request === filesRequestId) {
+                        filesRequestKind = null
+                        setFilesLoading(false)
+                    }
                 }
             }
         } finally {
@@ -588,30 +599,46 @@ export function SyncProvider(props: { children: JSX.Element }) {
 
     const selectedCommit = () => commits()[selectedIndex()]
 
-    let filesSelectionRequest = 0
     createEffect(
         on(
-            selectedIndex,
-            async () => {
-                if (viewMode() !== "files" || activeBookmarkDiff()) return
+            () => {
                 const commit = selectedCommit()
-                if (!commit) return
-                const request = ++filesSelectionRequest
+                return commit ? `${commit.changeId}:${commit.commitId}` : ""
+            },
+            async () => {
+                if (activeBookmarkDiff()) return
+                if (viewMode() !== "files") {
+                    if (filesRequestKind === "commit") {
+                        filesRequestId++
+                        filesRequestKind = null
+                        setFilesLoading(false)
+                    }
+                    return
+                }
+                const request = ++filesRequestId
+                filesRequestKind = "commit"
+                const commit = selectedCommit()
+                if (!commit) {
+                    setFilesLoading(false)
+                    return
+                }
                 setFilesLoading(true)
                 setFilesError(null)
                 try {
                     const result = await fetchFiles(getRevisionId(commit))
-                    if (request !== filesSelectionRequest) return
+                    if (request !== filesRequestId) return
                     showFiles(result)
                     focus.setActiveContext("log.revisions")
                 } catch (e) {
-                    if (request !== filesSelectionRequest) return
+                    if (request !== filesRequestId) return
                     setFilesError(
                         e instanceof Error ? e.message : "Failed to load files",
                     )
                 } finally {
-                    if (request === filesSelectionRequest)
+                    if (request === filesRequestId) {
+                        filesRequestKind = null
                         setFilesLoading(false)
+                    }
                 }
             },
             { defer: true },
@@ -619,24 +646,26 @@ export function SyncProvider(props: { children: JSX.Element }) {
     )
 
     const selectPrevFile = () => {
-        setSelectedFileIndexInternal((i) => Math.max(0, i - 1))
+        setSelectedFileIndex(Math.max(0, selectedFileIndex() - 1))
     }
 
     const selectNextFile = () => {
         const files = flatFiles()
-        setSelectedFileIndexInternal((i) => Math.min(files.length - 1, i + 1))
+        setSelectedFileIndex(
+            Math.min(files.length - 1, selectedFileIndex() + 1),
+        )
     }
 
     const selectFirstFile = () => {
         const files = flatFiles()
         if (files.length === 0) return
-        setSelectedFileIndexInternal(0)
+        setSelectedFileIndex(0)
     }
 
     const selectLastFile = () => {
         const files = flatFiles()
         if (files.length === 0) return
-        setSelectedFileIndexInternal(files.length - 1)
+        setSelectedFileIndex(files.length - 1)
     }
 
     const localBookmarks = () => bookmarks().filter((b) => b.isLocal)
@@ -1052,40 +1081,67 @@ export function SyncProvider(props: { children: JSX.Element }) {
         if (!commit) return
 
         setActiveBookmarkDiff(null)
+        const request = ++filesRequestId
+        filesRequestKind = "commit"
+        const commitKey = `${commit.changeId}:${commit.commitId}`
         setFilesLoading(true)
         setFilesError(null)
         try {
-            showFiles(await fetchFiles(getRevisionId(commit)))
+            const result = await fetchFiles(getRevisionId(commit))
+            if (request !== filesRequestId) return
+            const currentCommit = selectedCommit()
+            if (
+                !currentCommit ||
+                `${currentCommit.changeId}:${currentCommit.commitId}` !==
+                    commitKey
+            )
+                return
+            showFiles(result)
             focus.setActiveContext("log.files")
         } catch (e) {
+            if (request !== filesRequestId) return
             setFilesError(
                 e instanceof Error ? e.message : "Failed to load files",
             )
         } finally {
-            setFilesLoading(false)
+            if (request === filesRequestId) {
+                filesRequestKind = null
+                setFilesLoading(false)
+            }
         }
     }
 
     const enterBookmarkDiffView = async (bookmark: string) => {
         const diff = { bookmark, from: `${bookmark}@origin`, to: bookmark }
+        const request = ++filesRequestId
+        filesRequestKind = "bookmark"
         setFilesLoading(true)
         setFilesError(null)
         try {
-            showFiles(await fetchFilesRange(diff.from, diff.to))
+            const result = await fetchFilesRange(diff.from, diff.to)
+            if (request !== filesRequestId) return
+            showFiles(result)
             setActiveBookmarkDiff(diff)
             focus.setPanel("log")
             focus.setActiveContext("log.files")
         } catch (e) {
+            if (request !== filesRequestId) return
             setActiveBookmarkDiff(null)
             setFilesError(
                 e instanceof Error ? e.message : "Failed to load files",
             )
         } finally {
-            setFilesLoading(false)
+            if (request === filesRequestId) {
+                filesRequestKind = null
+                setFilesLoading(false)
+            }
         }
     }
 
     const exitFilesView = () => {
+        filesRequestId++
+        filesRequestKind = null
+        setFilesLoading(false)
         setViewMode("log")
         setActiveBookmarkDiff(null)
         setFiles([])

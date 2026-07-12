@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test"
 import type { FileId, HunkId } from "../../../src/diff/identifiers"
 import {
     getAdjacentHunk,
+    getAdjacentHunkFromRow,
     getCurrentFileId,
     getFileRowOffsets,
     getFileScrollTailHeight,
@@ -143,5 +144,54 @@ describe("getAdjacentHunk", () => {
     test("stops at the first and last hunk", () => {
         expect(getAdjacentHunk(files, 0, 0, -1)).toBeUndefined()
         expect(getAdjacentHunk(files, 2, 0, 1)).toBeUndefined()
+    })
+})
+
+describe("getAdjacentHunkFromRow", () => {
+    const files = [
+        { hunks: [{ hunkId: "a:1" }, { hunkId: "a:2" }] },
+        { hunks: [] },
+        { hunks: [{ hunkId: "c:1" }] },
+    ]
+    const offsets = new Map([
+        ["a:1", 3],
+        ["a:2", 10],
+        ["c:1", 20],
+    ])
+
+    test("navigates relative to the visible row", () => {
+        expect(getAdjacentHunkFromRow(files, offsets, 7, 1)?.hunkId).toBe("a:2")
+        expect(getAdjacentHunkFromRow(files, offsets, 7, -1)?.hunkId).toBe(
+            "a:1",
+        )
+    })
+
+    test("crosses files without relying on stale indexes", () => {
+        expect(getAdjacentHunkFromRow(files, offsets, 10, 1)?.hunkId).toBe(
+            "c:1",
+        )
+        expect(getAdjacentHunkFromRow(files, offsets, 20, -1)?.hunkId).toBe(
+            "a:2",
+        )
+    })
+
+    test("advances from the last navigation target when scrolling clamps", () => {
+        const extendedFiles = [...files, { hunks: [{ hunkId: "d:1" }] }]
+        const extendedOffsets = new Map(offsets).set("d:1", 25)
+        const first = getAdjacentHunkFromRow(
+            extendedFiles,
+            extendedOffsets,
+            15,
+            1,
+        )
+        expect(first?.hunkId).toBe("c:1")
+        expect(
+            getAdjacentHunkFromRow(
+                extendedFiles,
+                extendedOffsets,
+                extendedOffsets.get(first?.hunkId ?? "") ?? 15,
+                1,
+            )?.hunkId,
+        ).toBe("d:1")
     })
 })

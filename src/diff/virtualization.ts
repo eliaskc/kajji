@@ -225,3 +225,35 @@ export function getAdjacentHunk(
     if (currentIndex === -1) return undefined
     return positions[currentIndex + direction]
 }
+
+export function getAdjacentHunkFromRow(
+    files: readonly { hunks: readonly { hunkId: HunkId }[] }[],
+    offsets: ReadonlyMap<HunkId, number>,
+    row: number,
+    direction: 1 | -1,
+): HunkPosition | undefined {
+    const positions = files
+        .flatMap((file, fileIndex) =>
+            file.hunks.map((hunk, hunkIndex) => ({
+                fileIndex,
+                hunkIndex,
+                hunkId: hunk.hunkId,
+                row: offsets.get(hunk.hunkId),
+            })),
+        )
+        .filter(
+            (position): position is HunkPosition & { row: number } =>
+                position.row !== undefined,
+        )
+
+    const position =
+        direction === 1
+            ? positions.find((candidate) => candidate.row > row)
+            : positions.findLast((candidate) => candidate.row < row)
+    if (!position) return undefined
+    return {
+        fileIndex: position.fileIndex,
+        hunkIndex: position.hunkIndex,
+        hunkId: position.hunkId,
+    }
+}

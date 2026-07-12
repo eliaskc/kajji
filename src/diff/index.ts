@@ -81,6 +81,7 @@ export {
     findRowIndexByHunkId,
     flattenToRows,
     getAdjacentHunk,
+    getAdjacentHunkFromRow,
     getCurrentFileId,
     getFileRowOffsets,
     getFileScrollTailHeight,
