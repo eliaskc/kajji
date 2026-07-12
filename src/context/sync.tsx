@@ -739,9 +739,7 @@ export function SyncProvider(props: { children: JSX.Element }) {
             const localCount = result.filter(
                 (bookmark) => bookmark.isLocal,
             ).length
-            const limit = Math.min(bookmarkLimit(), localCount)
-            setBookmarkLimit(limit)
-            setBookmarksHasMore(localCount > limit)
+            setBookmarksHasMore(localCount > bookmarkLimit())
         }
 
         return new Promise((resolve, reject) => {
@@ -828,9 +826,7 @@ export function SyncProvider(props: { children: JSX.Element }) {
             const localCount = result.filter(
                 (bookmark) => bookmark.isLocal,
             ).length
-            const limit = Math.min(newLimit, localCount)
-            setBookmarkLimit(limit)
-            setBookmarksHasMore(localCount > limit)
+            setBookmarksHasMore(localCount > newLimit)
             setSelectedBookmarkIndex((index) =>
                 result.length === 0 ? 0 : Math.min(index, result.length - 1),
             )
