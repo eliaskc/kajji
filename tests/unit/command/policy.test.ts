@@ -1,6 +1,9 @@
 import { describe, expect, test } from "bun:test"
 import {
     type CommandDefinition,
+    canDispatchCommand,
+    commandGroup,
+    commandsForSurface,
     isCommandApplicable,
     isCommandVisible,
     resolveCommandKey,
@@ -13,9 +16,9 @@ function command(
         id: "test",
         title: "Test",
         context: "global",
-        type: "action",
         keybind: "enter",
-        onSelect: () => {},
+        visibleIn: ["palette", "statusBar"],
+        execute: () => {},
         ...overrides,
     }
 }
@@ -59,21 +62,15 @@ describe("command applicability", () => {
 })
 
 describe("command presentation", () => {
-    test("all commands appear on both surfaces", () => {
-        const definition = command({ visibility: "all" })
-        expect(isCommandVisible(definition, "palette")).toBe(true)
-        expect(isCommandVisible(definition, "statusBar")).toBe(true)
-    })
-
-    test("omitted visibility defaults to both surfaces", () => {
-        const definition = command()
+    test("commands can appear on both surfaces", () => {
+        const definition = command({ visibleIn: ["palette", "statusBar"] })
         expect(isCommandVisible(definition, "palette")).toBe(true)
         expect(isCommandVisible(definition, "statusBar")).toBe(true)
     })
 
     test("surface-only commands appear only on that surface", () => {
-        const paletteOnly = command({ visibility: "help-only" })
-        const statusOnly = command({ visibility: "status-only" })
+        const paletteOnly = command({ visibleIn: ["palette"] })
+        const statusOnly = command({ visibleIn: ["statusBar"] })
         expect(isCommandVisible(paletteOnly, "palette")).toBe(true)
         expect(isCommandVisible(paletteOnly, "statusBar")).toBe(false)
         expect(isCommandVisible(statusOnly, "palette")).toBe(false)
@@ -81,9 +78,20 @@ describe("command presentation", () => {
     })
 
     test("hidden commands appear on neither surface", () => {
-        const definition = command({ visibility: "none" })
+        const definition = command({ visibleIn: [] })
         expect(isCommandVisible(definition, "palette")).toBe(false)
         expect(isCommandVisible(definition, "statusBar")).toBe(false)
+    })
+
+    test("palette navigation commands are deduplicated by keybind", () => {
+        const commands = commandsForSurface(
+            [
+                command({ id: "first", group: "navigation" }),
+                command({ id: "second", group: "navigation" }),
+            ],
+            "palette",
+        )
+        expect(commands.map(({ id }) => id)).toEqual(["first"])
     })
 })
 
@@ -147,8 +155,14 @@ describe("command key resolution", () => {
 
     test("the command palette remains available while a dialog is open", () => {
         const result = resolveCommandKey(
-            [command({ id: "palette", keybind: "help" })],
-            { keybind: "help" },
+            [
+                command({
+                    id: "palette",
+                    keybind: "command_palette",
+                    scope: "always",
+                }),
+            ],
+            { keybind: "command_palette" },
             { ...environment, dialogOpen: true },
             matches,
         )
@@ -163,5 +177,48 @@ describe("command key resolution", () => {
             matches,
         )
         expect(result).toBeUndefined()
+    })
+})
+
+describe("command dispatch policy", () => {
+    const environment = {
+        context: "log.revisions" as const,
+        panel: "log" as const,
+        dialogOpen: false,
+        inputMode: false,
+    }
+
+    test("application scope is the default", () => {
+        expect(
+            canDispatchCommand(command(), {
+                ...environment,
+                dialogOpen: true,
+            }),
+        ).toBe(false)
+    })
+
+    test("always scope can execute through dialogs but not focused inputs", () => {
+        const definition = command({ scope: "always" })
+        expect(
+            canDispatchCommand(definition, {
+                ...environment,
+                dialogOpen: true,
+            }),
+        ).toBe(true)
+        expect(
+            canDispatchCommand(definition, {
+                ...environment,
+                inputMode: true,
+            }),
+        ).toBe(false)
+    })
+
+    test("groups default from context and allow explicit cross-cutting groups", () => {
+        expect(commandGroup(command({ context: "log.revisions" }))).toBe(
+            "revisions",
+        )
+        expect(commandGroup(command({ group: "repository" }))).toBe(
+            "repository",
+        )
     })
 })

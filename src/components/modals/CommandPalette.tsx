@@ -5,15 +5,15 @@ import {
 } from "@opentui/core"
 import { useKeyboard } from "@opentui/solid"
 
-const HELP_COLUMN_WIDTH = 32
-const HELP_SCROLLBAR_GUTTER = 2
+const COMMAND_PALETTE_COLUMN_WIDTH = 32
+const COMMAND_PALETTE_SCROLLBAR_GUTTER = 2
 
-export function helpContentWidth(columns: number) {
+export function commandPaletteContentWidth(columns: number) {
     const colGap = columns === 3 ? 4 : 2
     return (
-        columns * HELP_COLUMN_WIDTH +
+        columns * COMMAND_PALETTE_COLUMN_WIDTH +
         (columns - 1) * colGap +
-        HELP_SCROLLBAR_GUTTER
+        COMMAND_PALETTE_SCROLLBAR_GUTTER
     )
 }
 
@@ -30,7 +30,7 @@ import {
     createMemo,
     createSignal,
 } from "solid-js"
-import { isCommandApplicable, isCommandVisible } from "../../command/policy"
+import { type CommandGroup, commandGroup } from "../../command/policy"
 import {
     type CommandOption,
     type Context,
@@ -38,85 +38,42 @@ import {
     useCommandInputGuard,
 } from "../../context/command"
 import { useDialog } from "../../context/dialog"
-import { useFocus } from "../../context/focus"
-import { useKeybind } from "../../context/keybind"
 import { useLayout } from "../../context/layout"
 import { useTheme } from "../../context/theme"
 import type { KeybindConfigKey } from "../../keybind"
 
-type ContextGroup =
-    | "navigation"
-    | "revisions"
-    | "files"
-    | "bookmarks"
-    | "oplog"
-    | "detail"
-    | "git"
-    | "global"
-
 interface ContextGroupData {
-    context: ContextGroup
+    context: CommandGroup
     label: string
     commands: CommandOption[]
 }
 
-const GROUP_ORDER: ContextGroup[] = [
+const GROUP_ORDER: CommandGroup[] = [
     "revisions",
     "files",
     "bookmarks",
     "oplog",
     "detail",
     "navigation",
-    "git",
-    "global",
+    "repository",
+    "application",
 ]
 
-const GROUP_LABELS: Record<ContextGroup, string> = {
+const GROUP_LABELS: Record<CommandGroup, string> = {
     navigation: "navigation",
     revisions: "revisions",
     files: "files",
     bookmarks: "bookmarks",
     oplog: "oplog",
     detail: "detail",
-    git: "git",
-    global: "global",
+    repository: "repository",
+    application: "application",
 }
 
-const NAVIGATION_KEYBINDS = new Set([
-    "nav_down",
-    "nav_up",
-    "nav_page_up",
-    "nav_page_down",
-    "next_tab",
-    "prev_tab",
-    "focus_next",
-    "focus_prev",
-    "focus_panel_1",
-    "focus_panel_2",
-    "focus_panel_3",
-    "focus_panel_4",
-])
-
-function contextToGroup(context: Context): ContextGroup {
-    if (context === "log.revisions") return "revisions"
-    if (context === "log.files") return "files"
-    if (context === "refs.bookmarks") return "bookmarks"
-    if (context === "log.oplog") return "oplog"
-    if (
-        context === "detail" ||
-        context.startsWith("detail.") ||
-        context === "commandlog"
-    )
-        return "detail"
-    return "global"
-}
-
-export function HelpModal() {
+export function CommandPalette() {
     const command = useCommand()
     useCommandInputGuard()
-    const keybind = useKeybind()
     const dialog = useDialog()
-    const focus = useFocus()
     const layout = useLayout()
     const { colors, style } = useTheme()
     const [filter, setFilter] = createSignal("")
@@ -125,18 +82,15 @@ export function HelpModal() {
     let searchInputRef: InputRenderable | undefined
     let scrollRef: ScrollBoxRenderable | undefined
 
-    const columnCount = () => layout.helpModalColumns()
+    const columnCount = () => layout.commandPaletteColumns()
 
     type SearchableCommand = CommandOption & { keybindStr: string }
 
     const allCommands = createMemo((): SearchableCommand[] => {
-        return command
-            .all()
-            .filter((cmd) => isCommandVisible(cmd, "palette"))
-            .map((cmd) => ({
-                ...cmd,
-                keybindStr: cmd.keybind ? keybind.print(cmd.keybind) : "",
-            }))
+        return command.forSurface("palette").map((cmd) => ({
+            ...cmd,
+            keybindStr: command.keyLabel(cmd.id),
+        }))
     })
 
     const matchedCommands = createMemo(() => {
@@ -148,7 +102,7 @@ export function HelpModal() {
         }
 
         const results = fuzzysort.go(filterText, all, {
-            keys: ["title", "context", "keybindStr"],
+            keys: ["title", "description", "context", "keybindStr"],
             threshold: -10000,
         })
 
@@ -159,12 +113,7 @@ export function HelpModal() {
         return new Set(matchedCommands().map((cmd) => cmd.id))
     })
 
-    const isActive = (cmd: CommandOption) => {
-        return isCommandApplicable(cmd, {
-            context: focus.activeContext(),
-            panel: focus.panel(),
-        })
-    }
+    const isActive = (cmd: CommandOption) => command.isActive(cmd.id)
 
     createEffect(() => {
         const filterText = filter().trim()
@@ -183,28 +132,12 @@ export function HelpModal() {
 
     const groupedCommands = createMemo((): ContextGroupData[] => {
         const all = allCommands()
-        const seenKeybinds = new Set<string>()
-
-        const groups = new Map<ContextGroup, CommandOption[]>()
-        const navCommands: CommandOption[] = []
+        const groups = new Map<CommandGroup, CommandOption[]>()
 
         for (const cmd of all) {
-            if (NAVIGATION_KEYBINDS.has(cmd.keybind ?? "")) {
-                if (!seenKeybinds.has(cmd.keybind ?? "")) {
-                    navCommands.push(cmd)
-                    seenKeybinds.add(cmd.keybind ?? "")
-                }
-                continue
-            }
-
-            const group =
-                cmd.type === "git" ? "git" : contextToGroup(cmd.context)
+            const group = commandGroup(cmd)
             const existing = groups.get(group) || []
             groups.set(group, [...existing, cmd])
-        }
-
-        if (navCommands.length > 0) {
-            groups.set("navigation", navCommands)
         }
 
         const result: ContextGroupData[] = []
@@ -369,7 +302,7 @@ export function HelpModal() {
         const cmd = selectedCommand()
         if (cmd) {
             dialog.close()
-            cmd.onSelect()
+            command.execute(cmd.id)
         }
     }
 
@@ -395,7 +328,7 @@ export function HelpModal() {
     const isMatched = (cmd: CommandOption) => matchedIds().has(cmd.id)
     const isSelected = (cmd: CommandOption) => selectedCommand()?.id === cmd.id
     const columnGap = () => (columnCount() === 3 ? 4 : 2)
-    const modalWidth = () => helpContentWidth(columnCount())
+    const modalWidth = () => commandPaletteContentWidth(columnCount())
 
     return (
         <box flexDirection="column" width={modalWidth()} height="80%">
@@ -433,7 +366,7 @@ export function HelpModal() {
                 <box
                     flexDirection="row"
                     gap={columnGap()}
-                    paddingRight={HELP_SCROLLBAR_GUTTER}
+                    paddingRight={COMMAND_PALETTE_SCROLLBAR_GUTTER}
                 >
                     <For each={filteredColumns()}>
                         {(column) => (
@@ -493,8 +426,8 @@ export function HelpModal() {
                                                                     }
                                                                     wrapMode="none"
                                                                 >
-                                                                    {keybind.print(
-                                                                        kb(),
+                                                                    {command.keyLabel(
+                                                                        cmd.id,
                                                                     )}
                                                                 </text>
                                                             )}

@@ -1,8 +1,5 @@
 import { For, Show, createMemo, createSignal, onCleanup } from "solid-js"
-import { isCommandApplicable, isCommandVisible } from "../command/policy"
 import { useCommand } from "../context/command"
-import { useFocus } from "../context/focus"
-import { useKeybind } from "../context/keybind"
 import { useLayout } from "../context/layout"
 import { useStatus } from "../context/status"
 import { useTheme } from "../context/theme"
@@ -12,8 +9,6 @@ import { getCurrentVersion } from "../utils/update"
 
 export function StatusBar() {
     const command = useCommand()
-    const focus = useFocus()
-    const keybind = useKeybind()
     const layout = useLayout()
     const status = useStatus()
     const update = useUpdate()
@@ -32,28 +27,17 @@ export function StatusBar() {
     onCleanup(() => clearInterval(timer))
 
     const relevantCommands = createMemo(() => {
-        const all = command.all()
-        const activeCtx = focus.activeContext()
-        const activePanel = focus.panel()
-
-        const isRelevant = (cmd: (typeof all)[0]) => {
-            if (!cmd.keybind) return false
-            return isCommandApplicable(cmd, {
-                context: activeCtx,
-                panel: activePanel,
-            })
-        }
+        const all = command.activeForSurface("statusBar")
 
         const contextCmds = all.filter(
-            (cmd) => isRelevant(cmd) && cmd.context !== "global",
+            (cmd) => cmd.keybind && cmd.context !== "global",
         )
         const globalCmds = all.filter(
-            (cmd) => isRelevant(cmd) && cmd.context === "global",
+            (cmd) => cmd.keybind && cmd.context === "global",
         )
 
         const seen = new Set<string>()
         return [...contextCmds, ...globalCmds].filter((cmd) => {
-            if (!isCommandVisible(cmd, "statusBar")) return false
             if (seen.has(cmd.id)) return false
             seen.add(cmd.id)
             return true
@@ -159,11 +143,7 @@ export function StatusBar() {
                                                             .statusBarKey,
                                                     }}
                                                 >
-                                                    {cmd.keybind
-                                                        ? keybind.print(
-                                                              cmd.keybind,
-                                                          )
-                                                        : ""}
+                                                    {command.keyLabel(cmd.id)}
                                                 </span>{" "}
                                                 <span
                                                     style={{
@@ -220,11 +200,9 @@ export function StatusBar() {
                                                                 .statusBarKey,
                                                         }}
                                                     >
-                                                        {cmd.keybind
-                                                            ? keybind.print(
-                                                                  cmd.keybind,
-                                                              )
-                                                            : ""}
+                                                        {command.keyLabel(
+                                                            cmd.id,
+                                                        )}
                                                     </span>{" "}
                                                     <span
                                                         style={{

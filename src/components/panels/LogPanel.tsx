@@ -1305,50 +1305,50 @@ export function LogPanel() {
             title: "up",
             keybind: "nav_up",
             context: "log.oplog",
-            type: "navigation",
+            group: "navigation",
             panel: "log",
-            visibility: "help-only",
-            onSelect: selectPrevOpLog,
+            visibleIn: ["palette"] as const,
+            execute: selectPrevOpLog,
         },
         {
             id: "log.oplog.next",
             title: "down",
             keybind: "nav_down",
             context: "log.oplog",
-            type: "navigation",
+            group: "navigation",
             panel: "log",
-            visibility: "help-only",
-            onSelect: selectNextOpLog,
+            visibleIn: ["palette"] as const,
+            execute: selectNextOpLog,
         },
         {
             id: "log.revisions.next",
             title: "down",
             keybind: "nav_down",
             context: "log.revisions",
-            type: "navigation",
+            group: "navigation",
             panel: "log",
-            visibility: "help-only",
-            onSelect: selectNextCommit,
+            visibleIn: ["palette"] as const,
+            execute: selectNextCommit,
         },
         {
             id: "log.revisions.prev",
             title: "up",
             keybind: "nav_up",
             context: "log.revisions",
-            type: "navigation",
+            group: "navigation",
             panel: "log",
-            visibility: "help-only",
-            onSelect: selectPrevCommit,
+            visibleIn: ["palette"] as const,
+            execute: selectPrevCommit,
         },
         {
             id: "log.revisions.view_files",
             title: "view files",
             keybind: "enter",
             context: "log.revisions",
-            type: "view",
+
             panel: "log",
-            visibility: "help-only",
-            onSelect: () => {
+            visibleIn: ["palette"] as const,
+            execute: () => {
                 if (showFilterResults()) {
                     openSelectedGroupedCommit()
                     return
@@ -1361,9 +1361,10 @@ export function LogPanel() {
             title: "new",
             keybind: "jj_new",
             context: "log.revisions",
-            type: "action",
+
             panel: "log",
-            onSelect: () => {
+            visibleIn: ["palette", "statusBar"] as const,
+            execute: () => {
                 const commit = selectedLogCommit()
                 if (commit)
                     runOperation(
@@ -1378,10 +1379,10 @@ export function LogPanel() {
             title: "new menu",
             keybind: "jj_new_options",
             context: "log.revisions",
-            type: "action",
+
             panel: "log",
-            visibility: "help-only",
-            onSelect: () => {
+            visibleIn: ["palette"] as const,
+            execute: () => {
                 const commit = selectedLogCommit()
                 if (!commit) return
                 const revision = getRevisionId(commit)
@@ -1466,10 +1467,10 @@ export function LogPanel() {
             title: "duplicate",
             keybind: "jj_duplicate",
             context: "log.revisions",
-            type: "action",
+
             panel: "log",
-            visibility: "help-only",
-            onSelect: () => {
+            visibleIn: ["palette"] as const,
+            execute: () => {
                 const commit = selectedLogCommit()
                 if (!commit) return
                 runOperation(
@@ -1484,10 +1485,10 @@ export function LogPanel() {
             title: "resolve",
             keybind: "jj_resolve",
             context: "log.revisions",
-            type: "action",
+
             panel: "log",
-            visibility: "help-only",
-            onSelect: async () => {
+            visibleIn: ["palette"] as const,
+            execute: async () => {
                 const commit = selectedLogCommit()
                 if (!commit) return
                 renderer.suspend?.()
@@ -1512,10 +1513,10 @@ export function LogPanel() {
             title: "edit",
             keybind: "jj_edit",
             context: "log.revisions",
-            type: "action",
+
             panel: "log",
-            visibility: "help-only",
-            onSelect: async () => {
+            visibleIn: ["palette"] as const,
+            execute: async () => {
                 const commit = selectedLogCommit()
                 if (!commit) return
                 const revId = getRevisionId(commit)
@@ -1556,9 +1557,10 @@ export function LogPanel() {
             title: "squash",
             keybind: "jj_squash",
             context: "log.revisions",
-            type: "action",
+
             panel: "log",
-            onSelect: () => {
+            visibleIn: ["palette", "statusBar"] as const,
+            execute: () => {
                 const commit = selectedLogCommit()
                 if (!commit) return
 
@@ -1724,9 +1726,10 @@ export function LogPanel() {
             title: "rebase",
             keybind: "jj_rebase",
             context: "log.revisions",
-            type: "action",
+
             panel: "log",
-            onSelect: () => {
+            visibleIn: ["palette", "statusBar"] as const,
+            execute: () => {
                 const commit = selectedLogCommit()
                 if (!commit) return
                 const commitList = commits()
@@ -1832,10 +1835,10 @@ export function LogPanel() {
             title: "split",
             keybind: "jj_split",
             context: "log.revisions",
-            type: "action",
+
             panel: "log",
-            visibility: "help-only",
-            onSelect: async () => {
+            visibleIn: ["palette"] as const,
+            execute: async () => {
                 const commit = selectedLogCommit()
                 if (!commit) return
 
@@ -1887,9 +1890,10 @@ export function LogPanel() {
             title: "describe",
             keybind: "jj_describe",
             context: "log.revisions",
-            type: "action",
+
             panel: "log",
-            onSelect: async () => {
+            visibleIn: ["palette", "statusBar"] as const,
+            execute: async () => {
                 const commit = selectedLogCommit()
                 if (!commit) return
 
@@ -1954,19 +1958,20 @@ export function LogPanel() {
             title: "open",
             keybind: "open",
             context: "log.revisions",
-            type: "action",
+
             panel: "log",
-            onSelect: openForCommit,
+            visibleIn: ["palette", "statusBar"] as const,
+            execute: openForCommit,
         },
         {
             id: "log.revisions.open_direct",
             title: "open (direct)",
             keybind: "open_direct",
             context: "log.revisions",
-            type: "action",
+
             panel: "log",
-            visibility: "help-only",
-            onSelect: () => {
+            visibleIn: ["palette"] as const,
+            execute: () => {
                 void openForCommit({ direct: true })
             },
         },
@@ -1975,10 +1980,10 @@ export function LogPanel() {
             title: "abandon",
             keybind: "jj_abandon",
             context: "log.revisions",
-            type: "action",
+
             panel: "log",
-            visibility: "help-only",
-            onSelect: async () => {
+            visibleIn: ["palette"] as const,
+            execute: async () => {
                 const commit = selectedLogCommit()
                 if (!commit) return
                 const confirmed = await dialog.confirm({
@@ -2025,10 +2030,10 @@ export function LogPanel() {
             title: "set bookmark",
             keybind: "bookmark_set",
             context: "log.revisions",
-            type: "action",
+
             panel: "log",
-            visibility: "help-only",
-            onSelect: async () => {
+            visibleIn: ["palette"] as const,
+            execute: async () => {
                 const commit = selectedLogCommit()
                 if (!commit) return
                 const revId = getRevisionId(commit)
@@ -2107,38 +2112,42 @@ export function LogPanel() {
             title: "filter",
             keybind: "search",
             context: "log.revisions",
-            type: "action",
+
             panel: "log",
-            onSelect: activateFilter,
+            visibleIn: ["palette", "statusBar"] as const,
+            execute: activateFilter,
         },
         {
             id: "log.revisions.clear_filter",
             title: "clear filter",
             keybind: "escape",
             context: "log.revisions",
-            type: "action",
+
             panel: "log",
-            visibility: "none",
-            onSelect: handleClearFilter,
+            visibleIn: [] as const,
+            execute: handleClearFilter,
         },
         {
             id: "log.revisions.bookmark_diff_origin",
             title: "compare to origin",
             keybind: "bookmark_diff_origin",
             context: "log.revisions",
-            type: "view",
+
             panel: "log",
-            visibility: selectedOriginDiffBookmark() ? undefined : "help-only",
-            onSelect: openBookmarkOriginDiff,
+            visibleIn: selectedOriginDiffBookmark()
+                ? (["palette", "statusBar"] as const)
+                : (["palette"] as const),
+            execute: openBookmarkOriginDiff,
         },
         {
             id: "log.oplog.restore",
             title: "restore",
             keybind: "jj_restore",
             context: "log.oplog",
-            type: "action",
+
             panel: "log",
-            onSelect: () => {
+            visibleIn: ["palette", "statusBar"] as const,
+            execute: () => {
                 const op = selectedOperation()
                 if (!op) return
                 dialog.open(
@@ -2172,10 +2181,10 @@ export function LogPanel() {
             title: "down",
             keybind: "nav_down",
             context: "log.files",
-            type: "navigation",
+            group: "navigation",
             panel: "log",
-            visibility: "help-only",
-            onSelect: () => {
+            visibleIn: ["palette"] as const,
+            execute: () => {
                 if (filesFilterApi) {
                     filesFilterApi.selectNext()
                 } else {
@@ -2188,10 +2197,10 @@ export function LogPanel() {
             title: "up",
             keybind: "nav_up",
             context: "log.files",
-            type: "navigation",
+            group: "navigation",
             panel: "log",
-            visibility: "help-only",
-            onSelect: () => {
+            visibleIn: ["palette"] as const,
+            execute: () => {
                 if (filesFilterApi) {
                     filesFilterApi.selectPrev()
                 } else {
@@ -2204,20 +2213,20 @@ export function LogPanel() {
             title: "toggle folder",
             keybind: "enter",
             context: "log.files",
-            type: "action",
+
             panel: "log",
-            visibility: "help-only",
-            onSelect: handleFileEnter,
+            visibleIn: ["palette"] as const,
+            execute: handleFileEnter,
         },
         {
             id: "log.files.back",
             title: "back",
             keybind: "escape",
             context: "log.files",
-            type: "view",
+
             panel: "log",
-            visibility: "help-only",
-            onSelect: exitFilesView,
+            visibleIn: ["palette"] as const,
+            execute: exitFilesView,
         },
         ...(selectedLogCommit()?.isWorkingCopy
             ? [
@@ -2226,9 +2235,9 @@ export function LogPanel() {
                       title: "discard",
                       keybind: "jj_restore" as const,
                       context: "log.files" as const,
-                      type: "action" as const,
                       panel: "log" as const,
-                      onSelect: async () => {
+                      visibleIn: ["palette", "statusBar"] as const,
+                      execute: async () => {
                           const fileIndex = selectedFileIndex()
                           const file = flatFiles()[fileIndex]
                           if (!file) return
@@ -2266,9 +2275,10 @@ export function LogPanel() {
             title: "open",
             keybind: "open_editor",
             context: "log.files",
-            type: "action",
+
             panel: "log",
-            onSelect: async () => {
+            visibleIn: ["palette", "statusBar"] as const,
+            execute: async () => {
                 const file = flatFiles()[selectedFileIndex()]
                 if (!file || file.node.isDirectory) {
                     commandLog.addEntry({
@@ -2298,9 +2308,10 @@ export function LogPanel() {
             title: "open all",
             keybind: "open_editor_all",
             context: "log.files",
-            type: "action",
+
             panel: "log",
-            onSelect: async () => {
+            visibleIn: ["palette", "statusBar"] as const,
+            execute: async () => {
                 const tree = fileTree()
                 if (!tree) {
                     commandLog.addEntry({
@@ -2320,9 +2331,10 @@ export function LogPanel() {
             title: "tree/list",
             keybind: "toggle_file_tree",
             context: "log.files",
-            type: "view",
+
             panel: "log",
-            onSelect: toggleShowTree,
+            visibleIn: ["palette", "statusBar"] as const,
+            execute: toggleShowTree,
         },
     ])
 

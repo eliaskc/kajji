@@ -14,8 +14,11 @@ import { ErrorScreen } from "./components/ErrorScreen"
 import { LayoutGrid } from "./components/Layout"
 import { WhatsNewScreen } from "./components/WhatsNewScreen"
 import { ActionMenuModal } from "./components/modals/ActionMenuModal"
+import {
+    CommandPalette,
+    commandPaletteContentWidth,
+} from "./components/modals/CommandPalette"
 import { DebugInfoModal } from "./components/modals/DebugInfoModal"
-import { HelpModal, helpContentWidth } from "./components/modals/HelpModal"
 import { RecentReposModal } from "./components/modals/RecentReposModal"
 import { UndoModal } from "./components/modals/UndoModal"
 
@@ -386,9 +389,9 @@ function AppContent() {
             title: "quit",
             keybind: "quit",
             context: "global",
-            type: "action",
-            visibility: "help-only",
-            onSelect: () => {
+
+            visibleIn: ["palette"] as const,
+            execute: () => {
                 renderer.destroy()
                 process.exit(0)
             },
@@ -400,8 +403,8 @@ function AppContent() {
                       title: "console",
                       keybind: "toggle_console" as const,
                       context: "global" as const,
-                      type: "action" as const,
-                      onSelect: () => renderer.console.toggle(),
+                      visibleIn: ["palette", "statusBar"] as const,
+                      execute: () => renderer.console.toggle(),
                   },
               ]
             : []),
@@ -410,68 +413,71 @@ function AppContent() {
             title: "next panel",
             keybind: "focus_next",
             context: "global",
-            type: "navigation",
-            visibility: "help-only",
-            onSelect: () => cyclePanel(1),
+            group: "navigation",
+            visibleIn: ["palette"] as const,
+            execute: () => cyclePanel(1),
         },
         {
             id: "global.focus_prev",
             title: "previous panel",
             keybind: "focus_prev",
             context: "global",
-            type: "navigation",
-            visibility: "help-only",
-            onSelect: () => cyclePanel(-1),
+            group: "navigation",
+            visibleIn: ["palette"] as const,
+            execute: () => cyclePanel(-1),
         },
         {
             id: "global.focus_panel_1",
             title: "focus log panel",
             keybind: "focus_panel_1",
             context: "global",
-            type: "navigation",
-            visibility: "help-only",
-            onSelect: () => focusPanel("log"),
+            group: "navigation",
+            visibleIn: ["palette"] as const,
+            execute: () => focusPanel("log"),
         },
         {
             id: "global.focus_panel_2",
             title: "focus refs panel",
             keybind: "focus_panel_2",
             context: "global",
-            type: "navigation",
-            visibility: "help-only",
-            onSelect: () => focusPanel("refs"),
+            group: "navigation",
+            visibleIn: ["palette"] as const,
+            execute: () => focusPanel("refs"),
         },
         {
             id: "global.focus_panel_3",
             title: "focus detail panel",
             keybind: "focus_panel_3",
             context: "global",
-            type: "navigation",
-            visibility: "help-only",
-            onSelect: () => focusPanel("detail"),
+            group: "navigation",
+            visibleIn: ["palette"] as const,
+            execute: () => focusPanel("detail"),
         },
         {
             id: "global.focus_panel_4",
             title: "command log",
             keybind: "focus_panel_4",
             context: "global",
-            type: "navigation",
-            visibility: "help-only",
-            onSelect: () => focusPanel("commandlog"),
+            group: "navigation",
+            visibleIn: ["palette"] as const,
+            execute: () => focusPanel("commandlog"),
         },
         {
-            id: "global.help",
+            id: "global.command_palette",
             title: "commands",
-            keybind: "help",
+            keybind: "command_palette",
             context: "global",
-            type: "action",
-            onSelect: () => {
+
+            visibleIn: ["palette", "statusBar"] as const,
+            scope: "always",
+            execute: () => {
                 const dialogPadding = 4
-                dialog.toggle("help", () => <HelpModal />, {
+                dialog.toggle("commandPalette", () => <CommandPalette />, {
                     title: "Commands",
                     width: () =>
-                        helpContentWidth(layout.helpModalColumns()) +
-                        dialogPadding,
+                        commandPaletteContentWidth(
+                            layout.commandPaletteColumns(),
+                        ) + dialogPadding,
                     hints: [{ key: "enter", label: "execute" }],
                 })
             },
@@ -481,9 +487,9 @@ function AppContent() {
             title: "switch repo",
             keybind: "open_recent",
             context: "global",
-            type: "action",
-            visibility: "help-only",
-            onSelect: () =>
+
+            visibleIn: ["palette"] as const,
+            execute: () =>
                 dialog.open(
                     () => (
                         <RecentReposModal
@@ -508,9 +514,9 @@ function AppContent() {
             id: "global.open_config",
             title: "open config",
             context: "global",
-            type: "action",
-            visibility: "help-only",
-            onSelect: async () => {
+
+            visibleIn: ["palette"] as const,
+            execute: async () => {
                 const configPath = createDefaultConfig()
                 const shouldSuspend = shouldSuspendForEditor()
                 if (shouldSuspend) renderer.suspend?.()
@@ -526,9 +532,9 @@ function AppContent() {
             id: "global.open_logs",
             title: "open logs",
             context: "global",
-            type: "action",
-            visibility: "help-only",
-            onSelect: async () => {
+
+            visibleIn: ["palette"] as const,
+            execute: async () => {
                 const shouldSuspend = shouldSuspendForEditor()
                 if (shouldSuspend) renderer.suspend?.()
                 try {
@@ -542,9 +548,9 @@ function AppContent() {
             id: "global.view_debug_info",
             title: "view debug info",
             context: "global",
-            type: "action",
-            visibility: "help-only",
-            onSelect: () =>
+
+            visibleIn: ["palette"] as const,
+            execute: () =>
                 dialog.open(() => <DebugInfoModal />, {
                     id: "debug-info",
                     title: "Debug info",
@@ -555,9 +561,9 @@ function AppContent() {
             id: "global.write_debug_snapshot",
             title: "write debug snapshot",
             context: "global",
-            type: "action",
-            visibility: "help-only",
-            onSelect: () => {
+
+            visibleIn: ["palette"] as const,
+            execute: () => {
                 try {
                     const path = writeDebugSnapshot()
                     status.show(`Debug snapshot: ${path}`, {
@@ -576,9 +582,9 @@ function AppContent() {
             id: "global.write_heap_snapshot",
             title: "capture heap snapshot",
             context: "global",
-            type: "action",
-            visibility: "help-only",
-            onSelect: () => {
+
+            visibleIn: ["palette"] as const,
+            execute: () => {
                 status.show("Capturing heap snapshot...", { duration: 0 })
                 setTimeout(() => {
                     try {
@@ -601,26 +607,27 @@ function AppContent() {
             title: "refresh",
             keybind: "refresh",
             context: "global",
-            type: "action",
-            visibility: "help-only",
-            onSelect: () => refresh(),
+
+            visibleIn: ["palette"] as const,
+            execute: () => refresh(),
         },
         {
             id: "global.toggle_focus_mode",
             title: "focus",
             keybind: "toggle_focus_mode",
             context: "global",
-            type: "action",
-            onSelect: () => layout.toggleFocusMode(),
+
+            visibleIn: ["palette", "statusBar"] as const,
+            execute: () => layout.toggleFocusMode(),
         },
         {
             id: "global.git_fetch",
             title: "git fetch",
             keybind: "jj_git_fetch",
             context: "global",
-            type: "git",
-            visibility: "help-only",
-            onSelect: () => {
+            group: "repository",
+            visibleIn: ["palette"] as const,
+            execute: () => {
                 void runGitFetch("Fetching...")
             },
         },
@@ -629,18 +636,18 @@ function AppContent() {
             title: "fetch menu",
             keybind: "jj_git_fetch_all",
             context: "global",
-            type: "git",
-            visibility: "help-only",
-            onSelect: openFetchMenu,
+            group: "repository",
+            visibleIn: ["palette"] as const,
+            execute: openFetchMenu,
         },
         {
             id: "global.git_push",
             title: "git push",
             keybind: "jj_git_push",
             context: "global",
-            type: "git",
-            visibility: "help-only",
-            onSelect: () => {
+            group: "repository",
+            visibleIn: ["palette"] as const,
+            execute: () => {
                 void runGitPush("Pushing...")
             },
         },
@@ -649,18 +656,18 @@ function AppContent() {
             title: "push menu",
             keybind: "jj_git_push_all",
             context: "global",
-            type: "git",
-            visibility: "help-only",
-            onSelect: openPushMenu,
+            group: "repository",
+            visibleIn: ["palette"] as const,
+            execute: openPushMenu,
         },
         {
             id: "global.undo",
             title: "undo",
             keybind: "jj_undo",
             context: "global",
-            type: "action",
-            visibility: "help-only",
-            onSelect: async () => {
+
+            visibleIn: ["palette"] as const,
+            execute: async () => {
                 const opLines = await fetchOpLog(1)
                 dialog.open(
                     () => (
@@ -699,9 +706,9 @@ function AppContent() {
             title: "redo",
             keybind: "jj_redo",
             context: "global",
-            type: "action",
-            visibility: "help-only",
-            onSelect: async () => {
+
+            visibleIn: ["palette"] as const,
+            execute: async () => {
                 const opLines = await fetchOpLog(1)
                 dialog.open(
                     () => (

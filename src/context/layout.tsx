@@ -37,7 +37,7 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
                 onCleanup(() => renderer.off("resize", handleResize))
             })
 
-            const helpModalColumns = createMemo(() => {
+            const commandPaletteColumns = createMemo(() => {
                 const width = terminalWidth()
                 if (width < HELP_MODAL_1_COL_THRESHOLD) return 1
                 if (width < HELP_MODAL_2_COL_THRESHOLD) return 2
@@ -66,7 +66,7 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
                 terminalWidth,
                 terminalHeight,
                 mainAreaWidth,
-                helpModalColumns,
+                commandPaletteColumns,
                 focusMode,
                 setFocusMode,
                 toggleFocusMode,

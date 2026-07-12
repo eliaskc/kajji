@@ -961,8 +961,9 @@ export function MainArea() {
             title: "page up",
             keybind: "nav_page_up",
             context: "detail",
-            type: "navigation",
-            onSelect: () => {
+            group: "navigation",
+            visibleIn: ["palette", "statusBar"] as const,
+            execute: () => {
                 scrollRef?.scrollBy(-0.5, "viewport")
                 if (scrollRef) setScrollTop(scrollRef.scrollTop)
             },
@@ -972,8 +973,9 @@ export function MainArea() {
             title: "page down",
             keybind: "nav_page_down",
             context: "detail",
-            type: "navigation",
-            onSelect: () => {
+            group: "navigation",
+            visibleIn: ["palette", "statusBar"] as const,
+            execute: () => {
                 scrollRef?.scrollBy(0.5, "viewport")
                 if (scrollRef) setScrollTop(scrollRef.scrollTop)
             },
@@ -983,9 +985,9 @@ export function MainArea() {
             title: "scroll down",
             keybind: "nav_down",
             context: "detail",
-            type: "navigation",
-            visibility: "help-only",
-            onSelect: () => {
+            group: "navigation",
+            visibleIn: ["palette"] as const,
+            execute: () => {
                 scrollRef?.scrollTo((scrollTop() || 0) + 1)
                 setScrollTop((scrollTop() || 0) + 1)
             },
@@ -995,9 +997,9 @@ export function MainArea() {
             title: "scroll up",
             keybind: "nav_up",
             context: "detail",
-            type: "navigation",
-            visibility: "help-only",
-            onSelect: () => {
+            group: "navigation",
+            visibleIn: ["palette"] as const,
+            execute: () => {
                 const newPos = Math.max(0, (scrollTop() || 0) - 1)
                 scrollRef?.scrollTo(newPos)
                 setScrollTop(newPos)
@@ -1008,8 +1010,9 @@ export function MainArea() {
             title: "formatter",
             keybind: "toggle_diff_formatter",
             context: "detail",
-            type: "view",
-            onSelect: () => {
+
+            visibleIn: ["palette", "statusBar"] as const,
+            execute: () => {
                 setUseJjFormatterOverride((enabled) => {
                     if (enabled === null) {
                         return !diffUseJjFormatter()
@@ -1023,8 +1026,9 @@ export function MainArea() {
             title: "diff view",
             keybind: "toggle_diff_style",
             context: "detail.diff_custom",
-            type: "view",
-            onSelect: () => {
+
+            visibleIn: ["palette", "statusBar"] as const,
+            execute: () => {
                 setViewStyleOverride((s) => {
                     const current = s ?? viewStyle()
                     return current === "unified" ? "split" : "unified"
@@ -1036,8 +1040,9 @@ export function MainArea() {
             title: "wrap",
             keybind: "toggle_diff_wrap",
             context: "detail.diff_custom",
-            type: "view",
-            onSelect: () => {
+
+            visibleIn: ["palette", "statusBar"] as const,
+            execute: () => {
                 setWrapOverride((enabled) => {
                     const current = enabled ?? wrapEnabled()
                     return !current
@@ -1049,10 +1054,10 @@ export function MainArea() {
             title: "diff view",
             keybind: "toggle_diff_style",
             context: "log.files",
-            type: "view",
+
             panel: "log",
-            visibility: "status-only",
-            onSelect: () => {
+            visibleIn: ["statusBar"] as const,
+            execute: () => {
                 setViewStyleOverride((s) => {
                     const current = s ?? viewStyle()
                     return current === "unified" ? "split" : "unified"
@@ -1064,10 +1069,10 @@ export function MainArea() {
             title: "wrap",
             keybind: "toggle_diff_wrap",
             context: "log.files",
-            type: "view",
+
             panel: "log",
-            visibility: "status-only",
-            onSelect: () => {
+            visibleIn: ["statusBar"] as const,
+            execute: () => {
                 setWrapOverride((enabled) => {
                     const current = enabled ?? wrapEnabled()
                     return !current
@@ -1079,9 +1084,9 @@ export function MainArea() {
             title: "scroll left",
             keybind: "diff_scroll_left",
             context: "detail",
-            type: "navigation",
-            visibility: "help-only",
-            onSelect: () => {
+            group: "navigation",
+            visibleIn: ["palette"] as const,
+            execute: () => {
                 if (wrapEnabled()) return
                 setScrollLeftClamped(scrollLeft() - HORIZONTAL_SCROLL_STEP)
             },
@@ -1091,9 +1096,9 @@ export function MainArea() {
             title: "scroll right",
             keybind: "diff_scroll_right",
             context: "detail",
-            type: "navigation",
-            visibility: "help-only",
-            onSelect: () => {
+            group: "navigation",
+            visibleIn: ["palette"] as const,
+            execute: () => {
                 if (wrapEnabled()) return
                 setScrollLeftClamped(scrollLeft() + HORIZONTAL_SCROLL_STEP)
             },
@@ -1103,9 +1108,9 @@ export function MainArea() {
             title: "previous hunk",
             keybind: "nav_prev_hunk",
             context: "detail.diff_custom",
-            type: "navigation",
-            visibility: "help-only",
-            onSelect: () => {
+            group: "navigation",
+            visibleIn: ["palette"] as const,
+            execute: () => {
                 navigateHunk(-1)
             },
         },
@@ -1114,9 +1119,9 @@ export function MainArea() {
             title: "next hunk",
             keybind: "nav_next_hunk",
             context: "detail.diff_custom",
-            type: "navigation",
-            visibility: "help-only",
-            onSelect: () => {
+            group: "navigation",
+            visibleIn: ["palette"] as const,
+            execute: () => {
                 navigateHunk(1)
             },
         },
@@ -1125,9 +1130,9 @@ export function MainArea() {
             title: "previous file",
             keybind: "nav_prev_file",
             context: "detail.diff_custom",
-            type: "navigation",
-            visibility: "help-only",
-            onSelect: () => {
+            group: "navigation",
+            visibleIn: ["palette"] as const,
+            execute: () => {
                 navigateFile(-1)
             },
         },
@@ -1136,9 +1141,9 @@ export function MainArea() {
             title: "next file",
             keybind: "nav_next_file",
             context: "detail.diff_custom",
-            type: "navigation",
-            visibility: "help-only",
-            onSelect: () => {
+            group: "navigation",
+            visibleIn: ["palette"] as const,
+            execute: () => {
                 navigateFile(1)
             },
         },

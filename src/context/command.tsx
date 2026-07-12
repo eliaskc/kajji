@@ -6,14 +6,22 @@ import {
     onCleanup,
     onMount,
 } from "solid-js"
-import { type CommandDefinition, resolveCommandKey } from "../command/policy"
+import {
+    type CommandDefinition,
+    type CommandSurface,
+    canDispatchCommand,
+    commandsForSurface,
+    isCommandApplicable,
+    isCommandVisible,
+    resolveCommandKey,
+} from "../command/policy"
 import { useDialog } from "./dialog"
 import { useFocus } from "./focus"
 import { createSimpleContext } from "./helper"
 import { useKeybind } from "./keybind"
-import type { CommandType, CommandVisibility, Context } from "./types"
+import type { Context } from "./types"
 
-export type { CommandType, CommandVisibility, Context }
+export type { Context }
 
 export type CommandOption = CommandDefinition
 
@@ -37,6 +45,13 @@ export const { use: useCommand, provider: CommandProvider } =
             const isBlockingCommands = () =>
                 inputMode() || focusedInputCount() > 0
 
+            const environment = () => ({
+                context: focus.activeContext(),
+                panel: focus.panel(),
+                dialogOpen: dialog.isOpen(),
+                inputMode: isBlockingCommands(),
+            })
+
             useKeyboard((evt) => {
                 const dialogOpen = dialog.isOpen()
                 const isInputMode = isBlockingCommands()
@@ -58,7 +73,7 @@ export const { use: useCommand, provider: CommandProvider } =
                 if (mostSpecificMatch) {
                     evt.preventDefault()
                     evt.stopPropagation()
-                    mostSpecificMatch.onSelect()
+                    mostSpecificMatch.execute()
                 }
             })
 
@@ -73,12 +88,31 @@ export const { use: useCommand, provider: CommandProvider } =
                     })
                 },
 
-                trigger: (id: string) => {
+                execute: (id: string) => {
                     const cmd = allCommands().find((c) => c.id === id)
-                    cmd?.onSelect()
+                    if (!cmd || !isCommandApplicable(cmd, environment()))
+                        return false
+                    cmd.execute()
+                    return true
                 },
 
                 all: allCommands,
+                forSurface: (surface: CommandSurface) =>
+                    commandsForSurface(allCommands(), surface),
+                activeForSurface: (surface: CommandSurface) =>
+                    allCommands().filter(
+                        (cmd) =>
+                            isCommandVisible(cmd, surface) &&
+                            isCommandApplicable(cmd, environment()),
+                    ),
+                isActive: (id: string) => {
+                    const cmd = allCommands().find((item) => item.id === id)
+                    return cmd ? isCommandApplicable(cmd, environment()) : false
+                },
+                keyLabel: (id: string) => {
+                    const cmd = allCommands().find((item) => item.id === id)
+                    return cmd?.keybind ? keybind.print(cmd.keybind) : ""
+                },
 
                 // Input mode blocks all commands (for inline filtering, etc.)
                 setInputMode,

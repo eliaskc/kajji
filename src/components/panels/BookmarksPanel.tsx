@@ -916,39 +916,40 @@ export function BookmarksPanel() {
             title: "down",
             keybind: "nav_down",
             context: "refs.bookmarks",
-            type: "navigation",
+            group: "navigation",
             panel: "refs",
-            visibility: "help-only",
-            onSelect: selectNextBookmarkInView,
+            visibleIn: ["palette"] as const,
+            execute: selectNextBookmarkInView,
         },
         {
             id: "refs.bookmarks.prev",
             title: "up",
             keybind: "nav_up",
             context: "refs.bookmarks",
-            type: "navigation",
+            group: "navigation",
             panel: "refs",
-            visibility: "help-only",
-            onSelect: selectPrevBookmarkInView,
+            visibleIn: ["palette"] as const,
+            execute: selectPrevBookmarkInView,
         },
         {
             id: "refs.bookmarks.view_revisions",
             title: "view revisions",
             keybind: "enter",
             context: "refs.bookmarks",
-            type: "view",
+
             panel: "refs",
-            visibility: "help-only",
-            onSelect: handleListEnter,
+            visibleIn: ["palette"] as const,
+            execute: handleListEnter,
         },
         {
             id: "refs.bookmarks.open",
             title: "open",
             keybind: "open",
             context: "refs.bookmarks",
-            type: "action",
+
             panel: "refs",
-            onSelect: () => {
+            visibleIn: ["palette", "statusBar"] as const,
+            execute: () => {
                 if (showRemoteOnly()) return
                 const bookmark = selectedBookmark()
                 if (!bookmark) return
@@ -960,9 +961,10 @@ export function BookmarksPanel() {
             title: "new",
             keybind: "jj_new",
             context: "refs.bookmarks",
-            type: "action",
+
             panel: "refs",
-            onSelect: () => {
+            visibleIn: ["palette", "statusBar"] as const,
+            execute: () => {
                 if (showRemoteOnly()) return
                 const bookmark = selectedBookmark()
                 if (!bookmark) return
@@ -986,9 +988,10 @@ export function BookmarksPanel() {
             title: "edit",
             keybind: "jj_edit",
             context: "refs.bookmarks",
-            type: "action",
+
             panel: "refs",
-            onSelect: async () => {
+            visibleIn: ["palette", "statusBar"] as const,
+            execute: async () => {
                 if (showRemoteOnly()) return
                 const bookmark = selectedBookmark()
                 if (!bookmark) return
@@ -1031,20 +1034,20 @@ export function BookmarksPanel() {
             title: "filter",
             keybind: "search",
             context: "refs.bookmarks",
-            type: "view",
+
             panel: "refs",
-            visibility: "help-only",
-            onSelect: activateBookmarkFilter,
+            visibleIn: ["palette"] as const,
+            execute: activateBookmarkFilter,
         },
         {
             id: "refs.bookmarks.toggle_remote",
             title: "remote-only",
             keybind: "bookmark_toggle_remote",
             context: "refs.bookmarks",
-            type: "view",
+
             panel: "refs",
-            visibility: "help-only",
-            onSelect: () => {
+            visibleIn: ["palette"] as const,
+            execute: () => {
                 setShowRemoteOnly((prev) => !prev)
                 setRemoteSelectedIndex(0)
             },
@@ -1054,9 +1057,10 @@ export function BookmarksPanel() {
             title: "create",
             keybind: "bookmark_create",
             context: "refs.bookmarks",
-            type: "action",
+
             panel: "refs",
-            onSelect: () => {
+            visibleIn: ["palette", "statusBar"] as const,
+            execute: () => {
                 if (showRemoteOnly()) return
                 const workingCopy = commits().find((c) => c.isWorkingCopy)
                 dialog.open(
@@ -1092,9 +1096,10 @@ export function BookmarksPanel() {
             title: "delete",
             keybind: "bookmark_delete",
             context: "refs.bookmarks",
-            type: "action",
+
             panel: "refs",
-            onSelect: async () => {
+            visibleIn: ["palette", "statusBar"] as const,
+            execute: async () => {
                 if (showRemoteOnly()) return
                 const bookmark = selectedBookmark()
                 if (!bookmark) return
@@ -1127,9 +1132,10 @@ export function BookmarksPanel() {
             title: "rename",
             keybind: "bookmark_rename",
             context: "refs.bookmarks",
-            type: "action",
+
             panel: "refs",
-            onSelect: () => {
+            visibleIn: ["palette", "statusBar"] as const,
+            execute: () => {
                 if (showRemoteOnly()) return
                 const bookmark = selectedBookmark()
                 if (!bookmark) return
@@ -1162,10 +1168,10 @@ export function BookmarksPanel() {
             title: "forget",
             keybind: "bookmark_forget",
             context: "refs.bookmarks",
-            type: "action",
+
             panel: "refs",
-            visibility: "help-only",
-            onSelect: async () => {
+            visibleIn: ["palette"] as const,
+            execute: async () => {
                 if (showRemoteOnly()) return
                 const bookmark = selectedBookmark()
                 if (!bookmark) return
@@ -1191,10 +1197,10 @@ export function BookmarksPanel() {
             title: "move",
             keybind: "bookmark_move",
             context: "refs.bookmarks",
-            type: "action",
+
             panel: "refs",
-            visibility: "help-only",
-            onSelect: () => {
+            visibleIn: ["palette"] as const,
+            execute: () => {
                 if (showRemoteOnly()) return
                 const bookmark = selectedBookmark()
                 if (!bookmark) return
@@ -1231,9 +1237,9 @@ export function BookmarksPanel() {
                       title: "stack",
                       keybind: "bookmark_stack" as const,
                       context: "refs.bookmarks" as const,
-                      type: "action" as const,
                       panel: "refs" as const,
-                      onSelect: openSelectedStack,
+                      visibleIn: ["palette", "statusBar"] as const,
+                      execute: openSelectedStack,
                   },
               ]
             : []),
@@ -1242,12 +1248,12 @@ export function BookmarksPanel() {
             title: "compare to origin",
             keybind: "bookmark_diff_origin",
             context: "refs.bookmarks",
-            type: "view",
+
             panel: "refs",
-            visibility: selectedBookmarkHasOriginDiff()
-                ? undefined
-                : "help-only",
-            onSelect: openSelectedBookmarkOriginDiff,
+            visibleIn: selectedBookmarkHasOriginDiff()
+                ? (["palette", "statusBar"] as const)
+                : (["palette"] as const),
+            execute: openSelectedBookmarkOriginDiff,
         },
     ])
 

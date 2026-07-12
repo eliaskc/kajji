@@ -18,7 +18,7 @@ export type KeybindConfigKey =
     | "nav_up"
     | "nav_page_up"
     | "nav_page_down"
-    | "help"
+    | "command_palette"
     | "refresh"
     | "enter"
     | "escape"
@@ -83,7 +83,7 @@ export const DEFAULT_KEYBINDS: KeybindConfig = {
     nav_up: "k,up",
     nav_page_up: "ctrl+u",
     nav_page_down: "ctrl+d",
-    help: "ctrl+p,?",
+    command_palette: "ctrl+p,?",
     refresh: "ctrl+r",
     enter: "enter",
     escape: "escape",

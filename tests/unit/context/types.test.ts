@@ -6,8 +6,8 @@ describe("panelFromContext", () => {
         expect(panelFromContext("global")).toBeNull()
     })
 
-    test("returns null for help context", () => {
-        expect(panelFromContext("help")).toBeNull()
+    test("returns null for command palette context", () => {
+        expect(panelFromContext("commandPalette")).toBeNull()
     })
 
     test("returns log for log panel contexts", () => {

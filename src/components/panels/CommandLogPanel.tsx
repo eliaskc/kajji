@@ -116,9 +116,9 @@ export function CommandLogPanel() {
             title: "scroll down",
             keybind: "nav_down",
             context: "commandlog",
-            type: "navigation",
-            visibility: "help-only",
-            onSelect: () => {
+            group: "navigation",
+            visibleIn: ["palette"] as const,
+            execute: () => {
                 scrollRef?.scrollTo((scrollTop() || 0) + 1)
                 setScrollTop((scrollTop() || 0) + 1)
             },
@@ -128,9 +128,9 @@ export function CommandLogPanel() {
             title: "scroll up",
             keybind: "nav_up",
             context: "commandlog",
-            type: "navigation",
-            visibility: "help-only",
-            onSelect: () => {
+            group: "navigation",
+            visibleIn: ["palette"] as const,
+            execute: () => {
                 const newPos = Math.max(0, (scrollTop() || 0) - 1)
                 scrollRef?.scrollTo(newPos)
                 setScrollTop(newPos)
@@ -141,18 +141,18 @@ export function CommandLogPanel() {
             title: "page down",
             keybind: "nav_page_down",
             context: "commandlog",
-            type: "navigation",
-            visibility: "help-only",
-            onSelect: () => scrollRef?.scrollBy(0.5, "viewport"),
+            group: "navigation",
+            visibleIn: ["palette"] as const,
+            execute: () => scrollRef?.scrollBy(0.5, "viewport"),
         },
         {
             id: "commandlog.page_up",
             title: "page up",
             keybind: "nav_page_up",
             context: "commandlog",
-            type: "navigation",
-            visibility: "help-only",
-            onSelect: () => scrollRef?.scrollBy(-0.5, "viewport"),
+            group: "navigation",
+            visibleIn: ["palette"] as const,
+            execute: () => scrollRef?.scrollBy(-0.5, "viewport"),
         },
     ])
 
