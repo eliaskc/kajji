@@ -52,7 +52,7 @@ export function StatusBar() {
     )
 
     const separator = () => style().statusBar.separator
-    const isFocusMode = () => layout.focusMode() === "focus"
+    const isDiffMode = () => layout.layoutMode() === "diff"
 
     const commandGap = separator() ? ` ${separator()} ` : "   "
 
@@ -115,7 +115,7 @@ export function StatusBar() {
                             <box
                                 flexShrink={0}
                                 backgroundColor={
-                                    isFocusMode()
+                                    isDiffMode()
                                         ? colors().titleBarFocused
                                         : undefined
                                 }
@@ -123,12 +123,12 @@ export function StatusBar() {
                                 <text
                                     wrapMode="none"
                                     fg={
-                                        isFocusMode()
+                                        isDiffMode()
                                             ? colors().titleTextFocused
                                             : colors().textMuted
                                     }
                                 >
-                                    {isFocusMode() ? " FOCUS " : " NORMAL"}
+                                    {isDiffMode() ? " DIFF " : " NORMAL"}
                                 </text>
                             </box>
                             <box width={1} />

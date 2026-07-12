@@ -1,6 +1,5 @@
 import { useRenderer } from "@opentui/solid"
 import { Match, Switch, createEffect } from "solid-js"
-import { useFocus } from "../context/focus"
 import { useLayout } from "../context/layout"
 import { useSync } from "../context/sync"
 import { useTheme } from "../context/theme"
@@ -84,59 +83,18 @@ function NormalLayout() {
     )
 }
 
-function FocusLayout() {
-    const focus = useFocus()
-    const activePanel = () => focus.panel()
-    const leftGrow = () =>
-        activePanel() === "log" || activePanel() === "refs" ? 3 : 2
-    const rightGrow = () =>
-        activePanel() === "detail" || activePanel() === "commandlog"
-            ? 7
-            : activePanel() === "log" || activePanel() === "refs"
-              ? 2
-              : 3
-    const logGrow = () => (activePanel() === "refs" ? 2 : 3)
-    const refsGrow = () => (activePanel() === "refs" ? 3 : 1)
-    const detailGrow = () => (activePanel() === "detail" ? 7 : 1)
-
-    return (
-        <box flexDirection="row" flexGrow={1} gap={0}>
-            <box
-                flexGrow={leftGrow()}
-                flexBasis={0}
-                flexDirection="column"
-                gap={0}
-            >
-                <box flexGrow={logGrow()} flexBasis={0}>
-                    <LogPanel />
-                </box>
-                <HorizontalDivider />
-                <box flexGrow={refsGrow()} flexBasis={0}>
-                    <BookmarksPanel />
-                </box>
-            </box>
-            <VerticalDivider />
-            <box flexGrow={rightGrow()} flexBasis={0} flexDirection="column">
-                <box flexGrow={detailGrow()} flexBasis={0}>
-                    <MainArea />
-                </box>
-                <HorizontalDivider />
-                <CommandLogPanel />
-            </box>
-        </box>
-    )
-}
-
 export function LayoutGrid() {
     const renderer = useRenderer()
     const { colors } = useTheme()
-    const { focusMode } = useLayout()
+    const { layoutMode, setLayoutMode } = useLayout()
     const { activeBookmarkDiff, viewMode } = useSync()
 
     createEffect(() => {
-        focusMode()
+        const mode = layoutMode()
         activeBookmarkDiff()
-        viewMode()
+        const view = viewMode()
+        if (view === "files" && mode !== "diff") setLayoutMode("diff")
+        if (view !== "files" && mode === "diff") setLayoutMode("normal")
         renderer.setBackgroundColor(colors().background)
     })
 
@@ -158,11 +116,8 @@ export function LayoutGrid() {
                 <Match when={activeBookmarkDiff()}>
                     <BookmarkDiffLayout />
                 </Match>
-                <Match when={focusMode() === "normal"}>
+                <Match when={layoutMode() === "normal"}>
                     <NormalLayout />
-                </Match>
-                <Match when={focusMode() === "focus"}>
-                    <FocusLayout />
                 </Match>
             </Switch>
             <box height={1} flexShrink={0} />

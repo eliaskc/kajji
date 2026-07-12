@@ -78,6 +78,7 @@ function AppContent() {
         error,
         loading,
         commits,
+        enterFilesView,
         exitFilesView,
         selectedCommit,
         viewMode,
@@ -102,6 +103,15 @@ function AppContent() {
     const focusPanel = (panel: Panel) => {
         if (!visiblePanels().includes(panel)) return
         focus.setPanel(panel)
+    }
+
+    const toggleDiffMode = async () => {
+        if (layout.layoutMode() === "diff") {
+            exitFilesView()
+            layout.setLayoutMode("normal")
+            return
+        }
+        await enterFilesView()
     }
 
     const cyclePanel = (direction: 1 | -1) => {
@@ -647,12 +657,12 @@ function AppContent() {
         },
         {
             id: "global.toggle_focus_mode",
-            title: "focus",
+            title: "diff mode",
             keybind: "toggle_focus_mode",
             context: "global",
 
             visibleIn: ["palette", "statusBar"] as const,
-            execute: () => layout.toggleFocusMode(),
+            execute: toggleDiffMode,
         },
         {
             id: "global.git_fetch",
