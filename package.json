@@ -16,6 +16,7 @@
         "profile": "bun run scripts/profile.ts",
         "trace": "KAJJI_TRACE=1 bun run src/index.tsx",
         "test": "bun test tests/unit",
+        "test:e2e": "bun test --concurrent --max-concurrency 4 tests/e2e",
         "test:bench": "bun test ./tests/bench/*.bench.ts",
         "check": "tsc --noEmit",
         "lint": "biome check .",
@@ -24,6 +25,7 @@
     },
     "devDependencies": {
         "@biomejs/biome": "^1.9.4",
+        "@kitlangton/terminal-control": "0.3.1",
         "@types/bun": "^1.3.5",
         "@types/diff": "^8.0.0"
     },
