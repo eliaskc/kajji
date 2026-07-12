@@ -1,6 +1,6 @@
-import { useKeyboard } from "@opentui/solid"
 import { createSignal } from "solid-js"
 import { type Commit, getRevisionId } from "../../commander/types"
+import { useDialogCommands } from "../../context/command"
 import { useDialog } from "../../context/dialog"
 import { RevisionPicker } from "../RevisionPicker"
 
@@ -44,38 +44,45 @@ export function RebaseModal(props: RebaseModalProps) {
         })
     }
 
-    useKeyboard((evt) => {
-        if (executing) return
-        if (evt.name === "escape") {
-            evt.preventDefault()
-            evt.stopPropagation()
-            dialog.close()
-        } else if (evt.name === "return") {
-            evt.preventDefault()
-            evt.stopPropagation()
-            executeRebase()
-        } else if (evt.name === "s" && !evt.shift) {
-            evt.preventDefault()
-            evt.stopPropagation()
-            executeRebase({ mode: "descendants" })
-        } else if (evt.name === "b" && !evt.shift) {
-            evt.preventDefault()
-            evt.stopPropagation()
-            executeRebase({ mode: "branch" })
-        } else if (evt.name === "e" && !evt.shift) {
-            evt.preventDefault()
-            evt.stopPropagation()
-            executeRebase({ skipEmptied: true })
-        } else if (evt.name === "a" && evt.shift) {
-            evt.preventDefault()
-            evt.stopPropagation()
-            executeRebase({ targetMode: "insertAfter" })
-        } else if (evt.name === "b" && evt.shift) {
-            evt.preventDefault()
-            evt.stopPropagation()
-            executeRebase({ targetMode: "insertBefore" })
-        }
-    })
+    const dialogId = dialog.currentId()
+    useDialogCommands(dialogId, () => [
+        {
+            id: `${dialogId}.descendants`,
+            title: "descendants",
+            keybind: "rebase_descendants",
+            execute: () => executeRebase({ mode: "descendants" }),
+        },
+        {
+            id: `${dialogId}.branch`,
+            title: "branch",
+            keybind: "rebase_branch",
+            execute: () => executeRebase({ mode: "branch" }),
+        },
+        {
+            id: `${dialogId}.skip-emptied`,
+            title: "skip emptied",
+            keybind: "rebase_skip_emptied",
+            execute: () => executeRebase({ skipEmptied: true }),
+        },
+        {
+            id: `${dialogId}.insert-after`,
+            title: "insert after",
+            keybind: "rebase_insert_after",
+            execute: () => executeRebase({ targetMode: "insertAfter" }),
+        },
+        {
+            id: `${dialogId}.insert-before`,
+            title: "insert before",
+            keybind: "rebase_insert_before",
+            execute: () => executeRebase({ targetMode: "insertBefore" }),
+        },
+        {
+            id: `${dialogId}.confirm`,
+            title: "rebase",
+            keybind: "enter",
+            execute: executeRebase,
+        },
+    ])
 
     const handleRevisionSelect = (commit: Commit) => {
         setSelectedRevision(getRevisionId(commit))

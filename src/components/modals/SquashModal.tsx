@@ -1,6 +1,6 @@
-import { useKeyboard } from "@opentui/solid"
 import { createSignal } from "solid-js"
 import { type Commit, getRevisionId } from "../../commander/types"
+import { useDialogCommands } from "../../context/command"
 import { useDialog } from "../../context/dialog"
 import { RevisionPicker } from "../RevisionPicker"
 
@@ -41,30 +41,33 @@ export function SquashModal(props: SquashModalProps) {
         })
     }
 
-    useKeyboard((evt) => {
-        if (executing) return
-        if (evt.name === "escape") {
-            evt.preventDefault()
-            evt.stopPropagation()
-            dialog.close()
-        } else if (evt.name === "return") {
-            evt.preventDefault()
-            evt.stopPropagation()
-            executeSquash()
-        } else if (evt.name === "u") {
-            evt.preventDefault()
-            evt.stopPropagation()
-            executeSquash({ useDestinationMessage: true })
-        } else if (evt.name === "k" && evt.shift) {
-            evt.preventDefault()
-            evt.stopPropagation()
-            executeSquash({ keepEmptied: true })
-        } else if (evt.name === "i") {
-            evt.preventDefault()
-            evt.stopPropagation()
-            executeSquash({ interactive: true })
-        }
-    })
+    const dialogId = dialog.currentId()
+    useDialogCommands(dialogId, () => [
+        {
+            id: `${dialogId}.destination-message`,
+            title: "destination message",
+            keybind: "squash_destination_message",
+            execute: () => executeSquash({ useDestinationMessage: true }),
+        },
+        {
+            id: `${dialogId}.keep-emptied`,
+            title: "keep emptied",
+            keybind: "squash_keep_emptied",
+            execute: () => executeSquash({ keepEmptied: true }),
+        },
+        {
+            id: `${dialogId}.interactive`,
+            title: "interactive",
+            keybind: "squash_interactive",
+            execute: () => executeSquash({ interactive: true }),
+        },
+        {
+            id: `${dialogId}.confirm`,
+            title: "squash",
+            keybind: "enter",
+            execute: executeSquash,
+        },
+    ])
 
     const handleRevisionSelect = (commit: Commit) => {
         setSelectedRevision(getRevisionId(commit))

@@ -1,6 +1,7 @@
-import { useKeyboard } from "@opentui/solid"
 import { Show, createResource } from "solid-js"
 import { fetchOpLog } from "../../commander/operations"
+import { useDialogCommands } from "../../context/command"
+import { useDialog } from "../../context/dialog"
 import { useTheme } from "../../context/theme"
 import { AnsiText } from "../AnsiText"
 
@@ -13,6 +14,8 @@ interface UndoModalProps {
 
 export function UndoModal(props: UndoModalProps) {
     const { colors } = useTheme()
+    const dialog = useDialog()
+    const dialogId = dialog.currentId()
 
     const [fetchedDetails] = createResource(
         () => !props.operationLines,
@@ -25,17 +28,20 @@ export function UndoModal(props: UndoModalProps) {
     const opDetails = () =>
         props.operationLines?.join("\n") ?? fetchedDetails() ?? ""
 
-    useKeyboard((evt) => {
-        if (evt.name === "y" || evt.name === "return") {
-            evt.preventDefault()
-            evt.stopPropagation()
-            props.onConfirm()
-        } else if (evt.name === "n" || evt.name === "escape") {
-            evt.preventDefault()
-            evt.stopPropagation()
-            props.onCancel()
-        }
-    })
+    useDialogCommands(dialogId, () => [
+        {
+            id: `${dialogId}.confirm`,
+            title: "confirm",
+            keybind: "dialog_confirm",
+            execute: props.onConfirm,
+        },
+        {
+            id: `${dialogId}.cancel`,
+            title: "cancel",
+            keybind: "dialog_cancel",
+            execute: props.onCancel,
+        },
+    ])
 
     return (
         <box flexDirection="column">

@@ -67,6 +67,19 @@ export type KeybindConfigKey =
     | "open_editor_all"
     | "toggle_focus_mode"
     | "search"
+    | "rebase_descendants"
+    | "rebase_branch"
+    | "rebase_skip_emptied"
+    | "rebase_insert_after"
+    | "rebase_insert_before"
+    | "squash_destination_message"
+    | "squash_keep_emptied"
+    | "squash_interactive"
+    | "input_nav_down"
+    | "input_nav_up"
+    | "dialog_confirm"
+    | "dialog_cancel"
+    | "dialog_back"
 
 export type KeybindConfig = Record<KeybindConfigKey, string>
 
@@ -132,4 +145,17 @@ export const DEFAULT_KEYBINDS: KeybindConfig = {
     open_editor_all: "E",
     toggle_focus_mode: "ctrl+x",
     search: "/",
+    rebase_descendants: "s",
+    rebase_branch: "b",
+    rebase_skip_emptied: "e",
+    rebase_insert_after: "shift+a",
+    rebase_insert_before: "shift+b",
+    squash_destination_message: "u",
+    squash_keep_emptied: "shift+k",
+    squash_interactive: "i",
+    input_nav_down: "down",
+    input_nav_up: "up",
+    dialog_confirm: "y,enter",
+    dialog_cancel: "n,escape",
+    dialog_back: "escape",
 }

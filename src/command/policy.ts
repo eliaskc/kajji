@@ -1,8 +1,8 @@
 import type { Context, Panel } from "../context/types"
 import type { KeybindConfigKey } from "../keybind"
 
-export type CommandSurface = "palette" | "statusBar"
-export type CommandScope = "application" | "always"
+export type CommandSurface = "dialog" | "palette" | "statusBar"
+export type CommandScope = "application" | "always" | "dialog"
 export type CommandGroup =
     | "revisions"
     | "files"
@@ -23,6 +23,9 @@ export interface CommandDefinition {
     visibleIn: readonly CommandSurface[]
     group?: CommandGroup
     scope?: CommandScope
+    dialogId?: string
+    allowInInput?: boolean
+    hintLabel?: string
     execute: () => void
 }
 
@@ -30,6 +33,7 @@ export interface CommandEnvironment {
     context: Context
     panel: Panel | null
     dialogOpen: boolean
+    dialogId?: string
     inputMode: boolean
 }
 
@@ -50,8 +54,13 @@ function contextSpecificity(context: Context, activeContext: Context): number {
 
 export function isCommandApplicable(
     command: CommandDefinition,
-    environment: Pick<CommandEnvironment, "context" | "panel">,
+    environment: Pick<CommandEnvironment, "context" | "panel" | "dialogId">,
 ): boolean {
+    if (
+        command.scope === "dialog" &&
+        (!command.dialogId || command.dialogId !== environment.dialogId)
+    )
+        return false
     if (!contextMatches(command.context, environment.context)) return false
     if (command.panel && command.panel !== environment.panel) return false
     return true
@@ -102,8 +111,16 @@ export function canDispatchCommand(
     command: CommandDefinition,
     environment: CommandEnvironment,
 ): boolean {
-    if (environment.inputMode) return false
-    if (environment.dialogOpen && command.scope !== "always") return false
+    if (
+        environment.inputMode &&
+        !(command.scope === "dialog" && command.allowInInput)
+    )
+        return false
+    if (command.scope === "dialog") {
+        if (!environment.dialogOpen) return false
+    } else if (environment.dialogOpen && command.scope !== "always") {
+        return false
+    }
     return isCommandApplicable(command, environment)
 }
 

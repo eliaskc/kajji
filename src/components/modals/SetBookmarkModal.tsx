@@ -3,7 +3,6 @@ import {
     type ScrollBoxRenderable,
     type TextareaRenderable,
 } from "@opentui/core"
-import { useKeyboard } from "@opentui/solid"
 import fuzzysort from "fuzzysort"
 import { For, Show, createEffect, createMemo, createSignal } from "solid-js"
 import {
@@ -11,7 +10,7 @@ import {
     isBookmarkBackwardsError,
 } from "../../commander/bookmarks"
 import type { OperationResult } from "../../commander/operations"
-import { useCommandInputGuard } from "../../context/command"
+import { useCommandInputGuard, useDialogCommands } from "../../context/command"
 import { DIALOG_SIZE, useDialog } from "../../context/dialog"
 import { useTheme } from "../../context/theme"
 import { createSelectableList } from "../../hooks/selectable-list"
@@ -233,21 +232,31 @@ export function SetBookmarkModal(props: SetBookmarkModalProps) {
         }
     }
 
-    useKeyboard((evt) => {
-        if (evt.name === "escape") {
-            evt.preventDefault()
-            evt.stopPropagation()
-            dialog.close()
-        } else if (evt.name === "down") {
-            evt.preventDefault()
-            evt.stopPropagation()
-            selectNext()
-        } else if (evt.name === "up") {
-            evt.preventDefault()
-            evt.stopPropagation()
-            selectPrev()
-        }
-    })
+    const dialogId = dialog.currentId()
+    useDialogCommands(dialogId, () => [
+        {
+            id: `${dialogId}.next`,
+            title: "next",
+            keybind: "input_nav_down",
+            visibleIn: [],
+            allowInInput: true,
+            execute: selectNext,
+        },
+        {
+            id: `${dialogId}.previous`,
+            title: "previous",
+            keybind: "input_nav_up",
+            visibleIn: [],
+            allowInInput: true,
+            execute: selectPrev,
+        },
+        {
+            id: `${dialogId}.submit`,
+            title: "confirm",
+            keybind: "enter",
+            execute: () => void handleSubmit(),
+        },
+    ])
 
     const hasBookmarks = () => props.bookmarks.length > 0
     const showPlaceholderText = () =>

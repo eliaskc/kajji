@@ -1,6 +1,6 @@
-import { useKeyboard } from "@opentui/solid"
 import { For, Show } from "solid-js"
 import type { Bookmark } from "../../commander/bookmarks"
+import { useDialogCommands } from "../../context/command"
 import { useDialog } from "../../context/dialog"
 import { useTheme } from "../../context/theme"
 import type { StackPlan } from "../../stack/model"
@@ -26,21 +26,28 @@ export function StackPlanModal(props: StackPlanModalProps) {
         props.onApply()
     }
 
-    useKeyboard((evt) => {
-        if (evt.name === "escape") {
-            evt.preventDefault()
-            evt.stopPropagation()
-            dialog.close()
-            props.onBack()
-            return
-        }
-
-        if (evt.name === "return" || evt.name === "enter") {
-            evt.preventDefault()
-            evt.stopPropagation()
-            apply()
-        }
-    })
+    const dialogId = dialog.currentId()
+    useDialogCommands(dialogId, () => [
+        {
+            id: `${dialogId}.back`,
+            title: "back",
+            keybind: "dialog_back",
+            execute: () => {
+                dialog.close()
+                props.onBack()
+            },
+        },
+        ...(hasEffects()
+            ? [
+                  {
+                      id: `${dialogId}.apply`,
+                      title: "apply",
+                      keybind: "enter" as const,
+                      execute: apply,
+                  },
+              ]
+            : []),
+    ])
 
     return (
         <box flexDirection="column" gap={1} minHeight={10}>

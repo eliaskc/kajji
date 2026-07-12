@@ -1,8 +1,7 @@
 import { RGBA, type TextareaRenderable } from "@opentui/core"
-import { useKeyboard } from "@opentui/solid"
 import { Show, createSignal, onMount } from "solid-js"
 import { type Commit, getRevisionId } from "../../commander/types"
-import { useCommandInputGuard } from "../../context/command"
+import { useCommandInputGuard, useDialogCommands } from "../../context/command"
 import { useDialog } from "../../context/dialog"
 import { useTheme } from "../../context/theme"
 import { RevisionPicker } from "../RevisionPicker"
@@ -80,25 +79,41 @@ export function BookmarkNameModal(props: BookmarkNameModalProps) {
         }
     }
 
-    useKeyboard((evt) => {
-        if (evt.name === "escape") {
-            evt.preventDefault()
-            evt.stopPropagation()
-            dialog.close()
-        } else if (evt.name === "tab" && hasRevisionPicker()) {
-            evt.preventDefault()
-            evt.stopPropagation()
-            if (focusedField() === "name") {
-                setFocusedField("picker")
-            } else {
-                setFocusedField("name")
-                focusInputAtEnd(inputRef)
-            }
-        } else if (evt.name === "return" && focusedField() === "picker") {
-            evt.preventDefault()
-            evt.stopPropagation()
-            handleSave()
+    const dialogId = dialog.currentId()
+    useDialogCommands(dialogId, () => {
+        if (!hasRevisionPicker()) {
+            return [
+                {
+                    id: `${dialogId}.save`,
+                    title: "save",
+                    keybind: "enter",
+                    execute: handleSave,
+                },
+            ]
         }
+        return [
+            {
+                id: `${dialogId}.next-field`,
+                title: "next field",
+                keybind: "focus_next",
+                allowInInput: true,
+                execute: () => {
+                    if (focusedField() === "name") {
+                        setFocusedField("picker")
+                    } else {
+                        setFocusedField("name")
+                        focusInputAtEnd(inputRef)
+                    }
+                },
+            },
+            {
+                id: `${dialogId}.save`,
+                title: "save",
+                keybind: "enter",
+                allowInInput: focusedField() === "picker",
+                execute: handleSave,
+            },
+        ]
     })
 
     const handleRevisionSelect = (commit: Commit) => {

@@ -1,6 +1,7 @@
 import { useKeyboard } from "@opentui/solid"
 import {
     type Accessor,
+    createEffect,
     createMemo,
     createSignal,
     onCleanup,
@@ -49,6 +50,7 @@ export const { use: useCommand, provider: CommandProvider } =
                 context: focus.activeContext(),
                 panel: focus.panel(),
                 dialogOpen: dialog.isOpen(),
+                dialogId: dialog.current()?.id,
                 inputMode: isBlockingCommands(),
             })
 
@@ -65,6 +67,7 @@ export const { use: useCommand, provider: CommandProvider } =
                         context: activeCtx,
                         panel: activePanel,
                         dialogOpen,
+                        dialogId: dialog.current()?.id,
                         inputMode: isInputMode,
                     },
                     (configKey, event) => keybind.match(configKey, event),
@@ -141,4 +144,50 @@ export function useCommandInputGuard() {
     onCleanup(() => {
         releaseFocus?.()
     })
+}
+
+export type DialogCommandOption = Omit<
+    CommandOption,
+    "context" | "dialogId" | "scope" | "visibleIn"
+> & {
+    allowInInput?: boolean
+    visibleIn?: readonly CommandSurface[]
+}
+
+export function useDialogCommands(
+    dialogId: string,
+    definitions: () => DialogCommandOption[],
+) {
+    const command = useCommand()
+    const dialog = useDialog()
+    const keybind = useKeybind()
+
+    command.register(() =>
+        definitions().map((definition) => ({
+            ...definition,
+            visibleIn: definition.visibleIn ?? ["dialog"],
+            context: "global" as const,
+            dialogId,
+            scope: "dialog" as const,
+        })),
+    )
+
+    createEffect(() => {
+        const hints = commandsForSurface(command.all(), "dialog")
+            .filter(
+                (definition) =>
+                    definition.scope === "dialog" &&
+                    definition.dialogId === dialogId &&
+                    definition.keybind,
+            )
+            .map((definition) => ({
+                key: definition.keybind
+                    ? keybind.print(definition.keybind)
+                    : "",
+                label: definition.hintLabel ?? definition.title,
+            }))
+        dialog.setGeneratedHints(dialogId, hints)
+    })
+
+    onCleanup(() => dialog.clearGeneratedHints(dialogId))
 }

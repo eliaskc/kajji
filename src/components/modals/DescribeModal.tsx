@@ -1,7 +1,6 @@
 import type { InputRenderable, TextareaRenderable } from "@opentui/core"
-import { useKeyboard } from "@opentui/solid"
 import { createSignal, onMount } from "solid-js"
-import { useCommandInputGuard } from "../../context/command"
+import { useCommandInputGuard, useDialogCommands } from "../../context/command"
 import { useDialog } from "../../context/dialog"
 import { useTheme } from "../../context/theme"
 
@@ -45,19 +44,30 @@ export function DescribeModal(props: DescribeModalProps) {
         props.onSave(subject(), body())
     }
 
-    useKeyboard((evt) => {
-        if (evt.name === "tab") {
-            evt.preventDefault()
-            evt.stopPropagation()
-            if (focusedField() === "subject") {
-                setFocusedField("body")
-                focusAtEnd(bodyRef)
-            } else {
-                setFocusedField("subject")
-                focusAtEnd(subjectRef)
-            }
-        }
-    })
+    const dialogId = dialog.currentId()
+    useDialogCommands(dialogId, () => [
+        {
+            id: `${dialogId}.next-field`,
+            title: "next field",
+            keybind: "focus_next",
+            allowInInput: true,
+            execute: () => {
+                if (focusedField() === "subject") {
+                    setFocusedField("body")
+                    focusAtEnd(bodyRef)
+                } else {
+                    setFocusedField("subject")
+                    focusAtEnd(subjectRef)
+                }
+            },
+        },
+        {
+            id: `${dialogId}.save`,
+            title: "save",
+            keybind: "enter",
+            execute: handleSave,
+        },
+    ])
 
     const charCount = () => subject().length
 

@@ -1,6 +1,6 @@
-import { useKeyboard } from "@opentui/solid"
 import { createSignal } from "solid-js"
 import { type Commit, getRevisionId } from "../../commander/types"
+import { useDialogCommands } from "../../context/command"
 import { useDialog } from "../../context/dialog"
 import { RevisionPicker } from "../RevisionPicker"
 
@@ -26,17 +26,15 @@ export function RevisionPickerModal(props: RevisionPickerModalProps) {
         props.onSelect(rev)
     }
 
-    useKeyboard((evt) => {
-        if (evt.name === "escape") {
-            evt.preventDefault()
-            evt.stopPropagation()
-            dialog.close()
-        } else if (evt.name === "return") {
-            evt.preventDefault()
-            evt.stopPropagation()
-            handleConfirm()
-        }
-    })
+    const dialogId = dialog.currentId()
+    useDialogCommands(dialogId, () => [
+        {
+            id: `${dialogId}.confirm`,
+            title: "select",
+            keybind: "enter",
+            execute: handleConfirm,
+        },
+    ])
 
     const handleRevisionSelect = (commit: Commit) => {
         setSelectedRevision(getRevisionId(commit))

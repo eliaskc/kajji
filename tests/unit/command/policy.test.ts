@@ -103,6 +103,7 @@ describe("command key resolution", () => {
         context: "log.revisions" as const,
         panel: "log" as const,
         dialogOpen: false,
+        dialogId: undefined,
         inputMode: false,
     }
 
@@ -169,6 +170,19 @@ describe("command key resolution", () => {
         expect(result?.id).toBe("palette")
     })
 
+    test("only commands for the topmost dialog match", () => {
+        const result = resolveCommandKey(
+            [
+                command({ id: "under", scope: "dialog", dialogId: "under" }),
+                command({ id: "top", scope: "dialog", dialogId: "top" }),
+            ],
+            event,
+            { ...environment, dialogOpen: true, dialogId: "top" },
+            matches,
+        )
+        expect(result?.id).toBe("top")
+    })
+
     test("unbound commands do not match keyboard events", () => {
         const result = resolveCommandKey(
             [command({ keybind: undefined })],
@@ -185,6 +199,7 @@ describe("command dispatch policy", () => {
         context: "log.revisions" as const,
         panel: "log" as const,
         dialogOpen: false,
+        dialogId: undefined,
         inputMode: false,
     }
 
@@ -211,6 +226,90 @@ describe("command dispatch policy", () => {
                 inputMode: true,
             }),
         ).toBe(false)
+    })
+
+    test("dialog commands require their dialog to be topmost", () => {
+        const definition = command({ scope: "dialog", dialogId: "picker" })
+        expect(
+            canDispatchCommand(definition, {
+                ...environment,
+                dialogOpen: true,
+                dialogId: "picker",
+            }),
+        ).toBe(true)
+        expect(
+            canDispatchCommand(definition, {
+                ...environment,
+                dialogOpen: true,
+                dialogId: "confirm",
+            }),
+        ).toBe(false)
+        expect(canDispatchCommand(definition, environment)).toBe(false)
+    })
+
+    test("only explicitly allowed dialog commands pass focused inputs", () => {
+        const blocked = command({ scope: "dialog", dialogId: "picker" })
+        const navigation = command({
+            scope: "dialog",
+            dialogId: "picker",
+            allowInInput: true,
+        })
+        const focused = {
+            ...environment,
+            dialogOpen: true,
+            dialogId: "picker",
+            inputMode: true,
+        }
+        expect(canDispatchCommand(blocked, focused)).toBe(false)
+        expect(canDispatchCommand(navigation, focused)).toBe(true)
+    })
+
+    test("input navigation bindings do not claim typing keys", () => {
+        const navigation = command({
+            scope: "dialog",
+            dialogId: "picker",
+            keybind: "input_nav_down",
+            allowInInput: true,
+        })
+        const focused = {
+            ...environment,
+            dialogOpen: true,
+            dialogId: "picker",
+            inputMode: true,
+        }
+        const matchesInputNavigation = (
+            keybind: string,
+            value: { keybind: string },
+        ) => keybind === "input_nav_down" && value.keybind === "down"
+
+        expect(
+            resolveCommandKey(
+                [navigation],
+                { keybind: "j" },
+                focused,
+                matchesInputNavigation,
+            ),
+        ).toBeUndefined()
+        expect(
+            resolveCommandKey(
+                [navigation],
+                { keybind: "down" },
+                focused,
+                matchesInputNavigation,
+            )?.id,
+        ).toBe("test")
+    })
+
+    test("dialog surface preserves input order", () => {
+        const hints = commandsForSurface(
+            [
+                command({ id: "last", visibleIn: ["dialog"] }),
+                command({ id: "first", visibleIn: ["dialog"] }),
+                command({ id: "hidden", visibleIn: [] }),
+            ],
+            "dialog",
+        )
+        expect(hints.map(({ id }) => id)).toEqual(["last", "first"])
     })
 
     test("groups default from context and allow explicit cross-cutting groups", () => {

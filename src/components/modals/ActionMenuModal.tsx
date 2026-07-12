@@ -1,5 +1,6 @@
 import { useKeyboard } from "@opentui/solid"
 import { For, createSignal } from "solid-js"
+import { useDialogCommands } from "../../context/command"
 import { useDialog } from "../../context/dialog"
 import { useTheme } from "../../context/theme"
 import { createSelectableList } from "../../hooks/selectable-list"
@@ -48,35 +49,31 @@ export function ActionMenuModal(props: ActionMenuModalProps) {
         list.selectPrevByKeyboard()
     }
 
+    const dialogId = dialog.currentId()
+    useDialogCommands(dialogId, () => [
+        {
+            id: `${dialogId}.next`,
+            title: "next",
+            keybind: "nav_down",
+            visibleIn: [],
+            execute: selectNext,
+        },
+        {
+            id: `${dialogId}.previous`,
+            title: "previous",
+            keybind: "nav_up",
+            visibleIn: [],
+            execute: selectPrev,
+        },
+        {
+            id: `${dialogId}.select`,
+            title: "select",
+            keybind: "enter",
+            execute: () => execute(selectedIndex()),
+        },
+    ])
+
     useKeyboard((evt) => {
-        if (evt.name === "escape") {
-            evt.preventDefault()
-            evt.stopPropagation()
-            dialog.close()
-            return
-        }
-
-        if (evt.name === "down") {
-            evt.preventDefault()
-            evt.stopPropagation()
-            selectNext()
-            return
-        }
-
-        if (evt.name === "up") {
-            evt.preventDefault()
-            evt.stopPropagation()
-            selectPrev()
-            return
-        }
-
-        if (evt.name === "return" || evt.name === "enter") {
-            evt.preventDefault()
-            evt.stopPropagation()
-            execute(selectedIndex())
-            return
-        }
-
         if (evt.name && evt.name.length === 1) {
             const pressed = evt.name.toLowerCase()
             const index = props.options.findIndex(

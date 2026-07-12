@@ -3,7 +3,6 @@ import {
     RGBA,
     type ScrollBoxRenderable,
 } from "@opentui/core"
-import { useKeyboard } from "@opentui/solid"
 
 const COMMAND_PALETTE_CONTENT_WIDTH = 50
 
@@ -30,6 +29,7 @@ import {
     type Context,
     useCommand,
     useCommandInputGuard,
+    useDialogCommands,
 } from "../../context/command"
 import { useDialog } from "../../context/dialog"
 import { useLayout } from "../../context/layout"
@@ -251,21 +251,25 @@ export function CommandPalette() {
         }
     }
 
-    useKeyboard((evt) => {
-        if (evt.name === "down") {
-            evt.preventDefault()
-            evt.stopPropagation()
-            move(1)
-        } else if (evt.name === "up") {
-            evt.preventDefault()
-            evt.stopPropagation()
-            move(-1)
-        } else if (evt.name === "return") {
-            evt.preventDefault()
-            evt.stopPropagation()
-            executeSelected()
-        }
-    })
+    const dialogId = dialog.currentId()
+    useDialogCommands(dialogId, () => [
+        {
+            id: `${dialogId}.next`,
+            title: "next",
+            keybind: "input_nav_down",
+            visibleIn: [],
+            allowInInput: true,
+            execute: () => move(1),
+        },
+        {
+            id: `${dialogId}.previous`,
+            title: "previous",
+            keybind: "input_nav_up",
+            visibleIn: [],
+            allowInInput: true,
+            execute: () => move(-1),
+        },
+    ])
 
     const isSelected = (cmd: CommandOption) => selectedCommand()?.id === cmd.id
     const paletteHeight = () =>

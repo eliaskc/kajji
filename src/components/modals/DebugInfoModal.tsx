@@ -1,6 +1,8 @@
 import { TextAttributes } from "@opentui/core"
-import { useKeyboard, useRenderer } from "@opentui/solid"
+import { useRenderer } from "@opentui/solid"
 import { For, createSignal, onCleanup } from "solid-js"
+import { useDialogCommands } from "../../context/command"
+import { useDialog } from "../../context/dialog"
 import { useTheme } from "../../context/theme"
 import { getDebugInfo } from "../../utils/diagnostics"
 
@@ -31,11 +33,7 @@ export function DebugInfoModal() {
         { label: "Memory", value: `${info.rss} RSS / ${info.heapUsed} heap` },
     ]
 
-    useKeyboard((event) => {
-        if (event.name !== "return" && event.name !== "enter") return
-        event.preventDefault()
-        event.stopPropagation()
-
+    const copy = () => {
         const text = entries
             .map((entry) => `${entry.label}: ${entry.value}`)
             .join("\n")
@@ -43,7 +41,18 @@ export function DebugInfoModal() {
         setCopyState(copied ? "copied" : "failed")
         clearTimeout(resetTimer)
         resetTimer = setTimeout(() => setCopyState("idle"), 3000)
-    })
+    }
+
+    const dialog = useDialog()
+    const dialogId = dialog.currentId()
+    useDialogCommands(dialogId, () => [
+        {
+            id: `${dialogId}.copy`,
+            title: "copy",
+            keybind: "enter",
+            execute: copy,
+        },
+    ])
 
     onCleanup(() => clearTimeout(resetTimer))
 

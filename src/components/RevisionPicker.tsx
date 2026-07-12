@@ -1,5 +1,4 @@
 import type { ScrollBoxRenderable } from "@opentui/core"
-import { useKeyboard } from "@opentui/solid"
 import {
     For,
     Show,
@@ -10,6 +9,8 @@ import {
     onMount,
 } from "solid-js"
 import { type Commit, getRevisionId } from "../commander/types"
+import { useDialogCommands } from "../context/command"
+import { useDialog } from "../context/dialog"
 import { useTheme } from "../context/theme"
 import { createHorizontalCropScroll } from "../hooks/horizontal-crop-scroll"
 import { createSelectableList } from "../hooks/selectable-list"
@@ -138,19 +139,30 @@ export function RevisionPicker(props: RevisionPickerProps) {
         list.selectNextByKeyboard()
     }
 
-    useKeyboard((evt) => {
-        if (!props.focused) return
-
-        if (evt.name === "j" || evt.name === "down") {
-            evt.preventDefault()
-            evt.stopPropagation()
-            selectNext()
-        } else if (evt.name === "k" || evt.name === "up") {
-            evt.preventDefault()
-            evt.stopPropagation()
-            selectPrev()
-        }
-    })
+    const dialog = useDialog()
+    const dialogId = dialog.currentId()
+    useDialogCommands(dialogId, () =>
+        props.focused
+            ? [
+                  {
+                      id: `${dialogId}.next`,
+                      title: "next",
+                      keybind: "nav_down",
+                      visibleIn: [],
+                      allowInInput: true,
+                      execute: selectNext,
+                  },
+                  {
+                      id: `${dialogId}.previous`,
+                      title: "previous",
+                      keybind: "nav_up",
+                      visibleIn: [],
+                      allowInInput: true,
+                      execute: selectPrev,
+                  },
+              ]
+            : [],
+    )
 
     createEffect(() => {
         const commit = props.commits[selectedIndex()]

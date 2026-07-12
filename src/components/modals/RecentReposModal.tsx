@@ -8,6 +8,7 @@ import {
     onCleanup,
     onMount,
 } from "solid-js"
+import { useDialogCommands } from "../../context/command"
 import { useDialog } from "../../context/dialog"
 import { useTheme } from "../../context/theme"
 import { getRepoPath } from "../../repo"
@@ -82,21 +83,36 @@ export function RecentReposModal(props: RecentReposModalProps) {
         props.onSelect(path)
     }
 
+    const dialogId = dialog.currentId()
+    useDialogCommands(dialogId, () => [
+        {
+            id: `${dialogId}.next`,
+            title: "next",
+            keybind: "nav_down",
+            visibleIn: [],
+            execute: () =>
+                setSelectedIndex((i) => Math.min(repos.length - 1, i + 1)),
+        },
+        {
+            id: `${dialogId}.previous`,
+            title: "previous",
+            keybind: "nav_up",
+            visibleIn: [],
+            execute: () => setSelectedIndex((i) => Math.max(0, i - 1)),
+        },
+        {
+            id: `${dialogId}.select`,
+            title: "open",
+            keybind: "enter",
+            execute: () => {
+                const repo = repos[selectedIndex()]
+                if (repo) selectRepo(repo.path)
+            },
+        },
+    ])
+
     useKeyboard((evt) => {
-        if (evt.name === "j" || evt.name === "down") {
-            evt.preventDefault()
-            evt.stopPropagation()
-            setSelectedIndex((i) => Math.min(repos.length - 1, i + 1))
-        } else if (evt.name === "k" || evt.name === "up") {
-            evt.preventDefault()
-            evt.stopPropagation()
-            setSelectedIndex((i) => Math.max(0, i - 1))
-        } else if (evt.name === "return" || evt.name === "enter") {
-            evt.preventDefault()
-            evt.stopPropagation()
-            const repo = repos[selectedIndex()]
-            if (repo) selectRepo(repo.path)
-        } else if (evt.name && /^[1-9]$/.test(evt.name)) {
+        if (evt.name && /^[1-9]$/.test(evt.name)) {
             evt.preventDefault()
             evt.stopPropagation()
             const index = Number.parseInt(evt.name, 10) - 1

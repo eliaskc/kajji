@@ -11,13 +11,11 @@ import {
     onCleanup,
     onMount,
 } from "solid-js"
+import { type DialogHint, mergeDialogHints } from "./dialog-hints"
 import { createSimpleContext } from "./helper"
 import { useTheme } from "./theme"
 
-export interface DialogHint {
-    key: string
-    label: string
-}
+export type { DialogHint } from "./dialog-hints"
 
 type Dimension = number | "auto" | `${number}%`
 
@@ -175,6 +173,10 @@ export const { use: useDialog, provider: DialogProvider } = createSimpleContext(
         name: "Dialog",
         init: () => {
             const [stack, setStack] = createSignal<DialogState[]>([])
+            const [generatedHints, setGeneratedHints] = createSignal<
+                Record<string, DialogHint[]>
+            >({})
+            let nextDialogId = 0
 
             const close = () => {
                 const current = stack().at(-1)
@@ -209,10 +211,11 @@ export const { use: useDialog, provider: DialogProvider } = createSimpleContext(
                     closeOnEsc?: boolean
                 },
             ) => {
+                const id = options?.id ?? `dialog-${++nextDialogId}`
                 setStack((s) => [
                     ...s,
                     {
-                        id: options?.id,
+                        id,
                         render,
                         onClose: options?.onClose,
                         hints: options?.hints,
@@ -300,7 +303,19 @@ export const { use: useDialog, provider: DialogProvider } = createSimpleContext(
             return {
                 isOpen: () => stack().length > 0,
                 current: () => stack().at(-1),
-                hints: () => stack().at(-1)?.hints ?? [],
+                currentId: () => {
+                    const id = stack().at(-1)?.id
+                    if (!id) throw new Error("No active dialog")
+                    return id
+                },
+                hints: () => {
+                    const current = stack().at(-1)
+                    if (!current) return []
+                    return mergeDialogHints(
+                        current.hints ?? [],
+                        generatedHints()[current.id ?? ""] ?? [],
+                    )
+                },
                 title: () => stack().at(-1)?.title,
                 width: () => stack().at(-1)?.width,
                 resolvedWidth: () =>
@@ -314,6 +329,20 @@ export const { use: useDialog, provider: DialogProvider } = createSimpleContext(
                         const last = s[s.length - 1]
                         if (!last) return s
                         return [...s.slice(0, -1), { ...last, hints }]
+                    })
+                },
+                setGeneratedHints: (id: string, hints: DialogHint[]) => {
+                    setGeneratedHints((current) => ({
+                        ...current,
+                        [id]: hints,
+                    }))
+                },
+                clearGeneratedHints: (id: string) => {
+                    setGeneratedHints((current) => {
+                        if (!(id in current)) return current
+                        const next = { ...current }
+                        delete next[id]
+                        return next
                     })
                 },
 

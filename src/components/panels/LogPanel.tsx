@@ -1716,12 +1716,6 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                             " into",
                         ],
                         ...DIALOG_SIZE.picker,
-                        hints: [
-                            { key: "u", label: "--use-destination-message" },
-                            { key: "K", label: "--keep-emptied" },
-                            { key: "i", label: "--interactive" },
-                            { key: "enter", label: "run" },
-                        ],
                     },
                 )
             },
@@ -1823,14 +1817,6 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                             " onto",
                         ],
                         ...DIALOG_SIZE.picker,
-                        hints: [
-                            { key: "s", label: "--source" },
-                            { key: "b", label: "--branch" },
-                            { key: "e", label: "--skip-emptied" },
-                            { key: "A", label: "--insert-after" },
-                            { key: "B", label: "--insert-before" },
-                            { key: "enter", label: "run" },
-                        ],
                     },
                 )
             },
@@ -1950,10 +1936,6 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                             },
                         ],
                         ...DIALOG_SIZE.describe,
-                        hints: [
-                            { key: "tab", label: "switch field" },
-                            { key: "enter", label: "save" },
-                        ],
                     },
                 )
             },
@@ -2107,7 +2089,6 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                             },
                         ],
                         ...DIALOG_SIZE.form,
-                        hints: [{ key: "enter", label: "confirm" }],
                     },
                 )
             },
@@ -2174,10 +2155,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                         id: "restore-modal",
                         title: "Restore to this operation?",
                         ...DIALOG_SIZE.form,
-                        hints: [
-                            { key: "y", label: "confirm" },
-                            { key: "n", label: "cancel" },
-                        ],
+                        closeOnEsc: false,
                     },
                 )
             },

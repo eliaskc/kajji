@@ -1,6 +1,7 @@
 import { useKeyboard } from "@opentui/solid"
 import { For, Show, createSignal } from "solid-js"
 import type { Bookmark } from "../../commander/bookmarks"
+import { useDialogCommands } from "../../context/command"
 import { useDialog } from "../../context/dialog"
 import { useTheme } from "../../context/theme"
 import type { BookmarkStackRow } from "../../stack/model"
@@ -47,35 +48,31 @@ export function StackActionsModal(props: StackActionsModalProps) {
         setSelectedIndex((index) => Math.max(0, index - 1))
     }
 
+    const dialogId = dialog.currentId()
+    useDialogCommands(dialogId, () => [
+        {
+            id: `${dialogId}.next`,
+            title: "next",
+            keybind: "nav_down",
+            visibleIn: [],
+            execute: selectNext,
+        },
+        {
+            id: `${dialogId}.previous`,
+            title: "previous",
+            keybind: "nav_up",
+            visibleIn: [],
+            execute: selectPrev,
+        },
+        {
+            id: `${dialogId}.select`,
+            title: "select",
+            keybind: "enter",
+            execute: () => execute(selectedIndex()),
+        },
+    ])
+
     useKeyboard((evt) => {
-        if (evt.name === "escape") {
-            evt.preventDefault()
-            evt.stopPropagation()
-            dialog.close()
-            return
-        }
-
-        if (evt.name === "down") {
-            evt.preventDefault()
-            evt.stopPropagation()
-            selectNext()
-            return
-        }
-
-        if (evt.name === "up") {
-            evt.preventDefault()
-            evt.stopPropagation()
-            selectPrev()
-            return
-        }
-
-        if (evt.name === "return" || evt.name === "enter") {
-            evt.preventDefault()
-            evt.stopPropagation()
-            execute(selectedIndex())
-            return
-        }
-
         if (evt.name && evt.name.length === 1) {
             const key = evt.shift ? evt.name.toUpperCase() : evt.name
             const index = props.actions.findIndex(

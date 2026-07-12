@@ -412,13 +412,6 @@ export function BookmarksPanel() {
                     ...DIALOG_SIZE.confirmWide,
                     minHeight: stackDialogMinHeight(plan.rows.length),
                     closeOnEsc: false,
-                    hints:
-                        plan.effects.length > 0
-                            ? [
-                                  { key: "esc", label: "back" },
-                                  { key: "enter", label: "apply" },
-                              ]
-                            : [{ key: "esc", label: "back" }],
                 },
             )
         } catch (error) {
@@ -492,7 +485,6 @@ export function BookmarksPanel() {
                 ],
                 ...DIALOG_SIZE.confirmWide,
                 minHeight: stackDialogMinHeight(rows.length),
-                hints: [{ key: "enter", label: "run" }],
             },
         )
     }
@@ -1068,10 +1060,6 @@ export function BookmarksPanel() {
                         id: "bookmark-create",
                         title: "Create Bookmark",
                         ...DIALOG_SIZE.form,
-                        hints: [
-                            { key: "tab", label: "switch field" },
-                            { key: "enter", label: "save" },
-                        ],
                     },
                 )
             },
@@ -1143,7 +1131,6 @@ export function BookmarksPanel() {
                             { text: bookmark.name, style: "target" },
                         ],
                         ...DIALOG_SIZE.form,
-                        hints: [{ key: "enter", label: "save" }],
                     },
                 )
             },
@@ -1229,7 +1216,6 @@ export function BookmarksPanel() {
                             " to",
                         ],
                         ...DIALOG_SIZE.form,
-                        hints: [{ key: "enter", label: "confirm" }],
                     },
                 )
             },

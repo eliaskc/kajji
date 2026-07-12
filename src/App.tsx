@@ -339,7 +339,6 @@ function AppContent() {
             id: "fetch-menu",
             title: [{ text: "Fetch", style: "action" }, " options"],
             ...GIT_ACTION_MENU_DIALOG,
-            hints: [{ key: "enter", label: "run" }],
         })
     }
 
@@ -405,7 +404,6 @@ function AppContent() {
             id: "push-menu",
             title: [{ text: "Push", style: "action" }, " options"],
             ...GIT_ACTION_MENU_DIALOG,
-            hints: [{ key: "enter", label: "run" }],
         })
     }
 
@@ -543,11 +541,7 @@ function AppContent() {
                     {
                         title: "Recent repositories",
                         ...DIALOG_SIZE.form,
-                        hints: [
-                            { key: "j/k", label: "select" },
-                            { key: "1-9", label: "open" },
-                            { key: "enter", label: "switch" },
-                        ],
+                        hints: [{ key: "1-9", label: "open" }],
                     },
                 ),
         },
@@ -734,10 +728,7 @@ function AppContent() {
                         id: "undo-modal",
                         title: "Undo last operation?",
                         ...DIALOG_SIZE.form,
-                        hints: [
-                            { key: "y", label: "confirm" },
-                            { key: "n", label: "cancel" },
-                        ],
+                        closeOnEsc: false,
                     },
                 )
             },
@@ -775,10 +766,7 @@ function AppContent() {
                         id: "redo-modal",
                         title: "Redo last operation?",
                         ...DIALOG_SIZE.form,
-                        hints: [
-                            { key: "y", label: "confirm" },
-                            { key: "n", label: "cancel" },
-                        ],
+                        closeOnEsc: false,
                     },
                 )
             },
