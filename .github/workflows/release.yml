@@ -281,6 +281,9 @@ jobs:
       !cancelled() &&
       needs.build.result == 'success'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
     steps:
       - name: Resolve checkout ref
         id: ref
@@ -300,10 +303,11 @@ jobs:
         with:
           bun-version: latest
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v6
         with:
-          node-version: "20"
+          node-version: "24"
           registry-url: "https://registry.npmjs.org"
+          package-manager-cache: false
 
       - run: bun install
 
@@ -341,8 +345,6 @@ jobs:
 
       - name: Publish to npm
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           SKIP_BUILD: "1"
         run: bun run scripts/publish.ts --skip-build
 
