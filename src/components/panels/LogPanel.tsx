@@ -2674,13 +2674,13 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
     const renderFilesContent = () => {
         return (
             <box flexDirection="column" flexGrow={1}>
-                <Show when={filesLoading()}>
+                <Show when={filesLoading() && !fileTree()}>
                     <text fg={colors().textMuted}>Loading files...</text>
                 </Show>
                 <Show when={filesError()}>
                     <text fg={colors().error}>Error: {filesError()}</text>
                 </Show>
-                <Show when={!filesLoading() && !filesError()}>
+                <Show when={fileTree() && !filesError()}>
                     <FilterableFileTree
                         files={flatFiles}
                         selectedIndex={selectedFileIndex}
