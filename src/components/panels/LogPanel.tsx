@@ -2667,7 +2667,7 @@ export function LogPanel() {
 
     const renderFilesContent = () => {
         return (
-            <>
+            <box flexDirection="column" flexGrow={1}>
                 <Show when={filesLoading()}>
                     <text fg={colors().textMuted}>Loading files...</text>
                 </Show>
@@ -2692,7 +2692,7 @@ export function LogPanel() {
                         }}
                     />
                 </Show>
-            </>
+            </box>
         )
     }
 

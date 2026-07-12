@@ -7,6 +7,7 @@ import {
     type HunkId,
     type SyntaxToken,
     flattenToRows,
+    getCurrentFileId,
     getHunkRowOffsets,
     getLanguage,
     getLineNumWidth,
@@ -34,6 +35,7 @@ interface VirtualizedUnifiedViewProps {
     files: FlattenedFile[]
     activeFileId?: FileId | null
     onHunkRowOffsets?: (offsets: Map<HunkId, number>) => void
+    onCurrentFileChange?: (fileId: FileId | null) => void
     scrollTop: number
     viewportHeight: number
     viewportWidth: number
@@ -88,6 +90,9 @@ export function VirtualizedUnifiedView(props: VirtualizedUnifiedViewProps) {
 
     createEffect(() => {
         props.onHunkRowOffsets?.(getHunkRowOffsets(wrappedRows()))
+        props.onCurrentFileChange?.(
+            getCurrentFileId(wrappedRows(), props.scrollTop),
+        )
     })
 
     const visibleRange = createMemo(() =>

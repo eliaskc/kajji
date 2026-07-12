@@ -119,6 +119,15 @@ export interface ViewportState {
     totalRows: number
 }
 
+export function getCurrentFileId<Row extends { row: { fileId: FileId } }>(
+    rows: readonly Row[],
+    scrollTop: number,
+): FileId | null {
+    if (rows.length === 0) return null
+    const index = Math.min(rows.length - 1, Math.max(0, Math.floor(scrollTop)))
+    return rows[index]?.row.fileId ?? null
+}
+
 const DEFAULT_OVERSCAN = 50
 
 export function getVisibleRange(

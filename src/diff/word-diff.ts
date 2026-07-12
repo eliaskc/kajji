@@ -11,38 +11,42 @@ export interface WordDiffSegment {
 /**
  * Push a segment, joining it into the previous one when possible ("word-alt"
  * style, mirroring @pierre/diffs). Adjacent segments of the same kind are
- * merged, and a single-character unchanged gap (typically a space) between
- * two changed segments is absorbed into the highlight so changed runs read
- * as one continuous span instead of speckled fragments.
+ * merged. Whitespace stays neutral so indentation and spacing changes do not
+ * add visual noise to word-level highlights.
  */
 function pushOrJoinSegment(
     segments: WordDiffSegment[],
     text: string,
     type: WordDiffSegment["type"],
-    isLastItem: boolean,
 ): void {
+    if (!text) return
     const last = segments[segments.length - 1]
-    if (!last || isLastItem) {
+    if (!last) {
         segments.push({ text, type })
         return
     }
-    const isNeutral = type === "unchanged"
-    const isLastNeutral = last.type === "unchanged"
-    if (
-        isNeutral === isLastNeutral ||
-        // Absorb a single-character unchanged gap into a preceding highlight
-        (isNeutral && text.length === 1 && !isLastNeutral)
-    ) {
+    if (type === last.type) {
         last.text += text
         return
     }
     segments.push({ text, type })
 }
 
+function pushChangedSegment(
+    segments: WordDiffSegment[],
+    text: string,
+    type: "added" | "removed",
+): void {
+    const match = /^(\s*)([\s\S]*?)(\s*)$/.exec(text)
+    if (!match) return
+    pushOrJoinSegment(segments, match[1] ?? "", "unchanged")
+    pushOrJoinSegment(segments, match[2] ?? "", type)
+    pushOrJoinSegment(segments, match[3] ?? "", "unchanged")
+}
+
 /**
- * Compute word-level differences between two lines using "word-alt"
- * highlighting: word diffs with single-space gaps joined into continuous
- * highlight spans.
+ * Compute word-level differences between two lines without highlighting
+ * whitespace-only changes.
  * Returns an array of segments for highlighting.
  */
 export function computeWordDiff(
@@ -54,17 +58,15 @@ export function computeWordDiff(
     const oldSegments: WordDiffSegment[] = []
     const newSegments: WordDiffSegment[] = []
 
-    const lastChange = changes[changes.length - 1]
     for (const change of changes) {
-        const isLastItem = change === lastChange
         if (change.added) {
-            pushOrJoinSegment(newSegments, change.value, "added", isLastItem)
+            pushChangedSegment(newSegments, change.value, "added")
         } else if (change.removed) {
-            pushOrJoinSegment(oldSegments, change.value, "removed", isLastItem)
+            pushChangedSegment(oldSegments, change.value, "removed")
         } else {
             // Unchanged - appears in both
-            pushOrJoinSegment(oldSegments, change.value, "unchanged", isLastItem)
-            pushOrJoinSegment(newSegments, change.value, "unchanged", isLastItem)
+            pushOrJoinSegment(oldSegments, change.value, "unchanged")
+            pushOrJoinSegment(newSegments, change.value, "unchanged")
         }
     }
 

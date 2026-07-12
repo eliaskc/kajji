@@ -81,6 +81,7 @@ export {
     findRowIndexByHunkId,
     flattenToRows,
     getAdjacentHunk,
+    getCurrentFileId,
     getHunkRowOffsets,
     getVisibleRange,
     type DiffRow,

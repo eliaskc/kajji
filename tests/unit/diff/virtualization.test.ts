@@ -1,7 +1,8 @@
 import { describe, expect, test } from "bun:test"
-import type { HunkId } from "../../../src/diff/identifiers"
+import type { FileId, HunkId } from "../../../src/diff/identifiers"
 import {
     getAdjacentHunk,
+    getCurrentFileId,
     getHunkRowOffsets,
 } from "../../../src/diff/virtualization"
 
@@ -36,6 +37,26 @@ describe("getHunkRowOffsets", () => {
         ])
 
         expect(offsets.get(second)).toBe(3)
+    })
+})
+
+describe("getCurrentFileId", () => {
+    const rows = [
+        { row: { fileId: "first" as FileId } },
+        { row: { fileId: "first" as FileId } },
+        { row: { fileId: "second" as FileId } },
+    ]
+
+    test("returns the file owning the row at the top of the viewport", () => {
+        expect(getCurrentFileId(rows, 0)).toBe("first")
+        expect(getCurrentFileId(rows, 1.9)).toBe("first")
+        expect(getCurrentFileId(rows, 2)).toBe("second")
+    })
+
+    test("clamps offsets and handles empty rows", () => {
+        expect(getCurrentFileId(rows, -1)).toBe("first")
+        expect(getCurrentFileId(rows, 99)).toBe("second")
+        expect(getCurrentFileId([], 0)).toBeNull()
     })
 })
 

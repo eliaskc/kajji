@@ -24,6 +24,7 @@ import { useLayout } from "../../context/layout"
 import { type CommitDetails, useSync } from "../../context/sync"
 import { useTheme } from "../../context/theme"
 import {
+    type FileId,
     type FlattenedFile,
     type HunkId,
     fetchParsedDiff,
@@ -40,7 +41,13 @@ import { AnsiText } from "../AnsiText"
 import { BinaryGroupFooter } from "../BinaryGroupFooter"
 import { BinaryPlaceholder } from "../BinaryPlaceholder"
 import { Panel } from "../Panel"
+import {
+    BookmarkDiffHeader,
+    MinimalCommitHeader,
+    stripEmailAndDate,
+} from "../RevisionHeader"
 import { VirtualizedSplitView, VirtualizedUnifiedView } from "../diff"
+import { DiffFileHeader } from "../diff/DiffFileHeader"
 
 type DiffViewStyle = "unified" | "split"
 
@@ -205,87 +212,6 @@ function FileStats(props: { stats: DiffStats; maxWidth: number }) {
             </text>
             <text fg={colors().textMuted}>{"─".repeat(props.maxWidth)}</text>
         </>
-    )
-}
-
-// Remove email and date/time from jj's refLine, preserving ANSI colors
-function stripEmailAndDate(
-    refLine: string,
-    email: string,
-    timestamp: string,
-): string {
-    let result = refLine
-
-    // Escape special regex chars in the strings we're removing
-    const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-
-    // Pattern to match text with optional surrounding ANSI codes
-    const ansiWrap = (s: string) =>
-        `(?:\\x1b\\[[0-9;]*m)*${s}(?:\\x1b\\[[0-9;]*m)*\\s*`
-
-    // Remove email
-    if (email) {
-        const emailPattern = new RegExp(ansiWrap(escapeRegex(email)), "g")
-        result = result.replace(emailPattern, "")
-    }
-
-    // Remove date and time (timestamp is "2026-01-10 13:38:26 -0800", refLine has "2026-01-10 13:38:26")
-    if (timestamp) {
-        const [date, time] = timestamp.split(" ")
-        if (date) {
-            const datePattern = new RegExp(ansiWrap(escapeRegex(date)), "g")
-            result = result.replace(datePattern, "")
-        }
-        if (time) {
-            const timePattern = new RegExp(ansiWrap(escapeRegex(time)), "g")
-            result = result.replace(timePattern, "")
-        }
-    }
-
-    return result
-}
-
-function BookmarkDiffHeader(props: {
-    bookmark: string
-    from: string
-    to: string
-}) {
-    const { colors } = useTheme()
-    return (
-        <box flexDirection="column" flexShrink={0}>
-            <text>
-                <span style={{ fg: colors().textMuted }}>{"Diff: "}</span>
-                <span style={{ fg: colors().primary }}>{props.from}</span>
-                <span style={{ fg: colors().textMuted }}>{" → "}</span>
-                <span style={{ fg: colors().primary }}>{props.to}</span>
-            </text>
-            <text fg={colors().textMuted}>
-                local vs origin for {props.bookmark}
-            </text>
-        </box>
-    )
-}
-
-function MinimalCommitHeader(props: {
-    commit: Commit
-    details: CommitDetails | null
-}) {
-    const subject = () => props.details?.subject || props.commit.description
-    const cleanRefLine = () =>
-        stripEmailAndDate(
-            props.commit.refLine,
-            props.commit.authorEmail,
-            props.commit.timestamp,
-        )
-
-    return (
-        <box flexDirection="column" flexShrink={0}>
-            <AnsiText content={cleanRefLine()} wrapMode="none" />
-            <box flexDirection="row">
-                <text>{"    "}</text>
-                <AnsiText content={subject()} wrapMode="none" />
-            </box>
-        </box>
     )
 }
 
@@ -463,6 +389,7 @@ export function MainArea() {
     )
     const [activeFileIndex, setActiveFileIndex] = createSignal(0)
     const [activeHunkIndex, setActiveHunkIndex] = createSignal(0)
+    const [currentFileId, setCurrentFileId] = createSignal<FileId | null>(null)
 
     const selectedFileIsBinary = createMemo(() => {
         if (viewMode() !== "files") return false
@@ -500,6 +427,10 @@ export function MainArea() {
         const idx = activeFileIndex()
         return files[idx]?.fileId ?? null
     })
+
+    const currentFile = createMemo(() =>
+        textFiles().find((file) => file.fileId === currentFileId()),
+    )
 
     const [hunkRowOffsets, setHunkRowOffsets] = createSignal(
         new Map<HunkId, number>(),
@@ -896,6 +827,35 @@ export function MainArea() {
         scrollRef?.scrollTo(0)
     })
 
+    const syncScrollMetrics = () => {
+        if (!scrollRef) return
+        const currentScroll = scrollRef.scrollTop ?? 0
+        const currentViewport = scrollRef.viewport?.height ?? 30
+        const currentHeaderHeight = headerRef?.height ?? 0
+        const currentViewportWidth =
+            scrollRef.viewport?.width ?? mainAreaWidth()
+        if (
+            currentScroll !== scrollTop() ||
+            currentViewport !== viewportHeight() ||
+            currentHeaderHeight !== headerHeight() ||
+            currentViewportWidth - SCROLLBAR_GUTTER !== viewportWidth()
+        ) {
+            setViewportHeight(currentViewport)
+            setScrollTop(currentScroll)
+            setHeaderHeight(currentHeaderHeight)
+            setViewportWidth(
+                Math.max(1, currentViewportWidth - SCROLLBAR_GUTTER),
+            )
+        }
+    }
+
+    let scrollSyncTimer: ReturnType<typeof setTimeout> | undefined
+    const handleScroll = (event: MouseEvent) => {
+        handleHorizontalScroll(event)
+        clearTimeout(scrollSyncTimer)
+        scrollSyncTimer = setTimeout(syncScrollMetrics, 0)
+    }
+
     onMount(() => {
         const unsubscribeConfig = onConfigChange((config) => {
             setDiffLayout(config.diff.layout)
@@ -908,29 +868,9 @@ export function MainArea() {
         })
         onCleanup(unsubscribeConfig)
 
-        const pollInterval = setInterval(() => {
-            if (scrollRef) {
-                const currentScroll = scrollRef.scrollTop ?? 0
-                const currentViewport = scrollRef.viewport?.height ?? 30
-                const currentHeaderHeight = headerRef?.height ?? 0
-                const currentViewportWidth =
-                    scrollRef.viewport?.width ?? mainAreaWidth()
-                if (
-                    currentScroll !== scrollTop() ||
-                    currentViewport !== viewportHeight() ||
-                    currentHeaderHeight !== headerHeight() ||
-                    currentViewportWidth - SCROLLBAR_GUTTER !== viewportWidth()
-                ) {
-                    setViewportHeight(currentViewport)
-                    setScrollTop(currentScroll)
-                    setHeaderHeight(currentHeaderHeight)
-                    setViewportWidth(
-                        Math.max(1, currentViewportWidth - SCROLLBAR_GUTTER),
-                    )
-                }
-            }
-        }, 100)
+        const pollInterval = setInterval(syncScrollMetrics, 100)
         onCleanup(() => clearInterval(pollInterval))
+        onCleanup(() => clearTimeout(scrollSyncTimer))
     })
 
     const isFocused = () => focus.isPanel("detail")
@@ -1165,7 +1105,7 @@ export function MainArea() {
                             },
                         }}
                         horizontalScrollbarOptions={{ visible: false }}
-                        onMouseScroll={handleHorizontalScroll}
+                        onMouseScroll={handleScroll}
                     >
                         <box flexDirection="column">
                             <box
@@ -1259,6 +1199,9 @@ export function MainArea() {
                                                 onHunkRowOffsets={
                                                     setHunkRowOffsets
                                                 }
+                                                onCurrentFileChange={
+                                                    setCurrentFileId
+                                                }
                                                 scrollTop={adjustedScrollTop()}
                                                 viewportHeight={viewportHeight()}
                                                 viewportWidth={viewportWidth()}
@@ -1277,6 +1220,9 @@ export function MainArea() {
                                                 activeFileId={null}
                                                 onHunkRowOffsets={
                                                     setHunkRowOffsets
+                                                }
+                                                onCurrentFileChange={
+                                                    setCurrentFileId
                                                 }
                                                 scrollTop={adjustedScrollTop()}
                                                 viewportHeight={viewportHeight()}
@@ -1299,6 +1245,30 @@ export function MainArea() {
                             </Show>
                         </box>
                     </scrollbox>
+                    <Show
+                        when={
+                            !useJjFormatter() &&
+                            !selectedFileIsBinary() &&
+                            scrollTop() > headerHeight()
+                                ? currentFile()
+                                : undefined
+                        }
+                    >
+                        {(file: () => FlattenedFile) => (
+                            <box
+                                position="absolute"
+                                top={0}
+                                left={0}
+                                right={SCROLLBAR_GUTTER}
+                                zIndex={10}
+                            >
+                                <DiffFileHeader
+                                    file={file()}
+                                    maxWidth={Math.max(1, viewportWidth() - 2)}
+                                />
+                            </box>
+                        )}
+                    </Show>
                 </box>
             </Show>
         </Panel>
