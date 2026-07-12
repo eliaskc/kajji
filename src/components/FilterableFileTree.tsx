@@ -8,6 +8,7 @@ import {
     createSignal,
     on,
     onCleanup,
+    untrack,
 } from "solid-js"
 import { useCommand } from "../context/command"
 import { useKeybind } from "../context/keybind"
@@ -191,7 +192,7 @@ export function FilterableFileTree(props: FilterableFileTreeProps) {
         scrollIntoView({
             ref: scrollRef,
             index: currentSelectedIndex(),
-            currentScrollTop: scrollTop(),
+            currentScrollTop: untrack(scrollTop),
             listLength: currentFiles().length,
             setScrollTop,
         })
