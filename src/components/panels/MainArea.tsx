@@ -383,7 +383,6 @@ export function MainArea() {
     const [scrollTop, setScrollTop] = createSignal(0)
     const [viewportHeight, setViewportHeight] = createSignal(30)
     const [viewportWidth, setViewportWidth] = createSignal(80)
-    const [scrollHeight, setScrollHeight] = createSignal(0)
     const [scrollLeft, setScrollLeft] = createSignal(0)
     const [headerHeight, setHeaderHeight] = createSignal(0)
     const [currentCommitId, setCurrentCommitId] = createSignal<string | null>(
@@ -914,20 +913,17 @@ export function MainArea() {
                 const currentScroll = scrollRef.scrollTop ?? 0
                 const currentViewport = scrollRef.viewport?.height ?? 30
                 const currentHeaderHeight = headerRef?.height ?? 0
-                const currentScrollHeight = scrollRef.scrollHeight ?? 0
                 const currentViewportWidth =
                     scrollRef.viewport?.width ?? mainAreaWidth()
                 if (
                     currentScroll !== scrollTop() ||
                     currentViewport !== viewportHeight() ||
                     currentHeaderHeight !== headerHeight() ||
-                    currentScrollHeight !== scrollHeight() ||
                     currentViewportWidth - SCROLLBAR_GUTTER !== viewportWidth()
                 ) {
                     setViewportHeight(currentViewport)
                     setScrollTop(currentScroll)
                     setHeaderHeight(currentHeaderHeight)
-                    setScrollHeight(currentScrollHeight)
                     setViewportWidth(
                         Math.max(1, currentViewportWidth - SCROLLBAR_GUTTER),
                     )
@@ -1143,10 +1139,6 @@ export function MainArea() {
     const hasError = () => parsedDiffError()
     const hasContent = () =>
         useJjFormatter() ? rawDiffOutput().length > 0 : parsedFiles().length > 0
-    const needsVerticalScrollbar = createMemo(
-        () => scrollHeight() > viewportHeight(),
-    )
-
     return (
         <Panel
             title="Detail"
@@ -1160,143 +1152,154 @@ export function MainArea() {
                 <text>Error: {hasError()}</text>
             </Show>
             <Show when={hasContent() || (!isLoading() && !hasError())}>
-                <scrollbox
-                    ref={scrollRef}
-                    focused={isFocused()}
-                    flexGrow={1}
-                    scrollX={false}
-                    verticalScrollbarOptions={{
-                        visible: needsVerticalScrollbar(),
-                        trackOptions: {
-                            backgroundColor: colors().scrollbarTrack,
-                            foregroundColor: colors().scrollbarThumb,
-                        },
-                    }}
-                    horizontalScrollbarOptions={{ visible: false }}
-                    onMouseScroll={handleHorizontalScroll}
-                >
-                    <box flexDirection="column">
-                        <box
-                            ref={headerRef}
-                            flexDirection="column"
-                            flexShrink={0}
-                        >
-                            <Show when={activeBookmarkDiff()}>
-                                <BookmarkDiffHeader
-                                    bookmark={
-                                        activeBookmarkDiff()?.bookmark ?? ""
-                                    }
-                                    from={activeBookmarkDiff()?.from ?? ""}
-                                    to={activeBookmarkDiff()?.to ?? ""}
-                                />
-                            </Show>
-                            <Show
-                                when={!activeBookmarkDiff() && activeCommit()}
+                <box flexGrow={1} paddingRight={SCROLLBAR_GUTTER}>
+                    <scrollbox
+                        ref={scrollRef}
+                        focused={isFocused()}
+                        flexGrow={1}
+                        scrollX={false}
+                        verticalScrollbarOptions={{
+                            trackOptions: {
+                                backgroundColor: colors().scrollbarTrack,
+                                foregroundColor: colors().scrollbarThumb,
+                            },
+                        }}
+                        horizontalScrollbarOptions={{ visible: false }}
+                        onMouseScroll={handleHorizontalScroll}
+                    >
+                        <box flexDirection="column">
+                            <box
+                                ref={headerRef}
+                                flexDirection="column"
+                                flexShrink={0}
                             >
-                                {(commit: () => Commit) => (
-                                    <Show
-                                        when={viewMode() !== "files"}
-                                        fallback={
-                                            <MinimalCommitHeader
+                                <Show when={activeBookmarkDiff()}>
+                                    <BookmarkDiffHeader
+                                        bookmark={
+                                            activeBookmarkDiff()?.bookmark ?? ""
+                                        }
+                                        from={activeBookmarkDiff()?.from ?? ""}
+                                        to={activeBookmarkDiff()?.to ?? ""}
+                                    />
+                                </Show>
+                                <Show
+                                    when={
+                                        !activeBookmarkDiff() && activeCommit()
+                                    }
+                                >
+                                    {(commit: () => Commit) => (
+                                        <Show
+                                            when={viewMode() !== "files"}
+                                            fallback={
+                                                <MinimalCommitHeader
+                                                    commit={commit()}
+                                                    details={commitDetails()}
+                                                />
+                                            }
+                                        >
+                                            <CommitHeader
                                                 commit={commit()}
                                                 details={commitDetails()}
+                                                stats={diffStats()}
+                                                maxWidth={Math.max(
+                                                    1,
+                                                    viewportWidth(),
+                                                )}
                                             />
-                                        }
-                                    >
-                                        <CommitHeader
-                                            commit={commit()}
-                                            details={commitDetails()}
-                                            stats={diffStats()}
-                                            maxWidth={Math.max(
-                                                1,
-                                                viewportWidth(),
-                                            )}
-                                        />
-                                    </Show>
-                                )}
+                                        </Show>
+                                    )}
+                                </Show>
+                            </box>
+                            <Show when={parsedDiffError()}>
+                                <text fg={colors().error}>
+                                    Error: {parsedDiffError()}
+                                </text>
+                            </Show>
+                            <Show when={!parsedDiffError()}>
+                                <Show when={selectedFileIsBinary()}>
+                                    <BinaryPlaceholder
+                                        width={Math.max(1, viewportWidth())}
+                                        height={Math.max(
+                                            1,
+                                            viewportHeight() - headerHeight(),
+                                        )}
+                                        path={selectedFile()?.node.path}
+                                    />
+                                </Show>
+                                <Show
+                                    when={
+                                        !selectedFileIsBinary() &&
+                                        useJjFormatter()
+                                    }
+                                >
+                                    <AnsiText
+                                        content={rawDiffOutput()}
+                                        wrapMode="none"
+                                        cropStart={scrollLeft()}
+                                        cropWidth={Math.max(1, viewportWidth())}
+                                    />
+                                </Show>
+                                <Show
+                                    when={
+                                        !selectedFileIsBinary() &&
+                                        !useJjFormatter() &&
+                                        parsedFiles().length > 0
+                                    }
+                                >
+                                    <box flexDirection="column">
+                                        <Show
+                                            when={
+                                                viewStyle() === "unified" &&
+                                                textFiles().length > 0
+                                            }
+                                        >
+                                            <VirtualizedUnifiedView
+                                                files={textFiles()}
+                                                activeFileId={null}
+                                                onHunkRowOffsets={
+                                                    setHunkRowOffsets
+                                                }
+                                                scrollTop={adjustedScrollTop()}
+                                                viewportHeight={viewportHeight()}
+                                                viewportWidth={viewportWidth()}
+                                                wrapEnabled={wrapEnabled()}
+                                                scrollLeft={scrollLeft()}
+                                            />
+                                        </Show>
+                                        <Show
+                                            when={
+                                                viewStyle() === "split" &&
+                                                textFiles().length > 0
+                                            }
+                                        >
+                                            <VirtualizedSplitView
+                                                files={textFiles()}
+                                                activeFileId={null}
+                                                onHunkRowOffsets={
+                                                    setHunkRowOffsets
+                                                }
+                                                scrollTop={adjustedScrollTop()}
+                                                viewportHeight={viewportHeight()}
+                                                viewportWidth={viewportWidth()}
+                                                wrapEnabled={wrapEnabled()}
+                                                scrollLeft={scrollLeft()}
+                                            />
+                                        </Show>
+                                        <Show when={binaryPaths().length > 0}>
+                                            <BinaryGroupFooter
+                                                width={Math.max(
+                                                    1,
+                                                    viewportWidth(),
+                                                )}
+                                                paths={binaryPaths()}
+                                            />
+                                        </Show>
+                                    </box>
+                                </Show>
                             </Show>
                         </box>
-                        <Show when={parsedDiffError()}>
-                            <text fg={colors().error}>
-                                Error: {parsedDiffError()}
-                            </text>
-                        </Show>
-                        <Show when={!parsedDiffError()}>
-                            <Show when={selectedFileIsBinary()}>
-                                <BinaryPlaceholder
-                                    width={Math.max(1, viewportWidth())}
-                                    height={Math.max(
-                                        1,
-                                        viewportHeight() - headerHeight(),
-                                    )}
-                                    path={selectedFile()?.node.path}
-                                />
-                            </Show>
-                            <Show
-                                when={
-                                    !selectedFileIsBinary() && useJjFormatter()
-                                }
-                            >
-                                <AnsiText
-                                    content={rawDiffOutput()}
-                                    wrapMode="none"
-                                    cropStart={scrollLeft()}
-                                    cropWidth={Math.max(1, viewportWidth())}
-                                />
-                            </Show>
-                            <Show
-                                when={
-                                    !selectedFileIsBinary() &&
-                                    !useJjFormatter() &&
-                                    parsedFiles().length > 0
-                                }
-                            >
-                                <box flexDirection="column">
-                                    <Show
-                                        when={
-                                            viewStyle() === "unified" &&
-                                            textFiles().length > 0
-                                        }
-                                    >
-                                        <VirtualizedUnifiedView
-                                            files={textFiles()}
-                                            activeFileId={null}
-                                            onHunkRowOffsets={setHunkRowOffsets}
-                                            scrollTop={adjustedScrollTop()}
-                                            viewportHeight={viewportHeight()}
-                                            viewportWidth={viewportWidth()}
-                                            wrapEnabled={wrapEnabled()}
-                                            scrollLeft={scrollLeft()}
-                                        />
-                                    </Show>
-                                    <Show
-                                        when={
-                                            viewStyle() === "split" &&
-                                            textFiles().length > 0
-                                        }
-                                    >
-                                        <VirtualizedSplitView
-                                            files={textFiles()}
-                                            activeFileId={null}
-                                            onHunkRowOffsets={setHunkRowOffsets}
-                                            scrollTop={adjustedScrollTop()}
-                                            viewportHeight={viewportHeight()}
-                                            viewportWidth={viewportWidth()}
-                                            wrapEnabled={wrapEnabled()}
-                                            scrollLeft={scrollLeft()}
-                                        />
-                                    </Show>
-                                    <Show when={binaryPaths().length > 0}>
-                                        <BinaryGroupFooter
-                                            width={Math.max(1, viewportWidth())}
-                                            paths={binaryPaths()}
-                                        />
-                                    </Show>
-                                </box>
-                            </Show>
-                        </Show>
-                    </box>
-                </scrollbox>
+                    </scrollbox>
+                </box>
             </Show>
         </Panel>
     )
