@@ -78,7 +78,9 @@ function AppContent() {
         error,
         loading,
         commits,
+        exitFilesView,
         selectedCommit,
+        viewMode,
     } = useSync()
     const focus = useFocus()
     const command = useCommand()
@@ -92,27 +94,41 @@ function AppContent() {
         VersionBlock[] | null
     >(null)
 
-    const visiblePanels: Panel[] = ["log", "refs", "detail", "commandlog"]
+    const visiblePanels = (): Panel[] =>
+        viewMode() === "files"
+            ? ["log", "detail"]
+            : ["log", "refs", "detail", "commandlog"]
 
     const focusPanel = (panel: Panel) => {
-        if (!visiblePanels.includes(panel)) return
+        if (!visiblePanels().includes(panel)) return
         focus.setPanel(panel)
     }
 
     const cyclePanel = (direction: 1 | -1) => {
+        if (viewMode() === "files") {
+            const targets = ["log.files", "log.revisions", "detail"] as const
+            const context = focus.activeContext()
+            const current = context.startsWith("detail") ? "detail" : context
+            const idx = Math.max(
+                0,
+                targets.indexOf(current as (typeof targets)[number]),
+            )
+            const next =
+                targets[(idx + direction + targets.length) % targets.length]
+            if (next) focus.setActiveContext(next)
+            return
+        }
+        const panels = visiblePanels()
         const current = focus.panel()
-        const idx = visiblePanels.indexOf(current)
-        const next =
-            visiblePanels[
-                (idx + direction + visiblePanels.length) % visiblePanels.length
-            ]
+        const idx = panels.indexOf(current)
+        const next = panels[(idx + direction + panels.length) % panels.length]
         if (next) focus.setPanel(next)
     }
 
     createEffect(() => {
         const current = focus.panel()
-        if (!visiblePanels.includes(current)) {
-            const next = visiblePanels[0]
+        if (!visiblePanels().includes(current)) {
+            const next = visiblePanels()[0]
             if (next) focus.setPanel(next)
         }
     })
@@ -384,6 +400,18 @@ function AppContent() {
     }
 
     command.register(() => [
+        ...(viewMode() === "files"
+            ? [
+                  {
+                      id: "global.exit_files",
+                      title: "back",
+                      keybind: "escape" as const,
+                      context: "global" as const,
+                      visibleIn: ["palette"] as const,
+                      execute: exitFilesView,
+                  },
+              ]
+            : []),
         {
             id: "global.quit",
             title: "quit",
@@ -433,7 +461,10 @@ function AppContent() {
             context: "global",
             group: "navigation",
             visibleIn: ["palette"] as const,
-            execute: () => focusPanel("log"),
+            execute: () =>
+                viewMode() === "files"
+                    ? focus.setActiveContext("log.files")
+                    : focusPanel("log"),
         },
         {
             id: "global.focus_panel_2",
@@ -442,7 +473,10 @@ function AppContent() {
             context: "global",
             group: "navigation",
             visibleIn: ["palette"] as const,
-            execute: () => focusPanel("refs"),
+            execute: () =>
+                viewMode() === "files"
+                    ? focus.setActiveContext("log.revisions")
+                    : focusPanel("refs"),
         },
         {
             id: "global.focus_panel_3",

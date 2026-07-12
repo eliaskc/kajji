@@ -36,16 +36,13 @@ import {
 } from "../../diff"
 import { getRepoPath } from "../../repo"
 import { getFilePaths } from "../../utils/file-tree"
+import { getFilesLayoutWeights } from "../../utils/layout"
 import { truncatePathMiddle } from "../../utils/path-truncate"
 import { AnsiText } from "../AnsiText"
 import { BinaryGroupFooter } from "../BinaryGroupFooter"
 import { BinaryPlaceholder } from "../BinaryPlaceholder"
 import { Panel } from "../Panel"
-import {
-    BookmarkDiffHeader,
-    MinimalCommitHeader,
-    stripEmailAndDate,
-} from "../RevisionHeader"
+import { BookmarkDiffHeader, stripEmailAndDate } from "../RevisionHeader"
 import { VirtualizedSplitView, VirtualizedUnifiedView } from "../diff"
 import { DiffFileHeader } from "../diff/DiffFileHeader"
 
@@ -298,7 +295,13 @@ export function MainArea() {
         selectedFile,
     } = useSync()
     const layout = useLayout()
-    const { mainAreaWidth } = layout
+    const { mainAreaWidth, terminalWidth } = layout
+    const effectiveMainAreaWidth = () => {
+        if (viewMode() !== "files") return mainAreaWidth()
+        const weights = getFilesLayoutWeights(terminalWidth())
+        const ratio = weights.detail / (weights.files + weights.detail)
+        return Math.floor(terminalWidth() * ratio) - 2
+    }
     const { colors } = useTheme()
     const focus = useFocus()
     const command = useCommand()
@@ -352,7 +355,9 @@ export function MainArea() {
     const configuredViewStyle = createMemo<DiffViewStyle>(() => {
         const layout = diffLayout()
         if (layout === "unified" || layout === "split") return layout
-        return mainAreaWidth() >= diffAutoSwitchWidth() ? "split" : "unified"
+        return effectiveMainAreaWidth() >= diffAutoSwitchWidth()
+            ? "split"
+            : "unified"
     })
 
     createEffect(() => {
@@ -833,7 +838,7 @@ export function MainArea() {
         const currentViewport = scrollRef.viewport?.height ?? 30
         const currentHeaderHeight = headerRef?.height ?? 0
         const currentViewportWidth =
-            scrollRef.viewport?.width ?? mainAreaWidth()
+            scrollRef.viewport?.width ?? effectiveMainAreaWidth()
         if (
             currentScroll !== scrollTop() ||
             currentViewport !== viewportHeight() ||
@@ -1124,29 +1129,21 @@ export function MainArea() {
                                 </Show>
                                 <Show
                                     when={
-                                        !activeBookmarkDiff() && activeCommit()
+                                        viewMode() !== "files" &&
+                                        !activeBookmarkDiff() &&
+                                        activeCommit()
                                     }
                                 >
                                     {(commit: () => Commit) => (
-                                        <Show
-                                            when={viewMode() !== "files"}
-                                            fallback={
-                                                <MinimalCommitHeader
-                                                    commit={commit()}
-                                                    details={commitDetails()}
-                                                />
-                                            }
-                                        >
-                                            <CommitHeader
-                                                commit={commit()}
-                                                details={commitDetails()}
-                                                stats={diffStats()}
-                                                maxWidth={Math.max(
-                                                    1,
-                                                    viewportWidth(),
-                                                )}
-                                            />
-                                        </Show>
+                                        <CommitHeader
+                                            commit={commit()}
+                                            details={commitDetails()}
+                                            stats={diffStats()}
+                                            maxWidth={Math.max(
+                                                1,
+                                                viewportWidth(),
+                                            )}
+                                        />
                                     )}
                                 </Show>
                             </box>

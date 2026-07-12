@@ -4,6 +4,7 @@ import { useFocus } from "../context/focus"
 import { useLayout } from "../context/layout"
 import { useSync } from "../context/sync"
 import { useTheme } from "../context/theme"
+import { getFilesLayoutWeights } from "../utils/layout"
 import { StatusBar } from "./StatusBar"
 import { BookmarksPanel } from "./panels/BookmarksPanel"
 import { CommandLogPanel } from "./panels/CommandLogPanel"
@@ -36,6 +37,23 @@ function BookmarkDiffLayout() {
             </box>
             <VerticalDivider />
             <box flexGrow={2} flexBasis={0}>
+                <MainArea />
+            </box>
+        </box>
+    )
+}
+
+function FilesLayout() {
+    const { terminalWidth } = useLayout()
+    const weights = () => getFilesLayoutWeights(terminalWidth())
+
+    return (
+        <box flexDirection="row" flexGrow={1} gap={0}>
+            <box flexGrow={weights().files} flexBasis={0}>
+                <LogPanel filesWithRevisions />
+            </box>
+            <VerticalDivider />
+            <box flexGrow={weights().detail} flexBasis={0}>
                 <MainArea />
             </box>
         </box>
@@ -113,11 +131,12 @@ export function LayoutGrid() {
     const renderer = useRenderer()
     const { colors } = useTheme()
     const { focusMode } = useLayout()
-    const { activeBookmarkDiff } = useSync()
+    const { activeBookmarkDiff, viewMode } = useSync()
 
     createEffect(() => {
         focusMode()
         activeBookmarkDiff()
+        viewMode()
         renderer.setBackgroundColor(colors().background)
     })
 
@@ -133,6 +152,9 @@ export function LayoutGrid() {
             gap={0}
         >
             <Switch>
+                <Match when={viewMode() === "files"}>
+                    <FilesLayout />
+                </Match>
                 <Match when={activeBookmarkDiff()}>
                     <BookmarkDiffLayout />
                 </Match>

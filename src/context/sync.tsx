@@ -6,6 +6,7 @@ import {
     createEffect,
     createMemo,
     createSignal,
+    on,
     onCleanup,
     onMount,
     useContext,
@@ -549,6 +550,36 @@ export function SyncProvider(props: { children: JSX.Element }) {
     }
 
     const selectedCommit = () => commits()[selectedIndex()]
+
+    let filesSelectionRequest = 0
+    createEffect(
+        on(
+            selectedIndex,
+            async () => {
+                if (viewMode() !== "files" || activeBookmarkDiff()) return
+                const commit = selectedCommit()
+                if (!commit) return
+                const request = ++filesSelectionRequest
+                setFilesLoading(true)
+                setFilesError(null)
+                try {
+                    const result = await fetchFiles(getRevisionId(commit))
+                    if (request !== filesSelectionRequest) return
+                    showFiles(result)
+                    focus.setActiveContext("log.revisions")
+                } catch (e) {
+                    if (request !== filesSelectionRequest) return
+                    setFilesError(
+                        e instanceof Error ? e.message : "Failed to load files",
+                    )
+                } finally {
+                    if (request === filesSelectionRequest)
+                        setFilesLoading(false)
+                }
+            },
+            { defer: true },
+        ),
+    )
 
     const selectPrevFile = () => {
         setSelectedFileIndexInternal((i) => Math.max(0, i - 1))

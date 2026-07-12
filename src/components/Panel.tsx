@@ -18,6 +18,7 @@ interface PanelProps {
     activeTab?: string
     onTabChange?: (tabId: string) => void
     panelId?: PanelType
+    focusContext?: Context
     hotkey: string
     focused: boolean
     topRight?: CornerContent
@@ -145,7 +146,9 @@ export function Panel(props: PanelProps) {
     }
 
     const handleMouseDown = () => {
-        if (props.panelId) {
+        if (props.focusContext) {
+            focus.setActiveContext(props.focusContext)
+        } else if (props.panelId) {
             focus.setPanel(props.panelId)
         }
     }

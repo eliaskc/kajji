@@ -206,7 +206,7 @@ function sortBookmarksByProximity(
         .map((entry) => entry.bookmark)
 }
 
-export function LogPanel() {
+export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
     const renderer = useRenderer()
     const {
         commits,
@@ -529,7 +529,12 @@ export function LogPanel() {
         focus.setActiveContext("refs.bookmarks")
     }
 
-    const isFocused = () => focus.isPanel("log")
+    const isFocused = () =>
+        focus.isPanel("log") &&
+        (!isFilesView() || focus.activeContext() === "log.files")
+    const isRevisionsFocused = () => focus.activeContext() === "log.revisions"
+    const isLogSelectionFocused = () =>
+        isFilesView() ? isRevisionsFocused() : isFocused()
     const inactiveSelectionBackground = () =>
         blendColors(colors().selectionBackground, colors().background, 0.5)
     const isFilesView = () => viewMode() === "files"
@@ -2125,7 +2130,8 @@ export function LogPanel() {
 
             panel: "log",
             visibleIn: [] as const,
-            execute: handleClearFilter,
+            execute: () =>
+                isFilesView() ? exitFilesView() : handleClearFilter(),
         },
         {
             id: "log.revisions.bookmark_diff_origin",
@@ -2359,7 +2365,7 @@ export function LogPanel() {
             handleClick()
         }
         const selectionBackground = () =>
-            isFocused()
+            isLogSelectionFocused()
                 ? colors().selectionBackground
                 : inactiveSelectionBackground()
         return (
@@ -2370,7 +2376,7 @@ export function LogPanel() {
                         const contentWidth = () =>
                             Math.max(1, logViewportWidth() - gutterWidth())
                         const defaultFg = () =>
-                            props.selected() && isFocused()
+                            props.selected() && isLogSelectionFocused()
                                 ? colors().selectionText
                                 : undefined
                         return (
@@ -2701,13 +2707,14 @@ export function LogPanel() {
         return commit ? `Files (${commit.changeId.slice(0, 8)})` : "Files"
     }
 
-    return (
+    const panel = () => (
         <Panel
             title={isFilesView() ? filesTitle() : title()}
             tabs={tabs()}
             activeTab={activeTab()}
             onTabChange={switchTab}
             panelId="log"
+            focusContext={isFilesView() ? "log.files" : undefined}
             hotkey="1"
             focused={isFocused()}
         >
@@ -2719,5 +2726,34 @@ export function LogPanel() {
                 {renderOpLogContent()}
             </Show>
         </Panel>
+    )
+
+    return (
+        <Show
+            when={isFilesView() && props.filesWithRevisions}
+            fallback={panel()}
+        >
+            <box flexDirection="column" flexGrow={1} gap={0}>
+                <box flexGrow={3} flexBasis={0}>
+                    {panel()}
+                </box>
+                <box height={1} overflow="hidden">
+                    <text fg={colors().backgroundElement}>
+                        {"─".repeat(500)}
+                    </text>
+                </box>
+                <box flexGrow={1} flexBasis={0}>
+                    <Panel
+                        title="Revisions"
+                        panelId="log"
+                        focusContext="log.revisions"
+                        hotkey="2"
+                        focused={isRevisionsFocused()}
+                    >
+                        {renderLogContent()}
+                    </Panel>
+                </box>
+            </box>
+        </Show>
     )
 }
