@@ -8,9 +8,32 @@ import {
     flattenTree,
     getEffectiveCollapsedPaths,
     getFilePaths,
+    orderFilePaths,
 } from "../../../src/utils/file-tree"
 
 const repoRootName = basename(getRepoPath()) || getRepoPath()
+
+describe("orderFilePaths", () => {
+    const paths = ["z-root.ts", "src/z.ts", "a-root.ts", "src/a.ts"]
+
+    it("uses tree traversal order when showing the tree", () => {
+        expect(orderFilePaths(paths, true)).toEqual([
+            "src/a.ts",
+            "src/z.ts",
+            "a-root.ts",
+            "z-root.ts",
+        ])
+    })
+
+    it("uses full-path order when showing a flat list", () => {
+        expect(orderFilePaths(paths, false)).toEqual([
+            "a-root.ts",
+            "src/a.ts",
+            "src/z.ts",
+            "z-root.ts",
+        ])
+    })
+})
 
 describe("buildFileTree", () => {
     it("builds tree from single file", () => {

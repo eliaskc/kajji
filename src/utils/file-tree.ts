@@ -152,6 +152,16 @@ export function flattenFlat(root: FileTreeNode): FlatFileNode[] {
     return result
 }
 
+export function orderFilePaths(paths: string[], showTree: boolean): string[] {
+    const tree = buildFileTree(
+        paths.map((path) => ({ path, status: "modified" as const })),
+    )
+    const nodes = showTree ? flattenTree(tree, new Set()) : flattenFlat(tree)
+    return nodes
+        .filter(({ node }) => !node.isDirectory)
+        .map(({ node }) => node.path)
+}
+
 export function countVisibleNodes(
     root: FileTreeNode,
     collapsedPaths: Set<string>,

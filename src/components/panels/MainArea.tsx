@@ -35,6 +35,7 @@ import {
     getMaxLineNumber,
 } from "../../diff"
 import { getRepoPath } from "../../repo"
+import { orderFilePaths } from "../../utils/file-tree"
 import { getFilesLayoutWeights } from "../../utils/layout"
 import { truncatePathMiddle } from "../../utils/path-truncate"
 import { AnsiText } from "../AnsiText"
@@ -292,6 +293,7 @@ export function MainArea() {
         viewMode,
         fileNavigationRequest,
         setCurrentDiffFilePath,
+        showTree,
     } = useSync()
     const layout = useLayout()
     const { mainAreaWidth, terminalWidth } = layout
@@ -454,6 +456,19 @@ export function MainArea() {
             totalInsertions += file.additions
             totalDeletions += file.deletions
         }
+
+        const orderedPaths = orderFilePaths(
+            fileStats.map((file) => file.path),
+            showTree(),
+        )
+        const pathRanks = new Map(
+            orderedPaths.map((path, index) => [path, index]),
+        )
+        fileStats.sort(
+            (a, b) =>
+                (pathRanks.get(a.path) ?? Number.MAX_SAFE_INTEGER) -
+                (pathRanks.get(b.path) ?? Number.MAX_SAFE_INTEGER),
+        )
 
         return {
             files: fileStats,
