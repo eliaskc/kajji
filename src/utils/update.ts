@@ -117,6 +117,9 @@ export interface UpdateCallbacks {
         packageManager: PackageManager
         command: string
         success: boolean
+        exitCode: number
+        stdout: string
+        stderr: string
     }) => void
     onUpdateSkipped?: (reason: string) => void
     onError?: () => void
@@ -166,8 +169,13 @@ function updateLastCheckTime(): void {
 async function runUpdate(
     pm: PackageManager,
     version: string,
-): Promise<boolean> {
-    let result: { exitCode: number }
+): Promise<{
+    success: boolean
+    exitCode: number
+    stdout: string
+    stderr: string
+}> {
+    let result: { exitCode: number; stdout: Uint8Array; stderr: Uint8Array }
 
     switch (pm) {
         case "npm":
@@ -192,10 +200,20 @@ async function runUpdate(
                 .nothrow()
             break
         default:
-            return false
+            return {
+                success: false,
+                exitCode: 1,
+                stdout: "",
+                stderr: "Update command unavailable",
+            }
     }
 
-    return result.exitCode === 0
+    return {
+        success: result.exitCode === 0,
+        exitCode: result.exitCode,
+        stdout: new TextDecoder().decode(result.stdout),
+        stderr: new TextDecoder().decode(result.stderr),
+    }
 }
 
 async function simulateUpdate(
@@ -223,6 +241,9 @@ async function simulateUpdate(
         packageManager,
         command,
         success,
+        exitCode: success ? 0 : 1,
+        stdout: "",
+        stderr: "",
     })
 }
 
@@ -282,12 +303,12 @@ export function checkForUpdates(callbacks: UpdateCallbacks = {}): void {
                 packageManager: pm,
                 command,
             })
-            const success = await runUpdate(pm, latestVersion)
+            const result = await runUpdate(pm, latestVersion)
             callbacks.onUpdateFinished?.({
                 version: latestVersion,
                 packageManager: pm,
                 command,
-                success,
+                ...result,
             })
         } catch {
             callbacks.onError?.()

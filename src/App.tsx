@@ -170,19 +170,26 @@ function AppContent() {
                 update.setUpdating(version, command)
                 updateLogId = commandLog.start(command)
             },
-            onUpdateFinished: ({ version, command, success }) => {
+            onUpdateFinished: ({
+                version,
+                command,
+                success,
+                exitCode,
+                stdout,
+                stderr,
+            }) => {
                 if (success) update.setSuccess(version)
                 else update.setFailure(version)
                 if (updateLogId) {
+                    const fallbackError = `Failed to update kajji to v${version}.\n\nTo install manually, run:\n   ${command}\n`
                     commandLog.finish(updateLogId, {
                         command,
                         stdout: success
-                            ? `Updated kajji to v${version}.\n\nRestart to use the new version.\n`
-                            : "",
-                        stderr: success
-                            ? ""
-                            : `Failed to update kajji to v${version}.\n\nTo install manually, run:\n   ${command}\n`,
-                        exitCode: success ? 0 : 1,
+                            ? stdout ||
+                              `Updated kajji to v${version}.\n\nRestart to use the new version.\n`
+                            : stdout,
+                        stderr: success ? stderr : stderr || fallbackError,
+                        exitCode,
                         success,
                     })
                 }
