@@ -1,6 +1,6 @@
 # Releasing kajji
 
-Releases are driven by GitHub Actions ([`.github/workflows/release.yml`](.github/workflows/release.yml)). The flow has three stages, each in its own workflow run, gated on a manual review of a release PR.
+Releases are driven by GitHub Actions ([`.github/workflows/release.yml`](../.github/workflows/release.yml)). The normal flow is gated on a manual review of a release PR.
 
 ```
 workflow_dispatch  ──►  draft-release-pr  ──►  PR opened  ──►  human review/merge
@@ -18,10 +18,11 @@ workflow_dispatch  ──►  draft-release-pr  ──►  PR opened  ──► 
 
 1. Open https://github.com/eliaskc/kajji/actions/workflows/release.yml
 2. Click **Run workflow** on `main` and fill the inputs:
+   - **mode**: leave as `draft-release-pr` for a normal release.
    - **bump**: `patch`, `minor`, `major`, an explicit `x.y.z`, or **leave empty** to let the agent decide based on commits since the last tag.
-   - **model**: pi model id. Default is `opencode/claude-sonnet-4-6` (OpenCode Zen). Any pi-supported model works as long as the matching API key is in repo secrets. See *Model selection* below.
+   - **model**: pi model id. Default is `opencode/gpt-5.6-terra`. Any pi-supported model works as long as the matching API key is in repo secrets.
    - **pi_version**: pin a specific `@mariozechner/pi-coding-agent` version, or leave as `latest`.
-3. Wait ~1–2 minutes. The `draft-release-pr` job runs `pi` against [`.github/workflows/release-notes-prompt.md`](.github/workflows/release-notes-prompt.md), which:
+3. Wait ~1–2 minutes. The `draft-release-pr` job runs `pi` against [`.github/workflows/release-notes-prompt.md`](../.github/workflows/release-notes-prompt.md), which:
    - reads commits since the last tag (with progressive context-gathering via `git show` / `gh pr view`)
    - decides the bump (if not specified)
    - prepends a section to `CHANGELOG.md` and bumps `package.json`
@@ -34,13 +35,30 @@ workflow_dispatch  ──►  draft-release-pr  ──►  PR opened  ──► 
    - `build` matrix on native runners (darwin-arm64, darwin-x64, linux-x64, linux-arm64) — no cross-compile flakiness
    - `publish` job downloads all artifacts, runs `scripts/publish.ts --skip-build` to push 5 packages (`kajji-{platform}` × 4 + `kajji` wrapper) to npm, then creates the GitHub release with archives and notes from `CHANGELOG.md`
 
-## Required secrets
+## Manually publishing an existing tag
+
+Use this recovery path when a tag exists but its build or publish did not complete:
+
+1. Open https://github.com/eliaskc/kajji/actions/workflows/release.yml.
+2. Click **Run workflow** on a branch containing the trusted-publishing workflow.
+3. Set **mode** to `publish-tag`.
+4. Set **release_tag** to the existing tag, such as `v0.15.0`.
+
+Before starting any platform builds, the workflow verifies that the tag has a valid `vX.Y.Z` format, exists in the repository, and matches the version in its `package.json`. It then builds all four platform packages and publishes the missing npm packages. It does not create or move tags. The publish script skips package versions that already exist, making this safe for partially completed releases.
+
+## Required secrets and publishing access
 
 | Secret | Used by | Notes |
 |---|---|---|
 | `OPENCODE_API_KEY` | `draft-release-pr` | Get one at https://opencode.ai. If you switch models to a non-OpenCode provider, add the matching env var (e.g. `ANTHROPIC_API_KEY`) and update `release.yml` accordingly. |
-| `NPM_TOKEN` | `publish` | Automation token with publish rights for `kajji`, `kajji-darwin-*`, `kajji-linux-*`. |
 | `GITHUB_TOKEN` | all jobs | Auto-provided by Actions. Needs `contents: write` and `pull-requests: write` (set in workflow). |
+
+npm publishing uses OIDC trusted publishing instead of a repository secret. Configure GitHub Actions as the trusted publisher for each of `kajji`, `kajji-darwin-arm64`, `kajji-darwin-x64`, `kajji-linux-arm64`, and `kajji-linux-x64` with:
+
+- Organization or user: `eliaskc`
+- Repository: `kajji`
+- Workflow filename: `release.yml`
+- Allowed action: `npm publish`
 
 ## Verify after release
 
@@ -88,16 +106,6 @@ This requires you to have all four target platforms buildable locally, which is 
 - **Agent picked the wrong bump.** Either re-run the workflow with `bump` set explicitly, or just edit `package.json` and `CHANGELOG.md` on the PR branch.
 - **Agent edited unexpected files.** The workflow auto-reverts anything outside `package.json` / `CHANGELOG.md` and warns. If something useful was discarded, edit it back into the PR manually.
 - **Tag pushed but `publish` didn't run.** Check the `build` matrix — `publish` needs all four platforms green. If a runner is having a bad day, re-run failed jobs.
-- **Recovering a stuck release (tag exists on origin but no build/publish run).** This happens if `tag-on-merge` succeeded but the chained `build` job didn't kick off (e.g., older workflow versions relied on the `push: tags` trigger, which doesn't fire for tags pushed via `GITHUB_TOKEN`). Recovery from your machine — your push uses your credentials, so it counts as a user event:
-  ```bash
-  VERSION=$(jq -r .version package.json)   # on main, after the merge
-  TAG="v$VERSION"
-  git push --delete origin "$TAG"
-  git tag -d "$TAG" 2>/dev/null || true
-  git fetch origin
-  git tag -a "$TAG" -m "Release $TAG" origin/main
-  git push origin "$TAG"
-  ```
-  The re-push triggers the `push: tags` escape-hatch path.
+- **Recovering a stuck release (tag exists on origin but no build/publish run).** Run the workflow with `mode` set to `publish-tag` and provide the existing `release_tag`. Do not delete or move the tag.
 - **Wrapper `kajji` package failed to publish but platform packages succeeded.** `publish.ts` deliberately skips the wrapper if any platform publish failed (so users never get a broken `npm i kajji`). Fix the platform package(s) and re-run.
 - **Need to re-publish the same version.** npm doesn't allow it. Bump to the next patch and ship again.

@@ -3,6 +3,18 @@ name: Release
 on:
   workflow_dispatch:
     inputs:
+      mode:
+        description: "Draft a release PR or publish an existing tag."
+        required: true
+        type: choice
+        options:
+          - draft-release-pr
+          - publish-tag
+        default: draft-release-pr
+      release_tag:
+        description: "Existing vX.Y.Z tag to publish (required for publish-tag)."
+        required: false
+        default: ""
       bump:
         description: "Version bump (patch/minor/major/x.y.z). Empty = agent decides."
         required: false
@@ -31,7 +43,7 @@ jobs:
   # then open a PR. Maintainer reviews and merges.
   # ---------------------------------------------------------------------------
   draft-release-pr:
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'draft-release-pr'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -213,18 +225,49 @@ jobs:
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
   # ---------------------------------------------------------------------------
+  # Validate manual recovery input before starting the build matrix.
+  # ---------------------------------------------------------------------------
+  validate-release-tag:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Validate tag format
+        if: github.event_name == 'workflow_dispatch' && inputs.mode == 'publish-tag'
+        run: |
+          if [[ ! "${{ inputs.release_tag }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::release_tag must be an existing vX.Y.Z tag"
+            exit 1
+          fi
+
+      - uses: actions/checkout@v5
+        if: github.event_name == 'workflow_dispatch' && inputs.mode == 'publish-tag'
+        with:
+          ref: refs/tags/${{ inputs.release_tag }}
+
+      - name: Verify tag matches package version
+        if: github.event_name == 'workflow_dispatch' && inputs.mode == 'publish-tag'
+        run: |
+          VERSION=$(jq -r .version package.json)
+          if [[ "v$VERSION" != "${{ inputs.release_tag }}" ]]; then
+            echo "::error::Tag ${{ inputs.release_tag }} does not match package.json version $VERSION"
+            exit 1
+          fi
+
+  # ---------------------------------------------------------------------------
   # Build platform binaries on native runners. Triggered by either:
   #   (a) PR-merge path: chained after tag-on-merge in the same run
   #   (b) Tag-push path: developer manually pushes a vX.Y.Z tag from their
   #       machine (recovery / hotfix).
   # ---------------------------------------------------------------------------
   build:
-    needs: [tag-on-merge]
+    needs: [tag-on-merge, validate-release-tag]
     if: |
       !cancelled() &&
       (
         needs.tag-on-merge.result == 'success' ||
-        (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v'))
+        (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+        (github.event_name == 'workflow_dispatch' && inputs.mode == 'publish-tag')
       )
     name: Build ${{ matrix.target }}
     runs-on: ${{ matrix.runner }}
@@ -246,6 +289,8 @@ jobs:
         run: |
           if [[ "${{ github.event_name }}" == "push" ]]; then
             echo "ref=${{ github.ref }}" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "ref=refs/tags/${{ inputs.release_tag }}" >> "$GITHUB_OUTPUT"
           else
             echo "ref=refs/tags/${{ needs.tag-on-merge.outputs.tag }}" >> "$GITHUB_OUTPUT"
           fi
@@ -290,6 +335,8 @@ jobs:
         run: |
           if [[ "${{ github.event_name }}" == "push" ]]; then
             echo "ref=${{ github.ref }}" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "ref=refs/tags/${{ inputs.release_tag }}" >> "$GITHUB_OUTPUT"
           else
             echo "ref=refs/tags/${{ needs.tag-on-merge.outputs.tag }}" >> "$GITHUB_OUTPUT"
           fi
@@ -334,6 +381,9 @@ jobs:
           PKG_VERSION=$(jq -r .version package.json)
           if [[ "${{ github.event_name }}" == "push" ]]; then
             EXPECTED="${GITHUB_REF#refs/tags/v}"
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            EXPECTED="${{ inputs.release_tag }}"
+            EXPECTED="${EXPECTED#v}"
           else
             EXPECTED="${{ needs.tag-on-merge.outputs.version }}"
           fi
