@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "terminal-control": {
+      "source": "kitlangton/terminal-control",
+      "sourceType": "github",
+      "skillPath": "skills/terminal-control/SKILL.md",
+      "computedHash": "b5999d45e60684dc107a10cc02929677aecfc5fa97ed89d973841ac84a94dcee"
+    }
+  }
+}
