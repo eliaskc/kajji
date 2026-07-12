@@ -12,7 +12,8 @@ Project work may be tracked in [GitHub Issues](https://github.com/eliaskc/kajji/
 - Do not create GitHub issues proactively for bugs, features, improvements, or follow-up work
 - Check existing issues only when the user asks, or when needed to reference issue-specific work
 - Use labels when creating issues by explicit request: `bug`, `feature`, `needs-exploration`, `ui-polish`, `tech-debt`, `docs`
-- Use Conventional Commits for commit messages (`feat(scope): ...`, `fix(scope): ...`, `docs(scope): ...`, `test(scope): ...`, `refactor(scope): ...`, `chore(scope): ...`)
+- Use Conventional Commits, but prefer unscoped types with specific subjects (`feat: add hunk navigation`, `fix: prevent file tree loops`, `refactor: unify modal keybinds`)
+- Scopes are optional, not forbidden. Use one when it adds context that a concise subject would otherwise lack, especially for package-specific changes; avoid scopes that merely repeat an area already clear from the subject
 - Reference issues in commit messages only when applicable and requested, or when already part of the task
 - Close issues only when explicitly asked, or when completing work that the user clearly tied to an existing issue
 
