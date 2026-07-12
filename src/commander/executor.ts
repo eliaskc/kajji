@@ -1,4 +1,5 @@
 import { getRepoPath } from "../repo"
+import { diagnosticsLog } from "../utils/diagnostics"
 import { profile, profileMsg } from "../utils/profiler"
 import type { CommandObserver } from "./observer"
 
@@ -44,10 +45,15 @@ function isInternalReadCommand(args: string[]): boolean {
     return false
 }
 
+function commandArgs(args: string[]) {
+    return args[0] === "--color" ? args.slice(2) : args
+}
+
 export async function execute(
     args: string[],
     options: ExecuteOptions = {},
 ): Promise<ExecuteResult> {
+    const startedAt = performance.now()
     const endTotal = profile(`execute [jj ${args[0]}]`)
     const endSpawn = profile("  spawn")
 
@@ -127,6 +133,21 @@ export async function execute(
         exitCode,
         success: exitCode === 0,
         logged: Boolean(logId),
+    }
+    const normalizedArgs = commandArgs(args)
+    const internalRead = isInternalReadCommand(normalizedArgs)
+    if (!internalRead || !result.success) {
+        diagnosticsLog(
+            result.success ? "info" : "error",
+            "jj command finished",
+            {
+                command: `jj ${normalizedArgs.slice(0, 2).join(" ")}`,
+                cwd: options.cwd || getRepoPath(),
+                durationMs: Math.round(performance.now() - startedAt),
+                exitCode,
+                ...(stderr ? { stderr: stderr.slice(0, 4000) } : {}),
+            },
+        )
     }
     if (logId) observer?.finish(logId, result)
     return result
@@ -223,6 +244,11 @@ export function executeStreaming(
             }
         } catch (error) {
             if (!cancelled) {
+                diagnosticsLog("error", "streaming jj command failed", {
+                    command: `jj ${commandArgs(args).slice(0, 2).join(" ")}`,
+                    cwd: options.cwd || getRepoPath(),
+                    error: error instanceof Error ? error.stack : String(error),
+                })
                 callbacks.onError(
                     error instanceof Error ? error : new Error(String(error)),
                 )

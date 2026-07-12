@@ -12,6 +12,9 @@ _trace("index.tsx top")
 
 import { existsSync } from "node:fs"
 import { resolve } from "node:path"
+import { initDiagnosticsLogging } from "./utils/diagnostics"
+
+initDiagnosticsLogging()
 
 const CLI_COMMANDS = ["changes", "comment", "help", "uninstall"]
 const CLI_FLAGS = ["--help", "-h", "--version", "-V"]

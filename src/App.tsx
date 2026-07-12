@@ -14,6 +14,7 @@ import { ErrorScreen } from "./components/ErrorScreen"
 import { LayoutGrid } from "./components/Layout"
 import { WhatsNewScreen } from "./components/WhatsNewScreen"
 import { ActionMenuModal } from "./components/modals/ActionMenuModal"
+import { DebugInfoModal } from "./components/modals/DebugInfoModal"
 import { HelpModal, helpContentWidth } from "./components/modals/HelpModal"
 import { RecentReposModal } from "./components/modals/RecentReposModal"
 import { UndoModal } from "./components/modals/UndoModal"
@@ -36,7 +37,7 @@ import {
 import { FocusProvider, type Panel, useFocus } from "./context/focus"
 import { KeybindProvider } from "./context/keybind"
 import { LayoutProvider, useLayout } from "./context/layout"
-import { StatusProvider } from "./context/status"
+import { StatusProvider, useStatus } from "./context/status"
 import { SyncProvider, useSync } from "./context/sync"
 import { ThemeProvider, useTheme } from "./context/theme"
 import { UpdateProvider, useUpdate } from "./context/update"
@@ -47,6 +48,11 @@ import {
     parseChangelog,
 } from "./utils/changelog"
 import type { VersionBlock } from "./utils/changelog"
+import {
+    getLogPath,
+    writeDebugSnapshot,
+    writeMemorySnapshot,
+} from "./utils/diagnostics"
 import { openInEditor, shouldSuspendForEditor } from "./utils/editor"
 import { isCriticalStartupError, parseJjError } from "./utils/error-parser"
 import { readState, writeState } from "./utils/state"
@@ -77,6 +83,7 @@ function AppContent() {
     const commandLog = useCommandLog()
     const layout = useLayout()
     const update = useUpdate()
+    const status = useStatus()
     const { setTheme, setThemeMode, setSyntaxTheme } = useTheme()
     const [whatsNewChanges, setWhatsNewChanges] = createSignal<
         VersionBlock[] | null
@@ -506,6 +513,80 @@ function AppContent() {
                     if (shouldSuspend) renderer.resume?.()
                 }
                 reloadConfig()
+            },
+        },
+        {
+            id: "global.open_logs",
+            title: "open logs",
+            context: "global",
+            type: "action",
+            visibility: "help-only",
+            onSelect: async () => {
+                const shouldSuspend = shouldSuspendForEditor()
+                if (shouldSuspend) renderer.suspend?.()
+                try {
+                    await openInEditor([getLogPath()])
+                } finally {
+                    if (shouldSuspend) renderer.resume?.()
+                }
+            },
+        },
+        {
+            id: "global.view_debug_info",
+            title: "view debug info",
+            context: "global",
+            type: "action",
+            visibility: "help-only",
+            onSelect: () =>
+                dialog.open(() => <DebugInfoModal />, {
+                    id: "debug-info",
+                    title: "Debug info",
+                    ...DIALOG_SIZE.confirmWide,
+                }),
+        },
+        {
+            id: "global.write_debug_snapshot",
+            title: "write debug snapshot",
+            context: "global",
+            type: "action",
+            visibility: "help-only",
+            onSelect: () => {
+                try {
+                    const path = writeDebugSnapshot()
+                    status.show(`Debug snapshot: ${path}`, {
+                        kind: "success",
+                        duration: 5000,
+                    })
+                } catch (error) {
+                    console.error("Failed to write debug snapshot:", error)
+                    status.show("Failed to write debug snapshot", {
+                        kind: "error",
+                    })
+                }
+            },
+        },
+        {
+            id: "global.write_heap_snapshot",
+            title: "capture heap snapshot",
+            context: "global",
+            type: "action",
+            visibility: "help-only",
+            onSelect: () => {
+                status.show("Capturing heap snapshot...", { duration: 0 })
+                setTimeout(() => {
+                    try {
+                        const path = writeMemorySnapshot()
+                        status.show(`Heap snapshot: ${path}`, {
+                            kind: "success",
+                            duration: 5000,
+                        })
+                    } catch (error) {
+                        console.error("Failed to capture heap snapshot:", error)
+                        status.show("Failed to capture heap snapshot", {
+                            kind: "error",
+                        })
+                    }
+                }, 0)
             },
         },
         {
