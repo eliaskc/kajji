@@ -25,7 +25,7 @@ const BAR_CHAR = "▌"
 const SEPARATOR_COLOR = "#30363d"
 const GAP_PATTERN_CHAR = "╱"
 const GAP_PATTERN_COLOR = "#2a2a2a"
-const GAP_PATTERN_REPEAT = 200
+const FILE_HEADER_PREFIX = "▌ "
 const RIGHT_PADDING = 0
 
 const STAT_COLORS = {
@@ -104,7 +104,7 @@ export function VirtualizedUnifiedView(props: VirtualizedUnifiedViewProps) {
             ),
         )
         props.onCurrentFileChange?.(
-            getCurrentFileId(wrappedRows(), props.scrollTop + 1),
+            getCurrentFileId(wrappedRows(), props.scrollTop),
         )
     })
 
@@ -204,23 +204,41 @@ function VirtualizedRow(props: VirtualizedRowProps) {
               (stats?.deletions ? `-${stats.deletions}`.length : 0) +
               (stats?.additions && stats?.deletions ? 1 : 0)
         const prevName = stats?.prevName ? ` ← ${stats.prevName}` : ""
-        const headerMax = Math.max(1, props.maxHeaderWidth - statsWidth - 1)
+        const headerMax = Math.max(
+            1,
+            props.maxHeaderWidth - statsWidth - FILE_HEADER_PREFIX.length - 1,
+        )
         const headerText = truncatePathMiddle(
             `${props.row.row.content}${prevName}`,
             headerMax,
         )
         return (
-            <box paddingRight={1}>
+            <box
+                width={props.maxHeaderWidth + 4}
+                flexDirection="row"
+                backgroundColor={colors().background}
+                paddingRight={1}
+            >
+                <text fg={colors().primary} flexShrink={0}>
+                    {FILE_HEADER_PREFIX}
+                </text>
                 <box
                     flexDirection="row"
                     justifyContent="space-between"
                     flexGrow={1}
                 >
-                    <text wrapMode="none">
+                    <text wrapMode="none" flexShrink={0}>
                         <span style={{ fg: colors().text }}>{headerText}</span>
                     </text>
+                    <text
+                        wrapMode="none"
+                        flexGrow={1}
+                        fg={colors().backgroundElement}
+                    >
+                        {"─".repeat(props.maxHeaderWidth)}
+                    </text>
                     <Show when={stats?.isBinary}>
-                        <text>
+                        <text wrapMode="none" flexShrink={0}>
                             <span style={{ fg: colors().textMuted }}>
                                 binary
                             </span>
@@ -233,7 +251,7 @@ function VirtualizedRow(props: VirtualizedRowProps) {
                             (stats.additions > 0 || stats.deletions > 0)
                         }
                     >
-                        <text>
+                        <text wrapMode="none" flexShrink={0}>
                             <Show when={stats && stats.additions > 0}>
                                 <span style={{ fg: STAT_COLORS.addition }}>
                                     +{stats?.additions}
@@ -263,9 +281,11 @@ function VirtualizedRow(props: VirtualizedRowProps) {
     if (props.row.type === "gap") {
         const gutterWidth = props.lineNumWidth + 2
         const ellipsis = "···"
-        const pattern = GAP_PATTERN_CHAR.repeat(GAP_PATTERN_REPEAT)
         const gutterPattern = GAP_PATTERN_CHAR.repeat(
             Math.max(0, gutterWidth - ellipsis.length),
+        )
+        const pattern = GAP_PATTERN_CHAR.repeat(
+            Math.max(0, props.maxHeaderWidth + 4 - gutterWidth),
         )
         return (
             <box overflow="hidden">

@@ -5,6 +5,7 @@ import { truncatePathMiddle } from "../../utils/path-truncate"
 
 const ADDITION_COLOR = "#3fb950"
 const DELETION_COLOR = "#f85149"
+const FILE_HEADER_PREFIX = "▌ "
 
 export function DiffFileHeader(props: {
     file: FlattenedFile
@@ -20,20 +21,30 @@ export function DiffFileHeader(props: {
     const headerText = () =>
         truncatePathMiddle(
             `${props.file.name}${previousName()}`,
-            Math.max(1, props.maxWidth - statsWidth() - 1),
+            Math.max(
+                1,
+                props.maxWidth - statsWidth() - FILE_HEADER_PREFIX.length - 1,
+            ),
         )
 
     return (
         <box
+            width={props.maxWidth + 4}
             flexDirection="row"
             justifyContent="space-between"
             backgroundColor={colors().background}
             paddingRight={1}
         >
-            <text wrapMode="none">
+            <text fg={colors().primary} flexShrink={0}>
+                {FILE_HEADER_PREFIX}
+            </text>
+            <text wrapMode="none" flexShrink={0}>
                 <span style={{ fg: colors().text }}>{headerText()}</span>
             </text>
-            <text>
+            <text wrapMode="none" flexGrow={1} fg={colors().backgroundElement}>
+                {"─".repeat(props.maxWidth)}
+            </text>
+            <text wrapMode="none" flexShrink={0}>
                 <Show when={props.file.additions > 0}>
                     <span style={{ fg: ADDITION_COLOR }}>
                         +{props.file.additions}

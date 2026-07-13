@@ -27,7 +27,7 @@ import { truncatePathMiddle } from "../../utils/path-truncate"
 const SEPARATOR_COLOR = "#30363d"
 const GAP_PATTERN_CHAR = "╱"
 const GAP_PATTERN_COLOR = "#2a2a2a"
-const GAP_PATTERN_REPEAT = 200
+const FILE_HEADER_PREFIX = "▌ "
 
 const STAT_COLORS = {
     addition: "#3fb950",
@@ -86,6 +86,7 @@ function flattenToSplitRows(files: FlattenedFile[]): SplitRow[] {
                         fileName: file.name,
                         left: null,
                         right: null,
+                        fullWidth: renderUnified,
                         gapLines,
                         rowIndex: rowIndex++,
                     })
@@ -104,6 +105,7 @@ function flattenToSplitRows(files: FlattenedFile[]): SplitRow[] {
                         fileName: file.name,
                         left: null,
                         right: null,
+                        fullWidth: renderUnified,
                         gapLines,
                         rowIndex: rowIndex++,
                     })
@@ -338,7 +340,7 @@ export function VirtualizedSplitView(props: VirtualizedSplitViewProps) {
             ),
         )
         props.onCurrentFileChange?.(
-            getCurrentFileId(wrappedRows(), props.scrollTop + 1),
+            getCurrentFileId(wrappedRows(), props.scrollTop),
         )
     })
 
@@ -440,23 +442,41 @@ function VirtualizedSplitRow(props: VirtualizedSplitRowProps) {
               (stats?.deletions ? `-${stats.deletions}`.length : 0) +
               (stats?.additions && stats?.deletions ? 1 : 0)
         const prevName = stats?.prevName ? ` ← ${stats.prevName}` : ""
-        const headerMax = Math.max(1, props.maxHeaderWidth - statsWidth - 1)
+        const headerMax = Math.max(
+            1,
+            props.maxHeaderWidth - statsWidth - FILE_HEADER_PREFIX.length - 1,
+        )
         const headerText = truncatePathMiddle(
             `${props.row.row.fileName}${prevName}`,
             headerMax,
         )
         return (
-            <box paddingRight={1}>
+            <box
+                width={props.maxHeaderWidth + 4}
+                flexDirection="row"
+                backgroundColor={colors().background}
+                paddingRight={1}
+            >
+                <text fg={colors().primary} flexShrink={0}>
+                    {FILE_HEADER_PREFIX}
+                </text>
                 <box
                     flexDirection="row"
                     justifyContent="space-between"
                     flexGrow={1}
                 >
-                    <text wrapMode="none">
+                    <text wrapMode="none" flexShrink={0}>
                         <span style={{ fg: colors().text }}>{headerText}</span>
                     </text>
+                    <text
+                        wrapMode="none"
+                        flexGrow={1}
+                        fg={colors().backgroundElement}
+                    >
+                        {"─".repeat(props.maxHeaderWidth)}
+                    </text>
                     <Show when={stats?.isBinary}>
-                        <text>
+                        <text wrapMode="none" flexShrink={0}>
                             <span style={{ fg: colors().textMuted }}>
                                 binary
                             </span>
@@ -469,7 +489,7 @@ function VirtualizedSplitRow(props: VirtualizedSplitRowProps) {
                             (stats.additions > 0 || stats.deletions > 0)
                         }
                     >
-                        <text>
+                        <text wrapMode="none" flexShrink={0}>
                             <Show when={stats && stats.additions > 0}>
                                 <span style={{ fg: STAT_COLORS.addition }}>
                                     +{stats?.additions}
@@ -499,18 +519,38 @@ function VirtualizedSplitRow(props: VirtualizedSplitRowProps) {
     if (props.row.type === "gap") {
         const gutterWidth = props.lineNumWidth + 2
         const ellipsis = "···"
-        const pattern = GAP_PATTERN_CHAR.repeat(GAP_PATTERN_REPEAT)
         const gutterPattern = GAP_PATTERN_CHAR.repeat(
             Math.max(0, gutterWidth - ellipsis.length),
+        )
+        const totalWidth = props.maxHeaderWidth + 4
+        const pattern = GAP_PATTERN_CHAR.repeat(
+            Math.max(0, totalWidth - gutterWidth),
+        )
+        const leftPattern = GAP_PATTERN_CHAR.repeat(
+            Math.max(0, props.columnWidth - gutterWidth + 2),
+        )
+        const rightPattern = GAP_PATTERN_CHAR.repeat(
+            Math.max(0, totalWidth - props.columnWidth - gutterWidth - 2),
+        )
+        const gapMarker = () => (
+            <>
+                <span style={{ fg: gapPatternColor() }}>{gutterPattern}</span>
+                <span style={{ fg: colors().textMuted }}>{ellipsis}</span>
+            </>
         )
         return (
             <box overflow="hidden">
                 <text wrapMode="none">
+                    {gapMarker()}
+                    <Show when={!props.row.row.fullWidth}>
+                        <span style={{ fg: gapPatternColor() }}>
+                            {leftPattern}
+                        </span>
+                        {gapMarker()}
+                    </Show>
                     <span style={{ fg: gapPatternColor() }}>
-                        {gutterPattern}
+                        {props.row.row.fullWidth ? pattern : rightPattern}
                     </span>
-                    <span style={{ fg: colors().textMuted }}>{ellipsis}</span>
-                    <span style={{ fg: gapPatternColor() }}>{pattern}</span>
                 </text>
             </box>
         )

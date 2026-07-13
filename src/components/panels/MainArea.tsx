@@ -206,7 +206,9 @@ function FileStats(props: { stats: DiffStats; maxWidth: number }) {
                     </span>
                 </Show>
             </text>
-            <text fg={colors().textMuted}>{"─".repeat(props.maxWidth)}</text>
+            <text fg={colors().textMuted}>
+                {"─".repeat(props.maxWidth + 2)}
+            </text>
         </>
     )
 }
