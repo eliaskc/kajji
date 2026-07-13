@@ -36,7 +36,7 @@ const success: ProcessResult = {
     durationMs: 12,
 }
 
-describe("Jj.gitFetch", () => {
+describe("Jj", () => {
     test("constructs all fetch options and preserves explicit cwd", async () => {
         const invocation = runWithResult(success, {
             cwd: "/tmp/repository",
@@ -71,6 +71,89 @@ describe("Jj.gitFetch", () => {
         expect(result.command).toBe(
             "jj git fetch --branch main --branch glob:push-* --tracked --remote origin --remote upstream --all-remotes",
         )
+    })
+
+    test("constructs all push options", async () => {
+        let command: ProcessCommand | undefined
+        const processLayer = makeAppProcessFake((input) => {
+            command = input
+            return Effect.succeed(success)
+        })
+        const effect = Jj.use((jj) =>
+            jj.gitPush({
+                cwd: "/tmp/repository",
+                remote: "origin",
+                bookmarks: ["main", "next"],
+                all: true,
+                tracked: true,
+                deleted: true,
+                allowEmptyDescription: true,
+                allowPrivate: true,
+                revisions: ["abc", "def"],
+                changes: ["change-1", "change-2"],
+                dryRun: true,
+            }),
+        ).pipe(Effect.provide(JjLive), Effect.provide(processLayer))
+
+        const result = await Effect.runPromise(effect)
+
+        expect(command).toMatchObject({
+            executable: "jj",
+            cwd: "/tmp/repository",
+            args: [
+                "git",
+                "push",
+                "--remote",
+                "origin",
+                "--bookmark",
+                "main",
+                "--bookmark",
+                "next",
+                "--all",
+                "--tracked",
+                "--deleted",
+                "--allow-empty-description",
+                "--allow-private",
+                "--revisions",
+                "abc",
+                "--revisions",
+                "def",
+                "--change",
+                "change-1",
+                "--change",
+                "change-2",
+                "--dry-run",
+            ],
+        })
+        expect(result.command).toBe(
+            "jj git push --remote origin --bookmark main --bookmark next --all --tracked --deleted --allow-empty-description --allow-private --revisions abc --revisions def --change change-1 --change change-2 --dry-run",
+        )
+    })
+
+    test("constructs undo and redo with explicit repository paths", async () => {
+        const commands: ProcessCommand[] = []
+        const processLayer = makeAppProcessFake((command) => {
+            commands.push(command)
+            return Effect.succeed(success)
+        })
+        const effect = Effect.all(
+            [
+                Jj.use((jj) => jj.undo({ cwd: "/tmp/undo-repository" })),
+                Jj.use((jj) => jj.redo({ cwd: "/tmp/redo-repository" })),
+            ],
+            { concurrency: 1 },
+        ).pipe(Effect.provide(JjLive), Effect.provide(processLayer))
+
+        const results = await Effect.runPromise(effect)
+
+        expect(commands.map(({ args, cwd }) => ({ args, cwd }))).toEqual([
+            { args: ["undo"], cwd: "/tmp/undo-repository" },
+            { args: ["redo"], cwd: "/tmp/redo-repository" },
+        ])
+        expect(results.map((result) => result.command)).toEqual([
+            "jj undo",
+            "jj redo",
+        ])
     })
 
     test("reports output and exactly one completion to the sink", async () => {

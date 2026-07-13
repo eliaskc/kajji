@@ -1,19 +1,34 @@
 import { Effect, Layer, ManagedRuntime } from "effect"
 import {
     Jj,
+    type JjCommandError,
     type JjGitFetchOptions,
+    type JjGitPushOptions,
     JjLive,
+    type JjOperationOptions,
+    type JjOperationResult,
+    type JjService,
     type OperationFailure,
     type OperationSink,
 } from "../commander/jj"
 import type { CommandObserver } from "../commander/observer"
 import type { OperationResult } from "../commander/operations"
-import { AppProcessLive } from "../process/app-process"
+import { AppProcessLive, type ProcessError } from "../process/app-process"
 import { diagnosticsLog } from "../utils/diagnostics"
 
+interface ApplicationOperationOptions extends Omit<JjOperationOptions, "sink"> {
+    readonly observer?: CommandObserver
+    readonly signal?: AbortSignal
+}
+
 export interface ApplicationGitFetchOptions
-    extends Omit<JjGitFetchOptions, "cwd" | "sink"> {
-    readonly cwd: string
+    extends Omit<JjGitFetchOptions, "sink"> {
+    readonly observer?: CommandObserver
+    readonly signal?: AbortSignal
+}
+
+export interface ApplicationGitPushOptions
+    extends Omit<JjGitPushOptions, "sink"> {
     readonly observer?: CommandObserver
     readonly signal?: AbortSignal
 }
@@ -21,6 +36,15 @@ export interface ApplicationGitFetchOptions
 export interface ApplicationClient {
     readonly jjGitFetch: (
         options: ApplicationGitFetchOptions,
+    ) => Promise<OperationResult>
+    readonly jjGitPush: (
+        options: ApplicationGitPushOptions,
+    ) => Promise<OperationResult>
+    readonly jjUndo: (
+        options: ApplicationOperationOptions,
+    ) => Promise<OperationResult>
+    readonly jjRedo: (
+        options: ApplicationOperationOptions,
     ) => Promise<OperationResult>
     readonly dispose: () => Promise<void>
 }
@@ -85,41 +109,63 @@ export function makeApplicationClient(
     let accepting = true
     let disposePromise: Promise<void> | undefined
 
-    return {
-        jjGitFetch: async ({ observer, signal, ...options }) => {
-            if (!accepting) throw new ApplicationClientClosedError()
-            const { sink, wasLogged } = observerSink(observer)
-            const startedAt = performance.now()
-            const effect = Jj.use((jj) =>
-                jj.gitFetch({ ...options, sink }).pipe(
-                    Effect.catchTag("JjCommandError", (error) =>
-                        Effect.succeed({
-                            ...error.result,
-                            command: error.command,
-                        }),
-                    ),
+    const runOperation = async (
+        options: ApplicationOperationOptions,
+        operation: (
+            jj: JjService,
+            sink: OperationSink,
+        ) => Effect.Effect<JjOperationResult, JjCommandError | ProcessError>,
+    ): Promise<OperationResult> => {
+        if (!accepting) throw new ApplicationClientClosedError()
+        const { observer, signal, ...runOptions } = options
+        const { sink, wasLogged } = observerSink(observer)
+        const startedAt = performance.now()
+        const effect = Jj.use((jj) =>
+            operation(jj, sink).pipe(
+                Effect.catchTag("JjCommandError", (error) =>
+                    Effect.succeed({
+                        ...error.result,
+                        command: error.command,
+                    }),
                 ),
-            )
-            const result = await runtime.runPromise(effect, { signal })
-            const success = result.exitCode === 0
-            diagnosticsLog(success ? "info" : "error", "jj command finished", {
-                command: "jj git fetch",
-                cwd: options.cwd,
-                durationMs: Math.round(performance.now() - startedAt),
-                exitCode: result.exitCode,
-                ...(result.stderr
-                    ? { stderr: result.stderr.slice(0, 4000) }
-                    : {}),
-            })
-            return {
-                stdout: result.stdout,
-                stderr: result.stderr,
-                exitCode: result.exitCode,
-                success,
-                logged: wasLogged(),
-                command: result.command,
-            }
-        },
+            ),
+        )
+        const result = await runtime.runPromise(effect, { signal })
+        const success = result.exitCode === 0
+        diagnosticsLog(success ? "info" : "error", "jj command finished", {
+            command: result.command,
+            cwd: runOptions.cwd,
+            durationMs: Math.round(performance.now() - startedAt),
+            exitCode: result.exitCode,
+            ...(result.stderr ? { stderr: result.stderr.slice(0, 4000) } : {}),
+        })
+        return {
+            stdout: result.stdout,
+            stderr: result.stderr,
+            exitCode: result.exitCode,
+            success,
+            logged: wasLogged(),
+            command: result.command,
+        }
+    }
+
+    return {
+        jjGitFetch: ({ observer, signal, ...options }) =>
+            runOperation({ ...options, observer, signal }, (jj, sink) =>
+                jj.gitFetch({ ...options, sink }),
+            ),
+        jjGitPush: ({ observer, signal, ...options }) =>
+            runOperation({ ...options, observer, signal }, (jj, sink) =>
+                jj.gitPush({ ...options, sink }),
+            ),
+        jjUndo: ({ observer, signal, ...options }) =>
+            runOperation({ ...options, observer, signal }, (jj, sink) =>
+                jj.undo({ ...options, sink }),
+            ),
+        jjRedo: ({ observer, signal, ...options }) =>
+            runOperation({ ...options, observer, signal }, (jj, sink) =>
+                jj.redo({ ...options, sink }),
+            ),
         dispose: () => {
             accepting = false
             if (!disposePromise) disposePromise = runtime.dispose()

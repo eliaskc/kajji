@@ -60,6 +60,35 @@ describe("ApplicationClient", () => {
         expect(completions).toBe(1)
     })
 
+    test("routes push, undo, and redo through the supplied process", async () => {
+        const commands: string[] = []
+        const layer = makeAppProcessFake((command) => {
+            commands.push(`${command.cwd}:jj ${command.args.join(" ")}`)
+            return Effect.succeed(success)
+        })
+        const client = makeApplicationClient(layer)
+
+        const push = await client.jjGitPush({
+            cwd: "/tmp/push",
+            bookmarks: ["main"],
+            dryRun: true,
+        })
+        const undo = await client.jjUndo({ cwd: "/tmp/undo" })
+        const redo = await client.jjRedo({ cwd: "/tmp/redo" })
+        await client.dispose()
+
+        expect(commands).toEqual([
+            "/tmp/push:jj git push --bookmark main --dry-run",
+            "/tmp/undo:jj undo",
+            "/tmp/redo:jj redo",
+        ])
+        expect([push.command, undo.command, redo.command]).toEqual([
+            "jj git push --bookmark main --dry-run",
+            "jj undo",
+            "jj redo",
+        ])
+    })
+
     test("preserves normal non-zero exits at the compatibility edge", async () => {
         const layer = makeAppProcessFake(() =>
             Effect.succeed({ ...success, exitCode: 1, stderr: "failed" }),

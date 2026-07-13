@@ -325,6 +325,41 @@ The reviewed layout is capability-oriented rather than technology-oriented:
 `src/process`, `src/commander`, and `src/application`. No general `src/effect`
 folder or Solid application-client context was introduced.
 
+## Implementation Update — 2026-07-13 21:48:51 CEST
+
+The first follow-on batch migrated the remaining simple user-triggered captured
+operations selected for this phase:
+
+- `jj git push`, preserving remote, bookmark, all, tracked, deleted,
+  description, private, revision, change, and dry-run options
+- `jj undo`
+- `jj redo`
+
+`Jj` now has one shared captured-command implementation for environment policy,
+scoped execution, typed exit interpretation, output observation, and
+interruption reporting. The application client likewise has one Promise adapter
+for diagnostics, command-log compatibility, cancellation, and legacy result
+translation. Each operation still captures its repository path at invocation.
+
+The Solid call sites now invoke `app.jjGitPush`, `app.jjUndo`, and `app.jjRedo`
+directly. They no longer install the mutable `activeObserver`, so this batch also
+removes the command-log contamination race from these user workflows. Legacy
+push helpers remain for stack and panel callers and are intentionally unchanged.
+
+Verification evidence:
+
+- `bun test`: 317 passing tests
+- `bun check` and changed-file Biome checks pass
+- `bun test:e2e`: 10 passing terminal workflows, including undo
+- repeated three-run benchmark evidence showed 1730 ms median startup and
+  830 ms median fetch, within the existing run-to-run variation
+
+This completes the simple user-triggered captured-mutation batch, not all
+captured jj execution. Non-streaming reads, panel-specific pushes, hook-backed
+mutations, workspace repair, and other legacy operations remain under item 1
+below. Log and bookmark status reads are still callback-streaming legacy
+operations and belong to item 2.
+
 ## Work After Fetch
 
 ### 1. Consolidate captured jj execution

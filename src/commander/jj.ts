@@ -21,17 +21,33 @@ export interface OperationSink {
     readonly fail: (error: OperationFailure) => void
 }
 
-export interface JjGitFetchOptions {
+export interface JjOperationOptions {
     readonly cwd: string
-    readonly allRemotes?: boolean
-    readonly tracked?: boolean
-    readonly branches?: readonly string[]
-    readonly remotes?: readonly string[]
     readonly timeoutMs?: number
     readonly sink?: OperationSink
 }
 
-export interface JjGitFetchResult extends ProcessResult {
+export interface JjGitFetchOptions extends JjOperationOptions {
+    readonly allRemotes?: boolean
+    readonly tracked?: boolean
+    readonly branches?: readonly string[]
+    readonly remotes?: readonly string[]
+}
+
+export interface JjGitPushOptions extends JjOperationOptions {
+    readonly remote?: string
+    readonly bookmarks?: readonly string[]
+    readonly all?: boolean
+    readonly tracked?: boolean
+    readonly deleted?: boolean
+    readonly allowEmptyDescription?: boolean
+    readonly allowPrivate?: boolean
+    readonly revisions?: readonly string[]
+    readonly changes?: readonly string[]
+    readonly dryRun?: boolean
+}
+
+export interface JjOperationResult extends ProcessResult {
     readonly command: string
 }
 
@@ -43,7 +59,16 @@ export class JjCommandError extends Data.TaggedError("JjCommandError")<{
 export interface JjService {
     readonly gitFetch: (
         options: JjGitFetchOptions,
-    ) => Effect.Effect<JjGitFetchResult, JjCommandError | ProcessError>
+    ) => Effect.Effect<JjOperationResult, JjCommandError | ProcessError>
+    readonly gitPush: (
+        options: JjGitPushOptions,
+    ) => Effect.Effect<JjOperationResult, JjCommandError | ProcessError>
+    readonly undo: (
+        options: JjOperationOptions,
+    ) => Effect.Effect<JjOperationResult, JjCommandError | ProcessError>
+    readonly redo: (
+        options: JjOperationOptions,
+    ) => Effect.Effect<JjOperationResult, JjCommandError | ProcessError>
 }
 
 export class Jj extends Context.Service<Jj, JjService>()("kajji/Jj") {}
@@ -57,7 +82,7 @@ function notify(fn: () => void) {
 }
 
 export function makeGitFetchArgs(
-    options: Omit<JjGitFetchOptions, "cwd" | "sink" | "timeoutMs">,
+    options: Omit<JjGitFetchOptions, keyof JjOperationOptions>,
 ): string[] {
     const args = ["git", "fetch"]
     for (const branch of options.branches ?? []) {
@@ -71,15 +96,38 @@ export function makeGitFetchArgs(
     return args
 }
 
+export function makeGitPushArgs(
+    options: Omit<JjGitPushOptions, keyof JjOperationOptions>,
+): string[] {
+    const args = ["git", "push"]
+    if (options.remote) args.push("--remote", options.remote)
+    for (const bookmark of options.bookmarks ?? []) {
+        args.push("--bookmark", bookmark)
+    }
+    if (options.all) args.push("--all")
+    if (options.tracked) args.push("--tracked")
+    if (options.deleted) args.push("--deleted")
+    if (options.allowEmptyDescription) args.push("--allow-empty-description")
+    if (options.allowPrivate) args.push("--allow-private")
+    for (const revision of options.revisions ?? []) {
+        args.push("--revisions", revision)
+    }
+    for (const change of options.changes ?? []) {
+        args.push("--change", change)
+    }
+    if (options.dryRun) args.push("--dry-run")
+    return args
+}
+
 export const JjLive = Layer.effect(
     Jj,
     Effect.gen(function* () {
         const appProcess = yield* AppProcess
 
-        const gitFetch = Effect.fn("Jj.gitFetch")(function* (
-            options: JjGitFetchOptions,
+        const run = Effect.fn("Jj.run")(function* (
+            args: readonly string[],
+            options: JjOperationOptions,
         ) {
-            const args = makeGitFetchArgs(options)
             const command = `jj ${args.join(" ")}`
             notify(() => options.sink?.start(command))
 
@@ -118,6 +166,19 @@ export const JjLive = Layer.effect(
             return { ...result, command }
         })
 
-        return Jj.of({ gitFetch })
+        return Jj.of({
+            gitFetch: Effect.fn("Jj.gitFetch")((options: JjGitFetchOptions) =>
+                run(makeGitFetchArgs(options), options),
+            ),
+            gitPush: Effect.fn("Jj.gitPush")((options: JjGitPushOptions) =>
+                run(makeGitPushArgs(options), options),
+            ),
+            undo: Effect.fn("Jj.undo")((options: JjOperationOptions) =>
+                run(["undo"], options),
+            ),
+            redo: Effect.fn("Jj.redo")((options: JjOperationOptions) =>
+                run(["redo"], options),
+            ),
+        })
     }),
 )

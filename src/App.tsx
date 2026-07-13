@@ -1,13 +1,7 @@
 import { useRenderer } from "@opentui/solid"
 import { Show, createEffect, createSignal, onCleanup, onMount } from "solid-js"
 import { withCommandObserver } from "./commander/executor"
-import {
-    fetchOpLog,
-    jjGitPush,
-    jjRedo,
-    jjUndo,
-    jjWorkspaceUpdateStale,
-} from "./commander/operations"
+import { fetchOpLog, jjWorkspaceUpdateStale } from "./commander/operations"
 import { getRevisionId } from "./commander/types"
 import { ErrorScreen } from "./components/ErrorScreen"
 import { LayoutGrid } from "./components/Layout"
@@ -279,12 +273,16 @@ function AppContent({ app, onQuit }: AppProps) {
 
     const runGitPush = async (
         text: string,
-        options?: Parameters<typeof jjGitPush>[0],
+        options?: Omit<
+            Parameters<ApplicationClient["jjGitPush"]>[0],
+            "cwd" | "observer"
+        >,
     ) => {
-        const observer = commandLog.observer()
-        const result = await withCommandObserver(observer, () =>
-            jjGitPush({ ...options, observer }),
-        )
+        const result = await app.jjGitPush({
+            ...options,
+            cwd: getRepoPath(),
+            observer: commandLog.observer(),
+        })
         commandLog.addEntry(result)
         if (result.success) {
             refresh()
@@ -712,11 +710,10 @@ function AppContent({ app, onQuit }: AppProps) {
                             operationLines={opLines}
                             onConfirm={async () => {
                                 dialog.close()
-                                const observer = commandLog.observer()
-                                const result = await withCommandObserver(
-                                    observer,
-                                    jjUndo,
-                                )
+                                const result = await app.jjUndo({
+                                    cwd: getRepoPath(),
+                                    observer: commandLog.observer(),
+                                })
                                 commandLog.addEntry(result)
                                 if (result.success) {
                                     refresh()
@@ -750,11 +747,10 @@ function AppContent({ app, onQuit }: AppProps) {
                             operationLines={opLines}
                             onConfirm={async () => {
                                 dialog.close()
-                                const observer = commandLog.observer()
-                                const result = await withCommandObserver(
-                                    observer,
-                                    jjRedo,
-                                )
+                                const result = await app.jjRedo({
+                                    cwd: getRepoPath(),
+                                    observer: commandLog.observer(),
+                                })
                                 commandLog.addEntry(result)
                                 if (result.success) {
                                     refresh()
