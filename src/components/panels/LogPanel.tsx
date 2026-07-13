@@ -17,7 +17,6 @@ import {
 } from "solid-js"
 import {
     type Bookmark,
-    fetchNearestAncestorBookmarkNames,
     isBookmarkBackwardsError,
 } from "../../commander/bookmarks"
 import { withCommandObserver } from "../../commander/executor"
@@ -32,15 +31,10 @@ import {
     type OperationResult,
     fetchOpLog,
     isImmutableError,
-    jjAbandon,
-    jjDuplicate,
-    jjIsInTrunk,
     jjNew,
     jjNewAfter,
     jjNewBefore,
     jjResolveInteractive,
-    jjRestore,
-    jjShowDescription,
     jjSplitInteractive,
     jjSquashInteractive,
     parseOpLog,
@@ -809,7 +803,11 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
         }
 
         try {
-            if (await jjIsInTrunk(bookmark.commitId)) {
+            if (
+                await app.jjIsInTrunk(bookmark.commitId, {
+                    cwd: getRepoPath(),
+                })
+            ) {
                 const observer = commandLog.observer()
                 const browseResult = await ghBrowseCommit(bookmark.commitId, {
                     observer,
@@ -856,7 +854,11 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
         if (!commit) return
 
         try {
-            if (await jjIsInTrunk(commit.commitId)) {
+            if (
+                await app.jjIsInTrunk(commit.commitId, {
+                    cwd: getRepoPath(),
+                })
+            ) {
                 const observer = commandLog.observer()
                 const browseResult = await ghBrowseCommit(commit.commitId, {
                     observer,
@@ -1503,9 +1505,13 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
             execute: () => {
                 const commit = selectedLogCommit()
                 if (!commit) return
-                runOperation(
+                runAppOperation(
                     "Duplicating...",
-                    () => jjDuplicate(getRevisionId(commit)),
+                    (observer) =>
+                        app.jjDuplicate(getRevisionId(commit), {
+                            cwd: getRepoPath(),
+                            observer,
+                        }),
                     selectDuplicatedCommit,
                 )
             },
@@ -1949,7 +1955,9 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                 }
 
                 const revId = getRevisionId(commit)
-                const desc = await jjShowDescription(revId)
+                const desc = await app.jjShowDescription(revId, {
+                    cwd: getRepoPath(),
+                })
                 dialog.open(
                     () => (
                         <DescribeModal
@@ -2028,7 +2036,9 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                 })
                 if (!confirmed) return
                 const revId = getRevisionId(commit)
-                const result = await jjAbandon(revId)
+                const result = await app.jjAbandon(revId, {
+                    cwd: getRepoPath(),
+                })
                 if (isImmutableError(result)) {
                     const immutableConfirmed = await dialog.confirm({
                         ...DIALOG_SIZE.confirm,
@@ -2043,8 +2053,12 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                         ],
                     })
                     if (immutableConfirmed) {
-                        await runOperation("Abandoning...", () =>
-                            jjAbandon(revId, { ignoreImmutable: true }),
+                        await runAppOperation("Abandoning...", (observer) =>
+                            app.jjAbandon(revId, {
+                                cwd: getRepoPath(),
+                                ignoreImmutable: true,
+                                observer,
+                            }),
                         )
                     }
                 } else {
@@ -2079,7 +2093,9 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                 let nearestHeadBookmarkNames: string[] = []
                 try {
                     nearestHeadBookmarkNames =
-                        await fetchNearestAncestorBookmarkNames(revId)
+                        await app.jjNearestAncestorBookmarkNames(revId, {
+                            cwd: getRepoPath(),
+                        })
                 } catch {
                     nearestHeadBookmarkNames = []
                 }
@@ -2294,9 +2310,13 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                               ],
                           })
                           if (confirmed) {
-                              const result = await runOperation(
+                              const result = await runAppOperation(
                                   "Discarding...",
-                                  () => jjRestore(restorePaths),
+                                  (observer) =>
+                                      app.jjRestore(restorePaths, {
+                                          cwd: getRepoPath(),
+                                          observer,
+                                      }),
                               )
                               if (result?.success) {
                                   const nextIndex = Math.min(

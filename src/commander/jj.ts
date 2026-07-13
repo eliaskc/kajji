@@ -5,6 +5,7 @@ import {
     type ProcessOutputStream,
     type ProcessResult,
 } from "../process/app-process"
+import { isStaleWorkingCopyError } from "../utils/error-parser"
 
 export class OperationInterruptedError extends Data.TaggedError(
     "OperationInterruptedError",
@@ -77,6 +78,26 @@ export interface JjOperationResult extends ProcessResult {
     readonly command: string
 }
 
+export interface JjDescription {
+    readonly subject: string
+    readonly body: string
+}
+
+export interface JjRefreshState {
+    readonly operationId: string
+    readonly workingCopyCommitId: string
+}
+
+export class JjStaleWorkingCopyError extends Data.TaggedError(
+    "JjStaleWorkingCopyError",
+)<{
+    readonly output: string
+}> {
+    override get message() {
+        return `The working copy is stale\n${this.output}`
+    }
+}
+
 export class JjCommandError extends Data.TaggedError("JjCommandError")<{
     readonly command: string
     readonly result: ProcessResult
@@ -142,6 +163,33 @@ export interface JjService {
         name: string,
         options: JjOperationOptions,
     ) => Effect.Effect<JjOperationResult, JjCommandError | ProcessError>
+    readonly duplicate: (
+        revision: string,
+        options: JjOperationOptions,
+    ) => Effect.Effect<JjOperationResult, JjCommandError | ProcessError>
+    readonly abandon: (
+        revision: string,
+        options: JjEditOptions,
+    ) => Effect.Effect<JjOperationResult, JjCommandError | ProcessError>
+    readonly restore: (
+        paths: readonly string[],
+        options: JjOperationOptions,
+    ) => Effect.Effect<JjOperationResult, JjCommandError | ProcessError>
+    readonly isInTrunk: (
+        revision: string,
+        options: JjOperationOptions,
+    ) => Effect.Effect<boolean, ProcessError>
+    readonly showDescription: (
+        revision: string,
+        options: JjOperationOptions,
+    ) => Effect.Effect<JjDescription, ProcessError>
+    readonly nearestAncestorBookmarkNames: (
+        revision: string,
+        options: JjOperationOptions,
+    ) => Effect.Effect<string[], JjCommandError | ProcessError>
+    readonly refreshState: (
+        options: JjOperationOptions,
+    ) => Effect.Effect<JjRefreshState, JjStaleWorkingCopyError | ProcessError>
 }
 
 export class Jj extends Context.Service<Jj, JjService>()("kajji/Jj") {}
@@ -197,7 +245,7 @@ export const JjLive = Layer.effect(
     Effect.gen(function* () {
         const appProcess = yield* AppProcess
 
-        const run = Effect.fn("Jj.run")(function* (
+        const runRaw = Effect.fn("Jj.runRaw")(function* (
             args: readonly string[],
             options: JjOperationOptions,
             displayCommand = `jj ${args.join(" ")}`,
@@ -234,11 +282,79 @@ export const JjLive = Layer.effect(
             )
 
             notify(() => options.sink?.finish(result))
-            if (result.exitCode !== 0) {
-                return yield* new JjCommandError({ command, result })
-            }
             return { ...result, command }
         })
+
+        const run = Effect.fn("Jj.run")(function* (
+            args: readonly string[],
+            options: JjOperationOptions,
+            displayCommand?: string,
+        ) {
+            const result = yield* runRaw(args, options, displayCommand)
+            if (result.exitCode !== 0) {
+                return yield* new JjCommandError({
+                    command: result.command,
+                    result,
+                })
+            }
+            return result
+        })
+
+        const throwIfStale = (result: JjOperationResult) => {
+            const output = result.stdout + result.stderr
+            if (isStaleWorkingCopyError(output)) {
+                return Effect.fail(new JjStaleWorkingCopyError({ output }))
+            }
+            return Effect.void
+        }
+
+        const readOpLogId = Effect.fn("Jj.opLogId")(function* (
+            options: JjOperationOptions,
+        ) {
+            const result = yield* runRaw(
+                [
+                    "op",
+                    "log",
+                    "--limit",
+                    "1",
+                    "--no-graph",
+                    "--ignore-working-copy",
+                    "-T",
+                    "self.id()",
+                ],
+                options,
+            )
+            yield* throwIfStale(result)
+            return result.exitCode === 0 ? result.stdout.trim() : ""
+        })
+
+        const readWorkingCopyCommitId = Effect.fn("Jj.workingCopyCommitId")(
+            function* (options: JjOperationOptions) {
+                const result = yield* runRaw(
+                    [
+                        "log",
+                        "--limit",
+                        "1",
+                        "--no-graph",
+                        "-r",
+                        "@",
+                        "-T",
+                        "commit_id",
+                    ],
+                    options,
+                )
+                yield* throwIfStale(result)
+                return result.exitCode === 0
+                    ? result.stdout
+                          .replace(
+                              // biome-ignore lint/suspicious/noControlCharactersInRegex: ANSI escape sequence
+                              /\x1b\[[0-9;]*m/g,
+                              "",
+                          )
+                          .trim()
+                    : ""
+            },
+        )
 
         return Jj.of({
             gitFetch: Effect.fn("Jj.gitFetch")((options: JjGitFetchOptions) =>
@@ -378,6 +494,88 @@ export const JjLive = Layer.effect(
                 (name: string, options: JjOperationOptions) =>
                     run(["bookmark", "forget", name], options),
             ),
+            duplicate: Effect.fn("Jj.duplicate")(
+                (revision: string, options: JjOperationOptions) =>
+                    run(["duplicate", revision], options),
+            ),
+            abandon: Effect.fn("Jj.abandon")(
+                (revision: string, options: JjEditOptions) =>
+                    run(
+                        [
+                            "abandon",
+                            revision,
+                            ...(options.ignoreImmutable
+                                ? ["--ignore-immutable"]
+                                : []),
+                        ],
+                        options,
+                    ),
+            ),
+            restore: Effect.fn("Jj.restore")(
+                (paths: readonly string[], options: JjOperationOptions) =>
+                    run(["restore", ...paths], options),
+            ),
+            isInTrunk: Effect.fn("Jj.isInTrunk")(function* (
+                revision: string,
+                options: JjOperationOptions,
+            ) {
+                const result = yield* runRaw(
+                    [
+                        "log",
+                        "-r",
+                        `${revision} & ::trunk()`,
+                        "--no-graph",
+                        "-T",
+                        "change_id",
+                    ],
+                    options,
+                )
+                return result.exitCode === 0 && result.stdout.trim().length > 0
+            }),
+            showDescription: Effect.fn("Jj.showDescription")(function* (
+                revision: string,
+                options: JjOperationOptions,
+            ) {
+                const result = yield* runRaw(
+                    ["log", "-r", revision, "--no-graph", "-T", "description"],
+                    options,
+                )
+                if (result.exitCode !== 0) return { subject: "", body: "" }
+                const lines = result.stdout.trim().split("\n")
+                return {
+                    subject: lines[0] ?? "",
+                    body: lines.slice(1).join("\n").trim(),
+                }
+            }),
+            nearestAncestorBookmarkNames: Effect.fn(
+                "Jj.nearestAncestorBookmarkNames",
+            )(function* (revision: string, options: JjOperationOptions) {
+                const revset = `heads(::${revision} & bookmarks())`
+                const result = yield* run(
+                    [
+                        "bookmark",
+                        "list",
+                        "-r",
+                        revset,
+                        "--template",
+                        'name ++ "\\n"',
+                    ],
+                    options,
+                )
+                return result.stdout
+                    .split("\n")
+                    .map((line) => line.trim())
+                    .filter((line) => line.length > 0)
+            }),
+            refreshState: Effect.fn("Jj.refreshState")(function* (
+                options: JjOperationOptions,
+            ) {
+                const [operationId, workingCopyCommitId] = yield* Effect.all(
+                    [readOpLogId(options), readWorkingCopyCommitId(options)],
+                    { concurrency: "unbounded" },
+                )
+                return { operationId, workingCopyCommitId }
+            }),
         })
     }),
 )

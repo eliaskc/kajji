@@ -4,6 +4,7 @@ import {
     type JjBookmarkCreateOptions,
     type JjBookmarkSetOptions,
     type JjCommandError,
+    type JjDescription,
     type JjEditOptions,
     type JjGitFetchOptions,
     type JjGitPushOptions,
@@ -11,6 +12,7 @@ import {
     type JjOperationOptions,
     type JjOperationResult,
     type JjRebaseOptions,
+    type JjRefreshState,
     type JjService,
     type JjSquashOptions,
     type OperationFailure,
@@ -23,6 +25,10 @@ import { diagnosticsLog } from "../utils/diagnostics"
 
 interface ApplicationOperationOptions extends Omit<JjOperationOptions, "sink"> {
     readonly observer?: CommandObserver
+    readonly signal?: AbortSignal
+}
+
+interface ApplicationReadOptions extends Omit<JjOperationOptions, "sink"> {
     readonly signal?: AbortSignal
 }
 
@@ -125,6 +131,33 @@ export interface ApplicationClient {
         name: string,
         options: ApplicationOperationOptions,
     ) => Promise<OperationResult>
+    readonly jjDuplicate: (
+        revision: string,
+        options: ApplicationOperationOptions,
+    ) => Promise<OperationResult>
+    readonly jjAbandon: (
+        revision: string,
+        options: ApplicationEditOptions,
+    ) => Promise<OperationResult>
+    readonly jjRestore: (
+        paths: readonly string[],
+        options: ApplicationOperationOptions,
+    ) => Promise<OperationResult>
+    readonly jjIsInTrunk: (
+        revision: string,
+        options: ApplicationReadOptions,
+    ) => Promise<boolean>
+    readonly jjShowDescription: (
+        revision: string,
+        options: ApplicationReadOptions,
+    ) => Promise<JjDescription>
+    readonly jjNearestAncestorBookmarkNames: (
+        revision: string,
+        options: ApplicationReadOptions,
+    ) => Promise<string[]>
+    readonly jjRefreshState: (
+        options: ApplicationReadOptions,
+    ) => Promise<JjRefreshState>
     readonly dispose: () => Promise<void>
 }
 
@@ -187,6 +220,15 @@ export function makeApplicationClient(
     const runtime = ManagedRuntime.make(layer)
     let accepting = true
     let disposePromise: Promise<void> | undefined
+
+    const runRead = <A, E>(
+        options: ApplicationReadOptions,
+        operation: (jj: JjService) => Effect.Effect<A, E>,
+    ): Promise<A> => {
+        if (!accepting)
+            return Promise.reject(new ApplicationClientClosedError())
+        return runtime.runPromise(Jj.use(operation), { signal: options.signal })
+    }
 
     const runOperation = async (
         options: ApplicationOperationOptions,
@@ -292,6 +334,46 @@ export function makeApplicationClient(
         jjBookmarkForget: (name, { observer, signal, ...options }) =>
             runOperation({ ...options, observer, signal }, (jj, sink) =>
                 jj.bookmarkForget(name, { ...options, sink }),
+            ),
+        jjDuplicate: (revision, { observer, signal, ...options }) =>
+            runOperation({ ...options, observer, signal }, (jj, sink) =>
+                jj.duplicate(revision, { ...options, sink }),
+            ),
+        jjAbandon: (revision, { observer, signal, ...options }) =>
+            runOperation({ ...options, observer, signal }, (jj, sink) =>
+                jj.abandon(revision, { ...options, sink }),
+            ),
+        jjRestore: (paths, { observer, signal, ...options }) =>
+            runOperation({ ...options, observer, signal }, (jj, sink) =>
+                jj.restore(paths, { ...options, sink }),
+            ),
+        jjIsInTrunk: (revision, options) =>
+            runRead(options, (jj) =>
+                jj.isInTrunk(revision, {
+                    cwd: options.cwd,
+                    timeoutMs: options.timeoutMs,
+                }),
+            ),
+        jjShowDescription: (revision, options) =>
+            runRead(options, (jj) =>
+                jj.showDescription(revision, {
+                    cwd: options.cwd,
+                    timeoutMs: options.timeoutMs,
+                }),
+            ),
+        jjNearestAncestorBookmarkNames: (revision, options) =>
+            runRead(options, (jj) =>
+                jj.nearestAncestorBookmarkNames(revision, {
+                    cwd: options.cwd,
+                    timeoutMs: options.timeoutMs,
+                }),
+            ),
+        jjRefreshState: (options) =>
+            runRead(options, (jj) =>
+                jj.refreshState({
+                    cwd: options.cwd,
+                    timeoutMs: options.timeoutMs,
+                }),
             ),
         dispose: () => {
             accepting = false

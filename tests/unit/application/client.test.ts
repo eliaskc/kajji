@@ -126,6 +126,9 @@ describe("ApplicationClient", () => {
         await client.jjBookmarkDelete("delete", options)
         await client.jjBookmarkRename("old", "new", options)
         await client.jjBookmarkForget("forget", options)
+        await client.jjDuplicate("duplicate", options)
+        await client.jjAbandon("abandon", options)
+        await client.jjRestore(["path"], options)
         await client.dispose()
 
         expect(commands).toEqual([
@@ -138,7 +141,41 @@ describe("ApplicationClient", () => {
             "jj bookmark delete delete",
             "jj bookmark rename old new",
             "jj bookmark forget forget",
+            "jj duplicate duplicate",
+            "jj abandon abandon",
+            "jj restore path",
         ])
+    })
+
+    test("routes supporting reads without command observation", async () => {
+        const layer = makeAppProcessFake((command) => {
+            const args = command.args.join(" ")
+            if (args.startsWith("op log"))
+                return Effect.succeed({ ...success, stdout: "op\n" })
+            if (args.includes("-T commit_id"))
+                return Effect.succeed({ ...success, stdout: "commit\n" })
+            if (args.includes("-T description"))
+                return Effect.succeed({ ...success, stdout: "subject\nbody\n" })
+            if (args.startsWith("bookmark list"))
+                return Effect.succeed({ ...success, stdout: "bookmark\n" })
+            return Effect.succeed({ ...success, stdout: "match\n" })
+        })
+        const client = makeApplicationClient(layer)
+        const options = { cwd: "/tmp/repository" }
+
+        expect(await client.jjIsInTrunk("revision", options)).toBe(true)
+        expect(await client.jjShowDescription("revision", options)).toEqual({
+            subject: "subject",
+            body: "body",
+        })
+        expect(
+            await client.jjNearestAncestorBookmarkNames("revision", options),
+        ).toEqual(["bookmark"])
+        expect(await client.jjRefreshState(options)).toEqual({
+            operationId: "op",
+            workingCopyCommitId: "commit",
+        })
+        await client.dispose()
     })
 
     test("preserves normal non-zero exits at the compatibility edge", async () => {

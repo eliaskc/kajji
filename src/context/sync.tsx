@@ -26,15 +26,7 @@ import { getVisibleBookmarks } from "./sync-bookmarks"
 
 import { fetchFiles, fetchFilesRange } from "../commander/files"
 import { streamLogPage } from "../commander/log"
-import {
-    fetchRefreshState,
-    jjAbandon,
-    jjCommitDetails,
-    jjDescribe,
-    jjEdit,
-    jjNew,
-    jjSquash,
-} from "../commander/operations"
+import { jjCommitDetails, jjNew } from "../commander/operations"
 import { type Commit, type FileChange, getRevisionId } from "../commander/types"
 import { onConfigChange, readConfig } from "../config"
 import {
@@ -45,6 +37,7 @@ import {
     flattenTree,
     getEffectiveCollapsedPaths,
 } from "../utils/file-tree"
+import { useApplication } from "./application"
 import { useFocus } from "./focus"
 import { useLayout } from "./layout"
 
@@ -153,6 +146,7 @@ interface SyncContextValue {
 const SyncContext = createContext<SyncContextValue>()
 
 export function SyncProvider(props: { children: JSX.Element }) {
+    const app = useApplication()
     const renderer = useRenderer()
     const focus = useFocus()
     const layout = useLayout()
@@ -372,7 +366,9 @@ export function SyncProvider(props: { children: JSX.Element }) {
                 loadBookmarks(),
                 loadRemoteBookmarks(),
             ])
-            const refreshState = await fetchRefreshState()
+            const refreshState = await app.jjRefreshState({
+                cwd: getRepoPath(),
+            })
             if (refreshState.operationId) {
                 lastOpLogId = refreshState.operationId
             }
@@ -427,7 +423,9 @@ export function SyncProvider(props: { children: JSX.Element }) {
             isChecking = true
 
             try {
-                const refreshState = await fetchRefreshState()
+                const refreshState = await app.jjRefreshState({
+                    cwd: getRepoPath(),
+                })
                 if (
                     !refreshState.operationId &&
                     !refreshState.workingCopyCommitId
@@ -497,7 +495,9 @@ export function SyncProvider(props: { children: JSX.Element }) {
 
         void (async () => {
             try {
-                const state = await fetchRefreshState()
+                const state = await app.jjRefreshState({
+                    cwd: getRepoPath(),
+                })
                 if (disposed) return
                 lastOpLogId = state.operationId
                 lastWorkingCopyCommitId = state.workingCopyCommitId

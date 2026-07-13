@@ -383,6 +383,46 @@ covers all argument policies through the fake `AppProcess`; `bun test` reports
 323 passing tests, all 10 terminal workflows pass, and benchmark medians were
 1665 ms startup and 774 ms fetch with no material regression.
 
+## Implementation Update — 2026-07-14 00:19:54 CEST
+
+The remaining safe captured-command batch is complete:
+
+- migrated duplicate, abandon, and file restore, including immutable-abandon
+  confirmation and post-operation selection behavior
+- migrated in-trunk probes, description reads, nearest-ancestor bookmark reads,
+  and repository refresh-state polling
+- split `Jj` execution into raw normal-exit capture and domain success policy so
+  read capabilities can preserve their existing non-zero semantics without
+  treating normal exits as lifecycle failures
+- preserved typed stale-working-copy failures for refresh polling and moved all
+  three `SyncProvider` refresh-state call sites through the owned application
+  client
+
+`withCommandObserver` and `activeObserver` now remain in one real UI path: the
+hook-backed `new`, `new-before`, and `new-after` family in `LogPanel`. Those
+commands are deferred until hooks move as a capability so configured pre-hooks
+are not bypassed. Stack-specific fetch, push, rebase, abandon, operation-ID, and
+revset calls also remain legacy until stack dependencies migrate together.
+
+A follow-up correctness fix made stale-working-copy classification
+result-aware. A matching diagnostic now counts as stale only when that same
+command exited non-zero, preventing valid diff contents containing the literal
+text “The working copy is stale” from failing files mode. Revision file loading
+also captures and validates one stable revision identifier across each request.
+The refactor and fix are separate jj changes.
+
+Verification evidence:
+
+- `bun test`: 329 passing tests
+- `bun check` and targeted Biome checks pass
+- `bun test:e2e`: 10 passing terminal workflows
+- fresh-start files and diff mode were manually verified on the regression
+  revision with Terminal Control
+
+The next work is to finish remaining captured jj reads, then migrate hooks and
+the `new` family to remove the mutable observer before designing scoped
+streaming for log, bookmark, and diff reads.
+
 ## Work After Fetch
 
 ### 1. Consolidate captured jj execution

@@ -449,6 +449,10 @@ test("undoes a description update", async () => {
                 !snapshot.text.includes("then undo"),
             { timeoutMs: 10_000 },
         )
+        await session.screen.waitForIdle({
+            quietForMs: 250,
+            timeoutMs: 5_000,
+        })
         expect(
             runJj(
                 repository,

@@ -5,6 +5,7 @@ import {
     JjCommandError,
     type JjGitFetchOptions,
     JjLive,
+    JjStaleWorkingCopyError,
     type OperationSink,
 } from "../../../src/commander/jj"
 import {
@@ -317,6 +318,111 @@ describe("Jj", () => {
             ["bookmark", "rename", "old", "new"],
             ["bookmark", "forget", "forget"],
         ])
+    })
+
+    test("constructs duplicate, abandon, and restore commands", async () => {
+        const commands: ProcessCommand[] = []
+        const processLayer = makeAppProcessFake((command) => {
+            commands.push(command)
+            return Effect.succeed(success)
+        })
+        const effect = Effect.all(
+            [
+                Jj.use((jj) =>
+                    jj.duplicate("duplicate", { cwd: "/tmp/repository" }),
+                ),
+                Jj.use((jj) =>
+                    jj.abandon("abandon", {
+                        cwd: "/tmp/repository",
+                        ignoreImmutable: true,
+                    }),
+                ),
+                Jj.use((jj) =>
+                    jj.restore(["one", "two"], { cwd: "/tmp/repository" }),
+                ),
+            ],
+            { concurrency: 1 },
+        ).pipe(Effect.provide(JjLive), Effect.provide(processLayer))
+
+        await Effect.runPromise(effect)
+
+        expect(commands.map((command) => command.args)).toEqual([
+            ["duplicate", "duplicate"],
+            ["abandon", "abandon", "--ignore-immutable"],
+            ["restore", "one", "two"],
+        ])
+    })
+
+    test("interprets supporting read results", async () => {
+        const processLayer = makeAppProcessFake((command) => {
+            const args = command.args.join(" ")
+            if (args.startsWith("op log")) {
+                return Effect.succeed({ ...success, stdout: "operation-id\n" })
+            }
+            if (args.includes("-T commit_id")) {
+                return Effect.succeed({
+                    ...success,
+                    stdout: "\u001b[31mcommit-id\u001b[0m\n",
+                })
+            }
+            if (args.includes("-T description")) {
+                return Effect.succeed({
+                    ...success,
+                    stdout: "subject\n\nbody\n",
+                })
+            }
+            if (args.startsWith("bookmark list")) {
+                return Effect.succeed({ ...success, stdout: "one\ntwo\n" })
+            }
+            return Effect.succeed({ ...success, stdout: "match\n" })
+        })
+        const effect = Effect.all(
+            [
+                Jj.use((jj) =>
+                    jj.isInTrunk("revision", { cwd: "/tmp/repository" }),
+                ),
+                Jj.use((jj) =>
+                    jj.showDescription("revision", {
+                        cwd: "/tmp/repository",
+                    }),
+                ),
+                Jj.use((jj) =>
+                    jj.nearestAncestorBookmarkNames("revision", {
+                        cwd: "/tmp/repository",
+                    }),
+                ),
+                Jj.use((jj) => jj.refreshState({ cwd: "/tmp/repository" })),
+            ],
+            { concurrency: 1 },
+        ).pipe(Effect.provide(JjLive), Effect.provide(processLayer))
+
+        const [inTrunk, description, bookmarks, refreshState] =
+            await Effect.runPromise(effect)
+
+        expect(inTrunk).toBe(true)
+        expect(description).toEqual({ subject: "subject", body: "body" })
+        expect(bookmarks).toEqual(["one", "two"])
+        expect(refreshState).toEqual({
+            operationId: "operation-id",
+            workingCopyCommitId: "commit-id",
+        })
+    })
+
+    test("reports stale working copy refresh reads as typed failures", async () => {
+        const processLayer = makeAppProcessFake(() =>
+            Effect.succeed({
+                ...success,
+                exitCode: 1,
+                stderr: "Could not read working copy's operation",
+            }),
+        )
+        const effect = Jj.use((jj) =>
+            jj.refreshState({ cwd: "/tmp/repository" }),
+        ).pipe(Effect.provide(JjLive), Effect.provide(processLayer))
+
+        await expect(Effect.runPromise(effect)).rejects.toBeInstanceOf(
+            JjStaleWorkingCopyError,
+        )
     })
 
     test("reports output and exactly one completion to the sink", async () => {

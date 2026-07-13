@@ -21,7 +21,6 @@ import {
 import {
     type OperationResult,
     isImmutableError,
-    jjIsInTrunk,
     jjNew,
 } from "../../commander/operations"
 import { getRevisionId } from "../../commander/types"
@@ -131,7 +130,11 @@ export function BookmarksPanel() {
         }
 
         try {
-            if (await jjIsInTrunk(bookmark.commitId)) {
+            if (
+                await app.jjIsInTrunk(bookmark.commitId, {
+                    cwd: getRepoPath(),
+                })
+            ) {
                 const observer = commandLog.observer()
                 const browseResult = await ghBrowseCommit(bookmark.commitId, {
                     observer,
