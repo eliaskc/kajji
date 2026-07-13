@@ -5,7 +5,7 @@ import {
     type ProcessOutputStream,
     type ProcessResult,
 } from "../process/app-process"
-import { isStaleWorkingCopyError } from "../utils/error-parser"
+import { isStaleWorkingCopyFailure } from "../utils/error-parser"
 
 export class OperationInterruptedError extends Data.TaggedError(
     "OperationInterruptedError",
@@ -302,7 +302,7 @@ export const JjLive = Layer.effect(
 
         const throwIfStale = (result: JjOperationResult) => {
             const output = result.stdout + result.stderr
-            if (isStaleWorkingCopyError(output)) {
+            if (isStaleWorkingCopyFailure(result)) {
                 return Effect.fail(new JjStaleWorkingCopyError({ output }))
             }
             return Effect.void

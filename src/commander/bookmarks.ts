@@ -1,4 +1,4 @@
-import { isStaleWorkingCopyError } from "../utils/error-parser"
+import { isStaleWorkingCopyFailure } from "../utils/error-parser"
 import { execute, executeStreaming, executeWithColor } from "./executor"
 import type { OperationRunOptions } from "./observer"
 import type { OperationResult } from "./operations"
@@ -68,7 +68,7 @@ export async function fetchBookmarks(
 
     // Check for critical errors in both stdout and stderr (jj sometimes outputs errors to stdout)
     const combinedOutput = result.stdout + result.stderr
-    if (isStaleWorkingCopyError(combinedOutput)) {
+    if (isStaleWorkingCopyFailure(result)) {
         throw new Error(`The working copy is stale\n${combinedOutput}`)
     }
 
@@ -119,7 +119,7 @@ export function fetchBookmarksStream(
             },
             onComplete: (result) => {
                 const combinedOutput = result.stdout + result.stderr
-                if (isStaleWorkingCopyError(combinedOutput)) {
+                if (isStaleWorkingCopyFailure(result)) {
                     callbacks.onError(
                         new Error(
                             `The working copy is stale\n${combinedOutput}`,

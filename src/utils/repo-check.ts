@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process"
 import { existsSync } from "node:fs"
 import { join } from "node:path"
 import { execute } from "../commander/executor"
-import { isStaleWorkingCopyError } from "./error-parser"
+import { isStaleWorkingCopyFailure } from "./error-parser"
 
 export interface RepoStatus {
     isJjRepo: boolean
@@ -44,7 +44,13 @@ export function checkRepoStatus(path: string): RepoStatus {
                 timeout: 5000,
             })
             const output = (result.stdout || "") + (result.stderr || "")
-            if (isStaleWorkingCopyError(output)) {
+            if (
+                isStaleWorkingCopyFailure({
+                    exitCode: result.status ?? 1,
+                    stdout: result.stdout || "",
+                    stderr: result.stderr || "",
+                })
+            ) {
                 startupError = output
             }
         } catch {

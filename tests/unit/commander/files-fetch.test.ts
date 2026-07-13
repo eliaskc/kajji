@@ -51,6 +51,27 @@ describe("fetchFiles", () => {
         ])
     })
 
+    test("does not treat successful diff contents as a stale working copy error", async () => {
+        mockExecute.mockClear()
+        mockExecute
+            .mockResolvedValueOnce({
+                stdout: "M src/error.ts",
+                stderr: "",
+                exitCode: 0,
+                success: true,
+            })
+            .mockResolvedValueOnce({
+                stdout: '+const message = "The working copy is stale"',
+                stderr: "",
+                exitCode: 0,
+                success: true,
+            })
+
+        await expect(fetchFiles("abc123")).resolves.toEqual([
+            { path: "src/error.ts", status: "modified", isBinary: false },
+        ])
+    })
+
     test("fetchFilesRange calls execute with from and to revisions", async () => {
         mockExecute.mockClear()
         mockExecute

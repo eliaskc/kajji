@@ -1,4 +1,4 @@
-import { isStaleWorkingCopyError } from "../utils/error-parser"
+import { isStaleWorkingCopyFailure } from "../utils/error-parser"
 import { execute, executeStreaming } from "./executor"
 import type { ExecuteResult } from "./executor"
 import type { Commit } from "./types"
@@ -303,7 +303,7 @@ async function executeLog(
 
     // Check for critical errors in both stdout and stderr (jj sometimes outputs errors to stdout)
     const combinedOutput = result.stdout + result.stderr
-    if (isStaleWorkingCopyError(combinedOutput)) {
+    if (isStaleWorkingCopyFailure(result)) {
         throw new Error(`The working copy is stale\n${combinedOutput}`)
     }
 
@@ -387,7 +387,7 @@ export function streamLogPage(
                     flushTimer = null
                 }
                 const combinedOutput = result.stdout + result.stderr
-                if (isStaleWorkingCopyError(combinedOutput)) {
+                if (isStaleWorkingCopyFailure(result)) {
                     callbacks.onError(
                         new Error(
                             `The working copy is stale\n${combinedOutput}`,

@@ -1,6 +1,6 @@
 import { HookError, runPreHooks } from "../hooks/runner"
 import { getRepoPath } from "../repo"
-import { isStaleWorkingCopyError } from "../utils/error-parser"
+import { isStaleWorkingCopyFailure } from "../utils/error-parser"
 import { type ExecuteResult, execute } from "./executor"
 import type { OperationRunOptions } from "./observer"
 
@@ -58,7 +58,7 @@ function stripAnsi(str: string): string {
 
 function throwIfStaleWorkingCopy(result: ExecuteResult): void {
     const combinedOutput = result.stdout + result.stderr
-    if (isStaleWorkingCopyError(combinedOutput)) {
+    if (isStaleWorkingCopyFailure(result)) {
         throw new Error(`The working copy is stale\n${combinedOutput}`)
     }
 }

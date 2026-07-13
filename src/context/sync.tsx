@@ -1079,18 +1079,14 @@ export function SyncProvider(props: { children: JSX.Element }) {
         setActiveBookmarkDiff(null)
         const request = ++filesRequestId
         filesRequestKind = "commit"
-        const commitKey = `${commit.changeId}:${commit.commitId}`
+        const revisionId = getRevisionId(commit)
         setFilesLoading(true)
         setFilesError(null)
         try {
-            const result = await fetchFiles(getRevisionId(commit))
-            if (request !== filesRequestId) return
+            const result = await fetchFiles(revisionId)
             const currentCommit = selectedCommit()
-            if (
-                !currentCommit ||
-                `${currentCommit.changeId}:${currentCommit.commitId}` !==
-                    commitKey
-            )
+            if (request !== filesRequestId) return
+            if (!currentCommit || getRevisionId(currentCommit) !== revisionId)
                 return
             showFiles(result)
             focus.setActiveContext("log.files")

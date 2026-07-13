@@ -1,5 +1,5 @@
 import { findBinaryFiles } from "../utils/diff-binary"
-import { isStaleWorkingCopyError } from "../utils/error-parser"
+import { isStaleWorkingCopyFailure } from "../utils/error-parser"
 import { execute } from "./executor"
 import type { FileChange, FileStatus } from "./types"
 
@@ -74,13 +74,16 @@ async function fetchFilesWithArgs(
         execute(binaryArgs),
     ])
 
-    // Check for critical errors in both stdout and stderr (jj sometimes outputs errors to stdout)
+    // Check both streams because jj sometimes outputs errors to stdout.
     const combinedOutput =
         summaryResult.stdout +
         summaryResult.stderr +
         binaryResult.stdout +
         binaryResult.stderr
-    if (isStaleWorkingCopyError(combinedOutput)) {
+    if (
+        isStaleWorkingCopyFailure(summaryResult) ||
+        isStaleWorkingCopyFailure(binaryResult)
+    ) {
         throw new Error(`The working copy is stale\n${combinedOutput}`)
     }
 

@@ -1,3 +1,5 @@
+import type { ProcessResult } from "../process/app-process"
+
 /**
  * Parsed jj error with structured information
  */
@@ -21,8 +23,13 @@ export type KnownErrorType = "stale-working-copy" | "immutable-commit"
 const STALE_WORKING_COPY_PATTERN =
     /working copy is stale|stale working copy|working-copy is behind|could not read working copy's operation/i
 
-export function isStaleWorkingCopyError(message: string): boolean {
-    return STALE_WORKING_COPY_PATTERN.test(message)
+export function isStaleWorkingCopyFailure(
+    result: Pick<ProcessResult, "exitCode" | "stdout" | "stderr">,
+): boolean {
+    return (
+        result.exitCode !== 0 &&
+        STALE_WORKING_COPY_PATTERN.test(result.stdout + result.stderr)
+    )
 }
 
 /**
