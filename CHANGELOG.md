@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.16.0
+
+### new
+- layout: replace focus mode with diff mode (`ctrl+x`) ([`fa5abb7`](../../commit/fa5abb7))
+- responsive diff workspace with file tree, revision log, and full-height diff ([`90415ca`](../../commit/90415ca), [`276fedc`](../../commit/276fedc))
+- hunk navigation and sticky file headers in diffs ([`094da32`](../../commit/094da32), [`940e884`](../../commit/940e884))
+- debug logs and snapshots ([`076687e`](../../commit/076687e))
+
+### improved
+- ux: command palette is redesigned with active commands prioritized ([`8e1e51d`](../../commit/8e1e51d))
+- ux: open keybind labels clarify commit and pr targets ([`aa27ab0`](../../commit/aa27ab0))
+- ux: diff navigation and viewer controls are improved ([`f74d5f7`](../../commit/f74d5f7))
+
+### fixed
+- bookmarks created during a session remain visible ([`2febf46`](../../commit/2febf46))
+- layout: diff workspace navigation is stabilized ([`928344e`](../../commit/928344e))
+- ux: command palette respects command dispatch policy ([`6fa89ac`](../../commit/6fa89ac))
+- startup: stale workspaces recover during startup ([`74f7f9a`](../../commit/74f7f9a))
+- diff: file navigation aligns with sticky headers ([`0edb0a8`](../../commit/0edb0a8))
+- files: file tree refreshes without disappearing when changing revisions ([`1239911`](../../commit/1239911))
+- files: recursive file tree scrolling is prevented ([`1b73a9b`](../../commit/1b73a9b))
+- update: package manager errors appear in the command log ([`f9d0f4b`](../../commit/f9d0f4b))
+
 ## 0.15.0
 
 ### new
