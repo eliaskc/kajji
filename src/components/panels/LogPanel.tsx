@@ -19,8 +19,6 @@ import {
     type Bookmark,
     fetchNearestAncestorBookmarkNames,
     isBookmarkBackwardsError,
-    jjBookmarkCreate,
-    jjBookmarkSet,
 } from "../../commander/bookmarks"
 import { withCommandObserver } from "../../commander/executor"
 import {
@@ -35,19 +33,15 @@ import {
     fetchOpLog,
     isImmutableError,
     jjAbandon,
-    jjDescribe,
     jjDuplicate,
-    jjEdit,
     jjIsInTrunk,
     jjNew,
     jjNewAfter,
     jjNewBefore,
-    jjRebase,
     jjResolveInteractive,
     jjRestore,
     jjShowDescription,
     jjSplitInteractive,
-    jjSquash,
     jjSquashInteractive,
     parseOpLog,
 } from "../../commander/operations"
@@ -639,14 +633,40 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
         return result
     }
 
+    const runAppOperation = async (
+        text: string,
+        op: (
+            observer: ReturnType<typeof commandLog.observer>,
+        ) => Promise<OperationResult>,
+        selectAfterRefresh?: (
+            result: OperationResult,
+            commits: Commit[],
+        ) => number | null | undefined,
+    ) => {
+        const observer = commandLog.observer()
+        const result = await op(observer)
+        commandLog.addEntry(result)
+        if (result.success) {
+            await refresh({
+                selectIndex: selectAfterRefresh
+                    ? (commits) => selectAfterRefresh(result, commits)
+                    : undefined,
+            })
+            await refreshAppliedFilterGroups()
+            loadOpLog()
+        }
+        return result
+    }
+
     const moveBookmark = async (
         bookmarkName: string,
         revision: string,
         options?: { allowBackwards?: boolean },
     ): Promise<OperationResult> => {
         const observer = commandLog.observer()
-        const result = await jjBookmarkSet(bookmarkName, revision, {
+        const result = await app.jjBookmarkSet(bookmarkName, revision, {
             ...options,
+            cwd: getRepoPath(),
             observer,
         })
         commandLog.addEntry(result)
@@ -734,7 +754,8 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
         bookmarkName: string,
     ) => {
         const observer = commandLog.observer()
-        const createResult = await jjBookmarkCreate(bookmarkName, {
+        const createResult = await app.jjBookmarkCreate(bookmarkName, {
+            cwd: getRepoPath(),
             revision: getRevisionId(commit),
             observer,
         })
@@ -1529,7 +1550,9 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                 const commit = selectedLogCommit()
                 if (!commit) return
                 const revId = getRevisionId(commit)
-                const result = await jjEdit(revId)
+                const result = await app.jjEdit(revId, {
+                    cwd: getRepoPath(),
+                })
                 if (isImmutableError(result)) {
                     const confirmed = await dialog.confirm({
                         ...DIALOG_SIZE.confirm,
@@ -1544,9 +1567,14 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                         ],
                     })
                     if (confirmed) {
-                        await runOperation(
+                        await runAppOperation(
                             "Editing...",
-                            () => jjEdit(revId, { ignoreImmutable: true }),
+                            (observer) =>
+                                app.jjEdit(revId, {
+                                    cwd: getRepoPath(),
+                                    ignoreImmutable: true,
+                                    observer,
+                                }),
                             selectWorkingCopyCommitAfterRefresh,
                         )
                     }
@@ -1645,7 +1673,8 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                                     }
                                 } else {
                                     // Non-interactive squash
-                                    const result = await jjSquash(revId, {
+                                    const result = await app.jjSquash(revId, {
+                                        cwd: getRepoPath(),
                                         into: target,
                                         useDestinationMessage:
                                             options.useDestinationMessage,
@@ -1669,16 +1698,18 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                                             ],
                                         })
                                         if (confirmed) {
-                                            await runOperation(
+                                            await runAppOperation(
                                                 "Squashing...",
-                                                () =>
-                                                    jjSquash(revId, {
+                                                (observer) =>
+                                                    app.jjSquash(revId, {
+                                                        cwd: getRepoPath(),
                                                         into: target,
                                                         useDestinationMessage:
                                                             options.useDestinationMessage,
                                                         keepEmptied:
                                                             options.keepEmptied,
                                                         ignoreImmutable: true,
+                                                        observer,
                                                     }),
                                                 (_result, commitList) =>
                                                     findCommitIndexById(
@@ -1748,10 +1779,11 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                             commits={commitList}
                             defaultTarget={parentRevisionId}
                             onRebase={async (destination, options) => {
-                                const result = await jjRebase(
+                                const result = await app.jjRebase(
                                     revId,
                                     destination,
                                     {
+                                        cwd: getRepoPath(),
                                         mode: options.mode,
                                         targetMode: options.targetMode,
                                         skipEmptied: options.skipEmptied,
@@ -1775,17 +1807,23 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                                         ],
                                     })
                                     if (confirmed) {
-                                        await runOperation(
+                                        await runAppOperation(
                                             "Rebasing...",
-                                            () =>
-                                                jjRebase(revId, destination, {
-                                                    mode: options.mode,
-                                                    targetMode:
-                                                        options.targetMode,
-                                                    skipEmptied:
-                                                        options.skipEmptied,
-                                                    ignoreImmutable: true,
-                                                }),
+                                            (observer) =>
+                                                app.jjRebase(
+                                                    revId,
+                                                    destination,
+                                                    {
+                                                        cwd: getRepoPath(),
+                                                        mode: options.mode,
+                                                        targetMode:
+                                                            options.targetMode,
+                                                        skipEmptied:
+                                                            options.skipEmptied,
+                                                        ignoreImmutable: true,
+                                                        observer,
+                                                    },
+                                                ),
                                             (_result, commitList) =>
                                                 findCommitIndexById(
                                                     commitList,
@@ -1921,9 +1959,11 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                                 const message = body
                                     ? `${subject}\n\n${body}`
                                     : subject
-                                runOperation("Describing...", () =>
-                                    jjDescribe(revId, message, {
+                                runAppOperation("Describing...", (observer) =>
+                                    app.jjDescribe(revId, message, {
+                                        cwd: getRepoPath(),
                                         ignoreImmutable,
+                                        observer,
                                     }),
                                 )
                             }}
@@ -2076,8 +2116,14 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                                 return result
                             }}
                             onCreate={(name) => {
-                                runOperation("Creating bookmark...", () =>
-                                    jjBookmarkCreate(name, { revision: revId }),
+                                runAppOperation(
+                                    "Creating bookmark...",
+                                    (observer) =>
+                                        app.jjBookmarkCreate(name, {
+                                            cwd: getRepoPath(),
+                                            revision: revId,
+                                            observer,
+                                        }),
                                 )
                             }}
                         />

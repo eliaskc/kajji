@@ -1,13 +1,18 @@
 import { Effect, Layer, ManagedRuntime } from "effect"
 import {
     Jj,
+    type JjBookmarkCreateOptions,
+    type JjBookmarkSetOptions,
     type JjCommandError,
+    type JjEditOptions,
     type JjGitFetchOptions,
     type JjGitPushOptions,
     JjLive,
     type JjOperationOptions,
     type JjOperationResult,
+    type JjRebaseOptions,
     type JjService,
+    type JjSquashOptions,
     type OperationFailure,
     type OperationSink,
 } from "../commander/jj"
@@ -33,6 +38,33 @@ export interface ApplicationGitPushOptions
     readonly signal?: AbortSignal
 }
 
+interface ApplicationEditOptions extends Omit<JjEditOptions, "sink"> {
+    readonly observer?: CommandObserver
+    readonly signal?: AbortSignal
+}
+
+interface ApplicationSquashOptions extends Omit<JjSquashOptions, "sink"> {
+    readonly observer?: CommandObserver
+    readonly signal?: AbortSignal
+}
+
+interface ApplicationRebaseOptions extends Omit<JjRebaseOptions, "sink"> {
+    readonly observer?: CommandObserver
+    readonly signal?: AbortSignal
+}
+
+interface ApplicationBookmarkCreateOptions
+    extends Omit<JjBookmarkCreateOptions, "sink"> {
+    readonly observer?: CommandObserver
+    readonly signal?: AbortSignal
+}
+
+interface ApplicationBookmarkSetOptions
+    extends Omit<JjBookmarkSetOptions, "sink"> {
+    readonly observer?: CommandObserver
+    readonly signal?: AbortSignal
+}
+
 export interface ApplicationClient {
     readonly jjGitFetch: (
         options: ApplicationGitFetchOptions,
@@ -51,6 +83,46 @@ export interface ApplicationClient {
         options: ApplicationOperationOptions,
     ) => Promise<OperationResult>
     readonly jjWorkspaceUpdateStale: (
+        options: ApplicationOperationOptions,
+    ) => Promise<OperationResult>
+    readonly jjEdit: (
+        revision: string,
+        options: ApplicationEditOptions,
+    ) => Promise<OperationResult>
+    readonly jjDescribe: (
+        revision: string,
+        message: string,
+        options: ApplicationEditOptions,
+    ) => Promise<OperationResult>
+    readonly jjSquash: (
+        revision: string | undefined,
+        options: ApplicationSquashOptions,
+    ) => Promise<OperationResult>
+    readonly jjRebase: (
+        revision: string,
+        destination: string,
+        options: ApplicationRebaseOptions,
+    ) => Promise<OperationResult>
+    readonly jjBookmarkCreate: (
+        name: string,
+        options: ApplicationBookmarkCreateOptions,
+    ) => Promise<OperationResult>
+    readonly jjBookmarkSet: (
+        name: string,
+        revision: string,
+        options: ApplicationBookmarkSetOptions,
+    ) => Promise<OperationResult>
+    readonly jjBookmarkDelete: (
+        name: string,
+        options: ApplicationOperationOptions,
+    ) => Promise<OperationResult>
+    readonly jjBookmarkRename: (
+        oldName: string,
+        newName: string,
+        options: ApplicationOperationOptions,
+    ) => Promise<OperationResult>
+    readonly jjBookmarkForget: (
+        name: string,
         options: ApplicationOperationOptions,
     ) => Promise<OperationResult>
     readonly dispose: () => Promise<void>
@@ -180,6 +252,46 @@ export function makeApplicationClient(
         jjWorkspaceUpdateStale: ({ observer, signal, ...options }) =>
             runOperation({ ...options, observer, signal }, (jj, sink) =>
                 jj.workspaceUpdateStale({ ...options, sink }),
+            ),
+        jjEdit: (revision, { observer, signal, ...options }) =>
+            runOperation({ ...options, observer, signal }, (jj, sink) =>
+                jj.edit(revision, { ...options, sink }),
+            ),
+        jjDescribe: (revision, message, { observer, signal, ...options }) =>
+            runOperation({ ...options, observer, signal }, (jj, sink) =>
+                jj.describe(revision, message, { ...options, sink }),
+            ),
+        jjSquash: (revision, { observer, signal, ...options }) =>
+            runOperation({ ...options, observer, signal }, (jj, sink) =>
+                jj.squash(revision, { ...options, sink }),
+            ),
+        jjRebase: (revision, destination, { observer, signal, ...options }) =>
+            runOperation({ ...options, observer, signal }, (jj, sink) =>
+                jj.rebase(revision, destination, { ...options, sink }),
+            ),
+        jjBookmarkCreate: (name, { observer, signal, ...options }) =>
+            runOperation({ ...options, observer, signal }, (jj, sink) =>
+                jj.bookmarkCreate(name, { ...options, sink }),
+            ),
+        jjBookmarkSet: (name, revision, { observer, signal, ...options }) =>
+            runOperation({ ...options, observer, signal }, (jj, sink) =>
+                jj.bookmarkSet(name, revision, { ...options, sink }),
+            ),
+        jjBookmarkDelete: (name, { observer, signal, ...options }) =>
+            runOperation({ ...options, observer, signal }, (jj, sink) =>
+                jj.bookmarkDelete(name, { ...options, sink }),
+            ),
+        jjBookmarkRename: (
+            oldName,
+            newName,
+            { observer, signal, ...options },
+        ) =>
+            runOperation({ ...options, observer, signal }, (jj, sink) =>
+                jj.bookmarkRename(oldName, newName, { ...options, sink }),
+            ),
+        jjBookmarkForget: (name, { observer, signal, ...options }) =>
+            runOperation({ ...options, observer, signal }, (jj, sink) =>
+                jj.bookmarkForget(name, { ...options, sink }),
             ),
         dispose: () => {
             accepting = false

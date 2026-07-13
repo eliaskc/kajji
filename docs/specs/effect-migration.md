@@ -360,6 +360,29 @@ mutations, workspace repair, and other legacy operations remain under item 1
 below. Log and bookmark status reads are still callback-streaming legacy
 operations and belong to item 2.
 
+## Implementation Update — 2026-07-13 22:03:11 CEST
+
+Two further captured-command batches are complete.
+
+The first migrated panel bookmark/change pushes, operation restore, and workspace
+repair. Startup repair and in-app stale-working-copy repair now share the owned
+application client. Because nested panels became real application-client
+consumers, the stable Promise-facing client is now supplied through a narrow
+Solid `ApplicationProvider`; Effect environments and runtime execution remain
+outside Solid.
+
+The second migrated non-interactive edit, describe, squash, rebase, and bookmark
+create/set/delete/rename/forget operations. Existing immutable-operation probes,
+confirmation retries, selection restoration, refresh behavior, bookmark
+backwards handling, and sanitized describe display commands are preserved.
+Interactive squash remains on its inherited-stdio implementation.
+
+The legacy functions remain temporarily for stack and other unchanged callers,
+but migrated panel paths no longer install `activeObserver`. Verification now
+covers all argument policies through the fake `AppProcess`; `bun test` reports
+323 passing tests, all 10 terminal workflows pass, and benchmark medians were
+1665 ms startup and 774 ms fetch with no material regression.
+
 ## Work After Fetch
 
 ### 1. Consolidate captured jj execution

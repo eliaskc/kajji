@@ -12,15 +12,7 @@ import {
     onCleanup,
     onMount,
 } from "solid-js"
-import {
-    type Bookmark,
-    jjBookmarkCreate,
-    jjBookmarkDelete,
-    jjBookmarkForget,
-    jjBookmarkRename,
-    jjBookmarkSet,
-} from "../../commander/bookmarks"
-import { withCommandObserver } from "../../commander/executor"
+import type { Bookmark } from "../../commander/bookmarks"
 import {
     ghBrowseCommit,
     ghPrCreateWeb,
@@ -29,7 +21,6 @@ import {
 import {
     type OperationResult,
     isImmutableError,
-    jjEdit,
     jjIsInTrunk,
     jjNew,
 } from "../../commander/operations"
@@ -115,14 +106,12 @@ export function BookmarksPanel() {
 
     const runOperation = async (
         text: string,
-        op: (options?: {
-            observer: ReturnType<typeof commandLog.observer>
-        }) => Promise<OperationResult>,
+        op: (
+            observer: ReturnType<typeof commandLog.observer>,
+        ) => Promise<OperationResult>,
     ) => {
         const observer = commandLog.observer()
-        const result = await withCommandObserver(observer, () =>
-            op({ observer }),
-        )
+        const result = await op(observer)
         commandLog.addEntry(result)
         if (result.success) {
             refresh()
@@ -959,8 +948,8 @@ export function BookmarksPanel() {
                     })
                     return
                 }
-                runOperation("Creating...", (options) =>
-                    jjNew(bookmark.name, options),
+                runOperation("Creating...", (observer) =>
+                    jjNew(bookmark.name, { observer }),
                 )
             },
         },
@@ -986,7 +975,9 @@ export function BookmarksPanel() {
                     })
                     return
                 }
-                const result = await jjEdit(bookmark.name)
+                const result = await app.jjEdit(bookmark.name, {
+                    cwd: getRepoPath(),
+                })
                 if (isImmutableError(result)) {
                     const confirmed = await dialog.confirm({
                         ...DIALOG_SIZE.confirm,
@@ -998,8 +989,12 @@ export function BookmarksPanel() {
                         ],
                     })
                     if (confirmed) {
-                        await runOperation("Editing...", () =>
-                            jjEdit(bookmark.name, { ignoreImmutable: true }),
+                        await runOperation("Editing...", (observer) =>
+                            app.jjEdit(bookmark.name, {
+                                cwd: getRepoPath(),
+                                ignoreImmutable: true,
+                                observer,
+                            }),
                         )
                     }
                 } else {
@@ -1054,8 +1049,14 @@ export function BookmarksPanel() {
                                     : undefined
                             }
                             onSave={(name, revision) => {
-                                runOperation("Creating bookmark...", () =>
-                                    jjBookmarkCreate(name, { revision }),
+                                runOperation(
+                                    "Creating bookmark...",
+                                    (observer) =>
+                                        app.jjBookmarkCreate(name, {
+                                            cwd: getRepoPath(),
+                                            revision,
+                                            observer,
+                                        }),
                                 )
                             }}
                         />
@@ -1092,8 +1093,11 @@ export function BookmarksPanel() {
                     ],
                 })
                 if (confirmed) {
-                    await runOperation("Deleting bookmark...", () =>
-                        jjBookmarkDelete(bookmark.name),
+                    await runOperation("Deleting bookmark...", (observer) =>
+                        app.jjBookmarkDelete(bookmark.name, {
+                            cwd: getRepoPath(),
+                            observer,
+                        }),
                     )
                     if (
                         currentIndex >= totalBookmarks - 1 &&
@@ -1121,8 +1125,17 @@ export function BookmarksPanel() {
                         <BookmarkNameModal
                             initialValue={bookmark.name}
                             onSave={(newName) => {
-                                runOperation("Renaming bookmark...", () =>
-                                    jjBookmarkRename(bookmark.name, newName),
+                                runOperation(
+                                    "Renaming bookmark...",
+                                    (observer) =>
+                                        app.jjBookmarkRename(
+                                            bookmark.name,
+                                            newName,
+                                            {
+                                                cwd: getRepoPath(),
+                                                observer,
+                                            },
+                                        ),
                                 )
                             }}
                         />
@@ -1181,8 +1194,11 @@ export function BookmarksPanel() {
                     ],
                 })
                 if (confirmed) {
-                    await runOperation("Forgetting bookmark...", () =>
-                        jjBookmarkForget(bookmark.name),
+                    await runOperation("Forgetting bookmark...", (observer) =>
+                        app.jjBookmarkForget(bookmark.name, {
+                            cwd: getRepoPath(),
+                            observer,
+                        }),
                     )
                 }
             },
@@ -1205,8 +1221,11 @@ export function BookmarksPanel() {
                             commits={commits()}
                             defaultRevision={bookmark.changeId}
                             onSelect={(revision) => {
-                                runOperation("Moving bookmark...", () =>
-                                    jjBookmarkSet(bookmark.name, revision),
+                                runOperation("Moving bookmark...", (observer) =>
+                                    app.jjBookmarkSet(bookmark.name, revision, {
+                                        cwd: getRepoPath(),
+                                        observer,
+                                    }),
                                 )
                             }}
                         />

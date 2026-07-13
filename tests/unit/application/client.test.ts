@@ -105,6 +105,42 @@ describe("ApplicationClient", () => {
         ])
     })
 
+    test("routes revision and bookmark mutations", async () => {
+        const commands: string[] = []
+        const layer = makeAppProcessFake((command) => {
+            commands.push(`jj ${command.args.join(" ")}`)
+            return Effect.succeed(success)
+        })
+        const client = makeApplicationClient(layer)
+        const options = { cwd: "/tmp/repository" }
+
+        await client.jjEdit("edit", options)
+        await client.jjDescribe("describe", "message", options)
+        await client.jjSquash("squash", { ...options, into: "target" })
+        await client.jjRebase("rebase", "target", options)
+        await client.jjBookmarkCreate("create", {
+            ...options,
+            revision: "revision",
+        })
+        await client.jjBookmarkSet("set", "revision", options)
+        await client.jjBookmarkDelete("delete", options)
+        await client.jjBookmarkRename("old", "new", options)
+        await client.jjBookmarkForget("forget", options)
+        await client.dispose()
+
+        expect(commands).toEqual([
+            "jj edit edit",
+            "jj describe describe -m message",
+            "jj squash --from squash --into target",
+            "jj rebase -r rebase -d target",
+            "jj bookmark create create -r revision",
+            "jj bookmark set set -r revision",
+            "jj bookmark delete delete",
+            "jj bookmark rename old new",
+            "jj bookmark forget forget",
+        ])
+    })
+
     test("preserves normal non-zero exits at the compatibility edge", async () => {
         const layer = makeAppProcessFake(() =>
             Effect.succeed({ ...success, exitCode: 1, stderr: "failed" }),

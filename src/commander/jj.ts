@@ -47,6 +47,32 @@ export interface JjGitPushOptions extends JjOperationOptions {
     readonly dryRun?: boolean
 }
 
+export interface JjEditOptions extends JjOperationOptions {
+    readonly ignoreImmutable?: boolean
+}
+
+export interface JjSquashOptions extends JjOperationOptions {
+    readonly into?: string
+    readonly useDestinationMessage?: boolean
+    readonly keepEmptied?: boolean
+    readonly ignoreImmutable?: boolean
+}
+
+export interface JjRebaseOptions extends JjOperationOptions {
+    readonly mode?: "revision" | "descendants" | "branch"
+    readonly targetMode?: "onto" | "insertAfter" | "insertBefore"
+    readonly skipEmptied?: boolean
+    readonly ignoreImmutable?: boolean
+}
+
+export interface JjBookmarkCreateOptions extends JjOperationOptions {
+    readonly revision?: string
+}
+
+export interface JjBookmarkSetOptions extends JjOperationOptions {
+    readonly allowBackwards?: boolean
+}
+
 export interface JjOperationResult extends ProcessResult {
     readonly command: string
 }
@@ -74,6 +100,46 @@ export interface JjService {
         options: JjOperationOptions,
     ) => Effect.Effect<JjOperationResult, JjCommandError | ProcessError>
     readonly workspaceUpdateStale: (
+        options: JjOperationOptions,
+    ) => Effect.Effect<JjOperationResult, JjCommandError | ProcessError>
+    readonly edit: (
+        revision: string,
+        options: JjEditOptions,
+    ) => Effect.Effect<JjOperationResult, JjCommandError | ProcessError>
+    readonly describe: (
+        revision: string,
+        message: string,
+        options: JjEditOptions,
+    ) => Effect.Effect<JjOperationResult, JjCommandError | ProcessError>
+    readonly squash: (
+        revision: string | undefined,
+        options: JjSquashOptions,
+    ) => Effect.Effect<JjOperationResult, JjCommandError | ProcessError>
+    readonly rebase: (
+        revision: string,
+        destination: string,
+        options: JjRebaseOptions,
+    ) => Effect.Effect<JjOperationResult, JjCommandError | ProcessError>
+    readonly bookmarkCreate: (
+        name: string,
+        options: JjBookmarkCreateOptions,
+    ) => Effect.Effect<JjOperationResult, JjCommandError | ProcessError>
+    readonly bookmarkSet: (
+        name: string,
+        revision: string,
+        options: JjBookmarkSetOptions,
+    ) => Effect.Effect<JjOperationResult, JjCommandError | ProcessError>
+    readonly bookmarkDelete: (
+        name: string,
+        options: JjOperationOptions,
+    ) => Effect.Effect<JjOperationResult, JjCommandError | ProcessError>
+    readonly bookmarkRename: (
+        oldName: string,
+        newName: string,
+        options: JjOperationOptions,
+    ) => Effect.Effect<JjOperationResult, JjCommandError | ProcessError>
+    readonly bookmarkForget: (
+        name: string,
         options: JjOperationOptions,
     ) => Effect.Effect<JjOperationResult, JjCommandError | ProcessError>
 }
@@ -134,8 +200,9 @@ export const JjLive = Layer.effect(
         const run = Effect.fn("Jj.run")(function* (
             args: readonly string[],
             options: JjOperationOptions,
+            displayCommand = `jj ${args.join(" ")}`,
         ) {
-            const command = `jj ${args.join(" ")}`
+            const command = displayCommand
             notify(() => options.sink?.start(command))
 
             const processCommand = {
@@ -193,6 +260,123 @@ export const JjLive = Layer.effect(
             workspaceUpdateStale: Effect.fn("Jj.workspaceUpdateStale")(
                 (options: JjOperationOptions) =>
                     run(["workspace", "update-stale"], options),
+            ),
+            edit: Effect.fn("Jj.edit")(
+                (revision: string, options: JjEditOptions) =>
+                    run(
+                        [
+                            "edit",
+                            revision,
+                            ...(options.ignoreImmutable
+                                ? ["--ignore-immutable"]
+                                : []),
+                        ],
+                        options,
+                    ),
+            ),
+            describe: Effect.fn("Jj.describe")(
+                (revision: string, message: string, options: JjEditOptions) =>
+                    run(
+                        [
+                            "describe",
+                            revision,
+                            "-m",
+                            message,
+                            ...(options.ignoreImmutable
+                                ? ["--ignore-immutable"]
+                                : []),
+                        ],
+                        options,
+                        `jj describe ${revision} -m "..."`,
+                    ),
+            ),
+            squash: Effect.fn("Jj.squash")(
+                (revision: string | undefined, options: JjSquashOptions) => {
+                    const args = ["squash"]
+                    if (options.into) {
+                        if (revision) args.push("--from", revision)
+                        args.push("--into", options.into)
+                    } else if (revision) {
+                        args.push("-r", revision)
+                    }
+                    if (options.useDestinationMessage) args.push("-u")
+                    if (options.keepEmptied) args.push("-k")
+                    if (options.ignoreImmutable) args.push("--ignore-immutable")
+                    return run(args, options)
+                },
+            ),
+            rebase: Effect.fn("Jj.rebase")(
+                (
+                    revision: string,
+                    destination: string,
+                    options: JjRebaseOptions,
+                ) => {
+                    const args = ["rebase"]
+                    if (options.mode === "descendants")
+                        args.push("-s", revision)
+                    else if (options.mode === "branch")
+                        args.push("-b", revision)
+                    else args.push("-r", revision)
+
+                    if (options.targetMode === "insertAfter")
+                        args.push("-A", destination)
+                    else if (options.targetMode === "insertBefore")
+                        args.push("-B", destination)
+                    else args.push("-d", destination)
+
+                    if (options.skipEmptied) args.push("--skip-emptied")
+                    if (options.ignoreImmutable) args.push("--ignore-immutable")
+                    return run(args, options)
+                },
+            ),
+            bookmarkCreate: Effect.fn("Jj.bookmarkCreate")(
+                (name: string, options: JjBookmarkCreateOptions) =>
+                    run(
+                        [
+                            "bookmark",
+                            "create",
+                            name,
+                            ...(options.revision
+                                ? ["-r", options.revision]
+                                : []),
+                        ],
+                        options,
+                    ),
+            ),
+            bookmarkSet: Effect.fn("Jj.bookmarkSet")(
+                (
+                    name: string,
+                    revision: string,
+                    options: JjBookmarkSetOptions,
+                ) =>
+                    run(
+                        [
+                            "bookmark",
+                            "set",
+                            name,
+                            "-r",
+                            revision,
+                            ...(options.allowBackwards
+                                ? ["--allow-backwards"]
+                                : []),
+                        ],
+                        options,
+                    ),
+            ),
+            bookmarkDelete: Effect.fn("Jj.bookmarkDelete")(
+                (name: string, options: JjOperationOptions) =>
+                    run(["bookmark", "delete", name], options),
+            ),
+            bookmarkRename: Effect.fn("Jj.bookmarkRename")(
+                (
+                    oldName: string,
+                    newName: string,
+                    options: JjOperationOptions,
+                ) => run(["bookmark", "rename", oldName, newName], options),
+            ),
+            bookmarkForget: Effect.fn("Jj.bookmarkForget")(
+                (name: string, options: JjOperationOptions) =>
+                    run(["bookmark", "forget", name], options),
             ),
         })
     }),

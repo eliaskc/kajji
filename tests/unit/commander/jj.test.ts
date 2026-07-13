@@ -192,6 +192,133 @@ describe("Jj", () => {
         ])
     })
 
+    test("constructs edit, describe, squash, and rebase commands", async () => {
+        const commands: ProcessCommand[] = []
+        const processLayer = makeAppProcessFake((command) => {
+            commands.push(command)
+            return Effect.succeed(success)
+        })
+        const effect = Effect.all(
+            [
+                Jj.use((jj) =>
+                    jj.edit("edit-rev", {
+                        cwd: "/tmp/repository",
+                        ignoreImmutable: true,
+                    }),
+                ),
+                Jj.use((jj) =>
+                    jj.describe("describe-rev", "secret message", {
+                        cwd: "/tmp/repository",
+                        ignoreImmutable: true,
+                    }),
+                ),
+                Jj.use((jj) =>
+                    jj.squash("squash-rev", {
+                        cwd: "/tmp/repository",
+                        into: "target-rev",
+                        useDestinationMessage: true,
+                        keepEmptied: true,
+                        ignoreImmutable: true,
+                    }),
+                ),
+                Jj.use((jj) =>
+                    jj.rebase("rebase-rev", "destination-rev", {
+                        cwd: "/tmp/repository",
+                        mode: "descendants",
+                        targetMode: "insertBefore",
+                        skipEmptied: true,
+                        ignoreImmutable: true,
+                    }),
+                ),
+            ],
+            { concurrency: 1 },
+        ).pipe(Effect.provide(JjLive), Effect.provide(processLayer))
+
+        const results = await Effect.runPromise(effect)
+
+        expect(commands.map((command) => command.args)).toEqual([
+            ["edit", "edit-rev", "--ignore-immutable"],
+            [
+                "describe",
+                "describe-rev",
+                "-m",
+                "secret message",
+                "--ignore-immutable",
+            ],
+            [
+                "squash",
+                "--from",
+                "squash-rev",
+                "--into",
+                "target-rev",
+                "-u",
+                "-k",
+                "--ignore-immutable",
+            ],
+            [
+                "rebase",
+                "-s",
+                "rebase-rev",
+                "-B",
+                "destination-rev",
+                "--skip-emptied",
+                "--ignore-immutable",
+            ],
+        ])
+        expect(results.map((result) => result.command)).toEqual([
+            "jj edit edit-rev --ignore-immutable",
+            'jj describe describe-rev -m "..."',
+            "jj squash --from squash-rev --into target-rev -u -k --ignore-immutable",
+            "jj rebase -s rebase-rev -B destination-rev --skip-emptied --ignore-immutable",
+        ])
+    })
+
+    test("constructs bookmark mutation commands", async () => {
+        const commands: ProcessCommand[] = []
+        const processLayer = makeAppProcessFake((command) => {
+            commands.push(command)
+            return Effect.succeed(success)
+        })
+        const effect = Effect.all(
+            [
+                Jj.use((jj) =>
+                    jj.bookmarkCreate("new", {
+                        cwd: "/tmp/repository",
+                        revision: "revision",
+                    }),
+                ),
+                Jj.use((jj) =>
+                    jj.bookmarkSet("move", "revision", {
+                        cwd: "/tmp/repository",
+                        allowBackwards: true,
+                    }),
+                ),
+                Jj.use((jj) =>
+                    jj.bookmarkDelete("delete", { cwd: "/tmp/repository" }),
+                ),
+                Jj.use((jj) =>
+                    jj.bookmarkRename("old", "new", {
+                        cwd: "/tmp/repository",
+                    }),
+                ),
+                Jj.use((jj) =>
+                    jj.bookmarkForget("forget", { cwd: "/tmp/repository" }),
+                ),
+            ],
+            { concurrency: 1 },
+        ).pipe(Effect.provide(JjLive), Effect.provide(processLayer))
+
+        await Effect.runPromise(effect)
+
+        expect(commands.map((command) => command.args)).toEqual([
+            ["bookmark", "create", "new", "-r", "revision"],
+            ["bookmark", "set", "move", "-r", "revision", "--allow-backwards"],
+            ["bookmark", "delete", "delete"],
+            ["bookmark", "rename", "old", "new"],
+            ["bookmark", "forget", "forget"],
+        ])
+    })
+
     test("reports output and exactly one completion to the sink", async () => {
         const events: string[] = []
         const sink: OperationSink = {
