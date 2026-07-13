@@ -56,11 +56,7 @@ function insertIntoTree(
 }
 
 function sortTree(node: FileTreeNode): void {
-    node.children.sort((a, b) => {
-        if (a.isDirectory && !b.isDirectory) return -1
-        if (!a.isDirectory && b.isDirectory) return 1
-        return a.name.localeCompare(b.name)
-    })
+    node.children.sort((a, b) => a.name.localeCompare(b.name))
     for (const child of node.children) {
         sortTree(child)
     }
@@ -160,6 +156,20 @@ export function orderFilePaths(paths: string[], showTree: boolean): string[] {
     return nodes
         .filter(({ node }) => !node.isDirectory)
         .map(({ node }) => node.path)
+}
+
+export function orderFilesByPath<T>(
+    files: readonly T[],
+    getPath: (file: T) => string,
+    showTree: boolean,
+): T[] {
+    const orderedPaths = orderFilePaths(files.map(getPath), showTree)
+    const pathRanks = new Map(orderedPaths.map((path, index) => [path, index]))
+    return [...files].sort(
+        (a, b) =>
+            (pathRanks.get(getPath(a)) ?? Number.MAX_SAFE_INTEGER) -
+            (pathRanks.get(getPath(b)) ?? Number.MAX_SAFE_INTEGER),
+    )
 }
 
 export function countVisibleNodes(

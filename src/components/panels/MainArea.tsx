@@ -35,7 +35,7 @@ import {
     getMaxLineNumber,
 } from "../../diff"
 import { getRepoPath } from "../../repo"
-import { orderFilePaths } from "../../utils/file-tree"
+import { orderFilesByPath } from "../../utils/file-tree"
 import { getFilesLayoutWeights } from "../../utils/layout"
 import { truncatePathMiddle } from "../../utils/path-truncate"
 import { AnsiText } from "../AnsiText"
@@ -395,12 +395,18 @@ export function MainArea() {
     )
     const [currentFileId, setCurrentFileId] = createSignal<FileId | null>(null)
 
-    const textFiles = createMemo(() => parsedFiles().filter((f) => !f.isBinary))
+    const orderedFiles = createMemo(() =>
+        orderFilesByPath(parsedFiles(), (file) => file.name, showTree()),
+    )
+
+    const textFiles = createMemo(() =>
+        orderedFiles().filter((file) => !file.isBinary),
+    )
 
     const binaryPaths = createMemo(() =>
-        parsedFiles()
-            .filter((f) => f.isBinary)
-            .map((f) => f.name),
+        orderedFiles()
+            .filter((file) => file.isBinary)
+            .map((file) => file.name),
     )
 
     const repoInfo = createMemo(() => {
@@ -434,7 +440,7 @@ export function MainArea() {
     let hunkNavigationTarget: HunkId | null = null
 
     const diffStats = createMemo((): DiffStats | null => {
-        const files = parsedFiles()
+        const files = orderedFiles()
         if (files.length === 0) return null
 
         const fileStats: DiffStats["files"] = []
@@ -450,19 +456,6 @@ export function MainArea() {
             totalInsertions += file.additions
             totalDeletions += file.deletions
         }
-
-        const orderedPaths = orderFilePaths(
-            fileStats.map((file) => file.path),
-            showTree(),
-        )
-        const pathRanks = new Map(
-            orderedPaths.map((path, index) => [path, index]),
-        )
-        fileStats.sort(
-            (a, b) =>
-                (pathRanks.get(a.path) ?? Number.MAX_SAFE_INTEGER) -
-                (pathRanks.get(b.path) ?? Number.MAX_SAFE_INTEGER),
-        )
 
         return {
             files: fileStats,
@@ -481,7 +474,7 @@ export function MainArea() {
         let maxLeft = 0
         let maxRight = 0
         let maxOneSided = 0
-        for (const file of parsedFiles()) {
+        for (const file of orderedFiles()) {
             let fileHasOldSide = false
             let fileHasNewSide = false
             let fileMax = 0
@@ -533,7 +526,7 @@ export function MainArea() {
     })
 
     const lineNumWidth = createMemo(() => {
-        const maxLine = getMaxLineNumber(parsedFiles())
+        const maxLine = getMaxLineNumber(orderedFiles())
         return Math.max(1, getLineNumWidth(maxLine))
     })
 
@@ -794,7 +787,7 @@ export function MainArea() {
         if (viewMode() !== "files" || useJjFormatter()) return
         const request = fileNavigationRequest()
         if (!request || request.id === handledFileNavigationRequest) return
-        const file = parsedFiles().find(
+        const file = orderedFiles().find(
             (candidate) =>
                 candidate.name === request.path ||
                 candidate.prevName === request.path,

@@ -9,18 +9,19 @@ import {
     getEffectiveCollapsedPaths,
     getFilePaths,
     orderFilePaths,
+    orderFilesByPath,
 } from "../../../src/utils/file-tree"
 
 const repoRootName = basename(getRepoPath()) || getRepoPath()
 
-describe("orderFilePaths", () => {
+describe("file ordering", () => {
     const paths = ["z-root.ts", "src/z.ts", "a-root.ts", "src/a.ts"]
 
-    it("uses tree traversal order when showing the tree", () => {
+    it("uses full-path order when showing the tree", () => {
         expect(orderFilePaths(paths, true)).toEqual([
+            "a-root.ts",
             "src/a.ts",
             "src/z.ts",
-            "a-root.ts",
             "z-root.ts",
         ])
     })
@@ -32,6 +33,16 @@ describe("orderFilePaths", () => {
             "src/z.ts",
             "z-root.ts",
         ])
+    })
+
+    it("reorders file data with the paths", () => {
+        const files = paths.map((path, index) => ({ path, index }))
+
+        expect(
+            orderFilesByPath(files, (file) => file.path, true).map(
+                (file) => file.index,
+            ),
+        ).toEqual([2, 3, 1, 0])
     })
 })
 
@@ -80,18 +91,18 @@ describe("buildFileTree", () => {
         expect(tree.children[0]?.children).toHaveLength(2)
     })
 
-    it("sorts directories before files", () => {
+    it("sorts files and directories together by name", () => {
         const files: FileChange[] = [
-            { path: "file.ts", status: "added" },
-            { path: "dir/inner.ts", status: "added" },
+            { path: "a-file.ts", status: "added" },
+            { path: "z-dir/inner.ts", status: "added" },
         ]
         const tree = buildFileTree(files)
 
-        expect(tree.children[0]?.name).toBe("dir")
-        expect(tree.children[1]?.name).toBe("file.ts")
+        expect(tree.children[0]?.name).toBe("a-file.ts")
+        expect(tree.children[1]?.name).toBe("z-dir")
     })
 
-    it("sorts alphabetically within category", () => {
+    it("sorts siblings alphabetically", () => {
         const files: FileChange[] = [
             { path: "z.ts", status: "added" },
             { path: "a.ts", status: "added" },
