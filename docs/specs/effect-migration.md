@@ -2,13 +2,16 @@
 
 ## Status
 
-**Ready for incremental implementation.** The subprocess spike validated the
-core approach. This document records the decisions and sequence needed to begin
-production work; it is not a complete design for every later module.
+**First production slice complete.** User-triggered `jj git fetch` now runs
+through the Effect-native `Jj` and `AppProcess` capabilities. The resulting
+interfaces have been exercised in production use and are ready to extend one
+capability at a time; this document is not a complete design for every later
+module.
 
-Kajji currently pins `effect@4.0.0-beta.65`. Keep that version fixed during a
+Kajji currently pins `effect@4.0.0-beta.98`. Keep that version fixed during a
 migration slice and verify APIs against the matching Effect source. Upgrade
-Effect separately so lifecycle regressions and dependency changes are not mixed.
+Effect before beginning a later slice so lifecycle and dependency changes are
+not introduced midway through implementation.
 
 The first production slice is `jj git fetch`. Later work should proceed
 capability by capability, with existing behavior preserved at each compatibility
@@ -275,6 +278,52 @@ The slice is complete when:
 
 Review the resulting interface before migrating another caller. Rename or
 reshape it based on the production slice rather than preserving the spike's API.
+
+## Implementation Update — 2026-07-13 21:14:56 CEST
+
+The first production slice is complete:
+
+- upgraded and pinned Effect to `4.0.0-beta.98`, with matching v4 source cloned
+  under `/tmp` alongside OpenCode's `v2` branch for reference
+- added the scoped Bun implementation and fake-layer seam in
+  `src/process/app-process.ts`
+- added typed jj fetch construction and exit policy in `src/commander/jj.ts`
+- added the TUI-owned `ManagedRuntime`, Promise adapter, and explicit
+  `CommandObserver` compatibility sink in `src/application/client.ts`
+- routed only user-triggered fetch through the new client; stack fetch remains
+  on the legacy executor as planned
+- unified normal quit, SIGINT, and SIGTERM around idempotent runtime disposal
+  before renderer destruction and process exit
+- kept Effect runtime execution outside Solid; `App` receives the stable
+  application client as `app`
+
+The process contract now covers concurrent stdout and stderr capture, successful
+stderr, raw non-zero exits, typed spawn/read/timeout failures, explicit cwd and
+environment overrides, timeout cleanup, fiber interruption, process-group
+termination, and child reaping. The compatibility edge preserves the existing
+Promise result shape and creates exactly one command-log entry per fetch.
+
+Production use also confirmed that the explicit operation-local sink fixes a
+legacy concurrency bug for fetch: rapid overlapping operations could leave the
+module-level `activeObserver` installed while refresh reads ran, causing internal
+jj templates and output to contaminate the visible command log. Migrated fetches
+no longer touch that mutable observer. Other legacy operations can still expose
+the same class of bug until migrated.
+
+Verification evidence:
+
+- production executor characterization tests now import the real executor rather
+  than a duplicate subprocess helper
+- `bun test`: 313 passing tests
+- `bun check` and changed-file Biome checks pass
+- `bun test:e2e`: 10 passing terminal workflows
+- three-run TUI benchmark medians changed from 1688 ms to 1663 ms startup and
+  from 831 ms to 797 ms fetch; peak Kajji RSS changed from 529.6 MiB to
+  537.3 MiB, with no material regression
+
+The reviewed layout is capability-oriented rather than technology-oriented:
+`src/process`, `src/commander`, and `src/application`. No general `src/effect`
+folder or Solid application-client context was introduced.
 
 ## Work After Fetch
 

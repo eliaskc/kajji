@@ -3,7 +3,6 @@ import { Show, createEffect, createSignal, onCleanup, onMount } from "solid-js"
 import { withCommandObserver } from "./commander/executor"
 import {
     fetchOpLog,
-    jjGitFetch,
     jjGitPush,
     jjRedo,
     jjUndo,
@@ -22,6 +21,7 @@ import { DebugInfoModal } from "./components/modals/DebugInfoModal"
 import { RecentReposModal } from "./components/modals/RecentReposModal"
 import { UndoModal } from "./components/modals/UndoModal"
 
+import type { ApplicationClient } from "./application/client"
 import {
     createDefaultConfig,
     onConfigChange,
@@ -44,7 +44,7 @@ import { StatusProvider, useStatus } from "./context/status"
 import { SyncProvider, useSync } from "./context/sync"
 import { ThemeProvider, useTheme } from "./context/theme"
 import { UpdateProvider, useUpdate } from "./context/update"
-import { setRepoPath } from "./repo"
+import { getRepoPath, setRepoPath } from "./repo"
 import {
     getChangesSince,
     isMajorOrMinorUpdate,
@@ -68,7 +68,12 @@ const GIT_ACTION_MENU_DIALOG = {
     maxWidth: 48,
 }
 
-function AppContent() {
+interface AppProps {
+    app: ApplicationClient
+    onQuit: () => void | Promise<void>
+}
+
+function AppContent({ app, onQuit }: AppProps) {
     const renderer = useRenderer()
     const {
         loadLog,
@@ -171,11 +176,6 @@ function AppContent() {
         }
     }
 
-    const handleQuit = () => {
-        renderer.destroy()
-        process.exit(0)
-    }
-
     onMount(() => {
         const unsubscribeConfig = onConfigChange((config) => {
             setTheme(config.ui.theme)
@@ -261,12 +261,16 @@ function AppContent() {
 
     const runGitFetch = async (
         text: string,
-        options?: Parameters<typeof jjGitFetch>[0],
+        options?: Omit<
+            Parameters<ApplicationClient["jjGitFetch"]>[0],
+            "cwd" | "observer"
+        >,
     ) => {
-        const observer = commandLog.observer()
-        const result = await withCommandObserver(observer, () =>
-            jjGitFetch({ ...options, observer }),
-        )
+        const result = await app.jjGitFetch({
+            ...options,
+            cwd: getRepoPath(),
+            observer: commandLog.observer(),
+        })
         commandLog.addEntry(result)
         if (result.success) {
             refresh()
@@ -427,10 +431,7 @@ function AppContent() {
             context: "global",
 
             visibleIn: ["palette"] as const,
-            execute: () => {
-                renderer.destroy()
-                process.exit(0)
-            },
+            execute: onQuit,
         },
         ...(Bun.env.NODE_ENV === "development"
             ? [
@@ -783,7 +784,7 @@ function AppContent() {
                     error={err}
                     onRetry={handleRetry}
                     onFix={parsed.fixCommand ? handleFix : undefined}
-                    onQuit={handleQuit}
+                    onQuit={onQuit}
                 />
             )
         }
@@ -834,7 +835,7 @@ function AppContent() {
     )
 }
 
-export function App() {
+export function App({ app, onQuit }: AppProps) {
     return (
         <ThemeProvider>
             <FocusProvider>
@@ -846,7 +847,10 @@ export function App() {
                                     <DialogProvider>
                                         <UpdateProvider>
                                             <CommandProvider>
-                                                <AppContent />
+                                                <AppContent
+                                                    app={app}
+                                                    onQuit={onQuit}
+                                                />
                                             </CommandProvider>
                                         </UpdateProvider>
                                     </DialogProvider>

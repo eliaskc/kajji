@@ -1,4 +1,20 @@
-import { describe, expect, test } from "bun:test"
+import { afterAll, beforeAll, describe, expect, test } from "bun:test"
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+import { type ExecuteOptions, execute } from "../../../src/commander/executor"
+import type { CommandObserver } from "../../../src/commander/observer"
+
+let binDir = ""
+
+beforeAll(() => {
+    binDir = mkdtempSync(join(tmpdir(), "kajji-executor-test-"))
+    const jj = join(binDir, "jj")
+    writeFileSync(jj, '#!/bin/sh\nexec "$@"\n')
+    chmodSync(jj, 0o755)
+})
+
+afterAll(() => rmSync(binDir, { recursive: true, force: true }))
 
 describe("execute", () => {
     test("returns correct structure with stdout, stderr, exitCode, success", async () => {
@@ -85,6 +101,38 @@ describe("execute", () => {
         expect(result.stderr.trim()).toBe("stderr")
         expect(result.success).toBe(true)
     })
+
+    test("orders observer start, output, and exactly one completion", async () => {
+        const events: string[] = []
+        let completions = 0
+        const observer: CommandObserver = {
+            start: (command) => {
+                events.push(`start:${command}`)
+                return "log-1"
+            },
+            append: (_id, chunk) => events.push(`append:${chunk.trim()}`),
+            finish: () => {
+                completions++
+                events.push("finish")
+            },
+            skip: () => {},
+        }
+
+        const result = await runCommand(
+            ["bash", "-c", "echo out; echo warning >&2"],
+            { observer },
+        )
+
+        expect(result.stderr.trim()).toBe("warning")
+        expect(events[0]).toStartWith("start:jj bash")
+        expect(events.at(-1)).toBe("finish")
+        expect(events.filter((event) => event.startsWith("append:"))).toEqual([
+            "append:out",
+            "append:warning",
+        ])
+        expect(completions).toBe(1)
+        expect(result.logged).toBe(true)
+    })
 })
 
 describe("executeWithColor", () => {
@@ -96,43 +144,13 @@ describe("executeWithColor", () => {
     })
 })
 
-interface ExecuteResult {
-    stdout: string
-    stderr: string
-    exitCode: number
-    success: boolean
-}
-
-interface ExecuteOptions {
-    cwd?: string
-    env?: Record<string, string>
-}
-
-async function runCommand(
-    command: string[],
-    options: ExecuteOptions = {},
-): Promise<ExecuteResult> {
-    const proc = Bun.spawn(command, {
-        cwd: options.cwd,
+function runCommand(command: string[], options: ExecuteOptions = {}) {
+    return execute(command, {
+        cwd: options.cwd ?? process.cwd(),
+        ...options,
         env: {
-            ...process.env,
+            PATH: `${binDir}:${process.env.PATH ?? ""}`,
             ...options.env,
         },
-        stdout: "pipe",
-        stderr: "pipe",
     })
-
-    const [stdout, stderr] = await Promise.all([
-        new Response(proc.stdout).text(),
-        new Response(proc.stderr).text(),
-    ])
-
-    const exitCode = await proc.exited
-
-    return {
-        stdout,
-        stderr,
-        exitCode,
-        success: exitCode === 0,
-    }
 }

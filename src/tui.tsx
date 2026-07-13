@@ -12,6 +12,7 @@ import { extend, render, useRenderer } from "@opentui/solid"
 import { GhosttyTerminalRenderable } from "ghostty-opentui/terminal-buffer"
 import { Show, createSignal } from "solid-js"
 import { App } from "./App"
+import { makeApplicationClient } from "./application/client"
 import { jjWorkspaceUpdateStale } from "./commander/operations"
 import { ErrorScreen } from "./components/ErrorScreen"
 import { StartupScreen } from "./components/StartupScreen"
@@ -48,6 +49,24 @@ _trace("after initHighlighter()")
 
 export async function runTui(args: string[]): Promise<void> {
     const isDev = Bun.env.NODE_ENV === "development"
+    const application = makeApplicationClient()
+    let destroyRenderer = () => {}
+    let shutdownPromise: Promise<void> | undefined
+    const shutdown = (exitCode = 0) => {
+        if (shutdownPromise) return shutdownPromise
+        shutdownPromise = application.dispose().finally(() => {
+            process.off("SIGINT", handleSigint)
+            process.off("SIGTERM", handleSigterm)
+            destroyRenderer()
+            process.exit(exitCode)
+        })
+        return shutdownPromise
+    }
+    const handleSigint = () => void shutdown(130)
+    const handleSigterm = () => void shutdown(143)
+    process.once("SIGINT", handleSigint)
+    process.once("SIGTERM", handleSigterm)
+
     let mockWhatsNewVersion: string | null = null
 
     for (const arg of args) {
@@ -88,6 +107,7 @@ export async function runTui(args: string[]): Promise<void> {
     function Root() {
         _trace("Root() called")
         const renderer = useRenderer()
+        destroyRenderer = () => renderer.destroy()
         _trace("before checkRepoStatus()")
         const initialStatus = checkRepoStatus(getRepoPath())
         _trace("after checkRepoStatus()")
@@ -132,8 +152,7 @@ export async function runTui(args: string[]): Promise<void> {
         }
 
         const handleQuit = () => {
-            renderer.destroy()
-            process.exit(0)
+            void shutdown()
         }
 
         // Mock wave/logo screen
@@ -235,7 +254,7 @@ export async function runTui(args: string[]): Promise<void> {
                             </ThemeProvider>
                         }
                     >
-                        <App />
+                        <App app={application} onQuit={shutdown} />
                     </Show>
                 }
             >
