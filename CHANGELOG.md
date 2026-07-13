@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.16.0
+
+### new
+- responsive diff workspace with file tree, revision navigation, and full-height diff ([`90415ca`](../../commit/90415ca), [`276fedc`](../../commit/276fedc), [`fa5abb7`](../../commit/fa5abb7))
+- hunk navigation and sticky file headers in diffs ([`094da32`](../../commit/094da32), [`940e884`](../../commit/940e884))
+- command log and debug snapshots ([`076687e`](../../commit/076687e))
+
+### improved
+- ux: command palette redesigned with grouped active and unavailable commands ([`8e1e51d`](../../commit/8e1e51d))
+- ux: open actions clarify whether they open a commit or pull request ([`aa27ab0`](../../commit/aa27ab0))
+- ux: diff navigation and viewer controls improved ([`f74d5f7`](../../commit/f74d5f7))
+
+### fixed
+- bookmarks created in the current session remain visible ([`2febf46`](../../commit/2febf46))
+- layout: diff workspace navigation and file scrolling are stabilized ([`928344e`](../../commit/928344e), [`0edb0a8`](../../commit/0edb0a8), [`1b73a9b`](../../commit/1b73a9b))
+- ux: command palette dispatch follows command availability ([`6fa89ac`](../../commit/6fa89ac))
+- startup: stale workspaces recover on launch ([`74f7f9a`](../../commit/74f7f9a))
+- perf: file tree remains visible while revisions load ([`1239911`](../../commit/1239911))
+- layout: file paths use consistent ordering in detail headers and file trees ([`06d81b4`](../../commit/06d81b4))
+- build: package manager errors appear in the command log ([`f9d0f4b`](../../commit/f9d0f4b))
+- ux: reactive selection scrolling no longer loops ([`72942ee`](../../commit/72942ee))
+
 ## 0.15.0
 
 ### new
