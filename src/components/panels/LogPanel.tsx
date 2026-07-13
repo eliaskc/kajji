@@ -38,13 +38,10 @@ import {
     jjDescribe,
     jjDuplicate,
     jjEdit,
-    jjGitPushBookmark,
-    jjGitPushChange,
     jjIsInTrunk,
     jjNew,
     jjNewAfter,
     jjNewBefore,
-    jjOpRestore,
     jjRebase,
     jjResolveInteractive,
     jjRestore,
@@ -55,6 +52,7 @@ import {
     parseOpLog,
 } from "../../commander/operations"
 import { type Commit, getRevisionId } from "../../commander/types"
+import { useApplication } from "../../context/application"
 import { useCommand } from "../../context/command"
 import { useCommandLog } from "../../context/commandlog"
 import { DIALOG_SIZE, useDialog } from "../../context/dialog"
@@ -207,6 +205,7 @@ function sortBookmarksByProximity(
 }
 
 export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
+    const app = useApplication()
     const renderer = useRenderer()
     const {
         commits,
@@ -742,7 +741,11 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
         commandLog.addEntry(createResult)
         if (!createResult.success) return
 
-        const pushResult = await jjGitPushBookmark(bookmarkName, { observer })
+        const pushResult = await app.jjGitPush({
+            cwd: getRepoPath(),
+            bookmarks: [bookmarkName],
+            observer,
+        })
         commandLog.addEntry(pushResult)
         if (!pushResult.success) return
 
@@ -806,7 +809,9 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
 
         if (needsPush) {
             const observer = commandLog.observer()
-            const pushResult = await jjGitPushBookmark(bookmark.name, {
+            const pushResult = await app.jjGitPush({
+                cwd: getRepoPath(),
+                bookmarks: [bookmark.name],
                 observer,
             })
             commandLog.addEntry(pushResult)
@@ -847,12 +852,11 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
         if (!targetBookmark) {
             if (options?.direct) {
                 const observer = commandLog.observer()
-                const pushResult = await jjGitPushChange(
-                    getRevisionId(commit),
-                    {
-                        observer,
-                    },
-                )
+                const pushResult = await app.jjGitPush({
+                    cwd: getRepoPath(),
+                    changes: [getRevisionId(commit)],
+                    observer,
+                })
                 commandLog.addEntry(pushResult)
                 if (!pushResult.success) return
                 await refresh()
@@ -2144,9 +2148,15 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                             operationLines={op.lines}
                             onConfirm={async () => {
                                 dialog.close()
-                                await runOperation("Restoring...", () =>
-                                    jjOpRestore(op.operationId),
+                                const result = await app.jjOpRestore(
+                                    op.operationId,
+                                    {
+                                        cwd: getRepoPath(),
+                                        observer: commandLog.observer(),
+                                    },
                                 )
+                                commandLog.addEntry(result)
+                                if (result.success) refresh()
                             }}
                             onCancel={() => dialog.close()}
                         />

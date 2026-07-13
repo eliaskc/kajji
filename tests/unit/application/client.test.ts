@@ -75,17 +75,33 @@ describe("ApplicationClient", () => {
         })
         const undo = await client.jjUndo({ cwd: "/tmp/undo" })
         const redo = await client.jjRedo({ cwd: "/tmp/redo" })
+        const restore = await client.jjOpRestore("op-id", {
+            cwd: "/tmp/restore",
+        })
+        const repair = await client.jjWorkspaceUpdateStale({
+            cwd: "/tmp/repair",
+        })
         await client.dispose()
 
         expect(commands).toEqual([
             "/tmp/push:jj git push --bookmark main --dry-run",
             "/tmp/undo:jj undo",
             "/tmp/redo:jj redo",
+            "/tmp/restore:jj op restore op-id",
+            "/tmp/repair:jj workspace update-stale",
         ])
-        expect([push.command, undo.command, redo.command]).toEqual([
+        expect([
+            push.command,
+            undo.command,
+            redo.command,
+            restore.command,
+            repair.command,
+        ]).toEqual([
             "jj git push --bookmark main --dry-run",
             "jj undo",
             "jj redo",
+            "jj op restore op-id",
+            "jj workspace update-stale",
         ])
     })
 

@@ -30,11 +30,11 @@ import {
     type OperationResult,
     isImmutableError,
     jjEdit,
-    jjGitPushBookmark,
     jjIsInTrunk,
     jjNew,
 } from "../../commander/operations"
 import { getRevisionId } from "../../commander/types"
+import { useApplication } from "../../context/application"
 import { useCommand } from "../../context/command"
 import { useCommandLog } from "../../context/commandlog"
 import { DIALOG_SIZE, useDialog } from "../../context/dialog"
@@ -45,6 +45,7 @@ import { useSync } from "../../context/sync"
 import { useTheme } from "../../context/theme"
 import { featureFlags } from "../../feature-flags"
 import { createHorizontalCropScroll } from "../../hooks/horizontal-crop-scroll"
+import { getRepoPath } from "../../repo"
 import { buildBookmarkStackModel } from "../../stack/discovery"
 import { applyStackPlan, prepareSyncPlan } from "../../stack/executor"
 import type { BookmarkStackModel, BookmarkStackRow } from "../../stack/model"
@@ -71,6 +72,7 @@ import { StackPreparingModal } from "../modals/StackPreparingModal"
 type BookmarkRow = BookmarkStackRow<Bookmark>
 
 export function BookmarksPanel() {
+    const app = useApplication()
     const {
         commits,
         bookmarks,
@@ -169,7 +171,9 @@ export function BookmarksPanel() {
 
         if (needsPush) {
             const observer = commandLog.observer()
-            const pushResult = await jjGitPushBookmark(bookmark.name, {
+            const pushResult = await app.jjGitPush({
+                cwd: getRepoPath(),
+                bookmarks: [bookmark.name],
                 observer,
             })
             commandLog.addEntry(pushResult)

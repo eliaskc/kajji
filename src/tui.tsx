@@ -13,7 +13,6 @@ import { GhosttyTerminalRenderable } from "ghostty-opentui/terminal-buffer"
 import { Show, createSignal } from "solid-js"
 import { App } from "./App"
 import { makeApplicationClient } from "./application/client"
-import { jjWorkspaceUpdateStale } from "./commander/operations"
 import { ErrorScreen } from "./components/ErrorScreen"
 import { StartupScreen } from "./components/StartupScreen"
 import { WaveScreen } from "./components/WaveScreen"
@@ -220,7 +219,9 @@ export async function runTui(args: string[]): Promise<void> {
 
         const handleFixStartup = async () => {
             const repoPath = getRepoPath()
-            const result = await jjWorkspaceUpdateStale({ cwd: repoPath })
+            const result = await application.jjWorkspaceUpdateStale({
+                cwd: repoPath,
+            })
             if (result.success) {
                 setStartupError(null)
                 setIsJjRepo(true)

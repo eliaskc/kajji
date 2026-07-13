@@ -69,6 +69,13 @@ export interface JjService {
     readonly redo: (
         options: JjOperationOptions,
     ) => Effect.Effect<JjOperationResult, JjCommandError | ProcessError>
+    readonly opRestore: (
+        operationId: string,
+        options: JjOperationOptions,
+    ) => Effect.Effect<JjOperationResult, JjCommandError | ProcessError>
+    readonly workspaceUpdateStale: (
+        options: JjOperationOptions,
+    ) => Effect.Effect<JjOperationResult, JjCommandError | ProcessError>
 }
 
 export class Jj extends Context.Service<Jj, JjService>()("kajji/Jj") {}
@@ -178,6 +185,14 @@ export const JjLive = Layer.effect(
             ),
             redo: Effect.fn("Jj.redo")((options: JjOperationOptions) =>
                 run(["redo"], options),
+            ),
+            opRestore: Effect.fn("Jj.opRestore")(
+                (operationId: string, options: JjOperationOptions) =>
+                    run(["op", "restore", operationId], options),
+            ),
+            workspaceUpdateStale: Effect.fn("Jj.workspaceUpdateStale")(
+                (options: JjOperationOptions) =>
+                    run(["workspace", "update-stale"], options),
             ),
         })
     }),

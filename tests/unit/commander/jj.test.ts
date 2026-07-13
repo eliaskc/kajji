@@ -156,6 +156,42 @@ describe("Jj", () => {
         ])
     })
 
+    test("constructs op restore and workspace repair commands", async () => {
+        const commands: ProcessCommand[] = []
+        const processLayer = makeAppProcessFake((command) => {
+            commands.push(command)
+            return Effect.succeed(success)
+        })
+        const effect = Effect.all(
+            [
+                Jj.use((jj) =>
+                    jj.opRestore("operation-id", { cwd: "/tmp/op-repository" }),
+                ),
+                Jj.use((jj) =>
+                    jj.workspaceUpdateStale({ cwd: "/tmp/stale-repository" }),
+                ),
+            ],
+            { concurrency: 1 },
+        ).pipe(Effect.provide(JjLive), Effect.provide(processLayer))
+
+        const results = await Effect.runPromise(effect)
+
+        expect(commands.map(({ args, cwd }) => ({ args, cwd }))).toEqual([
+            {
+                args: ["op", "restore", "operation-id"],
+                cwd: "/tmp/op-repository",
+            },
+            {
+                args: ["workspace", "update-stale"],
+                cwd: "/tmp/stale-repository",
+            },
+        ])
+        expect(results.map((result) => result.command)).toEqual([
+            "jj op restore operation-id",
+            "jj workspace update-stale",
+        ])
+    })
+
     test("reports output and exactly one completion to the sink", async () => {
         const events: string[] = []
         const sink: OperationSink = {

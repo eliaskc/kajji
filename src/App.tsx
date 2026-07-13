@@ -1,7 +1,6 @@
 import { useRenderer } from "@opentui/solid"
 import { Show, createEffect, createSignal, onCleanup, onMount } from "solid-js"
-import { withCommandObserver } from "./commander/executor"
-import { fetchOpLog, jjWorkspaceUpdateStale } from "./commander/operations"
+import { fetchOpLog } from "./commander/operations"
 import { getRevisionId } from "./commander/types"
 import { ErrorScreen } from "./components/ErrorScreen"
 import { LayoutGrid } from "./components/Layout"
@@ -23,6 +22,7 @@ import {
     reloadConfig,
     writeConfig,
 } from "./config"
+import { ApplicationProvider, useApplication } from "./context/application"
 import { CommandProvider, useCommand } from "./context/command"
 import { CommandLogProvider, useCommandLog } from "./context/commandlog"
 import {
@@ -67,7 +67,8 @@ interface AppProps {
     onQuit: () => void | Promise<void>
 }
 
-function AppContent({ app, onQuit }: AppProps) {
+function AppContent({ onQuit }: Pick<AppProps, "onQuit">) {
+    const app = useApplication()
     const renderer = useRenderer()
     const {
         loadLog,
@@ -159,10 +160,10 @@ function AppContent({ app, onQuit }: AppProps) {
 
         const parsed = parseJjError(err)
         if (parsed.errorType === "stale-working-copy") {
-            const result = await withCommandObserver(
-                commandLog.observer(),
-                jjWorkspaceUpdateStale,
-            )
+            const result = await app.jjWorkspaceUpdateStale({
+                cwd: getRepoPath(),
+                observer: commandLog.observer(),
+            })
             commandLog.addEntry(result)
             if (result.success) {
                 await handleRetry()
@@ -833,29 +834,30 @@ function AppContent({ app, onQuit }: AppProps) {
 
 export function App({ app, onQuit }: AppProps) {
     return (
-        <ThemeProvider>
-            <FocusProvider>
-                <LayoutProvider>
-                    <SyncProvider>
-                        <KeybindProvider>
-                            <CommandLogProvider>
-                                <StatusProvider>
-                                    <DialogProvider>
-                                        <UpdateProvider>
-                                            <CommandProvider>
-                                                <AppContent
-                                                    app={app}
-                                                    onQuit={onQuit}
-                                                />
-                                            </CommandProvider>
-                                        </UpdateProvider>
-                                    </DialogProvider>
-                                </StatusProvider>
-                            </CommandLogProvider>
-                        </KeybindProvider>
-                    </SyncProvider>
-                </LayoutProvider>
-            </FocusProvider>
-        </ThemeProvider>
+        <ApplicationProvider app={app}>
+            <ThemeProvider>
+                <FocusProvider>
+                    <LayoutProvider>
+                        <SyncProvider>
+                            <KeybindProvider>
+                                <CommandLogProvider>
+                                    <StatusProvider>
+                                        <DialogProvider>
+                                            <UpdateProvider>
+                                                <CommandProvider>
+                                                    <AppContent
+                                                        onQuit={onQuit}
+                                                    />
+                                                </CommandProvider>
+                                            </UpdateProvider>
+                                        </DialogProvider>
+                                    </StatusProvider>
+                                </CommandLogProvider>
+                            </KeybindProvider>
+                        </SyncProvider>
+                    </LayoutProvider>
+                </FocusProvider>
+            </ThemeProvider>
+        </ApplicationProvider>
     )
 }

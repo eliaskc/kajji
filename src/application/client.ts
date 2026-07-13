@@ -46,6 +46,13 @@ export interface ApplicationClient {
     readonly jjRedo: (
         options: ApplicationOperationOptions,
     ) => Promise<OperationResult>
+    readonly jjOpRestore: (
+        operationId: string,
+        options: ApplicationOperationOptions,
+    ) => Promise<OperationResult>
+    readonly jjWorkspaceUpdateStale: (
+        options: ApplicationOperationOptions,
+    ) => Promise<OperationResult>
     readonly dispose: () => Promise<void>
 }
 
@@ -165,6 +172,14 @@ export function makeApplicationClient(
         jjRedo: ({ observer, signal, ...options }) =>
             runOperation({ ...options, observer, signal }, (jj, sink) =>
                 jj.redo({ ...options, sink }),
+            ),
+        jjOpRestore: (operationId, { observer, signal, ...options }) =>
+            runOperation({ ...options, observer, signal }, (jj, sink) =>
+                jj.opRestore(operationId, { ...options, sink }),
+            ),
+        jjWorkspaceUpdateStale: ({ observer, signal, ...options }) =>
+            runOperation({ ...options, observer, signal }, (jj, sink) =>
+                jj.workspaceUpdateStale({ ...options, sink }),
             ),
         dispose: () => {
             accepting = false
