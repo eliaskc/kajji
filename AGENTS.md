@@ -22,6 +22,7 @@ Project work may be tracked in [GitHub Issues](https://github.com/eliaskc/kajji/
 - **Install**: `bun install`
 - **Dev**: `bun dev` (runs TUI)
 - **Test**: `bun test` (runs unit tests)
+- **E2E test**: `bun test:e2e` (runs Terminal Control TUI workflows)
 - **Benchmarks**: `bun test:bench` (runs benchmark tests)
 - **Typecheck**: `bun check` (tsc --noEmit)
 - **Lint**: `bun lint` (biome check)
@@ -100,8 +101,10 @@ This project uses Solid.js, NOT React. Key differences:
 ## Testing
 
 - **Unit tests**: `tests/unit/` - mirrors src structure
+- **E2E tests**: `tests/e2e/` - Terminal Control workflows, excluded from default `bun test` discovery
 - **Benchmarks**: `tests/bench/` - performance tests with threshold assertions
-- Run all: `bun test`
+- Run unit tests: `bun test`
+- Run E2E tests sparingly: use `bun test:e2e` near task completion or when changes directly affect TUI workflows; do not run them after routine intermediate edits
 - Run benchmarks: `bun test tests/bench/`
 
 ## Key Patterns
