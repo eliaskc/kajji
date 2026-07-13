@@ -9,15 +9,16 @@ export interface WordDiffSegment {
 }
 
 /**
- * Push a segment, joining it into the previous one when possible ("word-alt"
- * style, mirroring @pierre/diffs). Adjacent segments of the same kind are
- * merged. Whitespace stays neutral so indentation and spacing changes do not
- * add visual noise to word-level highlights.
+ * Push a segment, joining it into the previous one when possible. When
+ * requested, a single-character unchanged gap between changed regions is
+ * absorbed into the highlight, matching @pierre/diffs' "word-alt" behavior.
  */
 function pushOrJoinSegment(
     segments: WordDiffSegment[],
     text: string,
     type: WordDiffSegment["type"],
+    joinSingleCharacterGap = false,
+    isLastItem = false,
 ): void {
     if (!text) return
     const last = segments[segments.length - 1]
@@ -25,7 +26,14 @@ function pushOrJoinSegment(
         segments.push({ text, type })
         return
     }
-    if (type === last.type) {
+    if (
+        type === last.type ||
+        (joinSingleCharacterGap &&
+            !isLastItem &&
+            type === "unchanged" &&
+            text.length === 1 &&
+            last.type !== "unchanged")
+    ) {
         last.text += text
         return
     }
@@ -58,15 +66,28 @@ export function computeWordDiff(
     const oldSegments: WordDiffSegment[] = []
     const newSegments: WordDiffSegment[] = []
 
+    const lastChange = changes[changes.length - 1]
     for (const change of changes) {
         if (change.added) {
             pushChangedSegment(newSegments, change.value, "added")
         } else if (change.removed) {
             pushChangedSegment(oldSegments, change.value, "removed")
         } else {
-            // Unchanged - appears in both
-            pushOrJoinSegment(oldSegments, change.value, "unchanged")
-            pushOrJoinSegment(newSegments, change.value, "unchanged")
+            const isLastItem = change === lastChange
+            pushOrJoinSegment(
+                oldSegments,
+                change.value,
+                "unchanged",
+                true,
+                isLastItem,
+            )
+            pushOrJoinSegment(
+                newSegments,
+                change.value,
+                "unchanged",
+                true,
+                isLastItem,
+            )
         }
     }
 

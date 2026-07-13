@@ -21,6 +21,26 @@ describe("computeWordDiff", () => {
         ).toBe(true)
     })
 
+    test("joins changed words separated by one character", () => {
+        const result = computeWordDiff("foo.bar.baz", "qux.zap.zip")
+
+        expect(result.old).toEqual([{ text: "foo.bar.baz", type: "removed" }])
+        expect(result.new).toEqual([{ text: "qux.zap.zip", type: "added" }])
+    })
+
+    test("does not absorb a single-character suffix", () => {
+        const result = computeWordDiff("foo.", "bar.")
+
+        expect(result.old).toEqual([
+            { text: "foo", type: "removed" },
+            { text: ".", type: "unchanged" },
+        ])
+        expect(result.new).toEqual([
+            { text: "bar", type: "added" },
+            { text: ".", type: "unchanged" },
+        ])
+    })
+
     test("does not highlight indentation changes", () => {
         const result = computeWordDiff("  value", "    value")
 
