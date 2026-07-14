@@ -1,6 +1,5 @@
 import { useRenderer } from "@opentui/solid"
 import { Show, createEffect, createSignal, onCleanup, onMount } from "solid-js"
-import { fetchOpLog } from "./commander/operations"
 import { getRevisionId } from "./commander/types"
 import { ErrorScreen } from "./components/ErrorScreen"
 import { LayoutGrid } from "./components/Layout"
@@ -703,7 +702,9 @@ function AppContent({ onQuit }: Pick<AppProps, "onQuit">) {
 
             visibleIn: ["palette"] as const,
             execute: async () => {
-                const opLines = await fetchOpLog(1)
+                const opLines = await app.jjOpLog(1, {
+                    cwd: getRepoPath(),
+                })
                 dialog.open(
                     () => (
                         <UndoModal
@@ -740,7 +741,9 @@ function AppContent({ onQuit }: Pick<AppProps, "onQuit">) {
 
             visibleIn: ["palette"] as const,
             execute: async () => {
-                const opLines = await fetchOpLog(1)
+                const opLines = await app.jjOpLog(1, {
+                    cwd: getRepoPath(),
+                })
                 dialog.open(
                     () => (
                         <UndoModal

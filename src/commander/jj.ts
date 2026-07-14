@@ -5,7 +5,22 @@ import {
     type ProcessOutputStream,
     type ProcessResult,
 } from "../process/app-process"
+import { findBinaryFiles } from "../utils/diff-binary"
 import { isStaleWorkingCopyFailure } from "../utils/error-parser"
+import { toFilesetArgs } from "../utils/jj-fileset"
+import {
+    BOOKMARK_TEMPLATE,
+    type Bookmark,
+    parseBookmarkOutput,
+} from "./bookmarks"
+import { parseFileSummary } from "./files"
+import {
+    type FetchLogPageResult,
+    buildLogArgs,
+    buildLogTemplate,
+    parseLogOutput,
+} from "./log"
+import type { FileChange } from "./types"
 
 export class OperationInterruptedError extends Data.TaggedError(
     "OperationInterruptedError",
@@ -59,6 +74,25 @@ export interface JjSquashOptions extends JjOperationOptions {
     readonly ignoreImmutable?: boolean
 }
 
+export interface JjBookmarkReadOptions extends JjOperationOptions {
+    readonly allRemotes?: boolean
+}
+
+export interface JjLogReadOptions extends JjOperationOptions {
+    readonly revset?: string
+    readonly limit?: number
+}
+
+export type JjDiffTarget =
+    | { readonly revision: string }
+    | { readonly from: string; readonly to: string }
+
+export interface JjDiffOptions extends JjOperationOptions {
+    readonly paths?: readonly string[]
+    readonly columns?: number
+    readonly color?: boolean
+}
+
 export interface JjRebaseOptions extends JjOperationOptions {
     readonly mode?: "revision" | "descendants" | "branch"
     readonly targetMode?: "onto" | "insertAfter" | "insertBefore"
@@ -88,6 +122,11 @@ export interface JjRefreshState {
     readonly workingCopyCommitId: string
 }
 
+export interface JjCommitDetails {
+    readonly subject: string
+    readonly body: string
+}
+
 export class JjStaleWorkingCopyError extends Data.TaggedError(
     "JjStaleWorkingCopyError",
 )<{
@@ -102,6 +141,33 @@ export class JjCommandError extends Data.TaggedError("JjCommandError")<{
     readonly command: string
     readonly result: ProcessResult
 }> {}
+
+export type JjReadFailureKind =
+    | "files"
+    | "diff"
+    | "operation-log"
+    | "bookmarks"
+    | "log"
+
+export class JjReadError extends Data.TaggedError("JjReadError")<{
+    readonly kind: JjReadFailureKind
+    readonly command: string
+    readonly result: ProcessResult
+}> {
+    override get message() {
+        const prefix =
+            this.kind === "files"
+                ? "Failed to fetch files"
+                : this.kind === "operation-log"
+                  ? "jj op log failed"
+                  : this.kind === "bookmarks"
+                    ? "jj bookmark list failed"
+                    : this.kind === "log"
+                      ? "jj log failed"
+                      : "jj diff failed"
+        return `${prefix}: ${this.result.stderr}`
+    }
+}
 
 export interface JjService {
     readonly gitFetch: (
@@ -190,6 +256,40 @@ export interface JjService {
     readonly refreshState: (
         options: JjOperationOptions,
     ) => Effect.Effect<JjRefreshState, JjStaleWorkingCopyError | ProcessError>
+    readonly files: (
+        target: JjDiffTarget,
+        options: JjOperationOptions,
+    ) => Effect.Effect<
+        FileChange[],
+        JjReadError | JjStaleWorkingCopyError | ProcessError
+    >
+    readonly commitDetails: (
+        revision: string,
+        options: JjOperationOptions,
+    ) => Effect.Effect<JjCommitDetails, ProcessError>
+    readonly opLog: (
+        limit: number | undefined,
+        options: JjOperationOptions,
+    ) => Effect.Effect<
+        string[],
+        JjReadError | JjStaleWorkingCopyError | ProcessError
+    >
+    readonly diff: (
+        target: JjDiffTarget,
+        options: JjDiffOptions,
+    ) => Effect.Effect<string, JjReadError | ProcessError>
+    readonly bookmarks: (
+        options: JjBookmarkReadOptions,
+    ) => Effect.Effect<
+        Bookmark[],
+        JjReadError | JjStaleWorkingCopyError | ProcessError
+    >
+    readonly logPage: (
+        options: JjLogReadOptions,
+    ) => Effect.Effect<
+        FetchLogPageResult,
+        JjReadError | JjStaleWorkingCopyError | ProcessError
+    >
 }
 
 export class Jj extends Context.Service<Jj, JjService>()("kajji/Jj") {}
@@ -200,6 +300,12 @@ function notify(fn: () => void) {
     } catch {
         // Operation observation must never affect the command.
     }
+}
+
+function makeDiffTargetArgs(target: JjDiffTarget): string[] {
+    return "revision" in target
+        ? ["-r", target.revision]
+        : ["--from", target.from, "--to", target.to]
 }
 
 export function makeGitFetchArgs(
@@ -249,6 +355,7 @@ export const JjLive = Layer.effect(
             args: readonly string[],
             options: JjOperationOptions,
             displayCommand = `jj ${args.join(" ")}`,
+            env?: Readonly<Record<string, string>>,
         ) {
             const command = displayCommand
             notify(() => options.sink?.start(command))
@@ -261,6 +368,7 @@ export const JjLive = Layer.effect(
                     JJ_EDITOR: "true",
                     EDITOR: "true",
                     VISUAL: "true",
+                    ...env,
                 },
                 timeoutMs: options.timeoutMs,
                 onOutput: (stream: ProcessOutputStream, chunk: string) =>
@@ -355,6 +463,60 @@ export const JjLive = Layer.effect(
                     : ""
             },
         )
+
+        const readDiff = Effect.fn("Jj.diff")(function* (
+            args: string[],
+            options: JjDiffOptions,
+        ) {
+            if (options.paths?.length) {
+                args.push(...toFilesetArgs([...options.paths]))
+            }
+            const result = yield* runRaw(
+                args,
+                options,
+                undefined,
+                options.columns
+                    ? { COLUMNS: String(options.columns) }
+                    : undefined,
+            )
+            if (result.exitCode !== 0) {
+                return yield* new JjReadError({
+                    kind: "diff",
+                    command: result.command,
+                    result,
+                })
+            }
+            return result.stdout
+        })
+
+        const readFiles = Effect.fn("Jj.files")(function* (
+            summaryArgs: readonly string[],
+            binaryArgs: readonly string[],
+            options: JjOperationOptions,
+        ) {
+            const [summaryResult, binaryResult] = yield* Effect.all(
+                [runRaw(summaryArgs, options), runRaw(binaryArgs, options)],
+                { concurrency: "unbounded" },
+            )
+            yield* throwIfStale(summaryResult)
+            yield* throwIfStale(binaryResult)
+            if (summaryResult.exitCode !== 0) {
+                return yield* new JjReadError({
+                    kind: "files",
+                    command: summaryResult.command,
+                    result: summaryResult,
+                })
+            }
+
+            const binaryFiles =
+                binaryResult.exitCode === 0
+                    ? findBinaryFiles(binaryResult.stdout)
+                    : new Set<string>()
+            return parseFileSummary(summaryResult.stdout).map((file) => ({
+                ...file,
+                isBinary: binaryFiles.has(file.path),
+            }))
+        })
 
         return Jj.of({
             gitFetch: Effect.fn("Jj.gitFetch")((options: JjGitFetchOptions) =>
@@ -575,6 +737,131 @@ export const JjLive = Layer.effect(
                     { concurrency: "unbounded" },
                 )
                 return { operationId, workingCopyCommitId }
+            }),
+            files: Effect.fn("Jj.files")(
+                (target: JjDiffTarget, options: JjOperationOptions) => {
+                    const targetArgs = makeDiffTargetArgs(target)
+                    return readFiles(
+                        ["diff", "--summary", ...targetArgs],
+                        ["diff", "--git", ...targetArgs],
+                        options,
+                    )
+                },
+            ),
+            commitDetails: Effect.fn("Jj.commitDetails")(function* (
+                revision: string,
+                options: JjOperationOptions,
+            ) {
+                const separator = "\n---KAJJI_DETAILS_SEPARATOR---\n"
+                const styledSubjectTemplate = `if(empty, label("empty", "(empty) "), "") ++ if(description.first_line(), description.first_line(), label("description placeholder", "(no description set)"))`
+                const result = yield* runRaw(
+                    [
+                        "log",
+                        "-r",
+                        revision,
+                        "--no-graph",
+                        "--color",
+                        "always",
+                        "-T",
+                        `${styledSubjectTemplate} ++ "${separator}" ++ description`,
+                    ],
+                    options,
+                )
+                if (result.exitCode !== 0) return { subject: "", body: "" }
+                const parts = result.stdout.split(separator)
+                const description = (parts[1] ?? "").trim().split("\n")
+                return {
+                    subject: (parts[0] ?? "").trim(),
+                    body: description.slice(1).join("\n").trim(),
+                }
+            }),
+            opLog: Effect.fn("Jj.opLog")(function* (
+                limit: number | undefined,
+                options: JjOperationOptions,
+            ) {
+                const args = [
+                    "op",
+                    "log",
+                    "--color",
+                    "always",
+                    "--ignore-working-copy",
+                ]
+                if (limit) args.push("--limit", String(limit))
+                const result = yield* runRaw(args, options)
+                yield* throwIfStale(result)
+                if (result.exitCode !== 0) {
+                    return yield* new JjReadError({
+                        kind: "operation-log",
+                        command: result.command,
+                        result,
+                    })
+                }
+                return result.stdout.split("\n")
+            }),
+            diff: Effect.fn("Jj.diff")(
+                (target: JjDiffTarget, options: JjDiffOptions) =>
+                    readDiff(
+                        [
+                            "diff",
+                            ...makeDiffTargetArgs(target),
+                            ...(options.color
+                                ? ["--color", "always"]
+                                : ["--git"]),
+                        ],
+                        options,
+                    ),
+            ),
+            bookmarks: Effect.fn("Jj.bookmarks")(function* (
+                options: JjBookmarkReadOptions,
+            ) {
+                const args = [
+                    "--color",
+                    "always",
+                    "bookmark",
+                    "list",
+                    "--sort",
+                    "committer-date-",
+                    "--template",
+                    BOOKMARK_TEMPLATE,
+                ]
+                if (options.allRemotes) args.push("--all-remotes")
+                const result = yield* runRaw(args, options)
+                yield* throwIfStale(result)
+                if (result.exitCode !== 0) {
+                    return yield* new JjReadError({
+                        kind: "bookmarks",
+                        command: result.command,
+                        result,
+                    })
+                }
+                return parseBookmarkOutput(result.stdout)
+            }),
+            logPage: Effect.fn("Jj.logPage")(function* (
+                options: JjLogReadOptions,
+            ) {
+                const commandLimit = options.limit
+                    ? options.limit + 1
+                    : undefined
+                const result = yield* runRaw(
+                    buildLogArgs(options, buildLogTemplate(), commandLimit),
+                    options,
+                )
+                yield* throwIfStale(result)
+                if (result.exitCode !== 0) {
+                    return yield* new JjReadError({
+                        kind: "log",
+                        command: result.command,
+                        result,
+                    })
+                }
+                const commits = parseLogOutput(result.stdout)
+                if (options.limit && commits.length > options.limit) {
+                    return {
+                        commits: commits.slice(0, options.limit),
+                        hasMore: true,
+                    }
+                }
+                return { commits, hasMore: false }
             }),
         })
     }),

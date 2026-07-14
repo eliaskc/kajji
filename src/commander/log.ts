@@ -41,7 +41,7 @@ function createCommitDisplayLine(gutter: string, content: string) {
     }
 }
 
-function buildTemplate(): string {
+export function buildLogTemplate(): string {
     const styledDescription = `if(empty, label("empty", "(empty) "), "") ++ if(description.first_line(), description.first_line(), label("description placeholder", "(no description set)"))`
 
     const prefix = [
@@ -273,7 +273,7 @@ export interface StreamLogPageCallbacks {
     onError: (error: Error) => void
 }
 
-function buildArgs(
+export function buildLogArgs(
     options: FetchLogOptions | undefined,
     template: string,
     limit?: number,
@@ -295,8 +295,8 @@ async function executeLog(
     options: FetchLogOptions | undefined,
     limit?: number,
 ): Promise<string> {
-    const template = buildTemplate()
-    const args = buildArgs(options, template, limit)
+    const template = buildLogTemplate()
+    const args = buildLogArgs(options, template, limit)
     const result = await execute(args, {
         cwd: options?.cwd,
     })
@@ -337,8 +337,8 @@ export function streamLogPage(
     callbacks: StreamLogPageCallbacks,
 ): { cancel: () => void } {
     const limit = options?.limit
-    const template = buildTemplate()
-    const args = buildArgs(options, template, limit ? limit + 1 : undefined)
+    const template = buildLogTemplate()
+    const args = buildLogArgs(options, template, limit ? limit + 1 : undefined)
     const state: LogStreamState = { buffer: "", current: null }
     const commits: Commit[] = []
     const maxCommits = limit ? limit + 1 : Number.POSITIVE_INFINITY

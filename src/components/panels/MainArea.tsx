@@ -14,10 +14,10 @@ import {
     onMount,
 } from "solid-js"
 
-import { fetchDiff, fetchDiffRange } from "../../commander/diff"
 import type { DiffStats } from "../../commander/operations"
 import { type Commit, getRevisionId } from "../../commander/types"
 import { onConfigChange, readConfig } from "../../config"
+import { useApplication } from "../../context/application"
 import { useCommand } from "../../context/command"
 import { useFocus } from "../../context/focus"
 import { useLayout } from "../../context/layout"
@@ -27,12 +27,11 @@ import {
     type FileId,
     type FlattenedFile,
     type HunkId,
-    fetchParsedDiff,
-    fetchParsedDiffRange,
     flattenDiff,
     getAdjacentHunkFromRow,
     getLineNumWidth,
     getMaxLineNumber,
+    parseDiffString,
 } from "../../diff"
 import { getRepoPath } from "../../repo"
 import { orderFilesByPath } from "../../utils/file-tree"
@@ -288,6 +287,7 @@ function CommitHeader(props: {
 }
 
 export function MainArea() {
+    const app = useApplication()
     const {
         activeCommit,
         activeBookmarkDiff,
@@ -690,23 +690,23 @@ export function MainArea() {
         setParsedDiffError(null)
 
         const fetchStart = performance.now()
-        const fetcher = bookmarkDiff
-            ? showJjFormatter
-                ? fetchDiffRange(bookmarkDiff.from, bookmarkDiff.to, {
-                      paths,
-                      columns: Math.max(1, viewportWidth()),
-                  })
-                : fetchParsedDiffRange(bookmarkDiff.from, bookmarkDiff.to, {
-                      paths,
-                  })
-            : commit && showJjFormatter
-              ? fetchDiff(getRevisionId(commit), {
-                    paths,
-                    columns: Math.max(1, viewportWidth()),
-                })
-              : commit
-                ? fetchParsedDiff(getRevisionId(commit), { paths })
-                : Promise.resolve([])
+        const diffOptions = {
+            cwd: getRepoPath(),
+            paths,
+            color: showJjFormatter,
+            columns: showJjFormatter ? Math.max(1, viewportWidth()) : undefined,
+        }
+        const rawDiff = bookmarkDiff
+            ? app.jjDiff(
+                  { from: bookmarkDiff.from, to: bookmarkDiff.to },
+                  diffOptions,
+              )
+            : commit
+              ? app.jjDiff({ revision: getRevisionId(commit) }, diffOptions)
+              : Promise.resolve("")
+        const fetcher = rawDiff.then((result) =>
+            showJjFormatter ? result : parseDiffString(result),
+        )
 
         fetcher
             .then((result) => {

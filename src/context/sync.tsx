@@ -11,11 +11,7 @@ import {
     onMount,
     useContext,
 } from "solid-js"
-import {
-    type Bookmark,
-    fetchBookmarks,
-    fetchBookmarksStream,
-} from "../commander/bookmarks"
+import { type Bookmark, fetchBookmarksStream } from "../commander/bookmarks"
 import {
     type GitHubPullRequestSummary,
     ghListPullRequestsByHead,
@@ -24,9 +20,8 @@ import { getRepoPath } from "../repo"
 import { addRecentRepo } from "../utils/state"
 import { getVisibleBookmarks } from "./sync-bookmarks"
 
-import { fetchFiles, fetchFilesRange } from "../commander/files"
 import { streamLogPage } from "../commander/log"
-import { jjCommitDetails, jjNew } from "../commander/operations"
+import { jjNew } from "../commander/operations"
 import { type Commit, type FileChange, getRevisionId } from "../commander/types"
 import { onConfigChange, readConfig } from "../config"
 import {
@@ -383,9 +378,15 @@ export function SyncProvider(props: { children: JSX.Element }) {
                 filesRequestKind = diff ? "bookmark" : "commit"
                 try {
                     const result = diff
-                        ? await fetchFilesRange(diff.from, diff.to)
+                        ? await app.jjFiles(
+                              { from: diff.from, to: diff.to },
+                              { cwd: getRepoPath() },
+                          )
                         : commit
-                          ? await fetchFiles(getRevisionId(commit))
+                          ? await app.jjFiles(
+                                { revision: getRevisionId(commit) },
+                                { cwd: getRepoPath() },
+                            )
                           : null
                     if (result && request === filesRequestId) {
                         setFiles(result)
@@ -569,7 +570,7 @@ export function SyncProvider(props: { children: JSX.Element }) {
         const endDetails = profile(
             `commitDetails(${commit.changeId.slice(0, 8)})`,
         )
-        jjCommitDetails(revId).then((details) => {
+        app.jjCommitDetails(revId, { cwd: getRepoPath() }).then((details) => {
             endDetails()
             if (currentDetailsCacheKey === cacheKey) {
                 setCommitDetails({
@@ -625,7 +626,10 @@ export function SyncProvider(props: { children: JSX.Element }) {
                 setFilesLoading(true)
                 setFilesError(null)
                 try {
-                    const result = await fetchFiles(getRevisionId(commit))
+                    const result = await app.jjFiles(
+                        { revision: getRevisionId(commit) },
+                        { cwd: getRepoPath() },
+                    )
                     if (request !== filesRequestId) return
                     showFiles(result)
                     focus.setActiveContext("log.revisions")
@@ -844,7 +848,10 @@ export function SyncProvider(props: { children: JSX.Element }) {
         setRemoteBookmarksLoading(true)
         setRemoteBookmarksError(null)
         try {
-            const result = await fetchBookmarks({ allRemotes: true })
+            const result = await app.jjBookmarks({
+                cwd: getRepoPath(),
+                allRemotes: true,
+            })
             setRemoteBookmarks(result)
         } catch (e) {
             setRemoteBookmarksError(
@@ -1083,7 +1090,10 @@ export function SyncProvider(props: { children: JSX.Element }) {
         setFilesLoading(true)
         setFilesError(null)
         try {
-            const result = await fetchFiles(revisionId)
+            const result = await app.jjFiles(
+                { revision: revisionId },
+                { cwd: getRepoPath() },
+            )
             const currentCommit = selectedCommit()
             if (request !== filesRequestId) return
             if (!currentCommit || getRevisionId(currentCommit) !== revisionId)
@@ -1110,7 +1120,10 @@ export function SyncProvider(props: { children: JSX.Element }) {
         setFilesLoading(true)
         setFilesError(null)
         try {
-            const result = await fetchFilesRange(diff.from, diff.to)
+            const result = await app.jjFiles(
+                { from: diff.from, to: diff.to },
+                { cwd: getRepoPath() },
+            )
             if (request !== filesRequestId) return
             showFiles(result)
             setActiveBookmarkDiff(diff)

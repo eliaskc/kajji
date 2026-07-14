@@ -7,7 +7,7 @@ const BOOKMARK_MARKER = "__BJ__"
 const BOOKMARK_DESCRIPTION =
     'if(normal_target, if(normal_target.empty(), label("empty", "(empty) "), "") ++ if(normal_target.description().first_line(), normal_target.description().first_line(), label("description placeholder", "(no description set)")), "")'
 
-const BOOKMARK_TEMPLATE = [
+export const BOOKMARK_TEMPLATE = [
     `"${BOOKMARK_MARKER}"`,
     "name",
     `"${BOOKMARK_MARKER}"`,

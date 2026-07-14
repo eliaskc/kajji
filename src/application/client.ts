@@ -1,14 +1,20 @@
 import { Effect, Layer, ManagedRuntime } from "effect"
+import type { Bookmark } from "../commander/bookmarks"
 import {
     Jj,
     type JjBookmarkCreateOptions,
+    type JjBookmarkReadOptions,
     type JjBookmarkSetOptions,
     type JjCommandError,
+    type JjCommitDetails,
     type JjDescription,
+    type JjDiffOptions,
+    type JjDiffTarget,
     type JjEditOptions,
     type JjGitFetchOptions,
     type JjGitPushOptions,
     JjLive,
+    type JjLogReadOptions,
     type JjOperationOptions,
     type JjOperationResult,
     type JjRebaseOptions,
@@ -18,8 +24,10 @@ import {
     type OperationFailure,
     type OperationSink,
 } from "../commander/jj"
+import type { FetchLogPageResult } from "../commander/log"
 import type { CommandObserver } from "../commander/observer"
 import type { OperationResult } from "../commander/operations"
+import type { FileChange } from "../commander/types"
 import { AppProcessLive, type ProcessError } from "../process/app-process"
 import { diagnosticsLog } from "../utils/diagnostics"
 
@@ -29,6 +37,19 @@ interface ApplicationOperationOptions extends Omit<JjOperationOptions, "sink"> {
 }
 
 interface ApplicationReadOptions extends Omit<JjOperationOptions, "sink"> {
+    readonly signal?: AbortSignal
+}
+
+interface ApplicationDiffOptions extends Omit<JjDiffOptions, "sink"> {
+    readonly signal?: AbortSignal
+}
+
+interface ApplicationBookmarkReadOptions
+    extends Omit<JjBookmarkReadOptions, "sink"> {
+    readonly signal?: AbortSignal
+}
+
+interface ApplicationLogReadOptions extends Omit<JjLogReadOptions, "sink"> {
     readonly signal?: AbortSignal
 }
 
@@ -158,6 +179,28 @@ export interface ApplicationClient {
     readonly jjRefreshState: (
         options: ApplicationReadOptions,
     ) => Promise<JjRefreshState>
+    readonly jjFiles: (
+        target: JjDiffTarget,
+        options: ApplicationReadOptions,
+    ) => Promise<FileChange[]>
+    readonly jjCommitDetails: (
+        revision: string,
+        options: ApplicationReadOptions,
+    ) => Promise<JjCommitDetails>
+    readonly jjOpLog: (
+        limit: number | undefined,
+        options: ApplicationReadOptions,
+    ) => Promise<string[]>
+    readonly jjDiff: (
+        target: JjDiffTarget,
+        options: ApplicationDiffOptions,
+    ) => Promise<string>
+    readonly jjBookmarks: (
+        options: ApplicationBookmarkReadOptions,
+    ) => Promise<Bookmark[]>
+    readonly jjLogPage: (
+        options: ApplicationLogReadOptions,
+    ) => Promise<FetchLogPageResult>
     readonly dispose: () => Promise<void>
 }
 
@@ -375,6 +418,32 @@ export function makeApplicationClient(
                     timeoutMs: options.timeoutMs,
                 }),
             ),
+        jjFiles: (target, options) =>
+            runRead(options, (jj) =>
+                jj.files(target, {
+                    cwd: options.cwd,
+                    timeoutMs: options.timeoutMs,
+                }),
+            ),
+        jjCommitDetails: (revision, options) =>
+            runRead(options, (jj) =>
+                jj.commitDetails(revision, {
+                    cwd: options.cwd,
+                    timeoutMs: options.timeoutMs,
+                }),
+            ),
+        jjOpLog: (limit, options) =>
+            runRead(options, (jj) =>
+                jj.opLog(limit, {
+                    cwd: options.cwd,
+                    timeoutMs: options.timeoutMs,
+                }),
+            ),
+        jjDiff: (target, options) =>
+            runRead(options, (jj) => jj.diff(target, options)),
+        jjBookmarks: (options) =>
+            runRead(options, (jj) => jj.bookmarks(options)),
+        jjLogPage: (options) => runRead(options, (jj) => jj.logPage(options)),
         dispose: () => {
             accepting = false
             if (!disposePromise) disposePromise = runtime.dispose()

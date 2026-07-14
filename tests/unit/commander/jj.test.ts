@@ -5,6 +5,7 @@ import {
     JjCommandError,
     type JjGitFetchOptions,
     JjLive,
+    JjReadError,
     JjStaleWorkingCopyError,
     type OperationSink,
 } from "../../../src/commander/jj"
@@ -406,6 +407,182 @@ describe("Jj", () => {
             operationId: "operation-id",
             workingCopyCommitId: "commit-id",
         })
+    })
+
+    test("reads revision files and binary status", async () => {
+        const commands: ProcessCommand[] = []
+        const processLayer = makeAppProcessFake((command) => {
+            commands.push(command)
+            if (command.args.includes("--summary")) {
+                return Effect.succeed({
+                    ...success,
+                    stdout: "M src/text.ts\nA image.png\n",
+                })
+            }
+            return Effect.succeed({
+                ...success,
+                stdout: "diff --git a/image.png b/image.png\nBinary files differ\n",
+            })
+        })
+        const effect = Jj.use((jj) =>
+            jj.files({ revision: "revision" }, { cwd: "/tmp/repository" }),
+        ).pipe(Effect.provide(JjLive), Effect.provide(processLayer))
+
+        await expect(Effect.runPromise(effect)).resolves.toEqual([
+            { path: "src/text.ts", status: "modified", isBinary: false },
+            { path: "image.png", status: "added", isBinary: true },
+        ])
+        expect(commands.map((command) => command.args)).toEqual([
+            ["diff", "--summary", "-r", "revision"],
+            ["diff", "--git", "-r", "revision"],
+        ])
+    })
+
+    test("reads colored and parsed diff forms", async () => {
+        const commands: ProcessCommand[] = []
+        const processLayer = makeAppProcessFake((command) => {
+            commands.push(command)
+            return Effect.succeed({ ...success, stdout: "diff output" })
+        })
+        const effect = Effect.all(
+            [
+                Jj.use((jj) =>
+                    jj.diff(
+                        { revision: "revision" },
+                        {
+                            cwd: "/tmp/repository",
+                            color: true,
+                            columns: 120,
+                            paths: ["src/file.ts"],
+                        },
+                    ),
+                ),
+                Jj.use((jj) =>
+                    jj.diff(
+                        { from: "from", to: "to" },
+                        { cwd: "/tmp/repository" },
+                    ),
+                ),
+            ],
+            { concurrency: 1 },
+        ).pipe(Effect.provide(JjLive), Effect.provide(processLayer))
+
+        await expect(Effect.runPromise(effect)).resolves.toEqual([
+            "diff output",
+            "diff output",
+        ])
+        expect(commands[0]).toMatchObject({
+            args: [
+                "diff",
+                "-r",
+                "revision",
+                "--color",
+                "always",
+                'file:"src/file.ts"',
+            ],
+            env: expect.objectContaining({ COLUMNS: "120" }),
+        })
+        expect(commands[1]?.args).toEqual([
+            "diff",
+            "--from",
+            "from",
+            "--to",
+            "to",
+            "--git",
+        ])
+    })
+
+    test("constructs captured bookmark and paged log reads", async () => {
+        const commands: ProcessCommand[] = []
+        const processLayer = makeAppProcessFake((command) => {
+            commands.push(command)
+            return Effect.succeed({ ...success, stdout: "" })
+        })
+        const effect = Effect.all(
+            [
+                Jj.use((jj) =>
+                    jj.bookmarks({
+                        cwd: "/tmp/repository",
+                        allRemotes: true,
+                    }),
+                ),
+                Jj.use((jj) =>
+                    jj.logPage({
+                        cwd: "/tmp/repository",
+                        revset: "mine()",
+                        limit: 20,
+                    }),
+                ),
+            ],
+            { concurrency: 1 },
+        ).pipe(Effect.provide(JjLive), Effect.provide(processLayer))
+
+        await expect(Effect.runPromise(effect)).resolves.toEqual([
+            [],
+            { commits: [], hasMore: false },
+        ])
+        expect(commands[0]?.args.slice(0, 6)).toEqual([
+            "--color",
+            "always",
+            "bookmark",
+            "list",
+            "--sort",
+            "committer-date-",
+        ])
+        expect(commands[0]?.args.at(-1)).toBe("--all-remotes")
+        expect(commands[1]?.args).toContain("mine()")
+        expect(commands[1]?.args.slice(-2)).toEqual(["--limit", "21"])
+    })
+
+    test("reads commit details and bounded operation log", async () => {
+        const commands: ProcessCommand[] = []
+        const processLayer = makeAppProcessFake((command) => {
+            commands.push(command)
+            if (command.args[0] === "op") {
+                return Effect.succeed({ ...success, stdout: "one\ntwo\n" })
+            }
+            return Effect.succeed({
+                ...success,
+                stdout: "styled subject\n---KAJJI_DETAILS_SEPARATOR---\nsubject\nbody\n",
+            })
+        })
+        const effect = Effect.all(
+            [
+                Jj.use((jj) =>
+                    jj.commitDetails("revision", { cwd: "/tmp/repository" }),
+                ),
+                Jj.use((jj) => jj.opLog(2, { cwd: "/tmp/repository" })),
+            ],
+            { concurrency: 1 },
+        ).pipe(Effect.provide(JjLive), Effect.provide(processLayer))
+
+        await expect(Effect.runPromise(effect)).resolves.toEqual([
+            { subject: "styled subject", body: "body" },
+            ["one", "two", ""],
+        ])
+        expect(commands[1]?.args).toEqual([
+            "op",
+            "log",
+            "--color",
+            "always",
+            "--ignore-working-copy",
+            "--limit",
+            "2",
+        ])
+    })
+
+    test("reports normal read failures with capability context", async () => {
+        const processLayer = makeAppProcessFake(() =>
+            Effect.succeed({ ...success, exitCode: 1, stderr: "bad revision" }),
+        )
+        const effect = Jj.use((jj) =>
+            jj.diff({ revision: "revision" }, { cwd: "/tmp/repository" }),
+        ).pipe(Effect.provide(JjLive), Effect.provide(processLayer))
+
+        const failure = await Effect.runPromise(Effect.flip(effect))
+        expect(failure).toBeInstanceOf(JjReadError)
+        expect(failure).toMatchObject({ kind: "diff" })
+        expect(failure.message).toBe("jj diff failed: bad revision")
     })
 
     test("reports stale working copy refresh reads as typed failures", async () => {

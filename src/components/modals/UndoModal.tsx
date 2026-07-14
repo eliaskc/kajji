@@ -1,8 +1,9 @@
 import { Show, createResource } from "solid-js"
-import { fetchOpLog } from "../../commander/operations"
+import { useApplication } from "../../context/application"
 import { useDialogCommands } from "../../context/command"
 import { useDialog } from "../../context/dialog"
 import { useTheme } from "../../context/theme"
+import { getRepoPath } from "../../repo"
 import { AnsiText } from "../AnsiText"
 
 interface UndoModalProps {
@@ -13,6 +14,7 @@ interface UndoModalProps {
 }
 
 export function UndoModal(props: UndoModalProps) {
+    const app = useApplication()
     const { colors } = useTheme()
     const dialog = useDialog()
     const dialogId = dialog.currentId()
@@ -20,7 +22,7 @@ export function UndoModal(props: UndoModalProps) {
     const [fetchedDetails] = createResource(
         () => !props.operationLines,
         async () => {
-            const lines = await fetchOpLog(1)
+            const lines = await app.jjOpLog(1, { cwd: getRepoPath() })
             return lines.join("\n")
         },
     )

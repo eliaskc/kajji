@@ -25,11 +25,9 @@ import {
     ghPrCreateWeb,
     ghPrViewWeb,
 } from "../../commander/github"
-import { fetchLogPage } from "../../commander/log"
 import {
     type OpLogEntry,
     type OperationResult,
-    fetchOpLog,
     isImmutableError,
     jjNew,
     jjNewAfter,
@@ -316,7 +314,8 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
         const results = await Promise.all(
             candidates.map(async (candidate) => {
                 try {
-                    const result = await fetchLogPage({
+                    const result = await app.jjLogPage({
+                        cwd: getRepoPath(),
                         revset: candidate.revset,
                         limit: candidate.exact
                             ? undefined
@@ -568,7 +567,9 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
         const isInitialLoad = opLogEntries().length === 0
         if (isInitialLoad) setOpLogLoading(true)
         try {
-            const lines = await fetchOpLog(effectiveLimit)
+            const lines = await app.jjOpLog(effectiveLimit, {
+                cwd: getRepoPath(),
+            })
             const entries = parseOpLog(lines)
             setOpLogEntries(entries)
             setOpLogHasMore(entries.length >= effectiveLimit)

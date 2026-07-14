@@ -178,6 +178,49 @@ describe("ApplicationClient", () => {
         await client.dispose()
     })
 
+    test("routes captured file, detail, and operation log reads", async () => {
+        const layer = makeAppProcessFake((command) => {
+            const args = command.args.join(" ")
+            if (args.includes("--summary")) {
+                return Effect.succeed({ ...success, stdout: "M src/file.ts\n" })
+            }
+            if (args.startsWith("diff --git")) return Effect.succeed(success)
+            if (args.startsWith("diff -r")) {
+                return Effect.succeed({ ...success, stdout: "diff" })
+            }
+            if (args.startsWith("op log")) {
+                return Effect.succeed({ ...success, stdout: "operation\n" })
+            }
+            return Effect.succeed({
+                ...success,
+                stdout: "styled\n---KAJJI_DETAILS_SEPARATOR---\nsubject\nbody\n",
+            })
+        })
+        const client = makeApplicationClient(layer)
+        const options = { cwd: "/tmp/repository" }
+
+        expect(await client.jjFiles({ revision: "revision" }, options)).toEqual(
+            [{ path: "src/file.ts", status: "modified", isBinary: false }],
+        )
+        expect(await client.jjCommitDetails("revision", options)).toEqual({
+            subject: "styled",
+            body: "body",
+        })
+        expect(await client.jjOpLog(1, options)).toEqual(["operation", ""])
+        expect(
+            await client.jjDiff(
+                { revision: "revision" },
+                { ...options, color: true },
+            ),
+        ).toBe("diff")
+        expect(await client.jjBookmarks(options)).toEqual([])
+        expect(await client.jjLogPage({ ...options, limit: 1 })).toEqual({
+            commits: [],
+            hasMore: false,
+        })
+        await client.dispose()
+    })
+
     test("preserves normal non-zero exits at the compatibility edge", async () => {
         const layer = makeAppProcessFake(() =>
             Effect.succeed({ ...success, exitCode: 1, stderr: "failed" }),
@@ -185,6 +228,9 @@ describe("ApplicationClient", () => {
         const client = makeApplicationClient(layer)
 
         const result = await client.jjGitFetch({ cwd: "/tmp/repository" })
+        await expect(
+            client.jjDiff({ revision: "revision" }, { cwd: "/tmp/repository" }),
+        ).rejects.toThrow("jj diff failed: failed")
         await client.dispose()
 
         expect(result).toMatchObject({

@@ -111,6 +111,63 @@ Promises. It does not assemble layers, supply Effect environments, or call
 Pure parsers and planners sit beside this graph. Domain modules call them without
 turning them into services.
 
+### Corroborating architecture: OpenCode V2
+
+OpenCode V2 independently uses the same operational boundary. Its generated
+client has two entry points: a zero-Effect Promise client with structural values
+and a rich Effect client with typed Effects, Streams, schemas, and an injected
+HTTP client. Its Effect-native embedded SDK is intended specifically for
+applications already built around Effect and owns its in-process host through an
+Effect Scope. See the V2 source at commit
+[`9b8282ad3`](https://github.com/anomalyco/opencode/tree/9b8282ad3db97bd2f4dc7ba2dede5aaebbd9b2fc):
+
+- [the two client entry points and their dependency boundaries](https://github.com/anomalyco/opencode/blob/9b8282ad3db97bd2f4dc7ba2dede5aaebbd9b2fc/packages/client/README.md#L5-L14)
+- [the scoped Effect-native embedded SDK](https://github.com/anomalyco/opencode/blob/9b8282ad3db97bd2f4dc7ba2dede5aaebbd9b2fc/packages/sdk-next/src/opencode.ts#L7-L39)
+- [the published V2 SDK guidance](https://v2.opencode.ai/build/sdk)
+
+Most relevantly, OpenCode's Solid TUI is launched inside a scoped Effect program,
+but it creates the Promise client before render and supplies that client through
+a Solid provider. The provider accepts Promises, `AbortController`, and async
+iterables rather than Effect environments or runtime services
+([composition root](https://github.com/anomalyco/opencode/blob/9b8282ad3db97bd2f4dc7ba2dede5aaebbd9b2fc/packages/tui/src/app.tsx#L179-L203),
+[provider wiring](https://github.com/anomalyco/opencode/blob/9b8282ad3db97bd2f4dc7ba2dede5aaebbd9b2fc/packages/tui/src/app.tsx#L265-L339),
+[client context](https://github.com/anomalyco/opencode/blob/9b8282ad3db97bd2f4dc7ba2dede5aaebbd9b2fc/packages/tui/src/context/client.tsx#L1-L35)).
+
+This evidence refines “Effect-less Solid” rather than making it absolute.
+OpenCode does use pure Effect data utilities such as `Data.TaggedClass` and
+`Equal` inside [UI models](https://github.com/anomalyco/opencode/blob/9b8282ad3db97bd2f4dc7ba2dede5aaebbd9b2fc/packages/app/src/pages/session/timeline/timeline-row.ts#L1-L43),
+and occasionally runs a [self-contained Effect utility from a Solid
+resource](https://github.com/anomalyco/opencode/blob/9b8282ad3db97bd2f4dc7ba2dede5aaebbd9b2fc/packages/app/src/app.tsx#L410-L423).
+The important boundary is that Solid does not own the application runtime,
+assemble service environments, manage scoped application resources, or receive
+Effect-returning client operations. Kajji keeps the stricter rule of no direct
+runtime execution in Solid because its owned `ApplicationClient` already
+provides the appropriate edge.
+
+### Tagged data at the boundary
+
+Effect tagged enums provide constructors, exhaustive `$match`, tag guards,
+structural equality, and hashing. Those are useful for a closed domain union that
+is reused broadly, stored in Effect collections, or expected to gain variants.
+They are not automatically preferable for every discriminated input.
+
+Use ordinary structural unions for small command argument shapes when their
+fields already distinguish the cases. For example, revision and range are two
+inputs to one diff capability, so `JjDiffTarget` is intentionally:
+
+```ts
+type JjDiffTarget =
+    | { readonly revision: string }
+    | { readonly from: string; readonly to: string }
+```
+
+This keeps call sites ordinary at the Promise boundary and avoids requiring
+Solid code to construct Effect data values. Use tagged errors and tagged domain
+values when the tag enables distinct recovery, exhaustive behavior, or value
+semantics. `JjStaleWorkingCopyError` remains separate because callers can repair
+and retry it; `JjReadError` uses a capability discriminator because normal read
+failures share one failure type but need stable capability-specific context.
+
 ## Implementation Rules
 
 ### Effect v4
@@ -422,6 +479,37 @@ Verification evidence:
 The next work is to finish remaining captured jj reads, then migrate hooks and
 the `new` family to remove the mutable observer before designing scoped
 streaming for log, bookmark, and diff reads.
+
+## Implementation Update — 2026-07-14 11:02:52 CEST
+
+The non-streaming TUI read batch is complete. Revision and range file lists,
+colored and parsed diffs, commit details, bounded operation logs, remote
+bookmarks, and captured revset log pages now run through `Jj` and the owned
+`ApplicationClient`. The Solid layer still sees only Promises and parsed domain
+values.
+
+This batch preserves fileset construction, `COLUMNS` handling, binary-file
+detection, log pagination by requesting one extra commit, ANSI bookmark/log
+parsing, stale-working-copy classification, and the legacy Promise error text at
+the application boundary. File summary and binary detection still run
+concurrently under the operation scope. Detail selection and files requests keep
+their existing stale-result guards.
+
+Legacy captured wrappers remain for stack workflows and standalone CLI commands;
+they are not routed through a hidden runtime. The main log, local bookmark, and
+streaming diff paths also remain on `executeStreaming` for the dedicated scoped
+streaming phase.
+
+Verification evidence:
+
+- `bun test`: 332 passing tests before the final bookmark/log additions, with
+  focused `Jj` and `ApplicationClient` suites passing after them
+- `bun check` and changed-file Biome checks pass
+- `bun test:e2e`: all 10 terminal workflows pass, including revision detail,
+  files, diff, undo, bookmark, and resize behavior
+
+The next batch is hooks plus `new`, `new-before`, and `new-after`, which should
+remove the final real UI ownership of `activeObserver`. Scoped streaming follows.
 
 ## Work After Fetch
 
