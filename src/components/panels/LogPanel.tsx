@@ -57,6 +57,7 @@ import {
     shouldAutoScrollSelection,
 } from "../../utils/scroll"
 import { AnsiText } from "../AnsiText"
+import { EmptyFilesState } from "../EmptyDiffState"
 import { FilterInput } from "../FilterInput"
 import {
     FilterableFileTree,
@@ -2634,6 +2635,8 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
     )
 
     const renderFilesContent = () => {
+        const hasChangedFiles = () => (fileTree()?.children.length ?? 0) > 0
+
         return (
             <box flexDirection="column" flexGrow={1}>
                 <Show when={filesLoading() && !fileTree()}>
@@ -2642,7 +2645,10 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                 <Show when={filesError()}>
                     <text fg={colors().error}>Error: {filesError()}</text>
                 </Show>
-                <Show when={fileTree() && !filesError()}>
+                <Show when={fileTree() && !filesError() && !hasChangedFiles()}>
+                    <EmptyFilesState />
+                </Show>
+                <Show when={fileTree() && !filesError() && hasChangedFiles()}>
                     <FilterableFileTree
                         files={flatFiles}
                         selectedIndex={selectedFileIndex}

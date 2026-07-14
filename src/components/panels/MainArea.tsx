@@ -24,7 +24,7 @@ import { useCommandLog } from "../../context/commandlog"
 import { useFocus } from "../../context/focus"
 import { useLayout } from "../../context/layout"
 import { useStatus } from "../../context/status"
-import { type CommitDetails, useSync } from "../../context/sync"
+import { type CommitDetails, type ViewMode, useSync } from "../../context/sync"
 import { useTheme } from "../../context/theme"
 import {
     type DiffPosition,
@@ -38,12 +38,14 @@ import {
     parseDiffString,
 } from "../../diff"
 import { getRepoPath } from "../../repo"
+import { stripAnsi } from "../../utils/ansi"
 import { openInEditor, shouldSuspendForEditor } from "../../utils/editor"
 import { orderFilesByPath } from "../../utils/file-tree"
 import { getFilesLayoutWeights } from "../../utils/layout"
 import { truncatePathMiddle } from "../../utils/path-truncate"
 import { AnsiText } from "../AnsiText"
 import { BinaryGroupFooter } from "../BinaryGroupFooter"
+import { EmptyDiffState } from "../EmptyDiffState"
 import { Panel } from "../Panel"
 import { BookmarkDiffHeader, stripEmailAndDate } from "../RevisionHeader"
 import { VirtualizedSplitView, VirtualizedUnifiedView } from "../diff"
@@ -326,6 +328,10 @@ export function MainArea() {
     const [scrollTop, setScrollTop] = createSignal(0)
     const [viewportHeight, setViewportHeight] = createSignal(30)
     const [viewportWidth, setViewportWidth] = createSignal(80)
+    const [metricsMode, setMetricsMode] = createSignal<ViewMode | null>(null)
+    const [metricsSourceKey, setMetricsSourceKey] = createSignal<string | null>(
+        null,
+    )
     const [scrollLeft, setScrollLeft] = createSignal(0)
     const [headerHeight, setHeaderHeight] = createSignal(0)
     const [currentCommitId, setCurrentCommitId] = createSignal<string | null>(
@@ -857,6 +863,13 @@ export function MainArea() {
         scrollRef?.scrollTo(0)
     })
 
+    const activeDiffSourceKey = () => {
+        const bookmarkDiff = activeBookmarkDiff()
+        if (bookmarkDiff) return `${bookmarkDiff.from}..${bookmarkDiff.to}`
+        const commit = activeCommit()
+        return commit ? `${commit.changeId}:${commit.commitId}` : null
+    }
+
     const syncScrollMetrics = () => {
         if (!scrollRef) return
         const currentScroll = scrollRef.scrollTop ?? 0
@@ -864,6 +877,17 @@ export function MainArea() {
         const currentHeaderHeight = headerRef?.height ?? 0
         const currentViewportWidth =
             scrollRef.viewport?.width ?? effectiveMainAreaWidth()
+        const measuredWidth = Math.max(
+            1,
+            currentViewportWidth - SCROLLBAR_GUTTER,
+        )
+        if (Math.abs(measuredWidth - effectiveMainAreaWidth()) > 2) {
+            setMetricsMode(null)
+            setMetricsSourceKey(null)
+        } else {
+            setMetricsMode(viewMode())
+            setMetricsSourceKey(activeDiffSourceKey())
+        }
         if (
             currentScroll !== scrollTop() ||
             currentViewport !== viewportHeight() ||
@@ -873,9 +897,7 @@ export function MainArea() {
             setViewportHeight(currentViewport)
             setScrollTop(currentScroll)
             setHeaderHeight(currentHeaderHeight)
-            setViewportWidth(
-                Math.max(1, currentViewportWidth - SCROLLBAR_GUTTER),
-            )
+            setViewportWidth(measuredWidth)
         }
     }
 
@@ -901,6 +923,12 @@ export function MainArea() {
             setWrapOverride(null)
         })
         onCleanup(unsubscribeConfig)
+
+        const handleDetailResize = () => queueMicrotask(syncScrollMetrics)
+        scrollRef?.on("resize", handleDetailResize)
+        headerRef?.on("resize", handleDetailResize)
+        onCleanup(() => scrollRef?.off("resize", handleDetailResize))
+        onCleanup(() => headerRef?.off("resize", handleDetailResize))
 
         const pollInterval = setInterval(syncScrollMetrics, 100)
         onCleanup(() => clearInterval(pollInterval))
@@ -1301,7 +1329,14 @@ export function MainArea() {
     const isLoading = () => parsedDiffLoading()
     const hasError = () => parsedDiffError()
     const hasContent = () =>
-        useJjFormatter() ? rawDiffOutput().length > 0 : parsedFiles().length > 0
+        useJjFormatter()
+            ? stripAnsi(rawDiffOutput()).trim().length > 0
+            : parsedFiles().length > 0
+    const showEmptyState = () =>
+        (activeCommit() || activeBookmarkDiff()) &&
+        !isLoading() &&
+        !hasError() &&
+        !hasContent()
     return (
         <Panel
             title="Detail"
@@ -1371,7 +1406,26 @@ export function MainArea() {
                                 </text>
                             </Show>
                             <Show when={!parsedDiffError()}>
-                                <Show when={useJjFormatter()}>
+                                <Show
+                                    when={
+                                        showEmptyState() &&
+                                        metricsMode() === viewMode() &&
+                                        metricsSourceKey() ===
+                                            activeDiffSourceKey()
+                                    }
+                                >
+                                    <EmptyDiffState
+                                        width={Math.max(1, viewportWidth())}
+                                        height={Math.max(
+                                            1,
+                                            viewportHeight() - headerHeight(),
+                                        )}
+                                        normalMode={viewMode() !== "files"}
+                                    />
+                                </Show>
+                                <Show
+                                    when={useJjFormatter() && !showEmptyState()}
+                                >
                                     <AnsiText
                                         content={rawDiffOutput()}
                                         wrapMode="none"

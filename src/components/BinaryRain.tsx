@@ -34,6 +34,8 @@ interface Stream {
     chars: string[]
     offsetTick: number
     gapBelow: number
+    tone: "addition" | "deletion"
+    active: boolean
 }
 
 const BODY_CHARS = ["0", "1", "0", "1", "0", "1", "▓", "▒", "░"]
@@ -62,6 +64,8 @@ function makeStream(height: number, tick: number, fresh: boolean): Stream {
         gapBelow: Math.floor(
             Math.random() * Math.max(1, Math.floor(height / 3)),
         ),
+        tone: Math.random() < 0.5 ? "addition" : "deletion",
+        active: Math.random() < 0.58,
     }
 }
 
@@ -77,7 +81,7 @@ export interface BinaryRainProps {
         /** Extra cells around the rect where the rain fades out (default 1). */
         fade?: number
     }
-    /** Tick interval in milliseconds (default 160). */
+    /** Tick interval in milliseconds (default 300). */
     interval?: number
 }
 
@@ -92,7 +96,7 @@ export function BinaryRain(props: BinaryRainProps) {
     let lastHeight = 0
 
     onMount(() => {
-        const intervalMs = props.interval ?? 160
+        const intervalMs = props.interval ?? 300
         const interval = setInterval(() => setTick((t) => t + 1), intervalMs)
         onCleanup(() => clearInterval(interval))
         // Nudge repaints to follow renderer resize so the effect stays live
@@ -134,9 +138,8 @@ export function BinaryRain(props: BinaryRainProps) {
         }
 
         const bg = colors().background
-        const body = colors().primary
-        const headColor = colors().text
-        const muted = colors().textMuted
+        const additionBody = colors().diff.additionText
+        const deletionBody = colors().diff.deletionText
         const mask = props.mask
         const fade = mask?.fade ?? 1
 
@@ -147,7 +150,8 @@ export function BinaryRain(props: BinaryRainProps) {
 
         for (let x = 0; x < width; x += 1) {
             const s = streams[x]
-            if (!s) continue
+            if (!s || !s.active) continue
+            const body = s.tone === "addition" ? additionBody : deletionBody
             for (let i = 0; i < s.chars.length; i += 1) {
                 const y = s.head - i
                 if (y < 0 || y >= height) continue
@@ -187,18 +191,17 @@ export function BinaryRain(props: BinaryRainProps) {
                 const tPos = s.length > 1 ? i / (s.length - 1) : 0
                 let color: string
                 if (i === 0) {
-                    color = lerpColor(bg, headColor, 0.95 * maskAttenuation)
+                    color = lerpColor(bg, body, 0.44 * maskAttenuation)
                 } else if (tPos < 0.25) {
-                    // Bright hot zone right behind head
+                    // Keep the hot zone within the same subtle range as counterflow.
                     const sub = tPos / 0.25
-                    const hot = lerpColor(headColor, body, sub)
-                    color = lerpColor(bg, hot, 0.85 * maskAttenuation)
+                    const intensity = (0.38 - sub * 0.08) * maskAttenuation
+                    color = lerpColor(bg, body, intensity)
                 } else {
-                    // Long tail fading into muted then background
+                    // Fade the tail directly into the background without a neutral midpoint.
                     const sub = (tPos - 0.25) / 0.75
-                    const trail = lerpColor(body, muted, sub)
-                    const intensity = (1 - sub) ** 1.6 * 0.65 * maskAttenuation
-                    color = lerpColor(bg, trail, intensity)
+                    const intensity = (1 - sub) ** 1.6 * 0.28 * maskAttenuation
+                    color = lerpColor(bg, body, intensity)
                 }
 
                 const gridRow = grid[y]
