@@ -8,6 +8,7 @@ export interface ProcessCommand {
     readonly cwd: string
     readonly env?: Readonly<Record<string, string>>
     readonly timeoutMs?: number
+    readonly stdoutFile?: string
     readonly onOutput?: (stream: ProcessOutputStream, chunk: string) => void
 }
 
@@ -54,7 +55,7 @@ export class AppProcess extends Context.Service<
 
 interface ChildHandle {
     readonly pid: number
-    readonly stdout: ReadableStream<Uint8Array>
+    readonly stdout?: ReadableStream<Uint8Array>
     readonly stderr: ReadableStream<Uint8Array>
     readonly exited: Promise<number>
     readonly exitCode: number | null
@@ -146,7 +147,9 @@ const runLive = Effect.fn("AppProcess.run")(function* (
                     cwd: command.cwd,
                     env: { ...process.env, ...command.env },
                     stdin: "ignore",
-                    stdout: "pipe",
+                    stdout: command.stdoutFile
+                        ? Bun.file(command.stdoutFile)
+                        : "pipe",
                     stderr: "pipe",
                     detached: process.platform !== "win32",
                 }) as unknown as ChildHandle,
@@ -157,7 +160,9 @@ const runLive = Effect.fn("AppProcess.run")(function* (
 
     const collect = Effect.all(
         [
-            readOutput(command, "stdout", child.stdout),
+            child.stdout
+                ? readOutput(command, "stdout", child.stdout)
+                : Effect.succeed(""),
             readOutput(command, "stderr", child.stderr),
             Effect.promise(() => child.exited),
         ] as const,

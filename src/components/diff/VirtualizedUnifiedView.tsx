@@ -1,13 +1,14 @@
 import { For, Show, createEffect, createMemo } from "solid-js"
 import { useTheme } from "../../context/theme"
 import {
+    type DiffPosition,
     type DiffRow,
     type FileId,
     type FlattenedFile,
     type HunkId,
     type SyntaxToken,
     flattenToRows,
-    getCurrentFileId,
+    getCurrentDiffPosition,
     getFileRowOffsets,
     getFileScrollTailHeight,
     getHunkRowOffsets,
@@ -39,6 +40,7 @@ interface VirtualizedUnifiedViewProps {
     onHunkRowOffsets?: (offsets: Map<HunkId, number>) => void
     onFileRowOffsets?: (offsets: Map<FileId, number>) => void
     onCurrentFileChange?: (fileId: FileId | null) => void
+    onCurrentPositionChange?: (position: DiffPosition | null) => void
     onScrollTailHeight?: (height: number) => void
     scrollTop: number
     viewportHeight: number
@@ -103,9 +105,15 @@ export function VirtualizedUnifiedView(props: VirtualizedUnifiedViewProps) {
                 props.leadingContentHeight,
             ),
         )
-        props.onCurrentFileChange?.(
-            getCurrentFileId(wrappedRows(), props.scrollTop),
+        const position = getCurrentDiffPosition(
+            wrappedRows(),
+            props.scrollTop,
+            (wrapped) => wrapped.row.newLineNumber,
+            (wrapped) => wrapped.row.oldLineNumber,
+            props.scrollTop + props.viewportHeight / 2,
         )
+        props.onCurrentFileChange?.(position?.fileId ?? null)
+        props.onCurrentPositionChange?.(position)
     })
 
     const visibleRange = createMemo(() =>

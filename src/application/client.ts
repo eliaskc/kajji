@@ -30,6 +30,7 @@ import type { OperationResult } from "../commander/operations"
 import type { FileChange } from "../commander/types"
 import { AppProcessLive, type ProcessError } from "../process/app-process"
 import { diagnosticsLog } from "../utils/diagnostics"
+import { makeHistoricalFileStore } from "./historical-files"
 
 interface ApplicationOperationOptions extends Omit<JjOperationOptions, "sink"> {
     readonly observer?: CommandObserver
@@ -164,6 +165,11 @@ export interface ApplicationClient {
         paths: readonly string[],
         options: ApplicationOperationOptions,
     ) => Promise<OperationResult>
+    readonly jjMaterializeFiles: (
+        revision: string,
+        paths: readonly string[],
+        options: ApplicationReadOptions,
+    ) => Promise<string[]>
     readonly jjIsInTrunk: (
         revision: string,
         options: ApplicationReadOptions,
@@ -261,6 +267,7 @@ export function makeApplicationClient(
 ): ApplicationClient {
     const layer = JjLive.pipe(Layer.provide(appProcessLayer))
     const runtime = ManagedRuntime.make(layer)
+    const historicalFiles = makeHistoricalFileStore()
     let accepting = true
     let disposePromise: Promise<void> | undefined
 
@@ -390,6 +397,22 @@ export function makeApplicationClient(
             runOperation({ ...options, observer, signal }, (jj, sink) =>
                 jj.restore(paths, { ...options, sink }),
             ),
+        jjMaterializeFiles: (revision, paths, options) => {
+            if (!accepting) {
+                return Promise.reject(new ApplicationClientClosedError())
+            }
+            return historicalFiles.materialize(
+                revision,
+                paths,
+                (selectedRevision, path, outputPath) =>
+                    runRead(options, (jj) =>
+                        jj.materializeFile(selectedRevision, path, outputPath, {
+                            cwd: options.cwd,
+                            timeoutMs: options.timeoutMs,
+                        }),
+                    ),
+            )
+        },
         jjIsInTrunk: (revision, options) =>
             runRead(options, (jj) =>
                 jj.isInTrunk(revision, {
@@ -446,7 +469,11 @@ export function makeApplicationClient(
         jjLogPage: (options) => runRead(options, (jj) => jj.logPage(options)),
         dispose: () => {
             accepting = false
-            if (!disposePromise) disposePromise = runtime.dispose()
+            if (!disposePromise) {
+                disposePromise = runtime
+                    .dispose()
+                    .finally(() => historicalFiles.dispose())
+            }
             return disposePromise
         },
     }

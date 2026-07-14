@@ -30,6 +30,7 @@ function run(
         cwd?: string
         env?: Record<string, string>
         timeoutMs?: number
+        stdoutFile?: string
     },
 ) {
     return Effect.runPromise(
@@ -40,6 +41,7 @@ function run(
                 cwd: options?.cwd ?? process.cwd(),
                 env: options?.env,
                 timeoutMs: options?.timeoutMs,
+                stdoutFile: options?.stdoutFile,
             }),
         ).pipe(Effect.provide(AppProcessLive)),
     )
@@ -71,6 +73,18 @@ describe("AppProcess", () => {
         expect(result.stderr).toBe("warning\n")
         expect(result.exitCode).toBe(0)
         expect(result.durationMs).toBeGreaterThanOrEqual(0)
+    })
+
+    test("redirects stdout to a file without decoding it", async () => {
+        const directory = makeTempDir()
+        const output = join(directory, "output.bin")
+        const result = await run(
+            "process.stdout.write(new Uint8Array([0, 255, 1]))",
+            { stdoutFile: output },
+        )
+
+        expect(result.stdout).toBe("")
+        expect([...readFileSync(output)]).toEqual([0, 255, 1])
     })
 
     test("returns normal non-zero exits as results", async () => {

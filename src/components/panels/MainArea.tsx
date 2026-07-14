@@ -1,9 +1,10 @@
-import { basename } from "node:path"
+import { basename, resolve } from "node:path"
 import type {
     BoxRenderable,
     MouseEvent,
     ScrollBoxRenderable,
 } from "@opentui/core"
+import { useRenderer } from "@opentui/solid"
 import {
     For,
     Show,
@@ -19,11 +20,14 @@ import { type Commit, getRevisionId } from "../../commander/types"
 import { onConfigChange, readConfig } from "../../config"
 import { useApplication } from "../../context/application"
 import { useCommand } from "../../context/command"
+import { useCommandLog } from "../../context/commandlog"
 import { useFocus } from "../../context/focus"
 import { useLayout } from "../../context/layout"
+import { useStatus } from "../../context/status"
 import { type CommitDetails, useSync } from "../../context/sync"
 import { useTheme } from "../../context/theme"
 import {
+    type DiffPosition,
     type FileId,
     type FlattenedFile,
     type HunkId,
@@ -34,6 +38,7 @@ import {
     parseDiffString,
 } from "../../diff"
 import { getRepoPath } from "../../repo"
+import { openInEditor, shouldSuspendForEditor } from "../../utils/editor"
 import { orderFilesByPath } from "../../utils/file-tree"
 import { getFilesLayoutWeights } from "../../utils/layout"
 import { truncatePathMiddle } from "../../utils/path-truncate"
@@ -296,6 +301,9 @@ export function MainArea() {
         fileNavigationRequest,
         setCurrentDiffFilePath,
         showTree,
+        refresh,
+        flatFiles,
+        selectedFile,
     } = useSync()
     const layout = useLayout()
     const { mainAreaWidth, terminalWidth } = layout
@@ -308,6 +316,9 @@ export function MainArea() {
     const { colors } = useTheme()
     const focus = useFocus()
     const command = useCommand()
+    const commandLog = useCommandLog()
+    const renderer = useRenderer()
+    const status = useStatus()
 
     let scrollRef: ScrollBoxRenderable | undefined
     let headerRef: BoxRenderable | undefined
@@ -396,6 +407,8 @@ export function MainArea() {
         null,
     )
     const [currentFileId, setCurrentFileId] = createSignal<FileId | null>(null)
+    const [currentDiffPosition, setCurrentDiffPosition] =
+        createSignal<DiffPosition | null>(null)
 
     const orderedFiles = createMemo(() =>
         orderFilesByPath(parsedFiles(), (file) => file.name, showTree()),
@@ -902,7 +915,192 @@ export function MainArea() {
         Math.max(0, scrollTop() - headerHeight()),
     )
 
+    const openPathsInEditor = async (paths: string[], line?: number) => {
+        const uniquePaths = [...new Set(paths)]
+        if (uniquePaths.length === 0) {
+            commandLog.addEntry({
+                command: "open editor",
+                success: false,
+                exitCode: 1,
+                stdout: "",
+                stderr: "No openable files in this diff",
+            })
+            return
+        }
+
+        const repoPath = getRepoPath()
+        const commit = activeCommit()
+        let editorPaths: string[]
+        try {
+            editorPaths =
+                commit && !commit.isWorkingCopy
+                    ? await app.jjMaterializeFiles(
+                          commit.commitId,
+                          uniquePaths,
+                          { cwd: repoPath },
+                      )
+                    : uniquePaths.map((path) => resolve(repoPath, path))
+        } catch (error) {
+            const message =
+                error instanceof Error
+                    ? error.message
+                    : "Failed to read file at revision"
+            status.show(message)
+            commandLog.addEntry({
+                command: "open historical file",
+                success: false,
+                exitCode: 1,
+                stdout: "",
+                stderr: message,
+            })
+            return
+        }
+
+        const shouldSuspend = shouldSuspendForEditor()
+        if (shouldSuspend) renderer.suspend?.()
+        try {
+            const result = await openInEditor(editorPaths, {
+                cwd: repoPath,
+                line,
+            })
+            commandLog.addEntry({
+                ...result,
+                stdout: "",
+                stderr: result.success
+                    ? ""
+                    : `Editor exited with code ${result.exitCode}`,
+            })
+        } finally {
+            if (shouldSuspend) renderer.resume?.()
+        }
+
+        await refresh()
+    }
+
+    const openCurrentFileInEditor = async (fromFilesPanel: boolean) => {
+        if (fromFilesPanel) {
+            const node = selectedFile()?.node
+            if (!node || node.isDirectory) {
+                await openPathsInEditor([])
+                return
+            }
+            if (node.isBinary) {
+                commandLog.addEntry({
+                    command: "open editor",
+                    success: false,
+                    exitCode: 1,
+                    stdout: "",
+                    stderr: `Cannot open binary file: ${node.path}`,
+                })
+                return
+            }
+            if (node.status === "deleted") {
+                commandLog.addEntry({
+                    command: "open editor",
+                    success: false,
+                    exitCode: 1,
+                    stdout: "",
+                    stderr: `Cannot open deleted file: ${node.path}`,
+                })
+                return
+            }
+            const line =
+                currentFile()?.name === node.path
+                    ? currentDiffPosition()?.lineNumber
+                    : undefined
+            await openPathsInEditor([node.path], line)
+            return
+        }
+
+        const file = currentFile()
+        if (!file) {
+            await openPathsInEditor([])
+            return
+        }
+        if (file.isBinary) {
+            commandLog.addEntry({
+                command: "open editor",
+                success: false,
+                exitCode: 1,
+                stdout: "",
+                stderr: `Cannot open binary file: ${file.name}`,
+            })
+            return
+        }
+        if (file.type === "deleted") {
+            commandLog.addEntry({
+                command: "open editor",
+                success: false,
+                exitCode: 1,
+                stdout: "",
+                stderr: `Cannot open deleted file: ${file.name}`,
+            })
+            return
+        }
+        await openPathsInEditor([file.name], currentDiffPosition()?.lineNumber)
+    }
+
+    // Editor actions intentionally target text files: line navigation and
+    // normal editor behavior aren't meaningful for binary content.
+    const openAllFilesInEditor = (fromFilesPanel: boolean) =>
+        openPathsInEditor(
+            fromFilesPanel
+                ? flatFiles()
+                      .filter(
+                          (file) =>
+                              !file.node.isDirectory &&
+                              !file.node.isBinary &&
+                              file.node.status !== "deleted",
+                      )
+                      .map((file) => file.node.path)
+                : orderedFiles()
+                      .filter(
+                          (file) => !file.isBinary && file.type !== "deleted",
+                      )
+                      .map((file) => file.name),
+        )
+
     command.register(() => [
+        {
+            id: "log.files.open_editor",
+            title: "open",
+            keybind: "open_editor",
+            context: "log.files",
+            panel: "log",
+            visibleIn: ["palette", "statusBar"] as const,
+            execute: () => openCurrentFileInEditor(true),
+        },
+        {
+            id: "log.files.open_editor_all",
+            title: "open all",
+            keybind: "open_editor_all",
+            context: "log.files",
+            panel: "log",
+            visibleIn: ["palette", "statusBar"] as const,
+            execute: () => openAllFilesInEditor(true),
+        },
+        ...(!useJjFormatter()
+            ? [
+                  {
+                      id: "detail.open_editor",
+                      title: "open",
+                      keybind: "open_editor" as const,
+                      context: "detail.diff_custom" as const,
+                      panel: "detail" as const,
+                      visibleIn: ["palette", "statusBar"] as const,
+                      execute: () => openCurrentFileInEditor(false),
+                  },
+                  {
+                      id: "detail.open_editor_all",
+                      title: "open all",
+                      keybind: "open_editor_all" as const,
+                      context: "detail.diff_custom" as const,
+                      panel: "detail" as const,
+                      visibleIn: ["palette", "statusBar"] as const,
+                      execute: () => openAllFilesInEditor(false),
+                  },
+              ]
+            : []),
         {
             id: "detail.scroll_down",
             title: "scroll down",
@@ -1206,6 +1404,9 @@ export function MainArea() {
                                                 onCurrentFileChange={
                                                     setCurrentFileId
                                                 }
+                                                onCurrentPositionChange={
+                                                    setCurrentDiffPosition
+                                                }
                                                 onScrollTailHeight={
                                                     setScrollTailHeight
                                                 }
@@ -1234,6 +1435,9 @@ export function MainArea() {
                                                 }
                                                 onCurrentFileChange={
                                                     setCurrentFileId
+                                                }
+                                                onCurrentPositionChange={
+                                                    setCurrentDiffPosition
                                                 }
                                                 onScrollTailHeight={
                                                     setScrollTailHeight

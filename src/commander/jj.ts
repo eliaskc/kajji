@@ -144,6 +144,7 @@ export class JjCommandError extends Data.TaggedError("JjCommandError")<{
 
 export type JjReadFailureKind =
     | "files"
+    | "file-show"
     | "diff"
     | "operation-log"
     | "bookmarks"
@@ -158,13 +159,15 @@ export class JjReadError extends Data.TaggedError("JjReadError")<{
         const prefix =
             this.kind === "files"
                 ? "Failed to fetch files"
-                : this.kind === "operation-log"
-                  ? "jj op log failed"
-                  : this.kind === "bookmarks"
-                    ? "jj bookmark list failed"
-                    : this.kind === "log"
-                      ? "jj log failed"
-                      : "jj diff failed"
+                : this.kind === "file-show"
+                  ? "Failed to read file at revision"
+                  : this.kind === "operation-log"
+                    ? "jj op log failed"
+                    : this.kind === "bookmarks"
+                      ? "jj bookmark list failed"
+                      : this.kind === "log"
+                        ? "jj log failed"
+                        : "jj diff failed"
         return `${prefix}: ${this.result.stderr}`
     }
 }
@@ -241,6 +244,12 @@ export interface JjService {
         paths: readonly string[],
         options: JjOperationOptions,
     ) => Effect.Effect<JjOperationResult, JjCommandError | ProcessError>
+    readonly materializeFile: (
+        revision: string,
+        path: string,
+        outputPath: string,
+        options: JjOperationOptions,
+    ) => Effect.Effect<void, JjReadError | ProcessError>
     readonly isInTrunk: (
         revision: string,
         options: JjOperationOptions,
@@ -354,10 +363,13 @@ export const JjLive = Layer.effect(
         const runRaw = Effect.fn("Jj.runRaw")(function* (
             args: readonly string[],
             options: JjOperationOptions,
-            displayCommand = `jj ${args.join(" ")}`,
-            env?: Readonly<Record<string, string>>,
+            runOptions: {
+                displayCommand?: string
+                env?: Readonly<Record<string, string>>
+                stdoutFile?: string
+            } = {},
         ) {
-            const command = displayCommand
+            const command = runOptions.displayCommand ?? `jj ${args.join(" ")}`
             notify(() => options.sink?.start(command))
 
             const processCommand = {
@@ -368,9 +380,10 @@ export const JjLive = Layer.effect(
                     JJ_EDITOR: "true",
                     EDITOR: "true",
                     VISUAL: "true",
-                    ...env,
+                    ...runOptions.env,
                 },
                 timeoutMs: options.timeoutMs,
+                stdoutFile: runOptions.stdoutFile,
                 onOutput: (stream: ProcessOutputStream, chunk: string) =>
                     notify(() => options.sink?.output(stream, chunk)),
             }
@@ -398,7 +411,7 @@ export const JjLive = Layer.effect(
             options: JjOperationOptions,
             displayCommand?: string,
         ) {
-            const result = yield* runRaw(args, options, displayCommand)
+            const result = yield* runRaw(args, options, { displayCommand })
             if (result.exitCode !== 0) {
                 return yield* new JjCommandError({
                     command: result.command,
@@ -471,14 +484,11 @@ export const JjLive = Layer.effect(
             if (options.paths?.length) {
                 args.push(...toFilesetArgs([...options.paths]))
             }
-            const result = yield* runRaw(
-                args,
-                options,
-                undefined,
-                options.columns
+            const result = yield* runRaw(args, options, {
+                env: options.columns
                     ? { COLUMNS: String(options.columns) }
                     : undefined,
-            )
+            })
             if (result.exitCode !== 0) {
                 return yield* new JjReadError({
                     kind: "diff",
@@ -677,6 +687,25 @@ export const JjLive = Layer.effect(
                 (paths: readonly string[], options: JjOperationOptions) =>
                     run(["restore", ...paths], options),
             ),
+            materializeFile: Effect.fn("Jj.materializeFile")(function* (
+                revision: string,
+                path: string,
+                outputPath: string,
+                options: JjOperationOptions,
+            ) {
+                const result = yield* runRaw(
+                    ["file", "show", "-r", revision, path],
+                    options,
+                    { stdoutFile: outputPath },
+                )
+                if (result.exitCode !== 0) {
+                    return yield* new JjReadError({
+                        kind: "file-show",
+                        command: result.command,
+                        result,
+                    })
+                }
+            }),
             isInTrunk: Effect.fn("Jj.isInTrunk")(function* (
                 revision: string,
                 options: JjOperationOptions,

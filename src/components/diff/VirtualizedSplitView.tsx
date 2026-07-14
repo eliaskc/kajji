@@ -2,6 +2,7 @@ import { For, Show, createEffect, createMemo } from "solid-js"
 import { useTheme } from "../../context/theme"
 import type {
     DiffLine,
+    DiffPosition,
     FileId,
     FlattenedFile,
     HunkId,
@@ -10,7 +11,7 @@ import type {
 } from "../../diff"
 import {
     computeWordDiff,
-    getCurrentFileId,
+    getCurrentDiffPosition,
     getFileRowOffsets,
     getFileScrollTailHeight,
     getHunkRowOffsets,
@@ -249,6 +250,7 @@ interface VirtualizedSplitViewProps {
     onHunkRowOffsets?: (offsets: Map<HunkId, number>) => void
     onFileRowOffsets?: (offsets: Map<FileId, number>) => void
     onCurrentFileChange?: (fileId: FileId | null) => void
+    onCurrentPositionChange?: (position: DiffPosition | null) => void
     onScrollTailHeight?: (height: number) => void
     scrollTop: number
     viewportHeight: number
@@ -339,9 +341,19 @@ export function VirtualizedSplitView(props: VirtualizedSplitViewProps) {
                 props.leadingContentHeight,
             ),
         )
-        props.onCurrentFileChange?.(
-            getCurrentFileId(wrappedRows(), props.scrollTop),
+        const position = getCurrentDiffPosition(
+            wrappedRows(),
+            props.scrollTop,
+            (wrapped) =>
+                wrapped.row.right?.newLineNumber ??
+                wrapped.row.left?.newLineNumber,
+            (wrapped) =>
+                wrapped.row.left?.oldLineNumber ??
+                wrapped.row.right?.oldLineNumber,
+            props.scrollTop + props.viewportHeight / 2,
         )
+        props.onCurrentFileChange?.(position?.fileId ?? null)
+        props.onCurrentPositionChange?.(position)
     })
 
     const visibleRange = createMemo(() =>

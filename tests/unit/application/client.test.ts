@@ -191,6 +191,12 @@ describe("ApplicationClient", () => {
             if (args.startsWith("op log")) {
                 return Effect.succeed({ ...success, stdout: "operation\n" })
             }
+            if (args.startsWith("file show") && command.stdoutFile) {
+                return Effect.promise(async () => {
+                    await Bun.write(command.stdoutFile ?? "", "contents")
+                    return success
+                })
+            }
             return Effect.succeed({
                 ...success,
                 stdout: "styled\n---KAJJI_DETAILS_SEPARATOR---\nsubject\nbody\n",
@@ -207,6 +213,12 @@ describe("ApplicationClient", () => {
             body: "body",
         })
         expect(await client.jjOpLog(1, options)).toEqual(["operation", ""])
+        const materialized = await client.jjMaterializeFiles(
+            "revision",
+            ["src/file.bin"],
+            options,
+        )
+        expect(await Bun.file(materialized[0] ?? "").text()).toBe("contents")
         expect(
             await client.jjDiff(
                 { revision: "revision" },
@@ -281,6 +293,11 @@ describe("ApplicationClient", () => {
         expect(completions).toBe(1)
         await expect(
             client.jjGitFetch({ cwd: "/tmp/repository" }),
+        ).rejects.toThrow("shutting down")
+        await expect(
+            client.jjMaterializeFiles("revision", ["file"], {
+                cwd: "/tmp/repository",
+            }),
         ).rejects.toThrow("shutting down")
     })
 })

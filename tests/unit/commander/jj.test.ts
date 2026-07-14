@@ -354,6 +354,30 @@ describe("Jj", () => {
         ])
     })
 
+    test("constructs historical file materialization", async () => {
+        const commands: ProcessCommand[] = []
+        const processLayer = makeAppProcessFake((command) => {
+            commands.push(command)
+            return Effect.succeed(success)
+        })
+        const effect = Jj.use((jj) =>
+            jj.materializeFile("revision", "src/file.bin", "/tmp/output.bin", {
+                cwd: "/tmp/repository",
+            }),
+        ).pipe(Effect.provide(JjLive), Effect.provide(processLayer))
+
+        await Effect.runPromise(effect)
+
+        expect(commands[0]?.args).toEqual([
+            "file",
+            "show",
+            "-r",
+            "revision",
+            "src/file.bin",
+        ])
+        expect(commands[0]?.stdoutFile).toBe("/tmp/output.bin")
+    })
+
     test("interprets supporting read results", async () => {
         const processLayer = makeAppProcessFake((command) => {
             const args = command.args.join(" ")

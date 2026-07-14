@@ -3,6 +3,7 @@ import type { FileId, HunkId } from "../../../src/diff/identifiers"
 import {
     getAdjacentHunk,
     getAdjacentHunkFromRow,
+    getCurrentDiffPosition,
     getCurrentFileId,
     getFileRowOffsets,
     getFileScrollTailHeight,
@@ -87,6 +88,53 @@ describe("getFileScrollTailHeight", () => {
 
     test("adds no space for a single file", () => {
         expect(getFileScrollTailHeight(rows.slice(2), 3, 10)).toBe(0)
+    })
+})
+
+describe("getCurrentDiffPosition", () => {
+    const first = "first" as FileId
+    const second = "second" as FileId
+    const rows = [
+        { row: { fileId: first } },
+        { row: { fileId: first, oldLine: 10 } },
+        { row: { fileId: first, newLine: 11 } },
+        { row: { fileId: second, newLine: 80 } },
+    ]
+    const position = (scrollTop: number) =>
+        getCurrentDiffPosition(
+            rows,
+            scrollTop,
+            ({ row }) => row.newLine,
+            ({ row }) => row.oldLine,
+        )
+
+    test("uses the top row's file and nearest new-side line", () => {
+        expect(position(0)).toEqual({ fileId: first, lineNumber: 11 })
+        expect(position(1)).toEqual({ fileId: first, lineNumber: 11 })
+        expect(position(3)).toEqual({ fileId: second, lineNumber: 80 })
+    })
+
+    test("keeps the top-row file when the viewport center crosses a boundary", () => {
+        expect(
+            getCurrentDiffPosition(
+                rows,
+                0,
+                ({ row }) => row.newLine,
+                ({ row }) => row.oldLine,
+                3,
+            ),
+        ).toEqual({ fileId: first, lineNumber: 11 })
+    })
+
+    test("falls back to an old-side line when no new-side line exists", () => {
+        expect(
+            getCurrentDiffPosition(
+                rows.slice(0, 2),
+                0,
+                ({ row }) => row.newLine,
+                ({ row }) => row.oldLine,
+            ),
+        ).toEqual({ fileId: first, lineNumber: 10 })
     })
 })
 

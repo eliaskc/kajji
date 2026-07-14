@@ -21,6 +21,44 @@ const TERMINAL_EDITORS = new Set([
     "ne",
 ])
 
+const PLUS_LINE_EDITORS = new Set([
+    "vi",
+    "vim",
+    "nvim",
+    "nano",
+    "pico",
+    "emacs",
+    "emacsclient",
+])
+const GOTO_LINE_EDITORS = new Set(["code", "code-insiders", "codium", "cursor"])
+const COLON_LINE_EDITORS = new Set(["hx", "helix", "micro", "subl", "zed"])
+
+function editorBasename(editor: string): string {
+    const command = editor.trim().split(/\s+/).filter(Boolean)[0] ?? ""
+    return command.split("/").pop()?.toLowerCase() ?? command.toLowerCase()
+}
+
+export function getEditorArguments(
+    paths: string[],
+    editor = getPreferredEditor(),
+    line?: number,
+): string[] {
+    if (paths.length !== 1 || line === undefined || line < 1) return paths
+
+    const basename = editorBasename(editor)
+    const path = paths[0]
+    if (!path) return paths
+    if (GOTO_LINE_EDITORS.has(basename)) {
+        return ["--goto", `${path}:${line}`]
+    }
+    if (COLON_LINE_EDITORS.has(basename)) return [`${path}:${line}`]
+    if (PLUS_LINE_EDITORS.has(basename)) return [`+${line}`, path]
+    if (basename === "idea" || basename === "webstorm") {
+        return ["--line", String(line), path]
+    }
+    return paths
+}
+
 function shellEscape(arg: string): string {
     if (!arg) return "''"
     if (/^[A-Za-z0-9_./:@-]+$/.test(arg)) return arg
@@ -57,11 +95,12 @@ export function shouldSuspendForEditor(editor = getPreferredEditor()): boolean {
 
 export async function openInEditor(
     paths: string[],
-    options: { cwd?: string } = {},
+    options: { cwd?: string; line?: number } = {},
 ): Promise<OpenEditorResult> {
     const editor = getPreferredEditor()
+    const args = getEditorArguments(paths, editor, options.line)
     const proc = Bun.spawn(
-        ["sh", "-lc", 'exec $KAJJI_EDITOR "$@"', "kajji-editor", ...paths],
+        ["sh", "-lc", 'exec $KAJJI_EDITOR "$@"', "kajji-editor", ...args],
         {
             cwd: options.cwd ?? getRepoPath(),
             env: {
@@ -73,7 +112,7 @@ export async function openInEditor(
     )
 
     const exitCode = await proc.exited
-    const command = `${editor} ${paths.map(shellEscape).join(" ")}`.trim()
+    const command = `${editor} ${args.map(shellEscape).join(" ")}`.trim()
 
     return {
         command,

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "bun:test"
 import {
+    getEditorArguments,
     getPreferredEditor,
     shouldSuspendForEditor,
 } from "../../../src/utils/editor"
@@ -40,6 +41,29 @@ describe("getPreferredEditor", () => {
         process.env.EDITOR = undefined
 
         expect(getPreferredEditor()).toBe("vi")
+    })
+})
+
+describe("getEditorArguments", () => {
+    it("uses +line for Vim-style editors", () => {
+        expect(getEditorArguments(["src/app.ts"], "nvim", 42)).toEqual([
+            "+42",
+            "src/app.ts",
+        ])
+    })
+
+    it("uses --goto for VS Code-style editors", () => {
+        expect(getEditorArguments(["src/app.ts"], "code --wait", 42)).toEqual([
+            "--goto",
+            "src/app.ts:42",
+        ])
+    })
+
+    it("does not apply one position to multiple files", () => {
+        expect(getEditorArguments(["one.ts", "two.ts"], "nvim", 42)).toEqual([
+            "one.ts",
+            "two.ts",
+        ])
     })
 })
 

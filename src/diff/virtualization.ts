@@ -119,6 +119,56 @@ export interface ViewportState {
     totalRows: number
 }
 
+export interface DiffPosition {
+    fileId: FileId
+    lineNumber?: number
+}
+
+export function getCurrentDiffPosition<Row extends { row: { fileId: FileId } }>(
+    rows: readonly Row[],
+    scrollTop: number,
+    getNewLineNumber: (row: Row) => number | undefined,
+    getOldLineNumber: (row: Row) => number | undefined,
+    focusRow = scrollTop,
+): DiffPosition | null {
+    if (rows.length === 0) return null
+    const index = Math.min(rows.length - 1, Math.max(0, Math.floor(scrollTop)))
+    const focusIndex = Math.min(
+        rows.length - 1,
+        Math.max(0, Math.floor(focusRow)),
+    )
+    const current = rows[index]
+    if (!current) return null
+
+    const fileId = current.row.fileId
+    const findNearestLine = (
+        getLineNumber: (row: Row) => number | undefined,
+    ): number | undefined => {
+        for (let distance = 0; distance < rows.length; distance++) {
+            const after = rows[focusIndex + distance]
+            if (after?.row.fileId === fileId) {
+                const line = getLineNumber(after)
+                if (line !== undefined) return line
+            }
+
+            if (distance === 0) continue
+            const before = rows[focusIndex - distance]
+            if (before?.row.fileId === fileId) {
+                const line = getLineNumber(before)
+                if (line !== undefined) return line
+            }
+        }
+        return undefined
+    }
+
+    return {
+        fileId,
+        lineNumber:
+            findNearestLine(getNewLineNumber) ??
+            findNearestLine(getOldLineNumber),
+    }
+}
+
 export function getCurrentFileId<Row extends { row: { fileId: FileId } }>(
     rows: readonly Row[],
     scrollTop: number,
