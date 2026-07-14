@@ -19,6 +19,7 @@ import {
     type JjOperationResult,
     type JjRebaseOptions,
     type JjRefreshState,
+    type JjRestoreOptions,
     type JjService,
     type JjSquashOptions,
     type OperationFailure,
@@ -72,6 +73,11 @@ interface ApplicationEditOptions extends Omit<JjEditOptions, "sink"> {
 }
 
 interface ApplicationSquashOptions extends Omit<JjSquashOptions, "sink"> {
+    readonly observer?: CommandObserver
+    readonly signal?: AbortSignal
+}
+
+interface ApplicationRestoreOptions extends Omit<JjRestoreOptions, "sink"> {
     readonly observer?: CommandObserver
     readonly signal?: AbortSignal
 }
@@ -163,7 +169,7 @@ export interface ApplicationClient {
     ) => Promise<OperationResult>
     readonly jjRestore: (
         paths: readonly string[],
-        options: ApplicationOperationOptions,
+        options: ApplicationRestoreOptions,
     ) => Promise<OperationResult>
     readonly jjMaterializeFiles: (
         revision: string,

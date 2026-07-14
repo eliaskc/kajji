@@ -128,7 +128,11 @@ describe("ApplicationClient", () => {
         await client.jjBookmarkForget("forget", options)
         await client.jjDuplicate("duplicate", options)
         await client.jjAbandon("abandon", options)
-        await client.jjRestore(["path"], options)
+        await client.jjRestore(["path"], {
+            ...options,
+            from: "parent",
+            into: "revision",
+        })
         await client.dispose()
 
         expect(commands).toEqual([
@@ -143,7 +147,7 @@ describe("ApplicationClient", () => {
             "jj bookmark forget forget",
             "jj duplicate duplicate",
             "jj abandon abandon",
-            "jj restore path",
+            "jj restore --from parent --into revision path",
         ])
     })
 

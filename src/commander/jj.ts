@@ -93,6 +93,11 @@ export interface JjDiffOptions extends JjOperationOptions {
     readonly color?: boolean
 }
 
+export interface JjRestoreOptions extends JjOperationOptions {
+    readonly from?: string
+    readonly into?: string
+}
+
 export interface JjRebaseOptions extends JjOperationOptions {
     readonly mode?: "revision" | "descendants" | "branch"
     readonly targetMode?: "onto" | "insertAfter" | "insertBefore"
@@ -242,7 +247,7 @@ export interface JjService {
     ) => Effect.Effect<JjOperationResult, JjCommandError | ProcessError>
     readonly restore: (
         paths: readonly string[],
-        options: JjOperationOptions,
+        options: JjRestoreOptions,
     ) => Effect.Effect<JjOperationResult, JjCommandError | ProcessError>
     readonly materializeFile: (
         revision: string,
@@ -684,8 +689,16 @@ export const JjLive = Layer.effect(
                     ),
             ),
             restore: Effect.fn("Jj.restore")(
-                (paths: readonly string[], options: JjOperationOptions) =>
-                    run(["restore", ...paths], options),
+                (paths: readonly string[], options: JjRestoreOptions) =>
+                    run(
+                        [
+                            "restore",
+                            ...(options.from ? ["--from", options.from] : []),
+                            ...(options.into ? ["--into", options.into] : []),
+                            ...paths,
+                        ],
+                        options,
+                    ),
             ),
             materializeFile: Effect.fn("Jj.materializeFile")(function* (
                 revision: string,

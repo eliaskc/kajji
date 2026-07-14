@@ -339,7 +339,11 @@ describe("Jj", () => {
                     }),
                 ),
                 Jj.use((jj) =>
-                    jj.restore(["one", "two"], { cwd: "/tmp/repository" }),
+                    jj.restore(["one", "two"], {
+                        cwd: "/tmp/repository",
+                        from: "parent",
+                        into: "revision",
+                    }),
                 ),
             ],
             { concurrency: 1 },
@@ -350,7 +354,7 @@ describe("Jj", () => {
         expect(commands.map((command) => command.args)).toEqual([
             ["duplicate", "duplicate"],
             ["abandon", "abandon", "--ignore-immutable"],
-            ["restore", "one", "two"],
+            ["restore", "--from", "parent", "--into", "revision", "one", "two"],
         ])
     })
 

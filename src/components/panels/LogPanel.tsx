@@ -54,6 +54,7 @@ import {
 } from "../../utils/bookmark-origin-diff"
 import { blendColors } from "../../utils/color"
 import { createDoubleClickDetector } from "../../utils/double-click"
+import { getRevisionRestorePlan } from "../../utils/revision-restore"
 import {
     type SelectionSource,
     shouldAutoScrollSelection,
@@ -2231,52 +2232,70 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
             visibleIn: ["palette"] as const,
             execute: exitFilesView,
         },
-        ...(selectedLogCommit()?.isWorkingCopy
-            ? [
-                  {
-                      id: "log.files.restore",
-                      title: "discard",
-                      keybind: "jj_restore" as const,
-                      context: "log.files" as const,
-                      panel: "log" as const,
-                      visibleIn: ["palette", "statusBar"] as const,
-                      execute: async () => {
-                          const fileIndex = selectedFileIndex()
-                          const file = flatFiles()[fileIndex]
-                          if (!file) return
-                          const node = file.node
-                          const displayPath = node.path || node.name
-                          const restorePaths = node.path ? [node.path] : []
-                          const confirmed = await dialog.confirm({
-                              ...DIALOG_SIZE.confirmExtraWide,
-                              message: [
-                                  { text: "Discard", style: "action" },
-                                  " changes to ",
-                                  { text: displayPath, style: "target" },
-                                  "?",
-                              ],
-                          })
-                          if (confirmed) {
-                              const result = await runAppOperation(
-                                  "Discarding...",
-                                  (observer) =>
-                                      app.jjRestore(restorePaths, {
-                                          cwd: getRepoPath(),
-                                          observer,
-                                      }),
-                              )
-                              if (result?.success) {
-                                  const nextIndex = Math.min(
-                                      fileIndex,
-                                      flatFiles().length - 2,
-                                  )
-                                  setSelectedFileIndex(Math.max(0, nextIndex))
-                              }
-                          }
-                      },
-                  },
-              ]
-            : []),
+        {
+            id: "log.files.restore",
+            title: "discard",
+            keybind: "jj_restore",
+            context: "log.files",
+            panel: "log",
+            visibleIn: ["palette", "statusBar"] as const,
+            execute: async () => {
+                const fileIndex = selectedFileIndex()
+                const file = flatFiles()[fileIndex]
+                const commit = selectedLogCommit()
+                if (!file || !commit) return
+
+                const restorePlan = getRevisionRestorePlan(commit)
+                if (!restorePlan.supported) {
+                    status.show(restorePlan.message)
+                    return
+                }
+
+                const node = file.node
+                const displayPath = node.path || node.name
+                const restorePaths = node.path ? [node.path] : []
+                const revision = getRevisionId(commit)
+                const confirmed = await dialog.confirm({
+                    ...DIALOG_SIZE.confirmExtraWide,
+                    message: commit.isWorkingCopy
+                        ? [
+                              { text: "Discard", style: "action" },
+                              " changes to ",
+                              { text: displayPath, style: "target" },
+                              "?",
+                          ]
+                        : [
+                              { text: "Discard", style: "action" },
+                              " changes to ",
+                              { text: displayPath, style: "target" },
+                              " from revision ",
+                              { text: revision.slice(0, 8), style: "target" },
+                              " and rebase its descendants?",
+                          ],
+                })
+                if (!confirmed) return
+
+                const result = await runAppOperation(
+                    "Discarding...",
+                    (observer) =>
+                        app.jjRestore(restorePaths, {
+                            cwd: getRepoPath(),
+                            observer,
+                            from: restorePlan.from,
+                            into: restorePlan.into,
+                        }),
+                    (_result, commits) =>
+                        findCommitIndexById(commits, commit.changeId),
+                )
+                if (result?.success) {
+                    const nextIndex = Math.min(
+                        fileIndex,
+                        flatFiles().length - 2,
+                    )
+                    setSelectedFileIndex(Math.max(0, nextIndex))
+                }
+            },
+        },
         {
             id: "log.files.toggle_tree",
             title: "tree/list",
