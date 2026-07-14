@@ -904,32 +904,6 @@ export function MainArea() {
 
     command.register(() => [
         {
-            id: "detail.page_up",
-            title: "page up",
-            keybind: "nav_page_up",
-            context: "detail",
-            group: "navigation",
-            visibleIn: ["palette", "statusBar"] as const,
-            execute: () => {
-                hunkNavigationTarget = null
-                scrollRef?.scrollBy(-0.5, "viewport")
-                if (scrollRef) setScrollTop(scrollRef.scrollTop)
-            },
-        },
-        {
-            id: "detail.page_down",
-            title: "page down",
-            keybind: "nav_page_down",
-            context: "detail",
-            group: "navigation",
-            visibleIn: ["palette", "statusBar"] as const,
-            execute: () => {
-                hunkNavigationTarget = null
-                scrollRef?.scrollBy(0.5, "viewport")
-                if (scrollRef) setScrollTop(scrollRef.scrollTop)
-            },
-        },
-        {
             id: "detail.scroll_down",
             title: "scroll down",
             keybind: "nav_down",
@@ -954,22 +928,6 @@ export function MainArea() {
                 const newPos = Math.max(0, (scrollTop() || 0) - 1)
                 scrollRef?.scrollTo(newPos)
                 setScrollTop(newPos)
-            },
-        },
-        {
-            id: "detail.toggle_jj_formatter",
-            title: "diff mode",
-            keybind: "toggle_diff_formatter",
-            context: "detail",
-
-            visibleIn: ["palette", "statusBar"] as const,
-            execute: () => {
-                setUseJjFormatterOverride((enabled) => {
-                    if (enabled === null) {
-                        return !diffUseJjFormatter()
-                    }
-                    return !enabled
-                })
             },
         },
         {
@@ -1055,6 +1013,22 @@ export function MainArea() {
             },
         },
         {
+            id: "detail.toggle_jj_formatter",
+            title: "diff tool",
+            keybind: "toggle_diff_formatter",
+            context: "detail",
+
+            visibleIn: ["palette", "statusBar"] as const,
+            execute: () => {
+                setUseJjFormatterOverride((enabled) => {
+                    if (enabled === null) {
+                        return !diffUseJjFormatter()
+                    }
+                    return !enabled
+                })
+            },
+        },
+        {
             id: "detail.prev_hunk",
             title: "previous hunk",
             keybind: "nav_prev_hunk",
@@ -1074,6 +1048,32 @@ export function MainArea() {
             visibleIn: ["palette", "statusBar"] as const,
             execute: () => {
                 navigateHunk(1)
+            },
+        },
+        {
+            id: "detail.page_up",
+            title: "page up",
+            keybind: "nav_page_up",
+            context: "detail",
+            group: "navigation",
+            visibleIn: ["palette", "statusBar"] as const,
+            execute: () => {
+                hunkNavigationTarget = null
+                scrollRef?.scrollBy(-0.5, "viewport")
+                if (scrollRef) setScrollTop(scrollRef.scrollTop)
+            },
+        },
+        {
+            id: "detail.page_down",
+            title: "page down",
+            keybind: "nav_page_down",
+            context: "detail",
+            group: "navigation",
+            visibleIn: ["palette", "statusBar"] as const,
+            execute: () => {
+                hunkNavigationTarget = null
+                scrollRef?.scrollBy(0.5, "viewport")
+                if (scrollRef) setScrollTop(scrollRef.scrollTop)
             },
         },
         {

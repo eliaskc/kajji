@@ -648,7 +648,7 @@ function AppContent({ onQuit }: Pick<AppProps, "onQuit">) {
         },
         {
             id: "global.toggle_focus_mode",
-            title: "diff mode",
+            title: "layout",
             keybind: "toggle_focus_mode",
             context: "global",
 
