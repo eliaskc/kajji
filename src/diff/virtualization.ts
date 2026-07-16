@@ -169,13 +169,17 @@ export function getCurrentDiffPosition<Row extends { row: { fileId: FileId } }>(
     }
 }
 
-export function getCurrentFileId<Row extends { row: { fileId: FileId } }>(
-    rows: readonly Row[],
-    scrollTop: number,
-): FileId | null {
+export function getCurrentFileId<
+    Row extends { row: { fileId: FileId; type?: string } },
+>(rows: readonly Row[], scrollTop: number): FileId | null {
     if (rows.length === 0) return null
     const index = Math.min(rows.length - 1, Math.max(0, Math.floor(scrollTop)))
-    return rows[index]?.row.fileId ?? null
+    const current = rows[index]?.row
+    if (!current) return null
+    if (current.type === "file-gap") {
+        return rows[index + 1]?.row.fileId ?? current.fileId
+    }
+    return current.fileId
 }
 
 export function getFileScrollTailHeight<

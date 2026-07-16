@@ -151,6 +151,16 @@ describe("getCurrentFileId", () => {
         expect(getCurrentFileId(rows, 2)).toBe("second")
     })
 
+    test("treats the separator before a file as part of that file", () => {
+        const rowsWithGap = [
+            { row: { fileId: "first" as FileId, type: "content" } },
+            { row: { fileId: "first" as FileId, type: "file-gap" } },
+            { row: { fileId: "second" as FileId, type: "file-header" } },
+        ]
+
+        expect(getCurrentFileId(rowsWithGap, 1)).toBe("second")
+    })
+
     test("clamps offsets and handles empty rows", () => {
         expect(getCurrentFileId(rows, -1)).toBe("first")
         expect(getCurrentFileId(rows, 99)).toBe("second")

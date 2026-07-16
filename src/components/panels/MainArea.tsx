@@ -452,10 +452,15 @@ export function MainArea() {
         </text>
     )
 
-    // Derived state
-    const currentFile = createMemo(() =>
-        textFiles().find((file) => file.fileId === currentFileId()),
-    )
+    const [fileNavigationTarget, setFileNavigationTarget] =
+        createSignal<FileId | null>(null)
+
+    // A navigation target can differ from the top visible file when the full diff
+    // fits in the viewport and the scrollbox cannot move.
+    const currentFile = createMemo(() => {
+        const fileId = fileNavigationTarget() ?? currentFileId()
+        return textFiles().find((file) => file.fileId === fileId)
+    })
 
     const [hunkRowOffsets, setHunkRowOffsets] = createSignal(
         new Map<HunkId, number>(),
@@ -652,7 +657,7 @@ export function MainArea() {
         if (files.length === 0) return
         const currentIndex = Math.max(
             0,
-            files.findIndex((file) => file.fileId === currentFileId()),
+            files.findIndex((file) => file.fileId === currentFile()?.fileId),
         )
         const newIdx = Math.max(
             0,
@@ -662,12 +667,14 @@ export function MainArea() {
         if (!targetFile) return
         const rowOffset = fileRowOffsets().get(targetFile.fileId)
         if (rowOffset === undefined) return
+        setFileNavigationTarget(targetFile.fileId)
         const targetScrollTop = headerHeight() + rowOffset
         scrollRef?.scrollTo(targetScrollTop)
-        setScrollTop(targetScrollTop)
+        if (scrollRef) setScrollTop(scrollRef.scrollTop)
     }
 
     const navigateHunk = (direction: 1 | -1) => {
+        setFileNavigationTarget(null)
         const files = textFiles()
         const visibleRow =
             (hunkNavigationTarget
@@ -823,10 +830,11 @@ export function MainArea() {
         const rowOffset = fileRowOffsets().get(file.fileId)
         if (rowOffset === undefined) return
         hunkNavigationTarget = null
+        setFileNavigationTarget(file.fileId)
         handledFileNavigationRequest = request.id
         const targetScrollTop = headerHeight() + rowOffset
         scrollRef?.scrollTo(targetScrollTop)
-        setScrollTop(targetScrollTop)
+        if (scrollRef) setScrollTop(scrollRef.scrollTop)
     })
 
     createEffect(() => {
@@ -845,6 +853,7 @@ export function MainArea() {
             : commit?.changeId
         if (nextId && nextId !== currentCommitId()) {
             hunkNavigationTarget = null
+            setFileNavigationTarget(null)
             setCurrentCommitId(nextId)
             setScrollTop(0)
             setScrollLeft(0)
@@ -913,6 +922,7 @@ export function MainArea() {
     let scrollSyncTimer: ReturnType<typeof setTimeout> | undefined
     const handleScroll = (event: MouseEvent) => {
         hunkNavigationTarget = null
+        setFileNavigationTarget(null)
         handleHorizontalScroll(event)
         if (scrollSyncTimer) return
         scrollSyncTimer = setTimeout(() => {
@@ -1147,6 +1157,7 @@ export function MainArea() {
             visibleIn: ["palette"] as const,
             execute: () => {
                 hunkNavigationTarget = null
+                setFileNavigationTarget(null)
                 scrollRef?.scrollTo((scrollTop() || 0) + 1)
                 setScrollTop((scrollTop() || 0) + 1)
             },
@@ -1160,6 +1171,7 @@ export function MainArea() {
             visibleIn: ["palette"] as const,
             execute: () => {
                 hunkNavigationTarget = null
+                setFileNavigationTarget(null)
                 const newPos = Math.max(0, (scrollTop() || 0) - 1)
                 scrollRef?.scrollTo(newPos)
                 setScrollTop(newPos)
@@ -1294,6 +1306,7 @@ export function MainArea() {
             visibleIn: ["palette", "statusBar"] as const,
             execute: () => {
                 hunkNavigationTarget = null
+                setFileNavigationTarget(null)
                 scrollRef?.scrollBy(-0.5, "viewport")
                 if (scrollRef) setScrollTop(scrollRef.scrollTop)
             },
@@ -1307,6 +1320,7 @@ export function MainArea() {
             visibleIn: ["palette", "statusBar"] as const,
             execute: () => {
                 hunkNavigationTarget = null
+                setFileNavigationTarget(null)
                 scrollRef?.scrollBy(0.5, "viewport")
                 if (scrollRef) setScrollTop(scrollRef.scrollTop)
             },
