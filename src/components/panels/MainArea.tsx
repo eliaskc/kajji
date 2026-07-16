@@ -877,9 +877,12 @@ export function MainArea() {
         const currentHeaderHeight = headerRef?.height ?? 0
         const currentViewportWidth =
             scrollRef.viewport?.width ?? effectiveMainAreaWidth()
+        const widthAdjustment = scrollRef.verticalScrollBar.visible
+            ? SCROLLBAR_GUTTER
+            : SCROLLBAR_GUTTER + 1
         const measuredWidth = Math.max(
             1,
-            currentViewportWidth - SCROLLBAR_GUTTER,
+            currentViewportWidth - widthAdjustment,
         )
         if (Math.abs(measuredWidth - effectiveMainAreaWidth()) > 2) {
             setMetricsMode(null)
@@ -892,7 +895,7 @@ export function MainArea() {
             currentScroll !== scrollTop() ||
             currentViewport !== viewportHeight() ||
             currentHeaderHeight !== headerHeight() ||
-            currentViewportWidth - SCROLLBAR_GUTTER !== viewportWidth()
+            measuredWidth !== viewportWidth()
         ) {
             setViewportHeight(currentViewport)
             setScrollTop(currentScroll)
