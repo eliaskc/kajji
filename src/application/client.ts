@@ -29,7 +29,7 @@ import {
 import type { FetchLogPageResult } from "../commander/log"
 import type { CommandObserver } from "../commander/observer"
 import type { OperationResult } from "../commander/operations"
-import type { FileChange } from "../commander/types"
+import type { Commit, FileChange } from "../commander/types"
 import { Hooks, HooksLive, type HooksService } from "../hooks/runner"
 import type { HookOperationId } from "../hooks/types"
 import { AppProcessLive, type ProcessError } from "../process/app-process"
@@ -56,6 +56,11 @@ interface ApplicationBookmarkReadOptions
 
 interface ApplicationLogReadOptions extends Omit<JjLogReadOptions, "sink"> {
     readonly signal?: AbortSignal
+}
+
+export interface ApplicationStreamHandle<A> {
+    readonly result: Promise<A>
+    readonly cancel: () => void
 }
 
 export interface ApplicationGitFetchOptions
@@ -235,9 +240,17 @@ export interface ApplicationClient {
     readonly jjBookmarks: (
         options: ApplicationBookmarkReadOptions,
     ) => Promise<Bookmark[]>
+    readonly jjStreamBookmarks: (
+        options: ApplicationBookmarkReadOptions,
+        onBatch: (bookmarks: readonly Bookmark[]) => void | Promise<void>,
+    ) => ApplicationStreamHandle<Bookmark[]>
     readonly jjLogPage: (
         options: ApplicationLogReadOptions,
     ) => Promise<FetchLogPageResult>
+    readonly jjStreamLogPage: (
+        options: ApplicationLogReadOptions,
+        onBatch: (commits: readonly Commit[]) => void | Promise<void>,
+    ) => ApplicationStreamHandle<FetchLogPageResult>
     readonly dispose: () => Promise<void>
 }
 
@@ -315,6 +328,20 @@ export function makeApplicationClient(
         if (!accepting)
             return Promise.reject(new ApplicationClientClosedError())
         return runtime.runPromise(Jj.use(operation), { signal: options.signal })
+    }
+
+    const runStream = <A, E>(
+        options: ApplicationReadOptions,
+        operation: (jj: JjService) => Effect.Effect<A, E>,
+    ): ApplicationStreamHandle<A> => {
+        const controller = new AbortController()
+        const signal = options.signal
+            ? AbortSignal.any([options.signal, controller.signal])
+            : controller.signal
+        return {
+            result: runRead({ ...options, signal }, operation),
+            cancel: () => controller.abort(),
+        }
     }
 
     const runHookRead = <A, E>(
@@ -530,7 +557,11 @@ export function makeApplicationClient(
             runRead(options, (jj) => jj.diff(target, options)),
         jjBookmarks: (options) =>
             runRead(options, (jj) => jj.bookmarks(options)),
+        jjStreamBookmarks: (options, onBatch) =>
+            runStream(options, (jj) => jj.streamBookmarks(options, onBatch)),
         jjLogPage: (options) => runRead(options, (jj) => jj.logPage(options)),
+        jjStreamLogPage: (options, onBatch) =>
+            runStream(options, (jj) => jj.streamLogPage(options, onBatch)),
         dispose: () => {
             accepting = false
             if (!disposePromise) {

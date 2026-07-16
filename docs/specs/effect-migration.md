@@ -548,6 +548,46 @@ Verification evidence:
 Scoped streaming for log, bookmark, and diff reads is the next architectural
 phase.
 
+## Implementation Update — 2026-07-16 17:07:35 CEST
+
+The scoped streaming phase is complete for the live TUI paths. Log pages and
+local bookmarks now stream through `Jj`, `AppProcess`, and the owned
+`ApplicationClient` runtime. The application boundary returns a cancelable
+handle with a completion Promise and one backpressured batch consumer; Solid
+still owns no Effect runtime, service, fiber, or scope.
+
+`AppProcess` now waits for asynchronous output consumers before pulling the next
+chunk. This makes backpressure explicit while retaining concurrent stdout and
+stderr draining, incremental `TextDecoder` tails, timeout policy, process-group
+termination, and scope finalization. `Jj` incrementally parses complete log
+records and complete bookmark lines, emits bounded visible batches, and applies
+the same typed stale/read failure policy as captured reads. Final results still
+carry pagination evidence through the existing limit-plus-one policy.
+
+`SyncProvider` now awaits stream completion directly and uses operation-local
+abort controllers plus request tokens. Superseded refreshes, filters, load-more
+requests, and provider disposal interrupt their scoped process and ignore stale
+batches or completion. The old callback completion/error bookkeeping is gone.
+
+No live diff caller remained on the legacy streaming path: revision and range
+diffs already use the captured `Jj.diff` capability. The dead diff stream,
+bookmark stream, log stream wrappers, and `executeStreaming` implementation
+have therefore been removed.
+
+Verification evidence:
+
+- `bun test`: 365 passing tests
+- `bun check` and changed-file Biome checks pass
+- `bun test:e2e`: all 10 terminal workflows pass
+- focused tests cover output backpressure, incremental chunk boundaries, stream
+  cancellation, pagination, and final parsing
+- Terminal Control verified a fresh TUI load, streamed revisions/bookmarks, and
+  a filter-driven log reload
+
+The next migration phase is gh and git process ownership, followed by repository
+health and stack workflows. Remaining legacy captured wrappers and parser/template
+imports can be removed as their CLI and stack callers migrate.
+
 ## Work After Fetch
 
 ### 1. Consolidate captured jj execution

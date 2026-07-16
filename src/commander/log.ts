@@ -1,6 +1,5 @@
 import { isStaleWorkingCopyFailure } from "../utils/error-parser"
-import { execute, executeStreaming } from "./executor"
-import type { ExecuteResult } from "./executor"
+import { execute } from "./executor"
 import type { Commit } from "./types"
 
 const MARKER = "__LJ__"
@@ -159,7 +158,7 @@ export function parseLogOutput(output: string): Commit[] {
     return commits
 }
 
-interface LogStreamState {
+export interface LogStreamState {
     buffer: string
     current: Commit | null
 }
@@ -228,7 +227,10 @@ function parseLogLine(line: string, state: LogStreamState): Commit | null {
     return null
 }
 
-function consumeLogChunk(chunk: string, state: LogStreamState): Commit[] {
+export function consumeLogChunk(
+    chunk: string,
+    state: LogStreamState,
+): Commit[] {
     state.buffer += chunk
     const lines = state.buffer.split("\n")
     state.buffer = lines.pop() ?? ""
@@ -242,7 +244,7 @@ function consumeLogChunk(chunk: string, state: LogStreamState): Commit[] {
     return completed
 }
 
-function finalizeLogStream(state: LogStreamState): Commit[] {
+export function finalizeLogStream(state: LogStreamState): Commit[] {
     const completed: Commit[] = []
     if (state.buffer) {
         const finished = parseLogLine(state.buffer, state)
@@ -265,12 +267,6 @@ export interface FetchLogOptions {
 export interface FetchLogPageResult {
     commits: Commit[]
     hasMore: boolean
-}
-
-export interface StreamLogPageCallbacks {
-    onBatch: (commits: Commit[]) => void
-    onComplete: (result: FetchLogPageResult) => void
-    onError: (error: Error) => void
 }
 
 export function buildLogArgs(
@@ -330,92 +326,6 @@ export async function fetchLogPage(
     }
 
     return { commits, hasMore: false }
-}
-
-export function streamLogPage(
-    options: FetchLogOptions | undefined,
-    callbacks: StreamLogPageCallbacks,
-): { cancel: () => void } {
-    const limit = options?.limit
-    const template = buildLogTemplate()
-    const args = buildLogArgs(options, template, limit ? limit + 1 : undefined)
-    const state: LogStreamState = { buffer: "", current: null }
-    const commits: Commit[] = []
-    const maxCommits = limit ? limit + 1 : Number.POSITIVE_INFINITY
-
-    let pending = false
-    let flushTimer: ReturnType<typeof setTimeout> | null = null
-
-    const flush = () => {
-        flushTimer = null
-        if (!pending) return
-        pending = false
-        const visible = limit ? commits.slice(0, limit) : commits
-        callbacks.onBatch(visible)
-    }
-
-    const scheduleFlush = () => {
-        if (!flushTimer) {
-            flushTimer = setTimeout(flush, 25)
-        }
-    }
-
-    const appendCommits = (newCommits: Commit[]) => {
-        if (newCommits.length === 0) return
-        let appended = false
-        for (const commit of newCommits) {
-            if (commits.length >= maxCommits) continue
-            commits.push(commit)
-            appended = true
-        }
-        if (appended) {
-            pending = true
-            scheduleFlush()
-        }
-    }
-
-    return executeStreaming(
-        args,
-        { cwd: options?.cwd },
-        {
-            onChunk: (_content: string, _lineCount: number, chunk: string) => {
-                appendCommits(consumeLogChunk(chunk, state))
-            },
-            onComplete: (result: ExecuteResult) => {
-                if (flushTimer) {
-                    clearTimeout(flushTimer)
-                    flushTimer = null
-                }
-                const combinedOutput = result.stdout + result.stderr
-                if (isStaleWorkingCopyFailure(result)) {
-                    callbacks.onError(
-                        new Error(
-                            `The working copy is stale\n${combinedOutput}`,
-                        ),
-                    )
-                    return
-                }
-                if (!result.success) {
-                    callbacks.onError(
-                        new Error(`jj log failed: ${result.stderr}`),
-                    )
-                    return
-                }
-
-                appendCommits(finalizeLogStream(state))
-                const hasMore = limit ? commits.length > limit : false
-                const visible = limit ? commits.slice(0, limit) : commits
-                callbacks.onComplete({ commits: visible, hasMore })
-            },
-            onError: (error) => {
-                if (flushTimer) {
-                    clearTimeout(flushTimer)
-                    flushTimer = null
-                }
-                callbacks.onError(error)
-            },
-        },
-    )
 }
 
 export async function fetchLog(options?: FetchLogOptions): Promise<Commit[]> {

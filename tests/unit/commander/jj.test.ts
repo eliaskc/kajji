@@ -643,6 +643,72 @@ describe("Jj", () => {
         expect(commands[1]?.args.slice(-2)).toEqual(["--limit", "21"])
     })
 
+    test("incrementally parses bookmark output", async () => {
+        const lines = [
+            "__BJ__main__BJ__main__BJ____BJ__change-one__BJ__commit-one__BJ__one__BJ__commit-one__BJ__first",
+            "__BJ__feature__BJ__feature__BJ____BJ__change-two__BJ__commit-two__BJ__two__BJ__commit-two__BJ__second",
+        ]
+        const output = `${lines.join("\n")}\n`
+        const firstLineEnd = output.indexOf("\n") + 1
+        const chunks = [
+            output.slice(0, 24),
+            output.slice(24, firstLineEnd),
+            output.slice(firstLineEnd),
+        ]
+        const processLayer = makeAppProcessFake((command) =>
+            Effect.promise(async () => {
+                for (const chunk of chunks) {
+                    await command.onOutput?.("stdout", chunk)
+                }
+                return { ...success, stdout: output }
+            }),
+        )
+        const batches: string[][] = []
+        const effect = Jj.use((jj) =>
+            jj.streamBookmarks({ cwd: "/tmp/repository" }, (bookmarks) => {
+                batches.push(bookmarks.map((bookmark) => bookmark.name))
+            }),
+        ).pipe(Effect.provide(JjLive), Effect.provide(processLayer))
+
+        await expect(Effect.runPromise(effect)).resolves.toMatchObject([
+            { name: "main" },
+            { name: "feature" },
+        ])
+        expect(batches).toEqual([["main"], ["main", "feature"]])
+    })
+
+    test("incrementally parses log output with backpressured batches", async () => {
+        const lines = [
+            "@  __LJ__one__LJ__commit-one__LJ__false__LJ__false__LJ__false__LJ__false__LJ__one__LJ__A__LJ__a@example.com__LJ__2025-01-01 12:00:00__LJ____LJ__false__LJ____LJ__one",
+            "○  __LJ__two__LJ__commit-two__LJ__false__LJ__false__LJ__false__LJ__false__LJ__two__LJ__A__LJ__a@example.com__LJ__2025-01-01 11:00:00__LJ____LJ__false__LJ____LJ__two",
+            "◆  __LJ__three__LJ__commit-three__LJ__true__LJ__true__LJ__false__LJ__false__LJ__three__LJ__A__LJ__a@example.com__LJ__2025-01-01 10:00:00__LJ____LJ__false__LJ____LJ__three",
+        ]
+        const processLayer = makeAppProcessFake((command) =>
+            Effect.promise(async () => {
+                for (const line of lines) {
+                    await command.onOutput?.("stdout", `${line}\n`)
+                }
+                return { ...success, stdout: `${lines.join("\n")}\n` }
+            }),
+        )
+        const batches: string[][] = []
+        const effect = Jj.use((jj) =>
+            jj.streamLogPage(
+                { cwd: "/tmp/repository", limit: 2 },
+                async (commits) => {
+                    batches.push(commits.map((commit) => commit.changeId))
+                    await Bun.sleep(1)
+                },
+            ),
+        ).pipe(Effect.provide(JjLive), Effect.provide(processLayer))
+
+        await expect(Effect.runPromise(effect)).resolves.toMatchObject({
+            commits: [{ changeId: "one" }, { changeId: "two" }],
+            hasMore: true,
+        })
+        expect(batches[0]).toEqual(["one"])
+    })
+
     test("reads commit details and bounded operation log", async () => {
         const commands: ProcessCommand[] = []
         const processLayer = makeAppProcessFake((command) => {

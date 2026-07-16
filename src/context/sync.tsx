@@ -11,7 +11,7 @@ import {
     onMount,
     useContext,
 } from "solid-js"
-import { type Bookmark, fetchBookmarksStream } from "../commander/bookmarks"
+import type { Bookmark } from "../commander/bookmarks"
 import {
     type GitHubPullRequestSummary,
     ghListPullRequestsByHead,
@@ -20,7 +20,6 @@ import { getRepoPath } from "../repo"
 import { addRecentRepo } from "../utils/state"
 import { getVisibleBookmarks } from "./sync-bookmarks"
 
-import { streamLogPage } from "../commander/log"
 import { type Commit, type FileChange, getRevisionId } from "../commander/types"
 import { onConfigChange, readConfig } from "../config"
 import {
@@ -330,20 +329,14 @@ export function SyncProvider(props: { children: JSX.Element }) {
     let lastWorkingCopyCommitId: string | null = null
     let isRefreshing = false
     let refreshQueued = false
-    let bookmarksStreamHandle: ReturnType<typeof fetchBookmarksStream> | null =
-        null
+    let bookmarksStreamHandle: { cancel: () => void } | null = null
+    let bookmarksStreamToken = 0
     let logStreamHandle: { cancel: () => void } | null = null
     let logStreamToken = 0
-    let logStreamResolve: (() => void) | null = null
-    let logStreamReject: ((error: Error) => void) | null = null
 
     const cancelLogStream = () => {
         logStreamHandle?.cancel()
         logStreamHandle = null
-        const resolve = logStreamResolve
-        logStreamResolve = null
-        logStreamReject = null
-        resolve?.()
     }
 
     const doFullRefresh = async (options?: RefreshOptions) => {
@@ -524,6 +517,8 @@ export function SyncProvider(props: { children: JSX.Element }) {
             if (focusDebounceTimer) {
                 clearTimeout(focusDebounceTimer)
             }
+            bookmarksStreamToken += 1
+            logStreamToken += 1
             bookmarksStreamHandle?.cancel()
             cancelLogStream()
         })
@@ -725,7 +720,9 @@ export function SyncProvider(props: { children: JSX.Element }) {
         setSelectedBookmarkIndex(Math.max(0, localBookmarks().length - 1))
     }
 
-    const loadBookmarks = (): Promise<void> => {
+    const loadBookmarks = async (): Promise<void> => {
+        const token = bookmarksStreamToken + 1
+        bookmarksStreamToken = token
         bookmarksStreamHandle?.cancel()
         bookmarksStreamHandle = null
 
@@ -737,86 +734,75 @@ export function SyncProvider(props: { children: JSX.Element }) {
         }
         setBookmarksError(null)
 
-        const updateBookmarkState = (result: Bookmark[]) => {
-            setBookmarks(result)
+        const updateBookmarkState = (result: readonly Bookmark[]) => {
+            setBookmarks(result.slice())
             const localCount = result.filter(
                 (bookmark) => bookmark.isLocal,
             ).length
             setBookmarksHasMore(localCount > bookmarkLimit())
         }
 
-        return new Promise((resolve, reject) => {
-            bookmarksStreamHandle = fetchBookmarksStream(
-                {},
-                {
-                    onBatch: (batch, _total) => {
-                        if (batch.length === 0) return
-                        if (
-                            previousBookmarks.length === 0 ||
-                            batch.length >= previousBookmarks.length
-                        ) {
-                            updateBookmarkState(batch)
-                            return
-                        }
-                        const batchKeys = new Set(
-                            batch.map(
-                                (bookmark) =>
-                                    `${bookmark.isLocal ? "local" : "remote"}:${bookmark.remote ?? ""}:${bookmark.name}`,
-                            ),
-                        )
-                        const previousIndex = new Map<string, number>()
-                        for (const [
-                            index,
-                            bookmark,
-                        ] of previousBookmarks.entries()) {
-                            const key = `${bookmark.isLocal ? "local" : "remote"}:${bookmark.remote ?? ""}:${bookmark.name}`
-                            previousIndex.set(key, index)
-                        }
-                        const lastBatch = batch[batch.length - 1]
-                        const lastBatchKey = lastBatch
-                            ? `${lastBatch.isLocal ? "local" : "remote"}:${lastBatch.remote ?? ""}:${lastBatch.name}`
-                            : null
-                        const lastBatchIndex = lastBatchKey
-                            ? (previousIndex.get(lastBatchKey) ?? -1)
-                            : -1
-                        const merged = batch.concat(
-                            previousBookmarks.filter((bookmark) => {
-                                const key = `${bookmark.isLocal ? "local" : "remote"}:${bookmark.remote ?? ""}:${bookmark.name}`
-                                const index = previousIndex.get(key) ?? -1
-                                if (
-                                    lastBatchIndex >= 0 &&
-                                    index <= lastBatchIndex
-                                )
-                                    return false
-                                return !batchKeys.has(key)
-                            }),
-                        )
-                        updateBookmarkState(merged)
-                    },
-                    onComplete: (final) => {
-                        updateBookmarkState(final)
-                        if (isInitialLoad) {
-                            setSelectedBookmarkIndex(0)
-                        } else {
-                            setSelectedBookmarkIndex((index) =>
-                                final.length === 0
-                                    ? 0
-                                    : Math.min(index, final.length - 1),
-                            )
-                        }
-                        setBookmarksLoading(false)
-                        bookmarksStreamHandle = null
-                        resolve()
-                    },
-                    onError: (error) => {
-                        setBookmarksError(error.message)
-                        setBookmarksLoading(false)
-                        bookmarksStreamHandle = null
-                        reject(error)
-                    },
-                },
+        const stream = app.jjStreamBookmarks(
+            { cwd: getRepoPath() },
+            (batch) => {
+                if (token !== bookmarksStreamToken || batch.length === 0) return
+                if (
+                    previousBookmarks.length === 0 ||
+                    batch.length >= previousBookmarks.length
+                ) {
+                    updateBookmarkState(batch)
+                    return
+                }
+                const bookmarkKey = (bookmark: Bookmark) =>
+                    `${bookmark.isLocal ? "local" : "remote"}:${bookmark.remote ?? ""}:${bookmark.name}`
+                const batchKeys = new Set(batch.map(bookmarkKey))
+                const previousIndex = new Map<string, number>()
+                for (const [index, bookmark] of previousBookmarks.entries()) {
+                    previousIndex.set(bookmarkKey(bookmark), index)
+                }
+                const lastBatch = batch[batch.length - 1]
+                const lastBatchIndex = lastBatch
+                    ? (previousIndex.get(bookmarkKey(lastBatch)) ?? -1)
+                    : -1
+                const merged = batch.concat(
+                    previousBookmarks.filter((bookmark) => {
+                        const key = bookmarkKey(bookmark)
+                        const index = previousIndex.get(key) ?? -1
+                        if (lastBatchIndex >= 0 && index <= lastBatchIndex)
+                            return false
+                        return !batchKeys.has(key)
+                    }),
+                )
+                updateBookmarkState(merged)
+            },
+        )
+        bookmarksStreamHandle = stream
+
+        try {
+            const final = await stream.result
+            if (token !== bookmarksStreamToken) return
+            updateBookmarkState(final)
+            if (isInitialLoad) {
+                setSelectedBookmarkIndex(0)
+            } else {
+                setSelectedBookmarkIndex((index) =>
+                    final.length === 0 ? 0 : Math.min(index, final.length - 1),
+                )
+            }
+        } catch (error) {
+            if (token !== bookmarksStreamToken) return
+            setBookmarksError(
+                error instanceof Error
+                    ? error.message
+                    : "Failed to load bookmarks",
             )
-        })
+            throw error
+        } finally {
+            if (token === bookmarksStreamToken) {
+                setBookmarksLoading(false)
+                bookmarksStreamHandle = null
+            }
+        }
     }
 
     const loadMoreBookmarks = async () => {
@@ -880,63 +866,47 @@ export function SyncProvider(props: { children: JSX.Element }) {
 
     const loadMoreLog = async () => {
         if (!logHasMore() || logLoadingMore()) return
+        const token = logStreamToken + 1
+        logStreamToken = token
         cancelLogStream()
         setLogLoadingMore(true)
         const newLimit = logLimit() + 50
         setLogLimit(newLimit)
         const filter = revsetFilter()
         const minLength = commits().length
-        const token = logStreamToken + 1
-        logStreamToken = token
-        return new Promise<void>((resolve, reject) => {
-            logStreamResolve = resolve
-            logStreamReject = reject
-            logStreamHandle = streamLogPage(
-                filter
-                    ? { revset: filter, limit: newLimit }
-                    : { limit: newLimit },
-                {
-                    onBatch: (batch) => {
-                        if (token !== logStreamToken) return
-                        if (batch.length >= minLength) {
-                            setCommits(batch)
-                        }
-                    },
-                    onComplete: (result) => {
-                        if (token !== logStreamToken) return
-                        setCommits(result.commits)
-                        setLogHasMore(result.hasMore)
-                        setSelectedIndex((index) =>
-                            result.commits.length === 0
-                                ? 0
-                                : Math.min(index, result.commits.length - 1),
-                        )
-                        setLogLoadingMore(false)
-                        logStreamHandle = null
-                        logStreamResolve = null
-                        logStreamReject = null
-                        resolve()
-                    },
-                    onError: (error) => {
-                        if (token !== logStreamToken) return
-                        const msg =
-                            error instanceof Error
-                                ? error.message
-                                : "Failed to load log"
-                        if (filter) {
-                            setRevsetError(cleanRevsetError(msg))
-                        } else {
-                            setError(msg)
-                        }
-                        setLogLoadingMore(false)
-                        logStreamHandle = null
-                        logStreamResolve = null
-                        logStreamReject = null
-                        resolve()
-                    },
-                },
+        const stream = app.jjStreamLogPage(
+            filter
+                ? { cwd: getRepoPath(), revset: filter, limit: newLimit }
+                : { cwd: getRepoPath(), limit: newLimit },
+            (batch) => {
+                if (token !== logStreamToken) return
+                if (batch.length >= minLength) setCommits(batch.slice())
+            },
+        )
+        logStreamHandle = stream
+
+        try {
+            const result = await stream.result
+            if (token !== logStreamToken) return
+            setCommits(result.commits)
+            setLogHasMore(result.hasMore)
+            setSelectedIndex((index) =>
+                result.commits.length === 0
+                    ? 0
+                    : Math.min(index, result.commits.length - 1),
             )
-        })
+        } catch (error) {
+            if (token !== logStreamToken) return
+            const message =
+                error instanceof Error ? error.message : "Failed to load log"
+            if (filter) setRevsetError(cleanRevsetError(message))
+            else setError(message)
+        } finally {
+            if (token === logStreamToken) {
+                setLogLoadingMore(false)
+                logStreamHandle = null
+            }
+        }
     }
 
     const loadLog = async (options?: RefreshOptions) => {
@@ -946,119 +916,95 @@ export function SyncProvider(props: { children: JSX.Element }) {
         setRevsetError(null)
         const filter = revsetFilter()
         const limit = logLimit()
-        const previousCommits = commits()
         const token = logStreamToken + 1
         logStreamToken = token
         cancelLogStream()
-        return new Promise<void>((resolve, reject) => {
-            logStreamResolve = resolve
-            logStreamReject = reject
-            logStreamHandle = streamLogPage(
-                filter ? { revset: filter, limit } : { limit },
-                {
-                    onBatch: (batch) => {
-                        if (token !== logStreamToken) return
-                        if (batch.length === 0) return
-                        const baseCommits = commits()
-                        if (
-                            baseCommits.length === 0 ||
-                            batch.length >= baseCommits.length
-                        ) {
-                            batchUpdates(() => {
-                                setCommits(batch)
-                                const nextSelectedIndex =
-                                    options?.selectIndex?.(batch)
-                                if (nextSelectedIndex != null) {
-                                    setSelectedIndex(nextSelectedIndex)
-                                }
-                            })
-                        } else {
-                            const batchIds = new Set(
-                                batch.map((commit) => commit.changeId),
+
+        const stream = app.jjStreamLogPage(
+            filter
+                ? { cwd: getRepoPath(), revset: filter, limit }
+                : { cwd: getRepoPath(), limit },
+            (batch) => {
+                if (token !== logStreamToken || batch.length === 0) return
+                const baseCommits = commits()
+                if (
+                    baseCommits.length === 0 ||
+                    batch.length >= baseCommits.length
+                ) {
+                    batchUpdates(() => {
+                        setCommits(batch.slice())
+                        const nextSelectedIndex = options?.selectIndex?.(
+                            batch.slice(),
+                        )
+                        if (nextSelectedIndex != null)
+                            setSelectedIndex(nextSelectedIndex)
+                    })
+                } else {
+                    const batchIds = new Set(
+                        batch.map((commit) => commit.changeId),
+                    )
+                    const batchHasWorkingCopy = batch.some(
+                        (commit) => commit.isWorkingCopy,
+                    )
+                    const merged = batch.concat(
+                        baseCommits.filter((commit) => {
+                            if (batchIds.has(commit.changeId)) return false
+                            if (batchHasWorkingCopy && commit.isWorkingCopy)
+                                return false
+                            return true
+                        }),
+                    )
+                    batchUpdates(() => {
+                        setCommits(merged)
+                        const nextSelectedIndex = options?.selectIndex?.(merged)
+                        if (nextSelectedIndex != null)
+                            setSelectedIndex(nextSelectedIndex)
+                    })
+                }
+                if (isInitialLoad) setLoading(false)
+            },
+        )
+        logStreamHandle = stream
+
+        try {
+            const result = await stream.result
+            if (token !== logStreamToken) return
+            batchUpdates(() => {
+                setCommits(result.commits)
+                setLogHasMore(result.hasMore)
+                setLogLimit(limit)
+                const nextSelectedIndex = options?.selectIndex?.(result.commits)
+                setSelectedIndex((index) =>
+                    result.commits.length === 0
+                        ? 0
+                        : nextSelectedIndex != null
+                          ? Math.max(
+                                0,
+                                Math.min(
+                                    nextSelectedIndex,
+                                    result.commits.length - 1,
+                                ),
                             )
-                            const batchHasWorkingCopy = batch.some(
-                                (commit) => commit.isWorkingCopy,
-                            )
-                            const merged = batch.concat(
-                                baseCommits.filter((commit) => {
-                                    if (batchIds.has(commit.changeId))
-                                        return false
-                                    if (
-                                        batchHasWorkingCopy &&
-                                        commit.isWorkingCopy
-                                    )
-                                        return false
-                                    return true
-                                }),
-                            )
-                            batchUpdates(() => {
-                                setCommits(merged)
-                                const nextSelectedIndex =
-                                    options?.selectIndex?.(merged)
-                                if (nextSelectedIndex != null) {
-                                    setSelectedIndex(nextSelectedIndex)
-                                }
-                            })
-                        }
-                        if (isInitialLoad) setLoading(false)
-                    },
-                    onComplete: (result) => {
-                        if (token !== logStreamToken) return
-                        batchUpdates(() => {
-                            setCommits(result.commits)
-                            setLogHasMore(result.hasMore)
-                            setLogLimit(limit)
-                            const nextSelectedIndex = options?.selectIndex?.(
-                                result.commits,
-                            )
-                            setSelectedIndex((index) =>
-                                result.commits.length === 0
-                                    ? 0
-                                    : nextSelectedIndex != null
-                                      ? Math.max(
-                                            0,
-                                            Math.min(
-                                                nextSelectedIndex,
-                                                result.commits.length - 1,
-                                            ),
-                                        )
-                                      : Math.min(
-                                            index,
-                                            result.commits.length - 1,
-                                        ),
-                            )
-                        })
-                        setRevsetError(null)
-                        if (isInitialLoad) {
-                            setSelectedIndex(0)
-                            addRecentRepo(getRepoPath())
-                        }
-                        setLoading(false)
-                        logStreamHandle = null
-                        logStreamResolve = null
-                        logStreamReject = null
-                        resolve()
-                    },
-                    onError: (error) => {
-                        if (token !== logStreamToken) return
-                        const msg =
-                            error instanceof Error
-                                ? error.message
-                                : "Failed to load log"
-                        if (filter) {
-                            setRevsetError(cleanRevsetError(msg))
-                        } else {
-                            setError(msg)
-                        }
-                        if (isInitialLoad) setLoading(false)
-                        logStreamHandle = null
-                        logStreamResolve = null
-                        logStreamReject = null
-                        resolve()
-                    },
-                },
-            )
-        })
+                          : Math.min(index, result.commits.length - 1),
+                )
+            })
+            setRevsetError(null)
+            if (isInitialLoad) {
+                setSelectedIndex(0)
+                addRecentRepo(getRepoPath())
+            }
+        } catch (error) {
+            if (token !== logStreamToken) return
+            const message =
+                error instanceof Error ? error.message : "Failed to load log"
+            if (filter) setRevsetError(cleanRevsetError(message))
+            else setError(message)
+        } finally {
+            if (token === logStreamToken) {
+                setLoading(false)
+                logStreamHandle = null
+            }
+        }
     }
 
     const clearRevsetFilter = () => {

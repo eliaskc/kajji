@@ -322,6 +322,37 @@ describe("ApplicationClient", () => {
         })
     })
 
+    test("cancels scoped streaming reads", async () => {
+        let started!: () => void
+        const startedPromise = new Promise<void>((resolve) => {
+            started = resolve
+        })
+        let released = false
+        const layer = makeAppProcessFake(() =>
+            Effect.scoped(
+                Effect.acquireRelease(
+                    Effect.sync(() => started()),
+                    () =>
+                        Effect.sync(() => {
+                            released = true
+                        }),
+                ).pipe(Effect.flatMap(() => Effect.never)),
+            ),
+        )
+        const client = makeApplicationClient(layer)
+        const stream = client.jjStreamLogPage(
+            { cwd: "/tmp/repository", limit: 50 },
+            () => {},
+        )
+
+        await startedPromise
+        stream.cancel()
+
+        await expect(stream.result).rejects.toBeDefined()
+        expect(released).toBe(true)
+        await client.dispose()
+    })
+
     test("dispose interrupts active operations and rejects new ones", async () => {
         let started!: () => void
         const startedPromise = new Promise<void>((resolve) => {

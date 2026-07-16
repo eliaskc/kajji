@@ -9,7 +9,10 @@ export interface ProcessCommand {
     readonly env?: Readonly<Record<string, string>>
     readonly timeoutMs?: number
     readonly stdoutFile?: string
-    readonly onOutput?: (stream: ProcessOutputStream, chunk: string) => void
+    readonly onOutput?: (
+        stream: ProcessOutputStream,
+        chunk: string,
+    ) => void | Promise<void>
 }
 
 export interface ProcessResult {
@@ -62,15 +65,15 @@ interface ChildHandle {
     kill(signal?: number | NodeJS.Signals): void
 }
 
-function notifyOutput(
+async function notifyOutput(
     command: ProcessCommand,
     stream: ProcessOutputStream,
     chunk: string,
 ) {
     try {
-        command.onOutput?.(stream, chunk)
+        await command.onOutput?.(stream, chunk)
     } catch {
-        // Output observation is deliberately infallible.
+        // Output consumption is deliberately infallible at the process edge.
     }
 }
 
@@ -90,12 +93,12 @@ function readOutput(
                     if (done) break
                     const chunk = decoder.decode(value, { stream: true })
                     output += chunk
-                    notifyOutput(command, stream, chunk)
+                    await notifyOutput(command, stream, chunk)
                 }
                 const tail = decoder.decode()
                 if (tail) {
                     output += tail
-                    notifyOutput(command, stream, tail)
+                    await notifyOutput(command, stream, tail)
                 }
                 return output
             } finally {

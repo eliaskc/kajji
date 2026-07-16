@@ -31,6 +31,7 @@ function run(
         env?: Record<string, string>
         timeoutMs?: number
         stdoutFile?: string
+        onOutput?: (stream: "stdout" | "stderr", chunk: string) => Promise<void>
     },
 ) {
     return Effect.runPromise(
@@ -42,6 +43,7 @@ function run(
                 env: options?.env,
                 timeoutMs: options?.timeoutMs,
                 stdoutFile: options?.stdoutFile,
+                onOutput: options?.onOutput,
             }),
         ).pipe(Effect.provide(AppProcessLive)),
     )
@@ -85,6 +87,62 @@ describe("AppProcess", () => {
 
         expect(result.stdout).toBe("")
         expect([...readFileSync(output)]).toEqual([0, 255, 1])
+    })
+
+    test("backpressures output reads until asynchronous consumers finish", async () => {
+        let release: (() => void) | undefined
+        const gate = new Promise<void>((resolve) => {
+            release = resolve
+        })
+        let consuming = false
+        let settled = false
+
+        const resultPromise = run('process.stdout.write("output")', {
+            onOutput: async () => {
+                consuming = true
+                await gate
+            },
+        }).finally(() => {
+            settled = true
+        })
+
+        while (!consuming) await Bun.sleep(1)
+        expect(settled).toBe(false)
+        release?.()
+
+        await expect(resultPromise).resolves.toMatchObject({
+            stdout: "output",
+            exitCode: 0,
+        })
+    })
+
+    test("interrupts a process while its output consumer is backpressured", async () => {
+        const directory = makeTempDir()
+        const ready = join(directory, "ready")
+        const settled = join(directory, "settled")
+        let consuming!: () => void
+        const consumingPromise = new Promise<void>((resolve) => {
+            consuming = resolve
+        })
+        const script = `await Bun.write(${JSON.stringify(ready)}, String(process.pid)); process.on("SIGTERM", async () => { await Bun.write(${JSON.stringify(settled)}, "settled"); process.exit(0) }); process.stdout.write("output"); await new Promise(() => {})`
+        const effect = AppProcess.use((appProcess) =>
+            appProcess.run({
+                executable: Bun.which("bun") ?? processExecPath(),
+                args: ["-e", script],
+                cwd: directory,
+                onOutput: async () => {
+                    consuming()
+                    await new Promise(() => {})
+                },
+            }),
+        ).pipe(Effect.provide(AppProcessLive))
+        const fiber = Effect.runFork(effect)
+
+        await consumingPromise
+        await Effect.runPromise(Fiber.interrupt(fiber))
+
+        expect(await waitForFile(ready)).toMatch(/^\d+$/)
+        expect(await waitForFile(settled)).toBe("settled")
     })
 
     test("returns normal non-zero exits as results", async () => {

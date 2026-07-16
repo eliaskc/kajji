@@ -26,11 +26,14 @@ import {
 import { parseFileSummary } from "./files"
 import {
     type FetchLogPageResult,
+    type LogStreamState,
     buildLogArgs,
     buildLogTemplate,
+    consumeLogChunk,
+    finalizeLogStream,
     parseLogOutput,
 } from "./log"
-import type { FileChange } from "./types"
+import type { Commit, FileChange } from "./types"
 
 export interface JjOperationOptions {
     readonly cwd: string
@@ -302,8 +305,22 @@ export interface JjService {
         Bookmark[],
         JjReadError | JjStaleWorkingCopyError | ProcessError
     >
+    readonly streamBookmarks: (
+        options: JjBookmarkReadOptions,
+        onBatch: (bookmarks: readonly Bookmark[]) => void | Promise<void>,
+    ) => Effect.Effect<
+        Bookmark[],
+        JjReadError | JjStaleWorkingCopyError | ProcessError
+    >
     readonly logPage: (
         options: JjLogReadOptions,
+    ) => Effect.Effect<
+        FetchLogPageResult,
+        JjReadError | JjStaleWorkingCopyError | ProcessError
+    >
+    readonly streamLogPage: (
+        options: JjLogReadOptions,
+        onBatch: (commits: readonly Commit[]) => void | Promise<void>,
     ) => Effect.Effect<
         FetchLogPageResult,
         JjReadError | JjStaleWorkingCopyError | ProcessError
@@ -377,6 +394,10 @@ export const JjLayer = Layer.effect(
                 displayCommand?: string
                 env?: Readonly<Record<string, string>>
                 stdoutFile?: string
+                onOutput?: (
+                    stream: ProcessOutputStream,
+                    chunk: string,
+                ) => void | Promise<void>
             } = {},
         ) {
             const command = runOptions.displayCommand ?? `jj ${args.join(" ")}`
@@ -394,8 +415,13 @@ export const JjLayer = Layer.effect(
                 },
                 timeoutMs: options.timeoutMs,
                 stdoutFile: runOptions.stdoutFile,
-                onOutput: (stream: ProcessOutputStream, chunk: string) =>
-                    notify(() => options.sink?.output(stream, chunk)),
+                onOutput: async (
+                    stream: ProcessOutputStream,
+                    chunk: string,
+                ) => {
+                    notify(() => options.sink?.output(stream, chunk))
+                    await runOptions.onOutput?.(stream, chunk)
+                },
             }
             const result = yield* appProcess.run(processCommand).pipe(
                 Effect.tapError((error) =>
@@ -909,6 +935,50 @@ export const JjLayer = Layer.effect(
                 }
                 return parseBookmarkOutput(result.stdout)
             }),
+            streamBookmarks: Effect.fn("Jj.streamBookmarks")(function* (
+                options: JjBookmarkReadOptions,
+                onBatch: (
+                    bookmarks: readonly Bookmark[],
+                ) => void | Promise<void>,
+            ) {
+                const args = [
+                    "--color",
+                    "always",
+                    "bookmark",
+                    "list",
+                    "--sort",
+                    "committer-date-",
+                    "--template",
+                    BOOKMARK_TEMPLATE,
+                ]
+                if (options.allRemotes) args.push("--all-remotes")
+
+                let output = ""
+                let lastCount = 0
+                const result = yield* runRaw(args, options, {
+                    onOutput: async (stream, chunk) => {
+                        if (stream !== "stdout") return
+                        output += chunk
+                        const completeEnd = output.lastIndexOf("\n")
+                        if (completeEnd < 0) return
+                        const bookmarks = parseBookmarkOutput(
+                            output.slice(0, completeEnd + 1),
+                        )
+                        if (bookmarks.length <= lastCount) return
+                        lastCount = bookmarks.length
+                        await onBatch(bookmarks)
+                    },
+                })
+                yield* throwIfStale(result)
+                if (result.exitCode !== 0) {
+                    return yield* new JjReadError({
+                        kind: "bookmarks",
+                        command: result.command,
+                        result,
+                    })
+                }
+                return parseBookmarkOutput(result.stdout)
+            }),
             logPage: Effect.fn("Jj.logPage")(function* (
                 options: JjLogReadOptions,
             ) {
@@ -935,6 +1005,65 @@ export const JjLayer = Layer.effect(
                     }
                 }
                 return { commits, hasMore: false }
+            }),
+            streamLogPage: Effect.fn("Jj.streamLogPage")(function* (
+                options: JjLogReadOptions,
+                onBatch: (commits: readonly Commit[]) => void | Promise<void>,
+            ) {
+                const commandLimit = options.limit
+                    ? options.limit + 1
+                    : undefined
+                const maxCommits = commandLimit ?? Number.POSITIVE_INFINITY
+                const state: LogStreamState = { buffer: "", current: null }
+                const commits: Commit[] = []
+                let lastBatchAt = 0
+
+                const append = (next: readonly Commit[]) => {
+                    for (const commit of next) {
+                        if (commits.length >= maxCommits) break
+                        commits.push(commit)
+                    }
+                }
+                const visible = () =>
+                    options.limit
+                        ? commits.slice(0, options.limit)
+                        : commits.slice()
+
+                const result = yield* runRaw(
+                    buildLogArgs(options, buildLogTemplate(), commandLimit),
+                    options,
+                    {
+                        onOutput: async (stream, chunk) => {
+                            if (stream !== "stdout") return
+                            const previousLength = commits.length
+                            append(consumeLogChunk(chunk, state))
+                            const now = performance.now()
+                            if (
+                                commits.length > previousLength &&
+                                (lastBatchAt === 0 || now - lastBatchAt >= 25)
+                            ) {
+                                lastBatchAt = now
+                                await onBatch(visible())
+                            }
+                        },
+                    },
+                )
+                yield* throwIfStale(result)
+                if (result.exitCode !== 0) {
+                    return yield* new JjReadError({
+                        kind: "log",
+                        command: result.command,
+                        result,
+                    })
+                }
+
+                append(finalizeLogStream(state))
+                return {
+                    commits: visible(),
+                    hasMore: options.limit
+                        ? commits.length > options.limit
+                        : false,
+                }
             }),
         })
     }),
