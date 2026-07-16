@@ -19,6 +19,7 @@
         "test:e2e": "bun test --path-ignore-patterns '__never__' --concurrent --max-concurrency 4 tests/e2e",
         "test:bench": "bun test ./tests/bench/*.bench.ts",
         "bench:tui": "bun run scripts/benchmark-tui.ts",
+        "bench:diff-tui": "bun run scripts/benchmark-diff-tui.ts",
         "bench:compare": "bun run scripts/compare-benchmarks.ts",
         "check": "tsc --noEmit",
         "lint": "biome check .",
