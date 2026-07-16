@@ -1,5 +1,4 @@
 import { getRepoPath } from "../repo"
-import { isStaleWorkingCopyFailure } from "../utils/error-parser"
 import { type ExecuteResult, execute } from "./executor"
 import type { OperationRunOptions } from "./observer"
 
@@ -45,21 +44,9 @@ export interface OpLogEntry {
     isCurrent: boolean
 }
 
-export interface RefreshState {
-    operationId: string
-    workingCopyCommitId: string
-}
-
 function stripAnsi(str: string): string {
     // biome-ignore lint/suspicious/noControlCharactersInRegex: ANSI escape sequence
     return str.replace(/\x1b\[[0-9;]*m/g, "")
-}
-
-function throwIfStaleWorkingCopy(result: ExecuteResult): void {
-    const combinedOutput = result.stdout + result.stderr
-    if (isStaleWorkingCopyFailure(result)) {
-        throw new Error(`The working copy is stale\n${combinedOutput}`)
-    }
 }
 
 export function parseOpLog(lines: string[]): OpLogEntry[] {
@@ -361,20 +348,6 @@ export async function jjShowDescriptionStyled(
     return { subject, body }
 }
 
-export async function jjRevsetHasMatches(revset: string): Promise<boolean> {
-    const result = await execute([
-        "log",
-        "-r",
-        revset,
-        "--no-graph",
-        "--limit",
-        "1",
-        "-T",
-        "commit_id",
-    ])
-    return result.success && result.stdout.trim().length > 0
-}
-
 export async function jjAbandon(
     revision: string,
     options?: { ignoreImmutable?: boolean } & OperationRunOptions,
@@ -392,71 +365,6 @@ export async function jjAbandon(
     return {
         ...result,
         command: `jj ${args.join(" ")}`,
-    }
-}
-
-export async function fetchOpLog(limit?: number): Promise<string[]> {
-    const args = ["op", "log", "--color", "always", "--ignore-working-copy"]
-    if (limit) {
-        args.push("--limit", String(limit))
-    }
-    const result = await execute(args)
-    throwIfStaleWorkingCopy(result)
-
-    if (!result.success) {
-        throw new Error(`jj op log failed: ${result.stderr}`)
-    }
-    return result.stdout.split("\n")
-}
-
-export async function fetchOpLogId(): Promise<string> {
-    const result = await execute([
-        "op",
-        "log",
-        "--limit",
-        "1",
-        "--no-graph",
-        "--ignore-working-copy",
-        "-T",
-        "self.id()",
-    ])
-    throwIfStaleWorkingCopy(result)
-
-    if (!result.success) {
-        return ""
-    }
-    return result.stdout.trim()
-}
-
-export async function fetchWorkingCopyCommitId(): Promise<string> {
-    const result = await execute([
-        "log",
-        "--limit",
-        "1",
-        "--no-graph",
-        "-r",
-        "@",
-        "-T",
-        "commit_id",
-    ])
-    throwIfStaleWorkingCopy(result)
-
-    if (!result.success) {
-        return ""
-    }
-
-    return stripAnsi(result.stdout).trim()
-}
-
-export async function fetchRefreshState(): Promise<RefreshState> {
-    const [operationId, workingCopyCommitId] = await Promise.all([
-        fetchOpLogId(),
-        fetchWorkingCopyCommitId(),
-    ])
-
-    return {
-        operationId,
-        workingCopyCommitId,
     }
 }
 
@@ -596,21 +504,6 @@ export async function jjGitPush(
     if (options?.dryRun) {
         args.push("--dry-run")
     }
-    const result = await execute(args, {
-        observer: options?.observer,
-        command: `jj ${args.join(" ")}`,
-    })
-    return {
-        ...result,
-        command: `jj ${args.join(" ")}`,
-    }
-}
-
-export async function jjGitPushBookmark(
-    bookmark: string,
-    options?: OperationRunOptions,
-): Promise<OperationResult> {
-    const args = ["git", "push", "--bookmark", bookmark]
     const result = await execute(args, {
         observer: options?.observer,
         command: `jj ${args.join(" ")}`,

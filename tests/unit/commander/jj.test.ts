@@ -501,17 +501,31 @@ describe("Jj", () => {
                         cwd: "/tmp/repository",
                     }),
                 ),
+                Jj.use((jj) => jj.operationId({ cwd: "/tmp/repository" })),
+                Jj.use((jj) =>
+                    jj.revsetHasMatches("mine()", {
+                        cwd: "/tmp/repository",
+                    }),
+                ),
                 Jj.use((jj) => jj.refreshState({ cwd: "/tmp/repository" })),
             ],
             { concurrency: 1 },
         ).pipe(Effect.provide(JjLive), Effect.provide(processLayer))
 
-        const [inTrunk, description, bookmarks, refreshState] =
-            await Effect.runPromise(effect)
+        const [
+            inTrunk,
+            description,
+            bookmarks,
+            operationId,
+            hasMatches,
+            refreshState,
+        ] = await Effect.runPromise(effect)
 
         expect(inTrunk).toBe(true)
         expect(description).toEqual({ subject: "subject", body: "body" })
         expect(bookmarks).toEqual(["one", "two"])
+        expect(operationId).toBe("operation-id")
+        expect(hasMatches).toBe(true)
         expect(refreshState).toEqual({
             operationId: "operation-id",
             workingCopyCommitId: "commit-id",

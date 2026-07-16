@@ -1,196 +1,283 @@
-import { describe, expect, mock, test } from "bun:test"
-import { Effect } from "effect"
+import { describe, expect, test } from "bun:test"
+import { Effect, Layer } from "effect"
 import type { Bookmark } from "../../../src/commander/bookmarks"
-import type { GitHubPullRequestSummary } from "../../../src/commander/github"
+import {
+    GitHub,
+    type GitHubService,
+} from "../../../src/commander/github-service"
+import { Jj, type JjService } from "../../../src/commander/jj"
 import type { Commit } from "../../../src/commander/types"
-import type { StackPlan } from "../../../src/stack/model"
+import {
+    Stack,
+    StackApplyError,
+    StackLive,
+    StackPlanStaleError,
+    type StackService,
+} from "../../../src/stack/executor"
+import type { PersistedStackState } from "../../../src/stack/state"
+import {
+    type StackJournal,
+    StackStore,
+    type StackStoreService,
+} from "../../../src/stack/store"
 
-const calls: string[] = []
-let fetchLogCalls = 0
-let fetchBookmarkCalls = 0
+const mainCommit = commit("main", [], true)
+const parentCommit = commit("a", ["main"])
+const childCommit = commit("b", ["a"])
 
-const mainCommit = commit("main-commit", [], true)
-const parentCommit = commit("parent-commit", ["main-commit"])
-const childCommit = commit("child-commit", ["parent-commit"])
+const mainBookmark = bookmark("main", "main", "main")
+const parentBookmark = bookmark("feature-a", "a", "a")
+const childBookmark = bookmark("feature-b", "b", "b")
+const remoteParent = {
+    ...bookmark("feature-a", "old-a", "old-a"),
+    isLocal: false,
+    remote: "origin",
+}
 
-const mainBookmark = bookmark("main", "main-commit", "main-change")
-const parentBookmark = bookmark("test/stack", "parent-commit", "parent-change")
-const childBookmark = bookmark("test/stack-2", "child-commit", "child-change")
+const success = {
+    command: "command",
+    stdout: "",
+    stderr: "",
+    exitCode: 0,
+    durationMs: 1,
+}
 
-mock.module("../../../src/commander/log", () => ({
-    fetchLogPage: mock(async () => {
-        fetchLogCalls++
-        return {
-            commits: [childCommit, parentCommit, mainCommit],
-            hasMore: false,
-        }
-    }),
-}))
+interface FakeOptions {
+    readonly calls?: string[]
+    readonly journals?: StackJournal[]
+    readonly commitId?: () => string
+    readonly failPush?: boolean
+    readonly pushActivity?: { active: number; max: number }
+    readonly bookmarks?: () => readonly Bookmark[]
+}
 
-mock.module("../../../src/commander/bookmarks", () => ({
-    fetchBookmarks: mock(async () => {
-        fetchBookmarkCalls++
-        return fetchBookmarkCalls === 1
-            ? [mainBookmark, parentBookmark, childBookmark]
-            : [mainBookmark, childBookmark]
-    }),
-}))
-
-mock.module("../../../src/commander/github", () => ({
-    ghListPullRequestsByHead: mock(
-        async (
-            heads: readonly string[],
-        ): Promise<Map<string, GitHubPullRequestSummary>> => {
-            expect(heads).toContain("test/stack")
-            return new Map([
-                [
-                    "test/stack",
-                    {
-                        number: 114,
-                        headRefName: "test/stack",
-                        baseRefName: "main",
-                        state: "MERGED",
-                        merged: true,
-                    },
-                ],
-                [
-                    "test/stack-2",
-                    {
-                        number: 117,
-                        headRefName: "test/stack-2",
-                        baseRefName: "test/stack",
-                        state: "OPEN",
-                        merged: false,
-                    },
-                ],
-            ])
+function makeServices(options: FakeOptions = {}) {
+    const calls = options.calls ?? []
+    const journals = options.journals ?? []
+    const commits = () => [
+        childCommit,
+        parentCommit,
+        {
+            ...mainCommit,
+            commitId: options.commitId?.() ?? mainCommit.commitId,
         },
-    ),
-    ghPrClose: mock(async () => result("gh pr close")),
-    ghPrCreate: mock(async () => ({ ...result("gh pr create"), prNumber: 1 })),
-    ghPrEditBase: mock(async (prNumber: number, base: string) => {
-        calls.push(`edit:${prNumber}:${base}`)
-        return result("gh pr edit")
-    }),
-    ghPrViewWeb: mock(async () => result("gh pr view")),
-    ghUpsertStackComment: mock(async () => result("gh api")),
-}))
+    ]
+    const allBookmarks = () =>
+        options.bookmarks?.() ?? [
+            mainBookmark,
+            parentBookmark,
+            childBookmark,
+            remoteParent,
+        ]
+    const pullRequests = new Map([
+        [
+            "feature-a",
+            {
+                number: 10,
+                headRefName: "feature-a",
+                baseRefName: "old",
+                state: "OPEN",
+                merged: false,
+            },
+        ],
+    ])
 
-mock.module("../../../src/commander/operations", () => ({
-    fetchOpLogId: mock(async () => "op"),
-    jjGitFetch: mock(async () => result("jj git fetch")),
-    jjGitPushBookmark: mock(async (name: string) => {
-        calls.push(`push:${name}`)
-        return result("jj git push")
-    }),
-    jjRebase: mock(async (name: string, destination: string) => {
-        calls.push(`rebase:${name}:${destination}`)
-        return result("jj rebase")
-    }),
-    jjRevsetHasMatches: mock(async () => false),
-    jjAbandon: mock(async (revision: string) => {
-        calls.push(`abandon:${revision}`)
-        return result("jj abandon")
-    }),
-}))
+    const jj = {
+        logPage: () => Effect.succeed({ commits: commits(), hasMore: false }),
+        bookmarks: () => Effect.succeed([...allBookmarks()]),
+        gitFetch: () => {
+            calls.push("fetch")
+            return Effect.succeed(success)
+        },
+        revsetHasMatches: () => Effect.succeed(false),
+        operationId: () => Effect.succeed("operation-id"),
+        abandon: (revision: string) => {
+            calls.push(`abandon:${revision}`)
+            return Effect.succeed(success)
+        },
+        rebase: (revision: string, destination: string) => {
+            calls.push(`rebase:${revision}:${destination}`)
+            return Effect.succeed(success)
+        },
+        gitPush: (input: { readonly bookmarks?: readonly string[] }) => {
+            calls.push(`push:${input.bookmarks?.join(",")}`)
+            if (options.failPush) return Effect.fail(new Error("push failed"))
+            const activity = options.pushActivity
+            if (!activity) return Effect.succeed(success)
+            return Effect.gen(function* () {
+                activity.active++
+                activity.max = Math.max(activity.max, activity.active)
+                yield* Effect.sleep("5 millis")
+                activity.active--
+                return success
+            })
+        },
+    } as unknown as JjService
 
-mock.module("../../../src/stack/services/StackJournal", () => ({
-    writeStackJournal: mock(async () => undefined),
-}))
+    const gitHub = {
+        listPullRequestsByHead: (heads: readonly string[]) => {
+            if (heads.length === 1 && heads[0] === "feature-b") {
+                return Effect.succeed(
+                    new Map([
+                        [
+                            "feature-b",
+                            {
+                                number: 11,
+                                headRefName: "feature-b",
+                                baseRefName: "feature-a",
+                                state: "OPEN",
+                            },
+                        ],
+                    ]),
+                )
+            }
+            return Effect.succeed(new Map(pullRequests))
+        },
+        prCreate: (input: { readonly head: string; readonly base: string }) => {
+            calls.push(`create:${input.head}:${input.base}`)
+            return Effect.succeed(success)
+        },
+        prEditBase: (number: number, base: string) => {
+            calls.push(`edit:${number}:${base}`)
+            return Effect.succeed(success)
+        },
+        prClose: (number: number) => {
+            calls.push(`close:${number}`)
+            return Effect.succeed(success)
+        },
+        upsertStackComment: (number: number) => {
+            calls.push(`comment:${number}`)
+            return Effect.succeed(success)
+        },
+    } as unknown as GitHubService
 
-describe("stack executor", () => {
-    test("sync preserves selected stack when fetch deleted the merged root bookmark", async () => {
-        fetchLogCalls = 0
-        fetchBookmarkCalls = 0
+    const emptyState: PersistedStackState = { version: 1, entries: [] }
+    const store = {
+        readState: () => Effect.succeed(emptyState),
+        writeState: () => {
+            calls.push("state")
+            return Effect.void
+        },
+        writeJournal: (_cwd: string, journal: StackJournal) => {
+            journals.push(structuredClone(journal))
+            calls.push(`journal:${journal.entries.length}`)
+            return Effect.void
+        },
+    } satisfies StackStoreService
 
-        const { prepareSyncPlan } = await import("../../../src/stack/executor")
-        const plan = await Effect.runPromise(
-            prepareSyncPlan({ stackRootName: "test/stack" }),
+    return { jj, gitHub, store, calls, journals }
+}
+
+function runStack<A, E>(
+    services: ReturnType<typeof makeServices>,
+    operation: (stack: StackService) => Effect.Effect<A, E>,
+): Promise<A> {
+    const dependencies = Layer.mergeAll(
+        Layer.succeed(Jj, Jj.of(services.jj)),
+        Layer.succeed(GitHub, GitHub.of(services.gitHub)),
+        Layer.succeed(StackStore, StackStore.of(services.store)),
+    )
+    return Effect.runPromise(
+        Stack.use(operation).pipe(
+            Effect.provide(StackLive),
+            Effect.provide(dependencies),
+        ),
+    )
+}
+
+const prepare = (stack: StackService) =>
+    stack.prepareSyncPlan({
+        cwd: "/tmp/repository",
+        stackRootName: "feature-a",
+    })
+
+describe("Stack", () => {
+    test("prepares a plan through supplied jj, GitHub, and state services", async () => {
+        const services = makeServices()
+        const plan = await runStack(services, prepare)
+
+        expect(services.calls).toEqual(["fetch"])
+        expect(plan.updatePrNumbers).toEqual([10])
+        expect(plan.createPrBookmarks).toEqual(["feature-b"])
+        expect(plan.pushBookmarks).toEqual(["feature-a", "feature-b"])
+    })
+
+    test("validates, journals, and applies a prepared plan", async () => {
+        const services = makeServices()
+        const plan = await runStack(services, prepare)
+        services.calls.length = 0
+
+        await runStack(services, (stack) =>
+            stack.applyStackPlan(plan, { cwd: "/tmp/repository" }),
         )
 
-        expect(fetchLogCalls).toBe(2)
-        expect(plan.rows.map((row) => row.row.bookmark.name)).toEqual([
-            "main",
-            "test/stack",
-            "test/stack-2",
-        ])
-        expect(plan.abandonBookmarks).toEqual(["test/stack"])
-        expect(plan.rebaseBookmarks).toEqual(["test/stack-2"])
-        expect(plan.pushBookmarks).toEqual(["test/stack-2"])
-        expect(plan.updatePrNumbers).toEqual([117])
+        expect(services.calls[0]).toBe("journal:0")
+        expect(services.calls).toContain("push:feature-b")
+        expect(services.calls).toContain("create:feature-b:feature-a")
+        expect(services.calls).toContain("edit:10:main")
+        expect(services.calls).toContain("state")
+        expect(services.journals.at(-1)?.afterOperationId).toBe("operation-id")
+        for (let index = 1; index < services.journals.length; index++) {
+            expect(
+                services.journals[index]?.entries.length,
+            ).toBeGreaterThanOrEqual(
+                services.journals[index - 1]?.entries.length ?? 0,
+            )
+        }
+    })
+
+    test("rejects a stale plan before writing a journal or mutating", async () => {
+        let changedCommitId = "main"
+        const services = makeServices({ commitId: () => changedCommitId })
+        const plan = await runStack(services, prepare)
+        services.calls.length = 0
+        changedCommitId = "changed-main"
+
+        await expect(
+            runStack(services, (stack) =>
+                stack.applyStackPlan(plan, { cwd: "/tmp/repository" }),
+            ),
+        ).rejects.toBeInstanceOf(StackPlanStaleError)
+        expect(services.calls).toEqual([])
+        expect(services.journals).toEqual([])
+    })
+
+    test("serializes concurrent applies for one repository", async () => {
+        const activity = { active: 0, max: 0 }
+        const services = makeServices({ pushActivity: activity })
+        const plan = await runStack(services, prepare)
+        services.calls.length = 0
+
+        await runStack(services, (stack) =>
+            Effect.all(
+                [
+                    stack.applyStackPlan(plan, { cwd: "/tmp/repository" }),
+                    stack.applyStackPlan(plan, { cwd: "/tmp/repository" }),
+                ],
+                { concurrency: "unbounded" },
+            ),
+        )
+
+        expect(activity.max).toBe(1)
+    })
+
+    test("reports only durably journaled steps after partial failure", async () => {
+        const services = makeServices({ failPush: true })
+        const plan = await runStack(services, prepare)
+        services.calls.length = 0
+
+        try {
+            await runStack(services, (stack) =>
+                stack.applyStackPlan(plan, { cwd: "/tmp/repository" }),
+            )
+            throw new Error("expected stack apply to fail")
+        } catch (error) {
+            expect(error).toBeInstanceOf(StackApplyError)
+            expect((error as StackApplyError).completedEntries).toEqual([])
+        }
         expect(
-            plan.effects.find((effect) => effect.type === "abandon")?.revision,
-        ).toBe("main..parent-change")
-    })
-
-    test("apply skips empty plans", async () => {
-        calls.length = 0
-        const plan: StackPlan<Bookmark> = {
-            kind: "sync",
-            stackRootName: "test/stack",
-            rows: [],
-            effects: [],
-            updatePrNumbers: [],
-            createPrBookmarks: [],
-            pushBookmarks: [],
-            rebaseBookmarks: [],
-            abandonBookmarks: [],
-            closePrNumbers: [],
-            applyCommand: "stack sync",
-        }
-
-        const { applyStackPlan } = await import("../../../src/stack/executor")
-        await Effect.runPromise(applyStackPlan(plan))
-
-        expect(calls).toEqual([])
-    })
-
-    test("sync apply abandons merged roots before rebasing and pushing descendants", async () => {
-        calls.length = 0
-        const plan: StackPlan<Bookmark> = {
-            kind: "sync",
-            stackRootName: "test/stack",
-            rows: [],
-            effects: [
-                {
-                    type: "rebase",
-                    bookmark: "test/stack-2",
-                    from: "test/stack",
-                    to: "main",
-                },
-                { type: "push", bookmark: "test/stack-2" },
-                {
-                    type: "update-pr",
-                    bookmark: "test/stack-2",
-                    prNumber: 117,
-                    from: "test/stack",
-                    to: "main",
-                },
-                {
-                    type: "abandon",
-                    bookmark: "test/stack",
-                    prNumber: 114,
-                    revision: "parent-change",
-                },
-            ],
-            updatePrNumbers: [117],
-            createPrBookmarks: [],
-            pushBookmarks: ["test/stack-2"],
-            rebaseBookmarks: ["test/stack-2"],
-            abandonBookmarks: ["test/stack"],
-            closePrNumbers: [],
-            applyCommand: "stack sync",
-        }
-
-        const { applyStackPlan } = await import("../../../src/stack/executor")
-        await Effect.runPromise(applyStackPlan(plan))
-
-        expect(calls).toEqual([
-            "abandon:parent-change",
-            "rebase:test/stack-2:main",
-            "push:test/stack-2",
-            "edit:117:main",
-        ])
+            services.journals.map((journal) => journal.entries.length),
+        ).toEqual([0])
     })
 })
 
@@ -233,8 +320,4 @@ function bookmark(name: string, commitId: string, changeId: string): Bookmark {
         description: name,
         isLocal: true,
     }
-}
-
-function result(command: string) {
-    return { command, stdout: "", stderr: "", exitCode: 0, success: true }
 }

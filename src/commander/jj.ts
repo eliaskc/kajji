@@ -148,7 +148,15 @@ export class JjStaleWorkingCopyError extends Data.TaggedError(
 export class JjCommandError extends Data.TaggedError("JjCommandError")<{
     readonly command: string
     readonly result: ProcessResult
-}> {}
+}> {
+    override get message() {
+        return (
+            this.result.stderr ||
+            this.result.stdout ||
+            `${this.command} failed with exit code ${this.result.exitCode}`
+        )
+    }
+}
 
 export type JjReadFailureKind =
     | "files"
@@ -283,6 +291,13 @@ export interface JjService {
         revision: string,
         options: JjOperationOptions,
     ) => Effect.Effect<string[], JjCommandError | ProcessError>
+    readonly operationId: (
+        options: JjOperationOptions,
+    ) => Effect.Effect<string, JjStaleWorkingCopyError | ProcessError>
+    readonly revsetHasMatches: (
+        revset: string,
+        options: JjOperationOptions,
+    ) => Effect.Effect<boolean, ProcessError>
     readonly refreshState: (
         options: JjOperationOptions,
     ) => Effect.Effect<JjRefreshState, JjStaleWorkingCopyError | ProcessError>
@@ -851,6 +866,26 @@ export const JjLayer: Layer.Layer<Jj, never, AppProcess | Hooks> = Layer.effect(
                     subject: lines[0] ?? "",
                     body: lines.slice(1).join("\n").trim(),
                 }
+            }),
+            operationId: readOpLogId,
+            revsetHasMatches: Effect.fn("Jj.revsetHasMatches")(function* (
+                revset: string,
+                options: JjOperationOptions,
+            ) {
+                const result = yield* runRaw(
+                    [
+                        "log",
+                        "-r",
+                        revset,
+                        "--limit",
+                        "1",
+                        "--no-graph",
+                        "-T",
+                        "commit_id",
+                    ],
+                    options,
+                )
+                return result.exitCode === 0 && result.stdout.trim().length > 0
             }),
             nearestAncestorBookmarkNames: Effect.fn(
                 "Jj.nearestAncestorBookmarkNames",

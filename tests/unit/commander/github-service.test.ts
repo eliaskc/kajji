@@ -89,6 +89,73 @@ describe("GitHub", () => {
         expect(commands[1]?.args).toContain("name=kajji")
     })
 
+    test("constructs stack mutation operations", async () => {
+        const commands: ProcessCommand[] = []
+        await runWithFake(
+            (command) => {
+                commands.push(command)
+                if (command.executable === "git") {
+                    return Effect.succeed({
+                        ...success,
+                        stdout: "git@github.com:eliaskc/kajji.git\n",
+                    })
+                }
+                if (
+                    command.args[0] === "api" &&
+                    !command.args.includes("--method")
+                ) {
+                    return Effect.succeed({ ...success, stdout: "[]" })
+                }
+                return Effect.succeed(success)
+            },
+            (gitHub) =>
+                Effect.gen(function* () {
+                    const options = { cwd: "/tmp/repository" }
+                    yield* gitHub.prCreate(
+                        { head: "feature", base: "main" },
+                        options,
+                    )
+                    yield* gitHub.prEditBase(42, "next", options)
+                    yield* gitHub.prClose(42, options)
+                    yield* gitHub.upsertStackComment(
+                        42,
+                        "<!-- kajji-stack pr=42 -->",
+                        options,
+                    )
+                }),
+        )
+
+        expect(
+            commands
+                .filter((command) => command.executable === "gh")
+                .map((command) => command.args),
+        ).toEqual([
+            [
+                "pr",
+                "create",
+                "--head",
+                "feature",
+                "--base",
+                "main",
+                "--fill",
+                "--repo",
+                "eliaskc/kajji",
+            ],
+            ["pr", "edit", "42", "--base", "next", "--repo", "eliaskc/kajji"],
+            ["pr", "close", "42", "--repo", "eliaskc/kajji"],
+            ["api", "repos/eliaskc/kajji/issues/42/comments"],
+            [
+                "api",
+                "--silent",
+                "--method",
+                "POST",
+                "repos/eliaskc/kajji/issues/42/comments",
+                "-f",
+                "body=<!-- kajji-stack pr=42 -->",
+            ],
+        ])
+    })
+
     test("constructs browser operations and reports output to the sink", async () => {
         const commands: ProcessCommand[] = []
         const events: string[] = []

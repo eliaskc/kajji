@@ -48,6 +48,24 @@ export interface GitHubService {
         Map<string, GitHubPullRequestSummary>,
         GitHubCommandError | ProcessError
     >
+    readonly prCreate: (
+        input: { readonly head: string; readonly base: string },
+        options: GitHubOperationOptions,
+    ) => Effect.Effect<GitHubOperationResult, GitHubCommandError | ProcessError>
+    readonly prEditBase: (
+        prNumber: number,
+        base: string,
+        options: GitHubOperationOptions,
+    ) => Effect.Effect<GitHubOperationResult, GitHubCommandError | ProcessError>
+    readonly prClose: (
+        prNumber: number,
+        options: GitHubOperationOptions,
+    ) => Effect.Effect<GitHubOperationResult, GitHubCommandError | ProcessError>
+    readonly upsertStackComment: (
+        prNumber: number,
+        body: string,
+        options: GitHubOperationOptions,
+    ) => Effect.Effect<GitHubOperationResult, GitHubCommandError | ProcessError>
     readonly prCreateWeb: (
         head: string,
         options: GitHubOperationOptions,
@@ -117,18 +135,27 @@ export const GitHubLive = Layer.effect(
             return { ...result, command }
         })
 
-        const output = Effect.fn("GitHub.output")(function* (
+        const run = Effect.fn("GitHub.run")(function* (
             args: readonly string[],
-            options: GitHubReadOptions,
-            stdin?: string,
+            options: GitHubOperationOptions,
+            runOptions: { readonly stdin?: string } = {},
         ) {
-            const result = yield* runRaw(args, options, { stdin })
+            const result = yield* runRaw(args, options, runOptions)
             if (result.exitCode !== 0) {
                 return yield* new GitHubCommandError({
                     command: result.command,
                     result,
                 })
             }
+            return result
+        })
+
+        const output = Effect.fn("GitHub.output")(function* (
+            args: readonly string[],
+            options: GitHubReadOptions,
+            stdin?: string,
+        ) {
+            const result = yield* run(args, options, { stdin })
             return result.stdout
         })
 
@@ -202,6 +229,83 @@ ${uniqueHeads
                               stdout,
                           )
                         : parseGhPullRequestsByHeadGraphqlJson(stdout)
+                },
+            ),
+            prCreate: Effect.fn("GitHub.prCreate")(function* (input, options) {
+                const args = yield* withResolvedRepository(
+                    [
+                        "pr",
+                        "create",
+                        "--head",
+                        input.head,
+                        "--base",
+                        input.base,
+                        "--fill",
+                    ],
+                    options,
+                )
+                return yield* run(args, options)
+            }),
+            prEditBase: Effect.fn("GitHub.prEditBase")(
+                function* (prNumber, base, options) {
+                    const args = yield* withResolvedRepository(
+                        ["pr", "edit", String(prNumber), "--base", base],
+                        options,
+                    )
+                    return yield* run(args, options)
+                },
+            ),
+            prClose: Effect.fn("GitHub.prClose")(function* (prNumber, options) {
+                const args = yield* withResolvedRepository(
+                    ["pr", "close", String(prNumber)],
+                    options,
+                )
+                return yield* run(args, options)
+            }),
+            upsertStackComment: Effect.fn("GitHub.upsertStackComment")(
+                function* (prNumber, body, options) {
+                    const repository = yield* resolveRepository(options)
+                    const marker = `<!-- kajji-stack pr=${prNumber} -->`
+                    const comments = JSON.parse(
+                        yield* output(
+                            [
+                                "api",
+                                `repos/${repository.owner}/${repository.name}/issues/${prNumber}/comments`,
+                            ],
+                            options,
+                        ),
+                    ) as unknown
+                    const existing = Array.isArray(comments)
+                        ? comments.find((comment) => {
+                              if (!comment || typeof comment !== "object")
+                                  return false
+                              const record = comment as Record<string, unknown>
+                              return (
+                                  typeof record.body === "string" &&
+                                  record.body.includes(marker)
+                              )
+                          })
+                        : undefined
+                    const existingId =
+                        existing && typeof existing === "object"
+                            ? (existing as Record<string, unknown>).id
+                            : undefined
+                    const path =
+                        typeof existingId === "number"
+                            ? `repos/${repository.owner}/${repository.name}/issues/comments/${existingId}`
+                            : `repos/${repository.owner}/${repository.name}/issues/${prNumber}/comments`
+                    return yield* run(
+                        [
+                            "api",
+                            "--silent",
+                            "--method",
+                            typeof existingId === "number" ? "PATCH" : "POST",
+                            path,
+                            "-f",
+                            `body=${body}`,
+                        ],
+                        options,
+                    )
                 },
             ),
             prCreateWeb: Effect.fn("GitHub.prCreateWeb")((head, options) =>

@@ -48,6 +48,9 @@ import {
     type RepositoryInitResult,
     type RepositoryStatus,
 } from "../repository-bootstrap"
+import { Stack, StackLive, type StackService } from "../stack/executor"
+import type { StackPlan } from "../stack/model"
+import { type StackStore, StackStoreLive } from "../stack/store"
 import { diagnosticsLog } from "../utils/diagnostics"
 import { makeHistoricalFileStore } from "./historical-files"
 
@@ -61,6 +64,10 @@ interface ApplicationReadOptions extends Omit<JjOperationOptions, "sink"> {
 }
 
 interface ApplicationGitHubOperationOptions extends ApplicationReadOptions {
+    readonly observer?: CommandObserver
+}
+
+interface ApplicationStackOptions extends ApplicationReadOptions {
     readonly observer?: CommandObserver
 }
 
@@ -281,6 +288,18 @@ export interface ApplicationClient {
         options: ApplicationLogReadOptions,
         onBatch: (commits: readonly Commit[]) => void | Promise<void>,
     ) => ApplicationStreamHandle<FetchLogPageResult>
+    readonly stackParent: (
+        bookmark: string,
+        options: ApplicationReadOptions,
+    ) => Promise<string | undefined>
+    readonly prepareStackSync: (
+        stackRootName: string,
+        options: ApplicationStackOptions,
+    ) => Promise<StackPlan<Bookmark>>
+    readonly applyStackPlan: (
+        plan: StackPlan<Bookmark>,
+        options: ApplicationStackOptions,
+    ) => Promise<void>
     readonly ghListPullRequestsByHead: (
         heads: readonly string[],
         options: ApplicationReadOptions & { readonly includeClosed?: boolean },
@@ -356,6 +375,8 @@ function observerSink(observer: CommandObserver | undefined): {
 export function makeApplicationClient(
     appProcessLayer = AppProcessLive,
     hooksLayer = HooksLive,
+    stackLayer: Layer.Layer<Stack, never, Jj | GitHub | StackStore> = StackLive,
+    stackStoreLayer = StackStoreLive,
 ): ApplicationClient {
     const providedHooksLayer = hooksLayer.pipe(Layer.provide(appProcessLayer))
     const dependencies = Layer.merge(appProcessLayer, providedHooksLayer)
@@ -372,12 +393,19 @@ export function makeApplicationClient(
     const providedRepositoryBootstrapLayer = RepositoryBootstrapLive.pipe(
         Layer.provide(repositoryBootstrapDependencies),
     )
+    const stackDependencies = Layer.mergeAll(
+        providedJjLayer,
+        providedGitHubLayer,
+        stackStoreLayer,
+    )
+    const providedStackLayer = stackLayer.pipe(Layer.provide(stackDependencies))
     const runtime = ManagedRuntime.make(
         Layer.mergeAll(
             providedJjLayer,
             providedHooksLayer,
             providedGitHubLayer,
             providedRepositoryBootstrapLayer,
+            providedStackLayer,
         ),
     )
     const historicalFiles = makeHistoricalFileStore()
@@ -427,6 +455,25 @@ export function makeApplicationClient(
         return runtime.runPromise(RepositoryBootstrap.use(operation), {
             signal,
         })
+    }
+
+    const runStack = <A, E>(
+        options: ApplicationStackOptions,
+        operation: (
+            stack: StackService,
+            sink: OperationSink,
+        ) => Effect.Effect<A, E>,
+    ): Promise<A> => {
+        if (!accepting)
+            return Promise.reject(new ApplicationClientClosedError())
+        const { observer, signal } = options
+        const { sink } = observerSink(observer)
+        return runtime.runPromise(
+            Stack.use((stack) => operation(stack, sink)),
+            {
+                signal,
+            },
+        )
     }
 
     const runGitHubRead = <A, E>(
@@ -688,6 +735,22 @@ export function makeApplicationClient(
         jjLogPage: (options) => runRead(options, (jj) => jj.logPage(options)),
         jjStreamLogPage: (options, onBatch) =>
             runStream(options, (jj) => jj.streamLogPage(options, onBatch)),
+        stackParent: (bookmark, options) =>
+            runStack(options, (stack) =>
+                stack.persistedParent(bookmark, options.cwd),
+            ),
+        prepareStackSync: (stackRootName, options) =>
+            runStack(options, (stack, sink) =>
+                stack.prepareSyncPlan({
+                    cwd: options.cwd,
+                    stackRootName,
+                    sink,
+                }),
+            ),
+        applyStackPlan: (plan, options) =>
+            runStack(options, (stack, sink) =>
+                stack.applyStackPlan(plan, { cwd: options.cwd, sink }),
+            ),
         ghListPullRequestsByHead: (heads, options) =>
             runGitHubRead(options, (gitHub) =>
                 gitHub.listPullRequestsByHead(heads, options),

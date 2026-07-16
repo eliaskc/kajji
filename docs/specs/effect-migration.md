@@ -661,85 +661,99 @@ Verification evidence:
 Repository bootstrap is complete. Stack preparation and apply over supplied `Jj`,
 `GitHub`, and journal dependencies is the next major migration phase.
 
-## Work After Fetch
+## Implementation Update — 2026-07-16 23:21:14 CEST
 
-### 1. Consolidate captured jj execution
+The stack migration is complete. A scoped `Stack` capability now owns sync-plan
+preparation and apply over supplied `Jj`, `GitHub`, and `StackStore`
+dependencies. Preparation preserves the existing fetch/reconciliation behavior,
+closed and merged PR discovery, persisted bookmark restoration, and landed-range
+probes. Stack execution no longer wraps legacy Promise commands in
+`Effect.promise`.
 
-Move existing non-interactive jj reads and mutations behind `Jj` and
-`AppProcess`, capability by capability. Keep Promise adapters for unchanged
-callers. Delete duplicated stream readers and result constructors only after the
-last caller moves.
+Apply now re-reads repository, PR, and persisted state and rejects a preview
+whose bookmark revisions, desired bases, PR numbers, or planned effects changed.
+This validation does not perform another mutating fetch. A runtime-owned
+per-repository semaphore serializes applies so two stack transactions cannot
+interleave.
 
-Add bounded-output policy where the domain operation can choose an appropriate
-limit. Large log and diff parsers must not be silently truncated.
+Before the first planned mutation, apply durably writes a journal header. Each
+completed mutation is added through a temporary-file write, file sync, atomic
+rename, and directory sync before the next mutation starts. Failures return a
+`StackApplyError` containing only entries that were durably recorded. Persisted
+stack state and the final operation ID are written after all planned effects
+complete.
 
-### 2. Migrate streaming reads
+The Promise-facing `ApplicationClient` now exposes persisted-parent lookup,
+stack preparation, and stack apply. `BookmarksPanel` no longer executes Effect
+programs or reads stack state directly. Stack output observation remains
+operation-local through the supplied sink.
 
-Replace callback-based `executeStreaming` internals with scoped Effect programs.
-Preserve incremental parsing, cancellation, decoder-tail behavior, and UI
-batching. Navigating away or changing selection should interrupt obsolete work
-without stale completion callbacks.
+The old direct-spawn GitHub implementations and stack-only jj wrappers have been
+removed. `commander/github.ts` now contains only shared structural types and pure
+parsers; GitHub execution lives in the scoped `GitHub` service.
 
-This step should settle the streaming interface and backpressure policy with a
-real log or diff caller.
+Verification evidence:
 
-### 3. Migrate gh and git
+- `bun test`: 378 passing tests
+- `bun check` and changed-file Biome checks pass
+- `bun test:e2e`: all 10 terminal workflows pass
+- `bun test:bench`: all 26 benchmark assertions pass
+- focused stack tests cover supplied dependency routing, stale-plan rejection,
+  durable journal progression, structured partial failures, per-repository
+  serialization, and the Promise client boundary
 
-Reuse the process lifecycle implementation while keeping domain policy in
-adapters:
+The last major transactional migration is complete. Remaining work is limited to
+standalone CLI ownership, interactive-process policy, and deletion of legacy
+compatibility code after their final callers move.
 
-- GitHub owns gh arguments, optional stdin, JSON parsing, and authentication or
-  command failures.
-- Git helpers own their silent-probe behavior where it is still intentional.
+## Remaining Migration Work
 
-Do not force interactive editors, clipboard writes, updater pipelines, or
-synchronous startup checks through an interface designed only for captured
-commands. Migrate them later if a shared capability is demonstrated.
+### 1. Migrate standalone CLI process ownership
 
-### 4. Migrate repository health and stack workflows
+The TUI's captured jj, hook, GitHub, git, repository bootstrap, streaming, and
+stack paths now use supplied services. Standalone CLI reads in
+`src/cli/comment.ts` and `src/cli/revisions.ts` still use legacy commander
+execution. Give CLI entry points an explicit layer composition rather than
+acquiring a hidden runtime.
 
-Build `RepositoryBootstrap` over `Jj`. Then migrate stack preparation and apply to
-supplied `Jj`, `GitHub`, and journal implementations.
+Move any commander file, diff, log, bookmark, or operation wrappers that remain
+solely for those CLI callers at the same time. Preserve their output formatting
+and exit-code contract.
 
-Keep stack discovery and planning pure. Before Effect-native stack apply ships:
+### 2. Decide interactive and miscellaneous process policy
 
-- validate that a previewed plan is still fresh
-- write a journal header before the first mutation
-- durably append each completed mutation before starting the next
-- return structured partial-failure evidence
-- reject or serialize concurrent apply for the same repository
-- remove direct runtime execution from panels
+Interactive split, resolve, and squash still inherit terminal stdio directly.
+Editors, clipboard writes, updater pipelines, and other miscellaneous processes
+should move only if a shared capability is demonstrated. They may need a
+separate interactive-process interface rather than widening captured
+`AppProcess`.
 
-### 5. Remove compatibility code
+### 3. Remove final compatibility code
 
-After callers have migrated:
+After the CLI and interactive decisions:
 
-- remove migrated direct `Bun.spawn` and Bun shell paths
-- remove callback streaming adapters
-- remove scattered runtime execution
-- remove `success` booleans from Effect-native results
-- remove Promise adapters with no remaining callers
+- delete the remaining legacy `execute` adapter and dead commander wrappers
+- remove duplicated result shapes and `success` booleans from Effect-native
+  internals
+- remove Promise compatibility adapters with no callers
+- keep `ApplicationClient` as the stable Promise-facing Solid boundary
 
-The end state has one captured-process lifecycle implementation, explicit
-runtime ownership, supplied domain dependencies, and no Effect-shaped Promise
-workflows in migrated modules.
+No major transactional TUI migration remains. The end state has one captured
+process lifecycle, explicit runtime ownership, supplied domain dependencies, and
+no Effect-shaped Promise workflows in Solid components.
 
 ## Deferred Decisions
 
-These do not block the first implementation. Resolve each when its first real
-caller makes the tradeoff concrete:
+Resolve these when their next real caller makes the tradeoff concrete:
 
-- whether capture limits retain the beginning, end, or both
-- process-group termination and the grace period for git or SSH descendants
-- the final streaming interface and backpressure policy
+- whether future capture limits retain the beginning, end, or both
 - whether interactive commands belong on `AppProcess` or a separate capability
-- how CLI commands share layer construction
+- how standalone CLI commands share layer construction
 - which successful warnings become persistent notices
 - whether operation data eventually needs fan-out beyond one explicit sink
 
-Process-group behavior is the only deferred item that can block completion of
-the fetch slice: cancellation and shutdown must not leave observed git or SSH
-descendants running.
+Process-group termination, scoped streaming, backpressure, and operation-local
+observation are now implemented rather than deferred.
 
 ## Review Gates
 

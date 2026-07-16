@@ -20,8 +20,10 @@ export interface PersistedStackState {
 
 const emptyState = (): PersistedStackState => ({ version: 1, entries: [] })
 
-export async function stackStatePath(): Promise<string> {
-    const root = getRepoPath()
+export async function stackStatePath(
+    repositoryRoot = getRepoPath(),
+): Promise<string> {
+    const root = repositoryRoot
     const jjRepoFile = `${root}/.jj/repo`
     let repoPath = jjRepoFile
     try {
@@ -38,9 +40,11 @@ export async function stackStatePath(): Promise<string> {
     return `${repoPath}/kajji/stack-state.json`
 }
 
-export async function readPersistedStackState(): Promise<PersistedStackState> {
+export async function readPersistedStackState(
+    repositoryRoot = getRepoPath(),
+): Promise<PersistedStackState> {
     try {
-        const path = await stackStatePath()
+        const path = await stackStatePath(repositoryRoot)
         const raw = await Bun.file(path).text()
         const parsed = JSON.parse(raw) as Partial<PersistedStackState>
         if (parsed.version !== 1 || !Array.isArray(parsed.entries))
@@ -53,8 +57,9 @@ export async function readPersistedStackState(): Promise<PersistedStackState> {
 
 export async function writePersistedStackState(
     state: PersistedStackState,
+    repositoryRoot = getRepoPath(),
 ): Promise<void> {
-    const path = await stackStatePath()
+    const path = await stackStatePath(repositoryRoot)
     await import("node:fs/promises").then((fs) =>
         fs.mkdir(dirname(path), { recursive: true }),
     )

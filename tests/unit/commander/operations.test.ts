@@ -14,8 +14,6 @@ mock.module("../../../src/commander/executor", () => ({
 }))
 
 import {
-    fetchRefreshState,
-    fetchWorkingCopyCommitId,
     isImmutableError,
     jjAbandon,
     jjDescribe,
@@ -152,76 +150,6 @@ describe("isImmutableError", () => {
         }
 
         expect(isImmutableError(result)).toBe(false)
-    })
-})
-
-describe("refresh state helpers", () => {
-    test("fetchWorkingCopyCommitId queries current working copy commit", async () => {
-        mockExecute.mockResolvedValueOnce({
-            stdout: "abc123\n",
-            stderr: "",
-            exitCode: 0,
-            success: true,
-        })
-
-        const result = await fetchWorkingCopyCommitId()
-
-        expect(mockExecute).toHaveBeenCalledWith([
-            "log",
-            "--limit",
-            "1",
-            "--no-graph",
-            "-r",
-            "@",
-            "-T",
-            "commit_id",
-        ])
-        expect(result).toBe("abc123")
-    })
-
-    test("fetchRefreshState returns both operation and working copy ids", async () => {
-        mockExecute.mockClear()
-        mockExecute
-            .mockResolvedValueOnce({
-                stdout: "op123\n",
-                stderr: "",
-                exitCode: 0,
-                success: true,
-            })
-            .mockResolvedValueOnce({
-                stdout: "wc456\n",
-                stderr: "",
-                exitCode: 0,
-                success: true,
-            })
-
-        const result = await fetchRefreshState()
-
-        expect(mockExecute).toHaveBeenCalledTimes(2)
-        expect(mockExecute).toHaveBeenCalledWith([
-            "op",
-            "log",
-            "--limit",
-            "1",
-            "--no-graph",
-            "--ignore-working-copy",
-            "-T",
-            "self.id()",
-        ])
-        expect(mockExecute).toHaveBeenCalledWith([
-            "log",
-            "--limit",
-            "1",
-            "--no-graph",
-            "-r",
-            "@",
-            "-T",
-            "commit_id",
-        ])
-        expect(result).toEqual({
-            operationId: "op123",
-            workingCopyCommitId: "wc456",
-        })
     })
 })
 

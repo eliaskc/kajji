@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test"
-import { Effect } from "effect"
+import { Effect, Layer } from "effect"
 import { makeApplicationClient } from "../../../src/application/client"
+import type { Bookmark } from "../../../src/commander/bookmarks"
 import type { CommandObserver } from "../../../src/commander/observer"
 import { ConfigSchema } from "../../../src/config"
 import { makeHooksLayer } from "../../../src/hooks/runner"
@@ -9,6 +10,8 @@ import {
     type ProcessResult,
     makeAppProcessFake,
 } from "../../../src/process/app-process"
+import { Stack } from "../../../src/stack/executor"
+import type { StackPlan } from "../../../src/stack/model"
 
 const success: ProcessResult = {
     stdout: "fetched\n",
@@ -202,6 +205,65 @@ describe("ApplicationClient", () => {
             ["git", "remote"],
             ["gh", "api"],
             ["gh", "pr"],
+        ])
+    })
+
+    test("routes stack preparation and apply through the supplied service", async () => {
+        const calls: string[] = []
+        const plan: StackPlan<Bookmark> = {
+            kind: "sync",
+            stackRootName: "feature-a",
+            rows: [],
+            effects: [],
+            updatePrNumbers: [],
+            createPrBookmarks: [],
+            pushBookmarks: [],
+            rebaseBookmarks: [],
+            abandonBookmarks: [],
+            closePrNumbers: [],
+            applyCommand: "stack sync",
+        }
+        const stackLayer = Layer.succeed(
+            Stack,
+            Stack.of({
+                persistedParent: (bookmark, cwd) => {
+                    calls.push(`parent:${cwd}:${bookmark}`)
+                    return Effect.succeed("main")
+                },
+                prepareSyncPlan: (options) => {
+                    calls.push(
+                        `prepare:${options.cwd}:${options.stackRootName}`,
+                    )
+                    return Effect.succeed(plan)
+                },
+                applyStackPlan: (input, options) => {
+                    calls.push(`apply:${options.cwd}:${input.stackRootName}`)
+                    return Effect.void
+                },
+            }),
+        )
+        const processLayer = makeAppProcessFake(() => Effect.succeed(success))
+        const client = makeApplicationClient(
+            processLayer,
+            makeHooksLayer(() => ConfigSchema.parse({})),
+            stackLayer,
+        )
+
+        await expect(
+            client.stackParent("feature-a", { cwd: "/tmp/repository" }),
+        ).resolves.toBe("main")
+        await expect(
+            client.prepareStackSync("feature-a", {
+                cwd: "/tmp/repository",
+            }),
+        ).resolves.toBe(plan)
+        await client.applyStackPlan(plan, { cwd: "/tmp/repository" })
+        await client.dispose()
+
+        expect(calls).toEqual([
+            "parent:/tmp/repository:feature-a",
+            "prepare:/tmp/repository:feature-a",
+            "apply:/tmp/repository:feature-a",
         ])
     })
 

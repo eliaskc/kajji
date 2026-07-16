@@ -31,9 +31,11 @@ import { featureFlags } from "../../feature-flags"
 import { createHorizontalCropScroll } from "../../hooks/horizontal-crop-scroll"
 import { getRepoPath } from "../../repo"
 import { buildBookmarkStackModel } from "../../stack/discovery"
-import { applyStackPlan, prepareSyncPlan } from "../../stack/executor"
-import type { BookmarkStackModel, BookmarkStackRow } from "../../stack/model"
-import { readPersistedStackState } from "../../stack/state"
+import type {
+    BookmarkStackModel,
+    BookmarkStackRow,
+    StackPlan,
+} from "../../stack/model"
 import { resolveAnsiForeground } from "../../theme/ansi"
 import { getVisibleWidth } from "../../utils/ansi"
 import { hasOriginDiff } from "../../utils/bookmark-origin-diff"
@@ -346,12 +348,13 @@ export function BookmarksPanel() {
         return row.stackKeys[0]
     })
 
-    const applyPreparedPlan = async (
-        plan: Parameters<typeof applyStackPlan>[0],
-    ) => {
+    const applyPreparedPlan = async (plan: StackPlan<Bookmark>) => {
         const observer = commandLog.observer()
         try {
-            await Effect.runPromise(applyStackPlan(plan, { observer }))
+            await app.applyStackPlan(plan, {
+                cwd: getRepoPath(),
+                observer,
+            })
             await refresh()
             refreshPullRequestMetadata()
         } catch (error) {
@@ -368,7 +371,11 @@ export function BookmarksPanel() {
     const preparePlan = async (
         stackRootName: string,
         observer?: ReturnType<typeof commandLog.observer>,
-    ) => Effect.runPromise(prepareSyncPlan({ stackRootName, observer }))
+    ) =>
+        app.prepareStackSync(stackRootName, {
+            cwd: getRepoPath(),
+            observer,
+        })
 
     const stackDialogMinHeight = (rowCount: number) =>
         Math.max(18, rowCount + 14)
@@ -526,12 +533,11 @@ export function BookmarksPanel() {
         const row = selectedBookmarkRow()
         if (!row) return
         if (row.stackKeys.length === 0) {
-            const persisted = await readPersistedStackState()
-            const entry = persisted.entries.find(
-                (item) => item.bookmark === row.bookmark.name,
-            )
-            if (entry?.parent) {
-                openStackPlan(entry.parent)
+            const persistedParent = await app.stackParent(row.bookmark.name, {
+                cwd: getRepoPath(),
+            })
+            if (persistedParent) {
+                openStackPlan(persistedParent)
                 return
             }
             status.show(`No stack for ${row.bookmark.name}.`)
