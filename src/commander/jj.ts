@@ -1,10 +1,20 @@
 import { Context, Data, Effect, Layer } from "effect"
+import { Hooks, HooksLive } from "../hooks/runner"
+import { HookOperation } from "../hooks/types"
 import {
     AppProcess,
     type ProcessError,
     type ProcessOutputStream,
     type ProcessResult,
 } from "../process/app-process"
+import {
+    OperationInterruptedError,
+    type OperationSink,
+} from "../process/operation-sink"
+export type {
+    OperationFailure,
+    OperationSink,
+} from "../process/operation-sink"
 import { findBinaryFiles } from "../utils/diff-binary"
 import { isStaleWorkingCopyFailure } from "../utils/error-parser"
 import { toFilesetArgs } from "../utils/jj-fileset"
@@ -21,21 +31,6 @@ import {
     parseLogOutput,
 } from "./log"
 import type { FileChange } from "./types"
-
-export class OperationInterruptedError extends Data.TaggedError(
-    "OperationInterruptedError",
-)<{
-    readonly command: string
-}> {}
-
-export type OperationFailure = ProcessError | OperationInterruptedError
-
-export interface OperationSink {
-    readonly start: (command: string) => void
-    readonly output: (stream: ProcessOutputStream, chunk: string) => void
-    readonly finish: (result: ProcessResult) => void
-    readonly fail: (error: OperationFailure) => void
-}
 
 export interface JjOperationOptions {
     readonly cwd: string
@@ -65,6 +60,11 @@ export interface JjGitPushOptions extends JjOperationOptions {
 
 export interface JjEditOptions extends JjOperationOptions {
     readonly ignoreImmutable?: boolean
+}
+
+export interface JjNewOptions extends JjOperationOptions {
+    readonly verify?: boolean
+    readonly position?: "before" | "after"
 }
 
 export interface JjSquashOptions extends JjOperationOptions {
@@ -237,6 +237,10 @@ export interface JjService {
         name: string,
         options: JjOperationOptions,
     ) => Effect.Effect<JjOperationResult, JjCommandError | ProcessError>
+    readonly new: (
+        revision: string,
+        options: JjNewOptions,
+    ) => Effect.Effect<JjOperationResult, JjCommandError | ProcessError>
     readonly duplicate: (
         revision: string,
         options: JjOperationOptions,
@@ -360,10 +364,11 @@ export function makeGitPushArgs(
     return args
 }
 
-export const JjLive = Layer.effect(
+export const JjLayer = Layer.effect(
     Jj,
     Effect.gen(function* () {
         const appProcess = yield* AppProcess
+        const hooks = yield* Hooks
 
         const runRaw = Effect.fn("Jj.runRaw")(function* (
             args: readonly string[],
@@ -375,7 +380,7 @@ export const JjLive = Layer.effect(
             } = {},
         ) {
             const command = runOptions.displayCommand ?? `jj ${args.join(" ")}`
-            notify(() => options.sink?.start(command))
+            notify(() => options.sink?.start(command, "jj"))
 
             const processCommand = {
                 executable: "jj",
@@ -671,6 +676,32 @@ export const JjLive = Layer.effect(
                 (name: string, options: JjOperationOptions) =>
                     run(["bookmark", "forget", name], options),
             ),
+            new: Effect.fn("Jj.new")(function* (
+                revision: string,
+                options: JjNewOptions,
+            ) {
+                const hookResult = yield* hooks.runApplicablePreHooks(
+                    HookOperation.JjNew,
+                    options,
+                )
+                if (!hookResult.success) {
+                    notify(() =>
+                        options.sink?.skip(
+                            "jj new skipped because pre-hook failed",
+                        ),
+                    )
+                    return {
+                        ...hookResult.result,
+                        command: `hook jj.new: ${hookResult.command}`,
+                    }
+                }
+
+                const args = ["new"]
+                if (options.position === "before") args.push("-B")
+                else if (options.position === "after") args.push("-A")
+                args.push(revision)
+                return yield* run(args, options)
+            }),
             duplicate: Effect.fn("Jj.duplicate")(
                 (revision: string, options: JjOperationOptions) =>
                     run(["duplicate", revision], options),
@@ -908,3 +939,5 @@ export const JjLive = Layer.effect(
         })
     }),
 )
+
+export const JjLive = JjLayer.pipe(Layer.provide(HooksLive))

@@ -1,26 +1,48 @@
 import { existsSync, realpathSync, statSync } from "node:fs"
 import { homedir } from "node:os"
-import { basename, isAbsolute, join, resolve } from "node:path"
-import type { ExecuteResult } from "../commander/executor"
-import type { CommandObserver } from "../commander/observer"
-import { applyRepoConfig, readConfig } from "../config"
-import { getRepoPath } from "../repo"
+import { isAbsolute, join, resolve } from "node:path"
+import { Context, Effect, Layer } from "effect"
+import { type AppConfig, applyRepoConfig, readConfig } from "../config"
+import {
+    AppProcess,
+    type ProcessError,
+    type ProcessOutputStream,
+    type ProcessResult,
+} from "../process/app-process"
+import {
+    OperationInterruptedError,
+    type OperationSink,
+} from "../process/operation-sink"
+import { HookOperation, type HookOperationId } from "./types"
 
 export interface HookRunOptions {
-    verify?: boolean
-    observer?: CommandObserver
+    readonly cwd: string
+    readonly verify?: boolean
+    readonly sink?: OperationSink
 }
 
-export class HookError extends Error {
-    constructor(
-        message: string,
-        readonly command: string,
-        readonly result: ExecuteResult,
-    ) {
-        super(message)
-        this.name = "HookError"
-    }
+export type HookRunResult =
+    | { readonly success: true }
+    | {
+          readonly success: false
+          readonly command: string
+          readonly result: ProcessResult
+      }
+
+export interface HooksService {
+    readonly hasPreHooks: (
+        operationId: HookOperationId,
+        cwd: string,
+    ) => Effect.Effect<boolean, ProcessError>
+    readonly runApplicablePreHooks: (
+        operationId: HookOperationId,
+        options: HookRunOptions,
+    ) => Effect.Effect<HookRunResult, ProcessError>
 }
+
+export class Hooks extends Context.Service<Hooks, HooksService>()(
+    "kajji/Hooks",
+) {}
 
 function expandHome(path: string): string {
     if (path === "~") return homedir()
@@ -28,13 +50,13 @@ function expandHome(path: string): string {
     return path
 }
 
-function resolvePath(path: string, base = getRepoPath()): string {
+function resolvePath(path: string, base: string): string {
     const expanded = expandHome(path)
     return isAbsolute(expanded) ? expanded : resolve(base, expanded)
 }
 
-function canonicalPath(path: string): string {
-    const resolved = resolvePath(path)
+function canonicalPath(path: string, base: string): string {
+    const resolved = resolvePath(path, base)
     return existsSync(resolved) ? realpathSync(resolved) : resolved
 }
 
@@ -54,199 +76,206 @@ function isExecutable(path: string): boolean {
     }
 }
 
-async function readGitHooksPath(): Promise<string | undefined> {
-    const proc = Bun.spawn(
-        ["git", "config", "--path", "--get", "core.hooksPath"],
-        {
-            cwd: getRepoPath(),
-            stdin: "ignore",
-            stdout: "pipe",
-            stderr: "pipe",
-        },
-    )
-    const [stdout] = await Promise.all([
-        new Response(proc.stdout).text(),
-        new Response(proc.stderr).text(),
-    ])
-    const exitCode = await proc.exited
-    if (exitCode !== 0) return undefined
-    const path = stdout.trim()
-    return path.length > 0 ? path : undefined
-}
-
-function readHooksConfig() {
-    return applyRepoConfig(readConfig(), getRepoPath())
-}
-
-async function resolveGitHooksPath(): Promise<string | undefined> {
-    const configuredPath = readHooksConfig().gitHooksPath
-    if (configuredPath === false) return undefined
-    return configuredPath ?? (await readGitHooksPath())
-}
-
-async function runCommand(
-    command: string,
-    options: HookRunOptions,
-    env?: Record<string, string>,
-): Promise<ExecuteResult> {
-    const logId = options.observer?.start(command, { kind: "hook" })
-
-    const proc = Bun.spawn(["sh", "-lc", command], {
-        cwd: getRepoPath(),
-        env: {
-            ...process.env,
-            ...env,
-        },
-        stdin: "ignore",
-        stdout: "pipe",
-        stderr: "pipe",
-    })
-
-    return readHookProcess(proc, options, logId)
-}
-
-async function runExecutableHook(
-    path: string,
-    options: HookRunOptions,
-): Promise<ExecuteResult> {
-    const command = path
-    const logId = options.observer?.start(command, { kind: "hook" })
-    const proc = Bun.spawn([path], {
-        cwd: getRepoPath(),
-        env: process.env,
-        stdin: "ignore",
-        stdout: "pipe",
-        stderr: "pipe",
-    })
-
-    return readHookProcess(proc, options, logId)
-}
-
-interface HookProcess {
-    stdout: ReadableStream<Uint8Array>
-    stderr: ReadableStream<Uint8Array>
-    exited: Promise<number>
-}
-
-async function readHookProcess(
-    proc: HookProcess,
-    options: HookRunOptions,
-    logId: string | undefined,
-): Promise<ExecuteResult> {
-    let stdout = ""
-    let stderr = ""
-    if (options.observer && logId) {
-        const readStream = async (
-            stream: ReadableStream<Uint8Array>,
-            append: (chunk: string) => void,
-        ) => {
-            const reader = stream.getReader()
-            const decoder = new TextDecoder()
-            while (true) {
-                const { done, value } = await reader.read()
-                if (done) break
-                const chunk = decoder.decode(value, { stream: true })
-                append(chunk)
-                options.observer?.append(logId, chunk)
-            }
-            const tail = decoder.decode()
-            if (tail) {
-                append(tail)
-                options.observer?.append(logId, tail)
-            }
-        }
-        await Promise.all([
-            readStream(proc.stdout, (chunk) => {
-                stdout += chunk
-            }),
-            readStream(proc.stderr, (chunk) => {
-                stderr += chunk
-            }),
-        ])
-    } else {
-        ;[stdout, stderr] = await Promise.all([
-            new Response(proc.stdout).text(),
-            new Response(proc.stderr).text(),
-        ])
+function configuredHookCommands(
+    operationId: HookOperationId,
+    cwd: string,
+    config: AppConfig,
+) {
+    const hook = applyRepoConfig(config, cwd).hooks[operationId]
+    if (!hook) return []
+    if (hook.onlyIn) {
+        const repoPath = canonicalPath(cwd, cwd)
+        const onlyInPath = canonicalPath(hook.onlyIn, cwd)
+        if (!isPathWithin(repoPath, onlyInPath)) return []
     }
-    const exitCode = await proc.exited
-    const result = {
-        stdout,
-        stderr,
-        exitCode,
-        success: exitCode === 0,
-    }
-    if (logId) options.observer?.finish(logId, result)
-    return result
+    return hook.pre
 }
 
-async function runGitPreCommitHook(
-    options: HookRunOptions,
-): Promise<ExecuteResult | undefined> {
-    const hooksPath = await resolveGitHooksPath()
-    if (!hooksPath) return undefined
-
-    const hookPath = resolvePath(join(hooksPath, "pre-commit"))
-    if (!existsSync(hookPath)) return undefined
-    if (!isExecutable(hookPath)) {
-        options.observer?.skip(
-            `${hookPath} skipped because it is not executable`,
-        )
-        return undefined
-    }
-
-    const result = await runExecutableHook(hookPath, options)
-    if (!result.success) {
-        throw new HookError(
-            `Git hook ${basename(hookPath)} failed with exit code ${result.exitCode}: ${hookPath}`,
-            hookPath,
-            result,
-        )
-    }
-    return result
+interface HookOperationPolicy {
+    readonly gitPreCommit: boolean
 }
 
-export async function runPreHooks(
-    operationId: string,
-    options: HookRunOptions = {},
-): Promise<ExecuteResult[]> {
-    if (options.verify === false) {
-        options.observer?.skip(
-            `pre-hooks for ${operationId} skipped (--no-verify)`,
-        )
-        return []
+const hookOperationPolicies = {
+    [HookOperation.JjNew]: { gitPreCommit: true },
+} satisfies Record<HookOperationId, HookOperationPolicy>
+
+function notify(fn: () => void) {
+    try {
+        fn()
+    } catch {
+        // Hook observation must never affect execution.
     }
+}
 
-    const hook = readHooksConfig().hooks[operationId]
-    const results: ExecuteResult[] = []
+export function makeHooksLayer(
+    getConfig: () => AppConfig = readConfig,
+): Layer.Layer<Hooks, never, AppProcess> {
+    return Layer.effect(
+        Hooks,
+        Effect.gen(function* () {
+            const appProcess = yield* AppProcess
 
-    let configuredHookCommands = hook?.pre ?? []
-    if (hook?.onlyIn) {
-        const repoPath = canonicalPath(getRepoPath())
-        const onlyInPath = canonicalPath(hook.onlyIn)
-        if (!isPathWithin(repoPath, onlyInPath)) configuredHookCommands = []
-    }
+            const resolveGitHooksPath = Effect.fn("Hooks.resolveGitHooksPath")(
+                function* (cwd: string) {
+                    const configuredPath = applyRepoConfig(
+                        getConfig(),
+                        cwd,
+                    ).gitHooksPath
+                    if (configuredPath === false) return undefined
+                    if (configuredPath) return resolvePath(configuredPath, cwd)
 
-    for (const hookCommand of configuredHookCommands) {
-        const command = commandText(hookCommand)
-        const env =
-            typeof hookCommand === "string" ? undefined : hookCommand.env
-        const result = await runCommand(command, options, env)
-        results.push(result)
-
-        if (!result.success) {
-            throw new HookError(
-                `Hook for ${operationId} failed with exit code ${result.exitCode}: ${command}`,
-                command,
-                result,
+                    const result = yield* appProcess.run({
+                        executable: "git",
+                        args: ["config", "--path", "--get", "core.hooksPath"],
+                        cwd,
+                    })
+                    if (result.exitCode !== 0) return undefined
+                    const path = result.stdout.trim()
+                    return path ? resolvePath(path, cwd) : undefined
+                },
             )
-        }
-    }
 
-    if (operationId === "jj.new") {
-        const gitHookResult = await runGitPreCommitHook(options)
-        if (gitHookResult) results.push(gitHookResult)
-    }
+            const gitPreCommitHook = Effect.fn("Hooks.gitPreCommitHook")(
+                function* (cwd: string) {
+                    const hooksPath = yield* resolveGitHooksPath(cwd)
+                    if (!hooksPath) return undefined
+                    const hookPath = join(hooksPath, "pre-commit")
+                    return existsSync(hookPath) ? hookPath : undefined
+                },
+            )
 
-    return results
+            interface ResolvedHook {
+                readonly command: string
+                readonly executable: string
+                readonly args: readonly string[]
+                readonly env?: Readonly<Record<string, string>>
+            }
+
+            const resolvePreHooks = Effect.fn("Hooks.resolvePreHooks")(
+                function* (operationId: HookOperationId, cwd: string) {
+                    const policy = hookOperationPolicies[operationId]
+                    const hooks: ResolvedHook[] = configuredHookCommands(
+                        operationId,
+                        cwd,
+                        getConfig(),
+                    ).map((hookCommand) => {
+                        const command = commandText(hookCommand)
+                        return {
+                            command,
+                            executable: "sh",
+                            args: ["-lc", command],
+                            env:
+                                typeof hookCommand === "string"
+                                    ? undefined
+                                    : hookCommand.env,
+                        }
+                    })
+                    const skipped: string[] = []
+
+                    if (policy.gitPreCommit) {
+                        const hookPath = yield* gitPreCommitHook(cwd)
+                        if (hookPath) {
+                            if (isExecutable(hookPath)) {
+                                hooks.push({
+                                    command: hookPath,
+                                    executable: hookPath,
+                                    args: [],
+                                })
+                            } else {
+                                skipped.push(
+                                    `${hookPath} skipped because it is not executable`,
+                                )
+                            }
+                        }
+                    }
+
+                    return { hooks, skipped }
+                },
+            )
+
+            const runHook = Effect.fn("Hooks.runHook")(function* (
+                hook: ResolvedHook,
+                options: HookRunOptions,
+            ) {
+                const { command, ...process } = hook
+                notify(() => options.sink?.start(command, "hook"))
+                const result = yield* appProcess
+                    .run({
+                        ...process,
+                        cwd: options.cwd,
+                        onOutput: (
+                            stream: ProcessOutputStream,
+                            chunk: string,
+                        ) => notify(() => options.sink?.output(stream, chunk)),
+                    })
+                    .pipe(
+                        Effect.tapError((error) =>
+                            Effect.sync(() =>
+                                notify(() => options.sink?.fail(error)),
+                            ),
+                        ),
+                        Effect.onInterrupt(() =>
+                            Effect.sync(() =>
+                                notify(() =>
+                                    options.sink?.fail(
+                                        new OperationInterruptedError({
+                                            command,
+                                        }),
+                                    ),
+                                ),
+                            ),
+                        ),
+                    )
+                notify(() => options.sink?.finish(result))
+                return result
+            })
+
+            return Hooks.of({
+                hasPreHooks: Effect.fn("Hooks.hasPreHooks")(function* (
+                    operationId: HookOperationId,
+                    cwd: string,
+                ) {
+                    const resolved = yield* resolvePreHooks(operationId, cwd)
+                    return resolved.hooks.length > 0
+                }),
+                runApplicablePreHooks: Effect.fn("Hooks.runApplicablePreHooks")(
+                    function* (
+                        operationId: HookOperationId,
+                        options: HookRunOptions,
+                    ) {
+                        if (options.verify === false) {
+                            notify(() =>
+                                options.sink?.skip(
+                                    `pre-hooks for ${operationId} skipped (--no-verify)`,
+                                ),
+                            )
+                            return { success: true } as const
+                        }
+
+                        const resolved = yield* resolvePreHooks(
+                            operationId,
+                            options.cwd,
+                        )
+                        for (const message of resolved.skipped) {
+                            notify(() => options.sink?.skip(message))
+                        }
+                        for (const hook of resolved.hooks) {
+                            const result = yield* runHook(hook, options)
+                            if (result.exitCode !== 0) {
+                                return {
+                                    success: false,
+                                    command: hook.command,
+                                    result,
+                                } as const
+                            }
+                        }
+
+                        return { success: true } as const
+                    },
+                ),
+            })
+        }),
+    )
 }
+
+export const HooksLive = makeHooksLayer()

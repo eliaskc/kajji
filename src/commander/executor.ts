@@ -3,21 +3,6 @@ import { diagnosticsLog } from "../utils/diagnostics"
 import { profile, profileMsg } from "../utils/profiler"
 import type { CommandObserver } from "./observer"
 
-let activeObserver: CommandObserver | undefined
-
-export async function withCommandObserver<T>(
-    observer: CommandObserver,
-    fn: () => Promise<T>,
-): Promise<T> {
-    const previous = activeObserver
-    activeObserver = observer
-    try {
-        return await fn()
-    } finally {
-        activeObserver = previous
-    }
-}
-
 export interface ExecuteResult {
     stdout: string
     stderr: string
@@ -73,11 +58,7 @@ export async function execute(
     })
     endSpawn()
 
-    const observer =
-        options.observer ??
-        (activeObserver && !isInternalReadCommand(args)
-            ? activeObserver
-            : undefined)
+    const observer = options.observer
     const logId = observer?.start(options.command ?? `jj ${args.join(" ")}`, {
         kind: "jj",
     })

@@ -1,4 +1,3 @@
-import { HookError, runPreHooks } from "../hooks/runner"
 import { getRepoPath } from "../repo"
 import { isStaleWorkingCopyFailure } from "../utils/error-parser"
 import { type ExecuteResult, execute } from "./executor"
@@ -92,57 +91,6 @@ export function parseOpLog(lines: string[]): OpLogEntry[] {
     }
 
     return operations
-}
-
-export interface VerifyOptions extends OperationRunOptions {
-    verify?: boolean
-}
-async function runJjNewWithHooks(
-    args: string[],
-    options?: VerifyOptions,
-): Promise<OperationResult> {
-    try {
-        await runPreHooks("jj.new", options)
-    } catch (error) {
-        if (error instanceof HookError) {
-            options?.observer?.skip("jj new skipped because pre-hook failed")
-            return {
-                ...error.result,
-                command: `hook jj.new: ${error.command}`,
-            }
-        }
-        throw error
-    }
-
-    const result = await execute(args, {
-        observer: options?.observer,
-        command: `jj ${args.join(" ")}`,
-    })
-    return {
-        ...result,
-        command: `jj ${args.join(" ")}`,
-    }
-}
-
-export async function jjNew(
-    revision: string,
-    options?: VerifyOptions,
-): Promise<OperationResult> {
-    return runJjNewWithHooks(["new", revision], options)
-}
-
-export async function jjNewBefore(
-    revision: string,
-    options?: VerifyOptions,
-): Promise<OperationResult> {
-    return runJjNewWithHooks(["new", "-B", revision], options)
-}
-
-export async function jjNewAfter(
-    revision: string,
-    options?: VerifyOptions,
-): Promise<OperationResult> {
-    return runJjNewWithHooks(["new", "-A", revision], options)
 }
 
 export async function jjDuplicate(revision: string): Promise<OperationResult> {

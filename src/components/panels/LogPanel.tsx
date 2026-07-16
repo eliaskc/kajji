@@ -18,7 +18,6 @@ import {
     type Bookmark,
     isBookmarkBackwardsError,
 } from "../../commander/bookmarks"
-import { withCommandObserver } from "../../commander/executor"
 import {
     ghBrowseCommit,
     ghPrCreateWeb,
@@ -28,9 +27,6 @@ import {
     type OpLogEntry,
     type OperationResult,
     isImmutableError,
-    jjNew,
-    jjNewAfter,
-    jjNewBefore,
     jjResolveInteractive,
     jjSplitInteractive,
     jjSquashInteractive,
@@ -47,6 +43,7 @@ import { useStatus } from "../../context/status"
 import { useSync } from "../../context/sync"
 import { useTheme } from "../../context/theme"
 import type { Context } from "../../context/types"
+import { HookOperation } from "../../hooks/types"
 import { getRepoPath } from "../../repo"
 import {
     findCommitBookmarkWithOriginDiff,
@@ -597,33 +594,6 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
         if (tab.id === "oplog") {
             loadOpLog()
         }
-    }
-
-    const runOperation = async (
-        text: string,
-        op: (options?: {
-            observer: ReturnType<typeof commandLog.observer>
-        }) => Promise<OperationResult>,
-        selectAfterRefresh?: (
-            result: OperationResult,
-            commits: Commit[],
-        ) => number | null | undefined,
-    ) => {
-        const observer = commandLog.observer()
-        const result = await withCommandObserver(observer, () =>
-            op({ observer }),
-        )
-        commandLog.addEntry(result)
-        if (result.success) {
-            await refresh({
-                selectIndex: selectAfterRefresh
-                    ? (commits) => selectAfterRefresh(result, commits)
-                    : undefined,
-            })
-            await refreshAppliedFilterGroups()
-            loadOpLog()
-        }
-        return result
     }
 
     const runAppOperation = async (
@@ -1347,9 +1317,13 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
             execute: () => {
                 const commit = selectedLogCommit()
                 if (commit)
-                    runOperation(
+                    runAppOperation(
                         "Creating...",
-                        (options) => jjNew(getRevisionId(commit), options),
+                        (observer) =>
+                            app.jjNew(getRevisionId(commit), {
+                                cwd: getRepoPath(),
+                                observer,
+                            }),
                         selectWorkingCopyCommitAfterRefresh,
                     )
             },
@@ -1362,10 +1336,21 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
 
             panel: "log",
             visibleIn: ["palette"] as const,
-            execute: () => {
+            execute: async () => {
                 const commit = selectedLogCommit()
                 if (!commit) return
                 const revision = getRevisionId(commit)
+                const cwd = getRepoPath()
+                const hasPreHook = await app
+                    .hasPreHooks(HookOperation.JjNew, { cwd })
+                    .catch(() => false)
+                const currentCommit = selectedLogCommit()
+                if (
+                    getRepoPath() !== cwd ||
+                    !currentCommit ||
+                    getRevisionId(currentCommit) !== revision
+                )
+                    return
                 dialog.open(
                     () => (
                         <ActionMenuModal
@@ -1374,40 +1359,50 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                                     key: "n",
                                     mutedPrefix: "jj new",
                                     label: "",
-                                    detail: "run hooks",
                                     onSelect: () =>
-                                        runOperation(
+                                        runAppOperation(
                                             "Creating...",
-                                            (options) =>
-                                                jjNew(revision, options),
-                                            selectWorkingCopyCommitAfterRefresh,
-                                        ),
-                                },
-                                {
-                                    key: "v",
-                                    mutedPrefix: "jj new",
-                                    label: " --no-verify",
-                                    detail: "skip hooks",
-                                    onSelect: () =>
-                                        runOperation(
-                                            "Creating...",
-                                            (options) =>
-                                                jjNew(revision, {
-                                                    ...options,
-                                                    verify: false,
+                                            (observer) =>
+                                                app.jjNew(revision, {
+                                                    cwd,
+                                                    observer,
                                                 }),
                                             selectWorkingCopyCommitAfterRefresh,
                                         ),
                                 },
+                                ...(hasPreHook
+                                    ? [
+                                          {
+                                              key: "v",
+                                              mutedPrefix: "jj new",
+                                              label: " --no-verify",
+                                              detail: "skip hooks",
+                                              onSelect: () =>
+                                                  runAppOperation(
+                                                      "Creating...",
+                                                      (observer) =>
+                                                          app.jjNew(revision, {
+                                                              cwd,
+                                                              observer,
+                                                              verify: false,
+                                                          }),
+                                                      selectWorkingCopyCommitAfterRefresh,
+                                                  ),
+                                          },
+                                      ]
+                                    : []),
                                 {
                                     key: "a",
                                     mutedPrefix: "jj new",
                                     label: " --after",
                                     onSelect: () =>
-                                        runOperation(
+                                        runAppOperation(
                                             "Creating...",
-                                            (options) =>
-                                                jjNewAfter(revision, options),
+                                            (observer) =>
+                                                app.jjNewAfter(revision, {
+                                                    cwd,
+                                                    observer,
+                                                }),
                                             selectWorkingCopyCommitAfterRefresh,
                                         ),
                                 },
@@ -1416,10 +1411,13 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                                     mutedPrefix: "jj new",
                                     label: " --before",
                                     onSelect: () =>
-                                        runOperation(
+                                        runAppOperation(
                                             "Creating...",
-                                            (options) =>
-                                                jjNewBefore(revision, options),
+                                            (observer) =>
+                                                app.jjNewBefore(revision, {
+                                                    cwd,
+                                                    observer,
+                                                }),
                                             selectWorkingCopyCommitAfterRefresh,
                                         ),
                                 },

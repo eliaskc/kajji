@@ -4,11 +4,14 @@ import {
     Jj,
     JjCommandError,
     type JjGitFetchOptions,
+    JjLayer,
     JjLive,
     JjReadError,
     JjStaleWorkingCopyError,
     type OperationSink,
 } from "../../../src/commander/jj"
+import { ConfigSchema } from "../../../src/config"
+import { makeHooksLayer } from "../../../src/hooks/runner"
 import {
     type ProcessCommand,
     type ProcessResult,
@@ -319,6 +322,84 @@ describe("Jj", () => {
             ["bookmark", "rename", "old", "new"],
             ["bookmark", "forget", "forget"],
         ])
+    })
+
+    test("constructs new placement commands when hooks are skipped", async () => {
+        const commands: ProcessCommand[] = []
+        const processLayer = makeAppProcessFake((command) => {
+            commands.push(command)
+            return Effect.succeed(success)
+        })
+        const effect = Effect.all(
+            [
+                Jj.use((jj) =>
+                    jj.new("revision", {
+                        cwd: "/tmp/repository",
+                        verify: false,
+                    }),
+                ),
+                Jj.use((jj) =>
+                    jj.new("before", {
+                        cwd: "/tmp/repository",
+                        position: "before",
+                        verify: false,
+                    }),
+                ),
+                Jj.use((jj) =>
+                    jj.new("after", {
+                        cwd: "/tmp/repository",
+                        position: "after",
+                        verify: false,
+                    }),
+                ),
+            ],
+            { concurrency: 1 },
+        ).pipe(Effect.provide(JjLive), Effect.provide(processLayer))
+
+        await Effect.runPromise(effect)
+
+        expect(commands.map((command) => command.args)).toEqual([
+            ["new", "revision"],
+            ["new", "-B", "before"],
+            ["new", "-A", "after"],
+        ])
+    })
+
+    test("returns the failed hook result without running jj new", async () => {
+        const commands: ProcessCommand[] = []
+        const hookFailure = {
+            ...success,
+            stdout: "",
+            stderr: "hook failed",
+            exitCode: 7,
+        }
+        const processLayer = makeAppProcessFake((command) => {
+            commands.push(command)
+            return Effect.succeed(hookFailure)
+        })
+        const config = ConfigSchema.parse({
+            gitHooksPath: false,
+            repos: {
+                "/tmp/repository": {
+                    hooks: { "jj.new": { pre: ["check"] } },
+                },
+            },
+        })
+        const effect = Jj.use((jj) =>
+            jj.new("revision", { cwd: "/tmp/repository" }),
+        ).pipe(
+            Effect.provide(JjLayer),
+            Effect.provide(makeHooksLayer(() => config)),
+            Effect.provide(processLayer),
+        )
+
+        const result = await Effect.runPromise(effect)
+
+        expect(commands.map((command) => command.executable)).toEqual(["sh"])
+        expect(result).toEqual({
+            ...hookFailure,
+            command: "hook jj.new: check",
+        })
     })
 
     test("constructs duplicate, abandon, and restore commands", async () => {
@@ -637,6 +718,7 @@ describe("Jj", () => {
             output: (stream, chunk) => events.push(`${stream}:${chunk.trim()}`),
             finish: () => events.push("finish"),
             fail: () => events.push("fail"),
+            skip: (message) => events.push(`skip:${message}`),
         }
         const invocation = runWithResult(success, {
             cwd: "/tmp/repository",
@@ -706,6 +788,9 @@ describe("Jj", () => {
                 throw new Error("sink failed")
             },
             fail: () => {
+                throw new Error("sink failed")
+            },
+            skip: () => {
                 throw new Error("sink failed")
             },
         }

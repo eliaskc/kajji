@@ -2,6 +2,9 @@ import { describe, expect, test } from "bun:test"
 import { Effect } from "effect"
 import { makeApplicationClient } from "../../../src/application/client"
 import type { CommandObserver } from "../../../src/commander/observer"
+import { ConfigSchema } from "../../../src/config"
+import { makeHooksLayer } from "../../../src/hooks/runner"
+import { HookOperation } from "../../../src/hooks/types"
 import {
     type ProcessResult,
     makeAppProcessFake,
@@ -58,6 +61,69 @@ describe("ApplicationClient", () => {
             "finish",
         ])
         expect(completions).toBe(1)
+    })
+
+    test("routes the new family with explicit hook skipping", async () => {
+        const commands: string[] = []
+        const skipped: string[] = []
+        const layer = makeAppProcessFake((command) => {
+            commands.push(command.args.join(" "))
+            return Effect.succeed(success)
+        })
+        const observer: CommandObserver = {
+            start: () => "command",
+            append: () => {},
+            finish: () => {},
+            skip: (message) => skipped.push(message),
+        }
+        const client = makeApplicationClient(layer)
+        const options = {
+            cwd: "/tmp/repository",
+            verify: false,
+            observer,
+        }
+
+        await client.jjNew("revision", options)
+        await client.jjNewBefore("before", options)
+        await client.jjNewAfter("after", options)
+        await client.dispose()
+
+        expect(commands).toEqual([
+            "new revision",
+            "new -B before",
+            "new -A after",
+        ])
+        expect(skipped).toEqual([
+            "pre-hooks for jj.new skipped (--no-verify)",
+            "pre-hooks for jj.new skipped (--no-verify)",
+            "pre-hooks for jj.new skipped (--no-verify)",
+        ])
+    })
+
+    test("exposes hook availability without routing through Jj", async () => {
+        const config = ConfigSchema.parse({
+            gitHooksPath: false,
+            repos: {
+                "/tmp/repository": {
+                    hooks: { "jj.new": { pre: ["check"] } },
+                },
+            },
+        })
+        const processLayer = makeAppProcessFake(() => Effect.succeed(success))
+        const client = makeApplicationClient(
+            processLayer,
+            makeHooksLayer(() => config),
+        )
+
+        await expect(
+            client.hasPreHooks(HookOperation.JjNew, {
+                cwd: "/tmp/repository",
+            }),
+        ).resolves.toBe(true)
+        await expect(
+            client.hasPreHooks(HookOperation.JjNew, { cwd: "/tmp/other" }),
+        ).resolves.toBe(false)
+        await client.dispose()
     })
 
     test("routes push, undo, and redo through the supplied process", async () => {

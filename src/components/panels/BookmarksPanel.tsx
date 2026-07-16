@@ -21,7 +21,6 @@ import {
 import {
     type OperationResult,
     isImmutableError,
-    jjNew,
 } from "../../commander/operations"
 import { getRevisionId } from "../../commander/types"
 import { useApplication } from "../../context/application"
@@ -952,7 +951,10 @@ export function BookmarksPanel() {
                     return
                 }
                 runOperation("Creating...", (observer) =>
-                    jjNew(bookmark.name, { observer }),
+                    app.jjNew(bookmark.name, {
+                        cwd: getRepoPath(),
+                        observer,
+                    }),
                 )
             },
         },

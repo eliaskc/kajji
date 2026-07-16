@@ -21,7 +21,6 @@ import { addRecentRepo } from "../utils/state"
 import { getVisibleBookmarks } from "./sync-bookmarks"
 
 import { streamLogPage } from "../commander/log"
-import { jjNew } from "../commander/operations"
 import { type Commit, type FileChange, getRevisionId } from "../commander/types"
 import { onConfigChange, readConfig } from "../config"
 import {

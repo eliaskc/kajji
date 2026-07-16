@@ -13,8 +13,9 @@ import {
     type JjEditOptions,
     type JjGitFetchOptions,
     type JjGitPushOptions,
-    JjLive,
+    JjLayer,
     type JjLogReadOptions,
+    type JjNewOptions,
     type JjOperationOptions,
     type JjOperationResult,
     type JjRebaseOptions,
@@ -29,6 +30,8 @@ import type { FetchLogPageResult } from "../commander/log"
 import type { CommandObserver } from "../commander/observer"
 import type { OperationResult } from "../commander/operations"
 import type { FileChange } from "../commander/types"
+import { Hooks, HooksLive, type HooksService } from "../hooks/runner"
+import type { HookOperationId } from "../hooks/types"
 import { AppProcessLive, type ProcessError } from "../process/app-process"
 import { diagnosticsLog } from "../utils/diagnostics"
 import { makeHistoricalFileStore } from "./historical-files"
@@ -63,6 +66,12 @@ export interface ApplicationGitFetchOptions
 
 export interface ApplicationGitPushOptions
     extends Omit<JjGitPushOptions, "sink"> {
+    readonly observer?: CommandObserver
+    readonly signal?: AbortSignal
+}
+
+interface ApplicationNewOptions
+    extends Omit<JjNewOptions, "sink" | "position"> {
     readonly observer?: CommandObserver
     readonly signal?: AbortSignal
 }
@@ -159,6 +168,22 @@ export interface ApplicationClient {
         name: string,
         options: ApplicationOperationOptions,
     ) => Promise<OperationResult>
+    readonly jjNew: (
+        revision: string,
+        options: ApplicationNewOptions,
+    ) => Promise<OperationResult>
+    readonly jjNewBefore: (
+        revision: string,
+        options: ApplicationNewOptions,
+    ) => Promise<OperationResult>
+    readonly jjNewAfter: (
+        revision: string,
+        options: ApplicationNewOptions,
+    ) => Promise<OperationResult>
+    readonly hasPreHooks: (
+        operationId: HookOperationId,
+        options: ApplicationReadOptions,
+    ) => Promise<boolean>
     readonly jjDuplicate: (
         revision: string,
         options: ApplicationOperationOptions,
@@ -239,8 +264,8 @@ function observerSink(observer: CommandObserver | undefined): {
     let logId: string | undefined
     return {
         sink: {
-            start: (command) => {
-                logId = observer?.start(command, { kind: "jj" })
+            start: (command, kind = "jj") => {
+                logId = observer?.start(command, { kind })
             },
             output: (_stream, chunk) => {
                 if (logId) observer?.append(logId, chunk)
@@ -263,6 +288,7 @@ function observerSink(observer: CommandObserver | undefined): {
                     logged: true,
                 })
             },
+            skip: (message) => observer?.skip(message),
         },
         wasLogged: () => Boolean(logId),
     }
@@ -270,9 +296,14 @@ function observerSink(observer: CommandObserver | undefined): {
 
 export function makeApplicationClient(
     appProcessLayer = AppProcessLive,
+    hooksLayer = HooksLive,
 ): ApplicationClient {
-    const layer = JjLive.pipe(Layer.provide(appProcessLayer))
-    const runtime = ManagedRuntime.make(layer)
+    const providedHooksLayer = hooksLayer.pipe(Layer.provide(appProcessLayer))
+    const dependencies = Layer.merge(appProcessLayer, providedHooksLayer)
+    const providedJjLayer = JjLayer.pipe(Layer.provide(dependencies))
+    const runtime = ManagedRuntime.make(
+        Layer.merge(providedJjLayer, providedHooksLayer),
+    )
     const historicalFiles = makeHistoricalFileStore()
     let accepting = true
     let disposePromise: Promise<void> | undefined
@@ -284,6 +315,17 @@ export function makeApplicationClient(
         if (!accepting)
             return Promise.reject(new ApplicationClientClosedError())
         return runtime.runPromise(Jj.use(operation), { signal: options.signal })
+    }
+
+    const runHookRead = <A, E>(
+        options: ApplicationReadOptions,
+        operation: (hooks: HooksService) => Effect.Effect<A, E>,
+    ): Promise<A> => {
+        if (!accepting)
+            return Promise.reject(new ApplicationClientClosedError())
+        return runtime.runPromise(Hooks.use(operation), {
+            signal: options.signal,
+        })
     }
 
     const runOperation = async (
@@ -390,6 +432,22 @@ export function makeApplicationClient(
         jjBookmarkForget: (name, { observer, signal, ...options }) =>
             runOperation({ ...options, observer, signal }, (jj, sink) =>
                 jj.bookmarkForget(name, { ...options, sink }),
+            ),
+        jjNew: (revision, { observer, signal, ...options }) =>
+            runOperation({ ...options, observer, signal }, (jj, sink) =>
+                jj.new(revision, { ...options, sink }),
+            ),
+        jjNewBefore: (revision, { observer, signal, ...options }) =>
+            runOperation({ ...options, observer, signal }, (jj, sink) =>
+                jj.new(revision, { ...options, position: "before", sink }),
+            ),
+        jjNewAfter: (revision, { observer, signal, ...options }) =>
+            runOperation({ ...options, observer, signal }, (jj, sink) =>
+                jj.new(revision, { ...options, position: "after", sink }),
+            ),
+        hasPreHooks: (operationId, options) =>
+            runHookRead(options, (hooks) =>
+                hooks.hasPreHooks(operationId, options.cwd),
             ),
         jjDuplicate: (revision, { observer, signal, ...options }) =>
             runOperation({ ...options, observer, signal }, (jj, sink) =>

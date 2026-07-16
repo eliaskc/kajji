@@ -511,6 +511,43 @@ Verification evidence:
 The next batch is hooks plus `new`, `new-before`, and `new-after`, which should
 remove the final real UI ownership of `activeObserver`. Scoped streaming follows.
 
+## Implementation Update — 2026-07-16 15:22:30 CEST
+
+The hooks and `jj new` batch is complete. Configured shell hooks, Git
+`pre-commit` hook discovery, and executable hooks now run through a scoped
+`Hooks` service over `AppProcess`. Hook commands remain sequential, configured
+environment overrides are preserved, shell commands retain the explicit
+`sh -lc` capability, and direct hooks retain executable-bit checks. Process
+failures and interruption are reported through the same operation-local sink as
+the owning jj command.
+
+`new`, `new-before`, and `new-after` now run through `Jj` and the Promise-facing
+`ApplicationClient`. Pre-hook failures still prevent `jj new`, retain the failed
+hook's output and exit code, and emit the existing skip diagnostic. Explicit
+`--no-verify` still skips both configured and Git hooks.
+
+The new-options menu now asks the hooks capability whether the current repository
+has an applicable configured hook. It shows `--no-verify` only when a
+configured shell hook or executable Git `pre-commit` hook would actually run.
+Hook discovery failures conservatively omit the option instead of blocking the
+menu.
+
+There are no remaining `withCommandObserver` or `activeObserver` callers, so the
+mutable global observer and compatibility wrapper have been removed. Legacy
+commands that still use `execute` must now pass observers explicitly.
+
+Verification evidence:
+
+- `bun test`: 360 passing tests
+- `bun check` and changed-file Biome checks pass
+- `bun test:e2e`: all 10 terminal workflows pass
+- Terminal Control verified that the new-options menu omits `--no-verify`
+  without hooks and shows it after configuring an executable Git `pre-commit`
+  hook in the same repository
+
+Scoped streaming for log, bookmark, and diff reads is the next architectural
+phase.
+
 ## Work After Fetch
 
 ### 1. Consolidate captured jj execution
@@ -533,7 +570,7 @@ without stale completion callbacks.
 This step should settle the streaming interface and backpressure policy with a
 real log or diff caller.
 
-### 3. Migrate gh, git, and hooks
+### 3. Migrate gh and git
 
 Reuse the process lifecycle implementation while keeping domain policy in
 adapters:
@@ -541,8 +578,6 @@ adapters:
 - GitHub owns gh arguments, optional stdin, JSON parsing, and authentication or
   command failures.
 - Git helpers own their silent-probe behavior where it is still intentional.
-- Hooks retain an explicit `sh -lc` capability for configured shell commands and
-  preserve sequential execution.
 
 Do not force interactive editors, clipboard writes, updater pipelines, or
 synchronous startup checks through an interface designed only for captured
@@ -566,7 +601,6 @@ Keep stack discovery and planning pure. Before Effect-native stack apply ships:
 
 After callers have migrated:
 
-- remove the mutable global observer
 - remove migrated direct `Bun.spawn` and Bun shell paths
 - remove callback streaming adapters
 - remove scattered runtime execution
