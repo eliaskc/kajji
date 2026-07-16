@@ -760,14 +760,19 @@ describe("Jj", () => {
         expect(failure.message).toBe("jj diff failed: bad revision")
     })
 
-    test("reports stale working copy refresh reads as typed failures", async () => {
-        const processLayer = makeAppProcessFake(() =>
-            Effect.succeed({
-                ...success,
-                exitCode: 1,
-                stderr: "Could not read working copy's operation",
-            }),
-        )
+    test("preflights refreshes for a stale working copy", async () => {
+        const commands: ProcessCommand[] = []
+        const processLayer = makeAppProcessFake((command) => {
+            commands.push(command)
+            if (command.args[0] === "status") {
+                return Effect.succeed({
+                    ...success,
+                    exitCode: 1,
+                    stderr: "Could not read working copy's operation",
+                })
+            }
+            return Effect.succeed(success)
+        })
         const effect = Jj.use((jj) =>
             jj.refreshState({ cwd: "/tmp/repository" }),
         ).pipe(Effect.provide(JjLive), Effect.provide(processLayer))
@@ -775,6 +780,7 @@ describe("Jj", () => {
         await expect(Effect.runPromise(effect)).rejects.toBeInstanceOf(
             JjStaleWorkingCopyError,
         )
+        expect(commands.map((command) => command.args)).toEqual([["status"]])
     })
 
     test("reports output and exactly one completion to the sink", async () => {

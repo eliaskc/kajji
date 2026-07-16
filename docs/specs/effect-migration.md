@@ -99,7 +99,7 @@ Owned ManagedRuntime
       |
 Application workflows
       |
-Jj / GitHub / RepositoryHealth / StackJournal
+Jj / GitHub / RepositoryBootstrap / StackJournal
       |
 AppProcess / operation sink
 ```
@@ -626,6 +626,41 @@ The next slice is repository health over supplied process capabilities, followed
 by stack preparation and apply over supplied `Jj`, `GitHub`, and journal
 implementations.
 
+## Implementation Update — 2026-07-16 22:07:23 CEST
+
+Repository bootstrap now runs through a supplied `RepositoryBootstrap`
+capability over `Jj` and `Git`. Repository-root discovery, Git repository
+detection, stale
+working-copy startup checks, and `jj git init` variants all use the owned
+`AppProcess` lifecycle. The synchronous `spawnSync` startup path and the legacy
+`utils/repo-check.ts` adapter have been removed.
+
+The Promise-facing `ApplicationClient` exposes structural repository status and
+initialization results. `runTui` resolves initial status before rendering, while
+repository selection and startup retries reuse the same capability. Process
+spawn/read/timeout failures retain the previous conservative startup behavior:
+failed probes do not prevent the startup screen from rendering.
+
+Refresh-state polling now preflights `jj status` before reading operation and
+working-copy IDs. This catches stale working copies on the normal focused poll,
+focus refresh, initial refresh-state read, and full-refresh path even when the
+other metadata reads would succeed. Stale errors now show the existing repair
+screen even when revisions are already loaded, so an externally stale workspace
+cannot remain only as command-log output while old data stays visible.
+
+Verification evidence:
+
+- `bun test`: 377 passing tests
+- `bun check` and changed-file Biome checks pass
+- `bun test:e2e`: all 10 terminal workflows pass
+- three-run TUI benchmark medians were 2174 ms startup and 605 ms fetch,
+  compared with 2205 ms and 595 ms on the parent revision
+- focused tests cover root normalization, Git detection, colocated init,
+  startup stale reporting, and refresh preflight short-circuiting
+
+Repository bootstrap is complete. Stack preparation and apply over supplied `Jj`,
+`GitHub`, and journal dependencies is the next major migration phase.
+
 ## Work After Fetch
 
 ### 1. Consolidate captured jj execution
@@ -663,7 +698,7 @@ commands. Migrate them later if a shared capability is demonstrated.
 
 ### 4. Migrate repository health and stack workflows
 
-Build `RepositoryHealth` over `Jj`. Then migrate stack preparation and apply to
+Build `RepositoryBootstrap` over `Jj`. Then migrate stack preparation and apply to
 supplied `Jj`, `GitHub`, and journal implementations.
 
 Keep stack discovery and planning pure. Before Effect-native stack apply ships:

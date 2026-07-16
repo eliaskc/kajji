@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test"
 import {
     isStaleWorkingCopyFailure,
     parseJjError,
+    shouldShowCriticalError,
 } from "../../../src/utils/error-parser"
 
 describe("stale working copy errors", () => {
@@ -31,5 +32,14 @@ describe("stale working copy errors", () => {
             false,
         )
         expect(isStaleWorkingCopyFailure({ ...output, exitCode: 1 })).toBe(true)
+    })
+
+    test("shows reconciliation even when repository data is already loaded", () => {
+        expect(shouldShowCriticalError("The working copy is stale", true)).toBe(
+            true,
+        )
+        expect(shouldShowCriticalError("unrecognized failure", true)).toBe(
+            false,
+        )
     })
 })

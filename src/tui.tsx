@@ -23,7 +23,6 @@ import { type MockMode, mockMode, setMockMode } from "./mock"
 import { disableOpenTuiSelection } from "./opentui-selection"
 import { getRepoPath, setRepoPath } from "./repo"
 import { getChangesSince, parseChangelog } from "./utils/changelog"
-import { checkRepoStatus, initJjGitRepo, initJjRepo } from "./utils/repo-check"
 import { getRecentRepos } from "./utils/state"
 
 import changelogContent from "../CHANGELOG.md" with { type: "text" }
@@ -103,51 +102,50 @@ export async function runTui(args: string[]): Promise<void> {
         }
     }
 
+    _trace("before repositoryStatus()")
+    const initialStatus = mockMode
+        ? {
+              isJjRepo:
+                  mockMode !== "startup-no-vcs" && mockMode !== "startup-git",
+              hasGitRepo: mockMode === "startup-git",
+              startupError: null,
+              repoPath: getRepoPath(),
+          }
+        : await application.repositoryStatus(getRepoPath())
+    _trace("after repositoryStatus()")
+    if (initialStatus.repoPath !== getRepoPath()) {
+        setRepoPath(initialStatus.repoPath)
+    }
+
     function Root() {
         _trace("Root() called")
         const renderer = useRenderer()
         destroyRenderer = () => renderer.destroy()
-        _trace("before checkRepoStatus()")
-        const initialStatus = checkRepoStatus(getRepoPath())
-        _trace("after checkRepoStatus()")
-        if (initialStatus.repoPath !== getRepoPath()) {
-            setRepoPath(initialStatus.repoPath)
-        }
-        const [isJjRepo, setIsJjRepo] = createSignal(
-            mockMode
-                ? mockMode !== "startup-no-vcs" && mockMode !== "startup-git"
-                : initialStatus.isJjRepo,
-        )
-        const [hasGitRepo] = createSignal(
-            mockMode === "startup-git" ? true : initialStatus.hasGitRepo,
+        const [isJjRepo, setIsJjRepo] = createSignal(initialStatus.isJjRepo)
+        const [hasGitRepo, setHasGitRepo] = createSignal(
+            initialStatus.hasGitRepo,
         )
         const [startupError, setStartupError] = createSignal<string | null>(
-            mockMode ? null : initialStatus.startupError,
+            initialStatus.startupError,
         )
 
-        const handleSelectRepo = (path: string) => {
+        const handleSelectRepo = async (path: string) => {
             setRepoPath(path)
-            const status = checkRepoStatus(path)
+            const status = await application.repositoryStatus(path)
             if (status.repoPath !== path) {
                 setRepoPath(status.repoPath)
             }
-            if (status.isJjRepo) {
-                setIsJjRepo(true)
-            }
+            setIsJjRepo(status.isJjRepo)
+            setHasGitRepo(status.hasGitRepo)
+            setStartupError(status.startupError)
         }
 
-        const handleInitJj = async () => {
-            const result = await initJjRepo(getRepoPath())
-            if (result.success) {
-                setIsJjRepo(true)
-            }
-        }
-
-        const handleInitJjGit = async (colocate: boolean) => {
-            const result = await initJjGitRepo(getRepoPath(), { colocate })
-            if (result.success) {
-                setIsJjRepo(true)
-            }
+        const handleInitRepository = async (colocate: boolean) => {
+            const result = await application.initializeRepository(
+                getRepoPath(),
+                { colocate },
+            )
+            if (result.success) setIsJjRepo(true)
         }
 
         const handleQuit = () => {
@@ -207,14 +205,13 @@ export async function runTui(args: string[]): Promise<void> {
         }
 
         const handleRetryStartup = async () => {
-            const status = checkRepoStatus(getRepoPath())
+            const status = await application.repositoryStatus(getRepoPath())
             if (status.repoPath !== getRepoPath()) {
                 setRepoPath(status.repoPath)
             }
             setStartupError(status.startupError)
-            if (!status.startupError) {
-                setIsJjRepo(status.isJjRepo)
-            }
+            setHasGitRepo(status.hasGitRepo)
+            if (!status.startupError) setIsJjRepo(status.isJjRepo)
         }
 
         const handleFixStartup = async () => {
@@ -248,8 +245,7 @@ export async function runTui(args: string[]): Promise<void> {
                                         mockMode ? [] : getRecentRepos()
                                     }
                                     onSelectRepo={handleSelectRepo}
-                                    onInitJj={handleInitJj}
-                                    onInitJjGit={handleInitJjGit}
+                                    onInitRepository={handleInitRepository}
                                     onQuit={handleQuit}
                                 />
                             </ThemeProvider>

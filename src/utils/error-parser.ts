@@ -117,3 +117,14 @@ export function isCriticalStartupError(errorMessage: string | null): boolean {
     // Add more critical error patterns as needed
     return false
 }
+
+export function shouldShowCriticalError(
+    errorMessage: string | null,
+    hasLoadedData: boolean,
+): boolean {
+    if (!isCriticalStartupError(errorMessage)) return false
+    return (
+        !hasLoadedData ||
+        parseJjError(errorMessage ?? "").errorType === "stale-working-copy"
+    )
+}

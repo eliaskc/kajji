@@ -41,6 +41,13 @@ import type { Commit, FileChange } from "../commander/types"
 import { Hooks, HooksLive, type HooksService } from "../hooks/runner"
 import type { HookOperationId } from "../hooks/types"
 import { AppProcessLive, type ProcessError } from "../process/app-process"
+import {
+    RepositoryBootstrap,
+    RepositoryBootstrapLive,
+    type RepositoryBootstrapService,
+    type RepositoryInitResult,
+    type RepositoryStatus,
+} from "../repository-bootstrap"
 import { diagnosticsLog } from "../utils/diagnostics"
 import { makeHistoricalFileStore } from "./historical-files"
 
@@ -126,6 +133,17 @@ interface ApplicationBookmarkSetOptions
 }
 
 export interface ApplicationClient {
+    readonly repositoryStatus: (
+        path: string,
+        options?: { readonly signal?: AbortSignal },
+    ) => Promise<RepositoryStatus>
+    readonly initializeRepository: (
+        path: string,
+        options?: {
+            readonly colocate?: boolean
+            readonly signal?: AbortSignal
+        },
+    ) => Promise<RepositoryInitResult>
     readonly jjGitFetch: (
         options: ApplicationGitFetchOptions,
     ) => Promise<OperationResult>
@@ -347,11 +365,19 @@ export function makeApplicationClient(
     const providedGitHubLayer = GitHubLive.pipe(
         Layer.provide(gitHubDependencies),
     )
+    const repositoryBootstrapDependencies = Layer.merge(
+        providedJjLayer,
+        providedGitLayer,
+    )
+    const providedRepositoryBootstrapLayer = RepositoryBootstrapLive.pipe(
+        Layer.provide(repositoryBootstrapDependencies),
+    )
     const runtime = ManagedRuntime.make(
         Layer.mergeAll(
             providedJjLayer,
             providedHooksLayer,
             providedGitHubLayer,
+            providedRepositoryBootstrapLayer,
         ),
     )
     const historicalFiles = makeHistoricalFileStore()
@@ -389,6 +415,17 @@ export function makeApplicationClient(
             return Promise.reject(new ApplicationClientClosedError())
         return runtime.runPromise(Hooks.use(operation), {
             signal: options.signal,
+        })
+    }
+
+    const runRepositoryBootstrap = <A>(
+        signal: AbortSignal | undefined,
+        operation: (repository: RepositoryBootstrapService) => Effect.Effect<A>,
+    ): Promise<A> => {
+        if (!accepting)
+            return Promise.reject(new ApplicationClientClosedError())
+        return runtime.runPromise(RepositoryBootstrap.use(operation), {
+            signal,
         })
     }
 
@@ -477,6 +514,14 @@ export function makeApplicationClient(
     }
 
     return {
+        repositoryStatus: (path, options) =>
+            runRepositoryBootstrap(options?.signal, (repository) =>
+                repository.inspect(path),
+            ),
+        initializeRepository: (path, options) =>
+            runRepositoryBootstrap(options?.signal, (repository) =>
+                repository.initialize(path, { colocate: options?.colocate }),
+            ),
         jjGitFetch: ({ observer, signal, ...options }) =>
             runOperation({ ...options, observer, signal }, (jj, sink) =>
                 jj.gitFetch({ ...options, sink }),

@@ -63,6 +63,83 @@ describe("ApplicationClient", () => {
         expect(completions).toBe(1)
     })
 
+    test("inspects and initializes repositories through owned services", async () => {
+        const commands: string[] = []
+        const layer = makeAppProcessFake((command) => {
+            const invocation = `${command.executable} ${command.args.join(" ")}`
+            commands.push(invocation)
+            if (invocation === "jj root") {
+                return Effect.succeed({
+                    ...success,
+                    stdout: "/tmp/repository\n",
+                    stderr: "",
+                })
+            }
+            if (invocation === "git rev-parse --is-inside-work-tree") {
+                return Effect.succeed({
+                    ...success,
+                    stdout: "true\n",
+                    stderr: "",
+                })
+            }
+            return Effect.succeed({ ...success, stdout: "", stderr: "" })
+        })
+        const client = makeApplicationClient(layer)
+
+        await expect(
+            client.repositoryStatus("/tmp/repository/child"),
+        ).resolves.toEqual({
+            isJjRepo: true,
+            hasGitRepo: true,
+            startupError: null,
+            repoPath: "/tmp/repository",
+        })
+        await expect(
+            client.initializeRepository("/tmp/new-repository", {
+                colocate: true,
+            }),
+        ).resolves.toEqual({ success: true })
+        await client.dispose()
+
+        expect(commands).toEqual([
+            "jj root",
+            "git rev-parse --is-inside-work-tree",
+            "jj status",
+            "jj git init --colocate",
+        ])
+    })
+
+    test("reports stale working copies during repository inspection", async () => {
+        const layer = makeAppProcessFake((command) => {
+            if (command.executable === "jj" && command.args[0] === "root") {
+                return Effect.succeed({
+                    ...success,
+                    stdout: "/tmp/repository\n",
+                    stderr: "",
+                })
+            }
+            if (command.executable === "jj" && command.args[0] === "status") {
+                return Effect.succeed({
+                    ...success,
+                    stdout: "",
+                    stderr: "The working copy is stale",
+                    exitCode: 1,
+                })
+            }
+            return Effect.succeed({
+                ...success,
+                stdout: "true\n",
+                stderr: "",
+            })
+        })
+        const client = makeApplicationClient(layer)
+
+        const status = await client.repositoryStatus("/tmp/repository")
+        await client.dispose()
+
+        expect(status.startupError).toBe("The working copy is stale")
+    })
+
     test("routes GitHub reads and browser operations through the supplied process", async () => {
         const commands: string[] = []
         const layer = makeAppProcessFake((command) => {

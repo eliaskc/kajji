@@ -221,4 +221,4 @@ ${uniqueHeads
             ),
         })
     }),
-)
+) satisfies Layer.Layer<GitHub, never, AppProcess | Git>

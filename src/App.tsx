@@ -1,5 +1,12 @@
 import { useRenderer } from "@opentui/solid"
-import { Show, createEffect, createSignal, onCleanup, onMount } from "solid-js"
+import {
+    Match,
+    Switch,
+    createEffect,
+    createSignal,
+    onCleanup,
+    onMount,
+} from "solid-js"
 import { getRevisionId } from "./commander/types"
 import { ErrorScreen } from "./components/ErrorScreen"
 import { LayoutGrid } from "./components/Layout"
@@ -50,7 +57,7 @@ import {
     writeMemorySnapshot,
 } from "./utils/diagnostics"
 import { openInEditor, shouldSuspendForEditor } from "./utils/editor"
-import { isCriticalStartupError, parseJjError } from "./utils/error-parser"
+import { parseJjError, shouldShowCriticalError } from "./utils/error-parser"
 import { readState, writeState } from "./utils/state"
 import { checkForUpdates, getCurrentVersion } from "./utils/update"
 
@@ -140,12 +147,8 @@ function AppContent({ onQuit }: Pick<AppProps, "onQuit">) {
         }
     })
 
-    const hasCriticalError = () => {
-        const err = error()
-        const isLoading = loading()
-        const hasNoData = commits().length === 0
-        return !isLoading && hasNoData && isCriticalStartupError(err)
-    }
+    const hasCriticalError = () =>
+        !loading() && shouldShowCriticalError(error(), commits().length > 0)
 
     const handleRetry = async () => {
         await Promise.all([loadLog(), loadBookmarks(), loadRemoteBookmarks()])
@@ -772,64 +775,65 @@ function AppContent({ onQuit }: Pick<AppProps, "onQuit">) {
         },
     ])
 
-    // Show error screen for critical startup errors
-    if (hasCriticalError()) {
-        const err = error()
-        if (err) {
-            const parsed = parseJjError(err)
-            return (
-                <ErrorScreen
-                    error={err}
-                    onRetry={handleRetry}
-                    onFix={parsed.fixCommand ? handleFix : undefined}
-                    onQuit={onQuit}
-                />
-            )
-        }
-    }
-
     return (
-        <Show
-            when={whatsNewChanges()}
+        <Switch
             fallback={
                 <DialogContainer>
                     <LayoutGrid />
                 </DialogContainer>
             }
         >
-            <WhatsNewScreen
-                changes={whatsNewChanges() ?? []}
-                onClose={() => {
-                    setWhatsNewChanges(null)
-                    writeState({
-                        ...readState(),
-                        lastSeenVersion: getCurrentVersion(),
-                    })
-                }}
-                onDisable={() => {
-                    setWhatsNewChanges(null)
-                    writeConfig({
-                        ...readConfig(),
-                        whatsNewDisabled: true,
-                    })
-                    writeState({
-                        ...readState(),
-                        lastSeenVersion: getCurrentVersion(),
-                    })
-                }}
-                onDisableAutoUpdates={() => {
-                    setWhatsNewChanges(null)
-                    writeConfig({
-                        ...readConfig(),
-                        autoUpdatesDisabled: true,
-                    })
-                    writeState({
-                        ...readState(),
-                        lastSeenVersion: getCurrentVersion(),
-                    })
-                }}
-            />
-        </Show>
+            <Match when={hasCriticalError() ? error() : null}>
+                {(err: () => string) => (
+                    <ErrorScreen
+                        error={err()}
+                        onRetry={handleRetry}
+                        onFix={
+                            parseJjError(err()).fixCommand
+                                ? handleFix
+                                : undefined
+                        }
+                        onQuit={onQuit}
+                    />
+                )}
+            </Match>
+            <Match when={whatsNewChanges()}>
+                {(changes: () => VersionBlock[]) => (
+                    <WhatsNewScreen
+                        changes={changes()}
+                        onClose={() => {
+                            setWhatsNewChanges(null)
+                            writeState({
+                                ...readState(),
+                                lastSeenVersion: getCurrentVersion(),
+                            })
+                        }}
+                        onDisable={() => {
+                            setWhatsNewChanges(null)
+                            writeConfig({
+                                ...readConfig(),
+                                whatsNewDisabled: true,
+                            })
+                            writeState({
+                                ...readState(),
+                                lastSeenVersion: getCurrentVersion(),
+                            })
+                        }}
+                        onDisableAutoUpdates={() => {
+                            setWhatsNewChanges(null)
+                            writeConfig({
+                                ...readConfig(),
+                                autoUpdatesDisabled: true,
+                            })
+                            writeState({
+                                ...readState(),
+                                lastSeenVersion: getCurrentVersion(),
+                            })
+                        }}
+                    />
+                )}
+            </Match>
+        </Switch>
     )
 }
 

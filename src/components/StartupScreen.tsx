@@ -383,8 +383,7 @@ export interface StartupScreenProps {
     hasGitRepo: boolean
     recentRepos: RecentRepo[]
     onSelectRepo: (path: string) => void
-    onInitJj: () => void
-    onInitJjGit: (colocate: boolean) => void
+    onInitRepository: (colocate: boolean) => void
     onQuit: () => void
 }
 
@@ -400,13 +399,13 @@ export function StartupScreen(props: StartupScreenProps) {
                     <NoVcsScreen
                         recentRepos={props.recentRepos}
                         onSelectRepo={props.onSelectRepo}
-                        onInit={props.onInitJj}
+                        onInit={() => props.onInitRepository(false)}
                         onQuit={props.onQuit}
                     />
                 }
             >
                 <GitRepoScreen
-                    onInit={props.onInitJjGit}
+                    onInit={props.onInitRepository}
                     onQuit={props.onQuit}
                 />
             </Show>

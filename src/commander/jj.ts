@@ -181,6 +181,15 @@ export class JjReadError extends Data.TaggedError("JjReadError")<{
 }
 
 export interface JjService {
+    readonly repositoryRoot: (
+        options: JjOperationOptions,
+    ) => Effect.Effect<string | undefined, ProcessError>
+    readonly checkWorkingCopy: (
+        options: JjOperationOptions,
+    ) => Effect.Effect<void, JjStaleWorkingCopyError | ProcessError>
+    readonly gitInit: (
+        options: JjOperationOptions & { readonly colocate?: boolean },
+    ) => Effect.Effect<JjOperationResult, JjCommandError | ProcessError>
     readonly gitFetch: (
         options: JjGitFetchOptions,
     ) => Effect.Effect<JjOperationResult, JjCommandError | ProcessError>
@@ -381,7 +390,7 @@ export function makeGitPushArgs(
     return args
 }
 
-export const JjLayer = Layer.effect(
+export const JjLayer: Layer.Layer<Jj, never, AppProcess | Hooks> = Layer.effect(
     Jj,
     Effect.gen(function* () {
         const appProcess = yield* AppProcess
@@ -464,6 +473,17 @@ export const JjLayer = Layer.effect(
             }
             return Effect.void
         }
+
+        const checkWorkingCopy = Effect.fn("Jj.checkWorkingCopy")(function* (
+            options: JjOperationOptions,
+        ) {
+            const result = yield* runRaw(["status"], options)
+            if (isStaleWorkingCopyFailure(result)) {
+                return yield* new JjStaleWorkingCopyError({
+                    output: result.stdout + result.stderr,
+                })
+            }
+        })
 
         const readOpLogId = Effect.fn("Jj.opLogId")(function* (
             options: JjOperationOptions,
@@ -565,6 +585,30 @@ export const JjLayer = Layer.effect(
         })
 
         return Jj.of({
+            repositoryRoot: Effect.fn("Jj.repositoryRoot")(function* (
+                options: JjOperationOptions,
+            ) {
+                const result = yield* runRaw(["root"], options)
+                if (result.exitCode !== 0) return undefined
+                const root = result.stdout.trim()
+                return root.length > 0 ? root : undefined
+            }),
+            checkWorkingCopy,
+            gitInit: Effect.fn("Jj.gitInit")(
+                (
+                    options: JjOperationOptions & {
+                        readonly colocate?: boolean
+                    },
+                ) =>
+                    run(
+                        [
+                            "git",
+                            "init",
+                            ...(options.colocate ? ["--colocate"] : []),
+                        ],
+                        options,
+                    ),
+            ),
             gitFetch: Effect.fn("Jj.gitFetch")((options: JjGitFetchOptions) =>
                 run(makeGitFetchArgs(options), options),
             ),
@@ -831,6 +875,7 @@ export const JjLayer = Layer.effect(
             refreshState: Effect.fn("Jj.refreshState")(function* (
                 options: JjOperationOptions,
             ) {
+                yield* checkWorkingCopy(options)
                 const [operationId, workingCopyCommitId] = yield* Effect.all(
                     [readOpLogId(options), readWorkingCopyCommitId(options)],
                     { concurrency: "unbounded" },
