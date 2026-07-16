@@ -1,5 +1,5 @@
 import { useRenderer } from "@opentui/solid"
-import { Match, Switch, createEffect } from "solid-js"
+import { Show, createEffect } from "solid-js"
 import { useLayout } from "../context/layout"
 import { useSync } from "../context/sync"
 import { useTheme } from "../context/theme"
@@ -28,73 +28,19 @@ function HorizontalDivider() {
     )
 }
 
-function BookmarkDiffLayout() {
-    return (
-        <box flexDirection="row" flexGrow={1} gap={0}>
-            <box flexGrow={1} flexBasis={0}>
-                <LogPanel />
-            </box>
-            <VerticalDivider />
-            <box flexGrow={2} flexBasis={0}>
-                <MainArea />
-            </box>
-        </box>
-    )
-}
-
-function FilesLayout() {
-    const { terminalWidth } = useLayout()
-    const weights = () => getFilesLayoutWeights(terminalWidth())
-
-    return (
-        <box flexDirection="row" flexGrow={1} gap={0}>
-            <box flexGrow={weights().files} flexBasis={0}>
-                <LogPanel filesWithRevisions />
-            </box>
-            <VerticalDivider />
-            <box flexGrow={weights().detail} flexBasis={0}>
-                <MainArea />
-            </box>
-        </box>
-    )
-}
-
-function NormalLayout() {
-    return (
-        <box flexDirection="row" flexGrow={1} gap={0}>
-            <box flexGrow={1} flexBasis={0} flexDirection="column" gap={0}>
-                <box flexGrow={3} flexBasis={0}>
-                    <LogPanel />
-                </box>
-                <HorizontalDivider />
-                <box flexGrow={1} flexBasis={0}>
-                    <BookmarksPanel />
-                </box>
-            </box>
-            <VerticalDivider />
-            <box flexGrow={1} flexBasis={0} flexDirection="column">
-                <box flexGrow={1}>
-                    <MainArea />
-                </box>
-                <HorizontalDivider />
-                <CommandLogPanel />
-            </box>
-        </box>
-    )
-}
-
 export function LayoutGrid() {
     const renderer = useRenderer()
     const { colors } = useTheme()
-    const { layoutMode, setLayoutMode } = useLayout()
+    const { terminalWidth } = useLayout()
     const { activeBookmarkDiff, viewMode } = useSync()
+    const isFilesView = () => viewMode() === "files"
+    const isBookmarkDiffView = () => Boolean(activeBookmarkDiff())
+    const filesWeights = () => getFilesLayoutWeights(terminalWidth())
+    const leftWeight = () => (isFilesView() ? filesWeights().files : 1)
+    const detailWeight = () =>
+        isFilesView() ? filesWeights().detail : isBookmarkDiffView() ? 2 : 1
 
     createEffect(() => {
-        const mode = layoutMode()
-        activeBookmarkDiff()
-        const view = viewMode()
-        if (view === "files" && mode !== "diff") setLayoutMode("diff")
-        if (view !== "files" && mode === "diff") setLayoutMode("normal")
         renderer.setBackgroundColor(colors().background)
     })
 
@@ -109,17 +55,43 @@ export function LayoutGrid() {
             paddingBottom={0}
             gap={0}
         >
-            <Switch>
-                <Match when={viewMode() === "files"}>
-                    <FilesLayout />
-                </Match>
-                <Match when={activeBookmarkDiff()}>
-                    <BookmarkDiffLayout />
-                </Match>
-                <Match when={layoutMode() === "normal"}>
-                    <NormalLayout />
-                </Match>
-            </Switch>
+            <box flexDirection="row" flexGrow={1} gap={0}>
+                <box
+                    flexGrow={leftWeight()}
+                    flexBasis={0}
+                    flexDirection="column"
+                    gap={0}
+                >
+                    <box
+                        flexGrow={
+                            !isFilesView() && !isBookmarkDiffView() ? 3 : 1
+                        }
+                        flexBasis={0}
+                    >
+                        <LogPanel filesWithRevisions={isFilesView()} />
+                    </box>
+                    <Show when={!isFilesView() && !isBookmarkDiffView()}>
+                        <HorizontalDivider />
+                        <box flexGrow={1} flexBasis={0}>
+                            <BookmarksPanel />
+                        </box>
+                    </Show>
+                </box>
+                <VerticalDivider />
+                <box
+                    flexGrow={detailWeight()}
+                    flexBasis={0}
+                    flexDirection="column"
+                >
+                    <box flexGrow={1}>
+                        <MainArea />
+                    </box>
+                    <Show when={!isFilesView() && !isBookmarkDiffView()}>
+                        <HorizontalDivider />
+                        <CommandLogPanel />
+                    </Show>
+                </box>
+            </box>
             <box height={1} flexShrink={0} />
             <StatusBar />
         </box>

@@ -46,14 +46,14 @@ function createRepository(root: string) {
         join(repository, "ui.txt"),
         Array.from(
             { length: 30 },
-            (_, index) => `ui detail marker ${index}\n`,
+            (_, index) => `ui detail marker ${index} ${"x".repeat(45)}\n`,
         ).join(""),
     )
     writeFileSync(
         join(repository, "view.txt"),
         Array.from(
             { length: 30 },
-            (_, index) => `view detail marker ${index}\n`,
+            (_, index) => `view detail marker ${index} ${"x".repeat(45)}\n`,
         ).join(""),
     )
     runJj(repository, "describe", "-m", "fixture: UI change")
@@ -149,6 +149,16 @@ test("browses revisions and keeps the detail panel in sync", async () => {
 
 test("enters diff mode for the selected revision and returns to normal mode", async () => {
     await withKajji(async (session) => {
+        await session.keyboard.type("3")
+        await session.screen.waitForText("wrap", { timeoutMs: 5_000 })
+        await session.keyboard.type("jjjjjjjjjjjjjjjjjjjjjjjjjjjjjj")
+        await session.screen.waitUntil(
+            (snapshot) =>
+                snapshot.text.includes("ui detail marker 15") &&
+                !snapshot.text.includes("ui detail marker 0"),
+            { timeoutMs: 5_000 },
+        )
+
         await session.keyboard.press("Control+X")
         await session.screen.waitUntil(
             (snapshot) =>
@@ -156,6 +166,8 @@ test("enters diff mode for the selected revision and returns to normal mode", as
                 snapshot.text.includes("2 Revisions") &&
                 snapshot.text.includes("3 Detail") &&
                 snapshot.text.includes("ui.txt") &&
+                snapshot.text.includes("ui detail marker 15") &&
+                !snapshot.text.includes("ui detail marker 0") &&
                 snapshot.text.includes("DIFF"),
             { timeoutMs: 10_000 },
         )
@@ -166,6 +178,8 @@ test("enters diff mode for the selected revision and returns to normal mode", as
                 snapshot.text.includes("1 Revisions") &&
                 snapshot.text.includes("2 Bookmarks") &&
                 snapshot.text.includes("4 Command log") &&
+                snapshot.text.includes("ui detail marker 15") &&
+                !snapshot.text.includes("ui detail marker 0") &&
                 snapshot.text.includes("NORMAL"),
             { timeoutMs: 10_000 },
         )

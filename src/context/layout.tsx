@@ -5,8 +5,6 @@ import { createSimpleContext } from "./helper"
 const HELP_MODAL_1_COL_THRESHOLD = 90
 const HELP_MODAL_2_COL_THRESHOLD = 130
 
-export type LayoutMode = "normal" | "diff"
-
 export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
     {
         name: "Layout",
@@ -18,9 +16,6 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
             const [terminalHeight, setTerminalHeight] = createSignal(
                 renderer.height,
             )
-
-            const [layoutMode, setLayoutMode] =
-                createSignal<LayoutMode>("normal")
 
             onMount(() => {
                 const handleResize = (width: number, height: number) => {
@@ -49,8 +44,6 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
                 terminalHeight,
                 mainAreaWidth,
                 commandPaletteColumns,
-                layoutMode,
-                setLayoutMode,
             }
         },
     },

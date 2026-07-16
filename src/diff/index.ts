@@ -77,12 +77,14 @@ export type { SupportedLanguages } from "@pierre/diffs"
 
 // Virtualization
 export {
+    findDiffScrollAnchorRowIndex,
     findRowIndexByFileId,
     findRowIndexByHunkId,
     flattenToRows,
     getAdjacentHunk,
     getAdjacentHunkFromRow,
     getCurrentDiffPosition,
+    getCurrentDiffScrollAnchor,
     getCurrentFileId,
     getFileRowOffsets,
     getFileScrollTailHeight,
@@ -90,6 +92,7 @@ export {
     getVisibleRange,
     type DiffPosition,
     type DiffRow,
+    type DiffScrollAnchor,
     type DiffRowType,
     type HunkPosition,
     type ViewportState,

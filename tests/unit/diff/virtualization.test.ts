@@ -1,9 +1,11 @@
 import { describe, expect, test } from "bun:test"
 import type { FileId, HunkId } from "../../../src/diff/identifiers"
 import {
+    findDiffScrollAnchorRowIndex,
     getAdjacentHunk,
     getAdjacentHunkFromRow,
     getCurrentDiffPosition,
+    getCurrentDiffScrollAnchor,
     getCurrentFileId,
     getFileRowOffsets,
     getFileScrollTailHeight,
@@ -135,6 +137,46 @@ describe("getCurrentDiffPosition", () => {
                 ({ row }) => row.oldLine,
             ),
         ).toEqual({ fileId: first, lineNumber: 10 })
+    })
+})
+
+describe("semantic diff scroll anchors", () => {
+    const first = "first" as FileId
+    const rows = [
+        { row: { fileId: first } },
+        { row: { fileId: first, oldLine: 10 } },
+        { row: { fileId: first, newLine: 11 } },
+    ]
+    const getNewLine = ({ row }: (typeof rows)[number]) => row.newLine
+    const getOldLine = ({ row }: (typeof rows)[number]) => row.oldLine
+
+    test("records the source line's offset within the viewport", () => {
+        expect(
+            getCurrentDiffScrollAnchor(rows, 1, getNewLine, getOldLine, 2),
+        ).toEqual({
+            fileId: first,
+            newLineNumber: 11,
+            oldLineNumber: undefined,
+            viewportOffset: 1,
+        })
+    })
+
+    test("finds the same source line after visual rows reflow", () => {
+        const firstRow = rows[0]
+        if (!firstRow) throw new Error("expected fixture row")
+        const reflowedRows = [firstRow, firstRow, ...rows.slice(1)]
+        expect(
+            findDiffScrollAnchorRowIndex(
+                reflowedRows,
+                {
+                    fileId: first,
+                    newLineNumber: 11,
+                    viewportOffset: 1,
+                },
+                getNewLine,
+                getOldLine,
+            ),
+        ).toBe(3)
     })
 })
 

@@ -34,6 +34,7 @@ import {
 import { useTheme } from "../../context/theme"
 import {
     type DiffPosition,
+    type DiffScrollAnchor,
     type FileId,
     type FlattenedFile,
     type HunkId,
@@ -113,10 +114,6 @@ class MacOSLikeScrollAccel {
         this.velocityHistory = []
     }
 }
-
-let sessionViewStyleOverride: DiffViewStyle | null = null
-let sessionWrapOverride: boolean | null = null
-let sessionUseJjFormatterOverride: boolean | null = null
 
 function FileStats(props: { stats: DiffStats; maxWidth: number }) {
     const { colors } = useTheme()
@@ -362,27 +359,13 @@ export function MainArea() {
     )
     const [useJjFormatterOverride, setUseJjFormatterOverride] = createSignal<
         boolean | null
-    >(sessionUseJjFormatterOverride)
+    >(null)
     const [viewStyleOverride, setViewStyleOverride] =
-        createSignal<DiffViewStyle | null>(sessionViewStyleOverride)
-    const [wrapOverride, setWrapOverride] = createSignal<boolean | null>(
-        sessionWrapOverride,
-    )
+        createSignal<DiffViewStyle | null>(null)
+    const [wrapOverride, setWrapOverride] = createSignal<boolean | null>(null)
     const useJjFormatter = createMemo(
         () => useJjFormatterOverride() ?? diffUseJjFormatter(),
     )
-
-    createEffect(() => {
-        sessionUseJjFormatterOverride = useJjFormatterOverride()
-    })
-
-    createEffect(() => {
-        sessionViewStyleOverride = viewStyleOverride()
-    })
-
-    createEffect(() => {
-        sessionWrapOverride = wrapOverride()
-    })
 
     const configuredViewStyle = createMemo<DiffViewStyle>(() => {
         const layout = diffLayout()
@@ -432,6 +415,10 @@ export function MainArea() {
     const [currentFileId, setCurrentFileId] = createSignal<FileId | null>(null)
     const [currentDiffPosition, setCurrentDiffPosition] =
         createSignal<DiffPosition | null>(null)
+    const [currentScrollAnchor, setCurrentScrollAnchor] =
+        createSignal<DiffScrollAnchor | null>(null)
+    const [modeScrollAnchor, setModeScrollAnchor] =
+        createSignal<DiffScrollAnchor | null>(null)
 
     const updateDisplayedSource = (
         commit: Commit | undefined,
@@ -919,12 +906,28 @@ export function MainArea() {
         scrollRef?.scrollTo(0)
     })
 
+    let scrollSyncTimer: ReturnType<typeof setTimeout> | undefined
+    let modeScrollRestoreTimer: ReturnType<typeof setTimeout> | undefined
+    let previousViewMode = viewMode()
+    let preservedContentScrollTop = 0
+    let normalHeaderHeight = headerHeight()
+    let modeExpectedHeaderHeight = headerHeight()
+    let modeSemanticScrollTop: number | null = null
+    let modeScrollRestorePending = false
+
     const displayedDiffSourceKey = () => {
         const bookmarkDiff = displayedBookmarkDiff()
         if (bookmarkDiff) return `${bookmarkDiff.from}..${bookmarkDiff.to}`
         const commit = displayedCommit()
         return commit ? `${commit.changeId}:${commit.commitId}` : null
     }
+
+    createEffect(() => {
+        const contentScrollTop = Math.max(0, scrollTop() - headerHeight())
+        if (!modeScrollRestorePending) {
+            preservedContentScrollTop = contentScrollTop
+        }
+    })
 
     const syncScrollMetrics = () => {
         if (!scrollRef) return
@@ -940,6 +943,9 @@ export function MainArea() {
             1,
             currentViewportWidth - widthAdjustment,
         )
+        if (viewMode() !== "files" && currentHeaderHeight > 0) {
+            normalHeaderHeight = currentHeaderHeight
+        }
         if (Math.abs(measuredWidth - effectiveMainAreaWidth()) > 2) {
             setMetricsMode(null)
             setMetricsSourceKey(null)
@@ -960,7 +966,47 @@ export function MainArea() {
         }
     }
 
-    let scrollSyncTimer: ReturnType<typeof setTimeout> | undefined
+    const handleScrollAnchorRowChange = (rowIndex: number | null) => {
+        const anchor = modeScrollAnchor()
+        if (!anchor || rowIndex === null) return
+        const targetScrollTop =
+            (headerRef?.height ?? modeExpectedHeaderHeight) +
+            rowIndex -
+            anchor.viewportOffset
+        modeSemanticScrollTop = targetScrollTop
+        setScrollTop(targetScrollTop)
+        scrollRef?.scrollTo(targetScrollTop)
+    }
+
+    createEffect(() => {
+        const nextViewMode = viewMode()
+        if (nextViewMode === previousViewMode) return
+
+        previousViewMode = nextViewMode
+        modeScrollRestorePending = true
+        modeExpectedHeaderHeight =
+            nextViewMode === "files" ? 0 : normalHeaderHeight
+        modeSemanticScrollTop = null
+        setModeScrollAnchor(useJjFormatter() ? null : currentScrollAnchor())
+        const fallbackScrollTop =
+            modeExpectedHeaderHeight + preservedContentScrollTop
+        setHeaderHeight(modeExpectedHeaderHeight)
+        setScrollTop(fallbackScrollTop)
+        scrollRef?.scrollTo(fallbackScrollTop)
+
+        clearTimeout(modeScrollRestoreTimer)
+        modeScrollRestoreTimer = setTimeout(() => {
+            const correctedScrollTop =
+                modeSemanticScrollTop ??
+                (headerRef?.height ?? modeExpectedHeaderHeight) +
+                    preservedContentScrollTop
+            scrollRef?.scrollTo(correctedScrollTop)
+            syncScrollMetrics()
+            modeScrollRestorePending = false
+            setModeScrollAnchor(null)
+        }, 1)
+    })
+
     const handleScroll = (event: MouseEvent) => {
         hunkNavigationTarget = null
         setFileNavigationTarget(null)
@@ -991,8 +1037,11 @@ export function MainArea() {
         onCleanup(() => headerRef?.off("resize", handleDetailResize))
 
         const pollInterval = setInterval(syncScrollMetrics, 100)
-        onCleanup(() => clearInterval(pollInterval))
-        onCleanup(() => clearTimeout(scrollSyncTimer))
+        onCleanup(() => {
+            clearInterval(pollInterval)
+            clearTimeout(scrollSyncTimer)
+            clearTimeout(modeScrollRestoreTimer)
+        })
     })
 
     const isFocused = () => focus.isPanel("detail")
@@ -1533,6 +1582,13 @@ export function MainArea() {
                                                 onCurrentPositionChange={
                                                     setCurrentDiffPosition
                                                 }
+                                                onCurrentScrollAnchorChange={
+                                                    setCurrentScrollAnchor
+                                                }
+                                                scrollAnchor={modeScrollAnchor()}
+                                                onScrollAnchorRowChange={
+                                                    handleScrollAnchorRowChange
+                                                }
                                                 onScrollTailHeight={
                                                     setScrollTailHeight
                                                 }
@@ -1564,6 +1620,13 @@ export function MainArea() {
                                                 }
                                                 onCurrentPositionChange={
                                                     setCurrentDiffPosition
+                                                }
+                                                onCurrentScrollAnchorChange={
+                                                    setCurrentScrollAnchor
+                                                }
+                                                scrollAnchor={modeScrollAnchor()}
+                                                onScrollAnchorRowChange={
+                                                    handleScrollAnchorRowChange
                                                 }
                                                 onScrollTailHeight={
                                                     setScrollTailHeight

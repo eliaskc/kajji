@@ -32,7 +32,7 @@ import {
 } from "./context/dialog"
 import { FocusProvider, type Panel, useFocus } from "./context/focus"
 import { KeybindProvider } from "./context/keybind"
-import { LayoutProvider, useLayout } from "./context/layout"
+import { LayoutProvider } from "./context/layout"
 import { StatusProvider, useStatus } from "./context/status"
 import { SyncProvider, useSync } from "./context/sync"
 import { ThemeProvider, useTheme } from "./context/theme"
@@ -86,7 +86,6 @@ function AppContent({ onQuit }: Pick<AppProps, "onQuit">) {
     const command = useCommand()
     const dialog = useDialog()
     const commandLog = useCommandLog()
-    const layout = useLayout()
     const update = useUpdate()
     const status = useStatus()
     const { setTheme, setThemeMode, setSyntaxTheme } = useTheme()
@@ -105,9 +104,8 @@ function AppContent({ onQuit }: Pick<AppProps, "onQuit">) {
     }
 
     const toggleDiffMode = async () => {
-        if (layout.layoutMode() === "diff") {
+        if (viewMode() === "files") {
             exitFilesView()
-            layout.setLayoutMode("normal")
             return
         }
         await enterFilesView()

@@ -124,6 +124,80 @@ export interface DiffPosition {
     lineNumber?: number
 }
 
+export interface DiffScrollAnchor {
+    fileId: FileId
+    newLineNumber?: number
+    oldLineNumber?: number
+    viewportOffset: number
+}
+
+export function findDiffScrollAnchorRowIndex<
+    Row extends { row: { fileId: FileId } },
+>(
+    rows: readonly Row[],
+    anchor: DiffScrollAnchor,
+    getNewLineNumber: (row: Row) => number | undefined,
+    getOldLineNumber: (row: Row) => number | undefined,
+): number | null {
+    const index = rows.findIndex((row) => {
+        if (row.row.fileId !== anchor.fileId) return false
+        const newLineNumber = getNewLineNumber(row)
+        const oldLineNumber = getOldLineNumber(row)
+        return (
+            (anchor.newLineNumber === undefined ||
+                newLineNumber === anchor.newLineNumber) &&
+            (anchor.oldLineNumber === undefined ||
+                oldLineNumber === anchor.oldLineNumber)
+        )
+    })
+    return index >= 0 ? index : null
+}
+
+export function getCurrentDiffScrollAnchor<
+    Row extends { row: { fileId: FileId } },
+>(
+    rows: readonly Row[],
+    scrollTop: number,
+    getNewLineNumber: (row: Row) => number | undefined,
+    getOldLineNumber: (row: Row) => number | undefined,
+    focusRow = scrollTop,
+): DiffScrollAnchor | null {
+    if (rows.length === 0) return null
+    const topIndex = Math.min(
+        rows.length - 1,
+        Math.max(0, Math.floor(scrollTop)),
+    )
+    const focusIndex = Math.min(
+        rows.length - 1,
+        Math.max(0, Math.floor(focusRow)),
+    )
+    const fileId = rows[topIndex]?.row.fileId
+    if (!fileId) return null
+
+    for (let distance = 0; distance < rows.length; distance++) {
+        const indexes =
+            distance === 0
+                ? [focusIndex]
+                : [focusIndex + distance, focusIndex - distance]
+        for (const index of indexes) {
+            const row = rows[index]
+            if (!row || row.row.fileId !== fileId) continue
+            const newLineNumber = getNewLineNumber(row)
+            const oldLineNumber = getOldLineNumber(row)
+            if (newLineNumber === undefined && oldLineNumber === undefined) {
+                continue
+            }
+            return {
+                fileId,
+                newLineNumber,
+                oldLineNumber,
+                viewportOffset: index - scrollTop,
+            }
+        }
+    }
+    return null
+}
+
 export function getCurrentDiffPosition<Row extends { row: { fileId: FileId } }>(
     rows: readonly Row[],
     scrollTop: number,

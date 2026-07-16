@@ -1,7 +1,7 @@
 import { For, Show, createMemo, createSignal, onCleanup } from "solid-js"
 import { useCommand } from "../context/command"
-import { useLayout } from "../context/layout"
 import { useStatus } from "../context/status"
+import { useSync } from "../context/sync"
 import { useTheme } from "../context/theme"
 import { useUpdate } from "../context/update"
 import { blendColors } from "../utils/color"
@@ -9,8 +9,8 @@ import { getCurrentVersion } from "../utils/update"
 
 export function StatusBar() {
     const command = useCommand()
-    const layout = useLayout()
     const status = useStatus()
+    const { viewMode } = useSync()
     const update = useUpdate()
     const { colors, style } = useTheme()
     const [animationTick, setAnimationTick] = createSignal(0)
@@ -52,7 +52,7 @@ export function StatusBar() {
     )
 
     const separator = () => style().statusBar.separator
-    const isDiffMode = () => layout.layoutMode() === "diff"
+    const isDiffMode = () => viewMode() === "files"
 
     const commandGap = separator() ? ` ${separator()} ` : "   "
 

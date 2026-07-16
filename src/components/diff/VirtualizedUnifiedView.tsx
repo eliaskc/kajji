@@ -3,12 +3,15 @@ import { useTheme } from "../../context/theme"
 import {
     type DiffPosition,
     type DiffRow,
+    type DiffScrollAnchor,
     type FileId,
     type FlattenedFile,
     type HunkId,
     type SyntaxToken,
+    findDiffScrollAnchorRowIndex,
     flattenToRows,
     getCurrentDiffPosition,
+    getCurrentDiffScrollAnchor,
     getFileRowOffsets,
     getFileScrollTailHeight,
     getHunkRowOffsets,
@@ -46,6 +49,9 @@ interface VirtualizedUnifiedViewProps {
     onFileRowOffsets?: (offsets: Map<FileId, number>) => void
     onCurrentFileChange?: (fileId: FileId | null) => void
     onCurrentPositionChange?: (position: DiffPosition | null) => void
+    onCurrentScrollAnchorChange?: (anchor: DiffScrollAnchor | null) => void
+    scrollAnchor?: DiffScrollAnchor | null
+    onScrollAnchorRowChange?: (rowIndex: number | null) => void
     onScrollTailHeight?: (height: number) => void
     scrollTop: number
     viewportHeight: number
@@ -110,15 +116,40 @@ export function VirtualizedUnifiedView(props: VirtualizedUnifiedViewProps) {
                 props.leadingContentHeight,
             ),
         )
+        const currentRows = wrappedRows()
+        const getNewLineNumber = (wrapped: WrappedRow) =>
+            wrapped.row.newLineNumber
+        const getOldLineNumber = (wrapped: WrappedRow) =>
+            wrapped.row.oldLineNumber
+        const focusRow = props.scrollTop + props.viewportHeight / 2
         const position = getCurrentDiffPosition(
-            wrappedRows(),
+            currentRows,
             props.scrollTop,
-            (wrapped) => wrapped.row.newLineNumber,
-            (wrapped) => wrapped.row.oldLineNumber,
-            props.scrollTop + props.viewportHeight / 2,
+            getNewLineNumber,
+            getOldLineNumber,
+            focusRow,
         )
         props.onCurrentFileChange?.(position?.fileId ?? null)
         props.onCurrentPositionChange?.(position)
+        props.onCurrentScrollAnchorChange?.(
+            getCurrentDiffScrollAnchor(
+                currentRows,
+                props.scrollTop,
+                getNewLineNumber,
+                getOldLineNumber,
+                focusRow,
+            ),
+        )
+        props.onScrollAnchorRowChange?.(
+            props.scrollAnchor
+                ? findDiffScrollAnchorRowIndex(
+                      currentRows,
+                      props.scrollAnchor,
+                      getNewLineNumber,
+                      getOldLineNumber,
+                  )
+                : null,
+        )
     })
 
     const visibleRange = createMemo(() =>
