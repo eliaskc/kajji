@@ -199,6 +199,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
         fileTree,
         refresh,
         flatFiles,
+        fileLineStats,
         selectedFileIndex,
         setSelectedFileIndex,
         filesLoading,
@@ -2660,6 +2661,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                 <Show when={fileTree() && !filesError() && hasChangedFiles()}>
                     <FilterableFileTree
                         files={flatFiles}
+                        fileLineStats={fileLineStats}
                         selectedIndex={selectedFileIndex}
                         setSelectedIndex={setSelectedFileIndex}
                         collapsedPaths={collapsedPaths}

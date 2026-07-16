@@ -14,13 +14,14 @@ import { useCommand } from "../context/command"
 import { useKeybind } from "../context/keybind"
 import { useTheme } from "../context/theme"
 import type { Context } from "../context/types"
-import type { FlatFileNode } from "../utils/file-tree"
+import type { FileLineStats, FlatFileNode } from "../utils/file-tree"
 import { FUZZY_THRESHOLD, scrollIntoView } from "../utils/scroll"
 import { FileTreeList } from "./FileTreeList"
 import { FilterInput } from "./FilterInput"
 
 export interface FilterableFileTreeProps {
     files: () => FlatFileNode[]
+    fileLineStats?: () => ReadonlyMap<string, FileLineStats>
     selectedIndex: () => number
     setSelectedIndex: (index: number) => void
     collapsedPaths: () => Set<string>
@@ -310,6 +311,7 @@ export function FilterableFileTree(props: FilterableFileTreeProps) {
                 >
                     <FileTreeList
                         files={currentFiles}
+                        fileLineStats={props.fileLineStats}
                         selectedIndex={currentSelectedIndex}
                         setSelectedIndex={handleSetSelectedIndex}
                         collapsedPaths={props.collapsedPaths}

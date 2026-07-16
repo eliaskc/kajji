@@ -17,6 +17,11 @@ export interface FlatFileNode {
     visualDepth: number
 }
 
+export interface FileLineStats {
+    additions: number
+    deletions: number
+}
+
 function splitPath(path: string): string[] {
     return path.split("/").filter((part) => part.length > 0)
 }
@@ -177,6 +182,43 @@ export function countVisibleNodes(
     collapsedPaths: Set<string>,
 ): number {
     return flattenTree(root, collapsedPaths).length
+}
+
+export function aggregateFileLineStats(
+    root: FileTreeNode,
+    fileStats: ReadonlyMap<string, FileLineStats>,
+): Map<string, FileLineStats> {
+    const aggregated = new Map<string, FileLineStats>()
+
+    function collect(node: FileTreeNode): FileLineStats | null {
+        if (!node.isDirectory) {
+            const stats = fileStats.get(node.path)
+            if (!stats || (stats.additions === 0 && stats.deletions === 0)) {
+                return null
+            }
+            aggregated.set(node.path, stats)
+            return stats
+        }
+
+        let additions = 0
+        let deletions = 0
+        let hasStats = false
+        for (const child of node.children) {
+            const stats = collect(child)
+            if (!stats) continue
+            additions += stats.additions
+            deletions += stats.deletions
+            hasStats = true
+        }
+
+        if (!hasStats) return null
+        const stats = { additions, deletions }
+        aggregated.set(node.path, stats)
+        return stats
+    }
+
+    collect(root)
+    return aggregated
 }
 
 export function getFilePaths(node: FileTreeNode): string[] {

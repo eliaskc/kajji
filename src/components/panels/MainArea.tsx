@@ -311,6 +311,7 @@ export function MainArea() {
         viewMode,
         fileNavigationRequest,
         setCurrentDiffFilePath,
+        setFileLineStats,
         showTree,
         refresh,
         flatFiles,
@@ -516,6 +517,20 @@ export function MainArea() {
             totalInsertions,
             totalDeletions,
         }
+    })
+
+    createEffect(() => {
+        const stats = new Map<
+            string,
+            { additions: number; deletions: number }
+        >()
+        for (const file of orderedFiles()) {
+            stats.set(file.name, {
+                additions: file.additions,
+                deletions: file.deletions,
+            })
+        }
+        setFileLineStats(stats)
     })
 
     const maxLineLengths = createMemo(() => {
@@ -738,6 +753,7 @@ export function MainArea() {
         const fetchKey = `${sourceKey}:all:${showJjFormatter ? "jj" : "custom"}`
         if (fetchKey === currentFetchKey) return
         currentFetchKey = fetchKey
+        setFileLineStats(new Map())
 
         if (!displayedCommit() && !displayedBookmarkDiff()) {
             updateDisplayedSource(commit, bookmarkDiff, false)

@@ -3,6 +3,7 @@ import { basename } from "node:path"
 import type { FileChange } from "../../../src/commander/types"
 import { getRepoPath } from "../../../src/repo"
 import {
+    aggregateFileLineStats,
     buildFileTree,
     flattenFlat,
     flattenTree,
@@ -117,6 +118,40 @@ describe("buildFileTree", () => {
     it("handles empty input", () => {
         const tree = buildFileTree([])
         expect(tree.children).toHaveLength(0)
+    })
+})
+
+describe("aggregateFileLineStats", () => {
+    it("rolls file stats up through directories and the root", () => {
+        const tree = buildFileTree([
+            { path: "src/a.ts", status: "added" },
+            { path: "src/nested/b.ts", status: "modified" },
+            { path: "README.md", status: "modified" },
+        ])
+        const stats = aggregateFileLineStats(
+            tree,
+            new Map([
+                ["src/a.ts", { additions: 3, deletions: 1 }],
+                ["src/nested/b.ts", { additions: 2, deletions: 4 }],
+                ["README.md", { additions: 1, deletions: 0 }],
+            ]),
+        )
+
+        expect(stats.get("src")).toEqual({ additions: 5, deletions: 5 })
+        expect(stats.get("src/nested")).toEqual({ additions: 2, deletions: 4 })
+        expect(stats.get("")).toEqual({ additions: 6, deletions: 5 })
+    })
+
+    it("omits nodes without visible stats", () => {
+        const tree = buildFileTree([{ path: "src/a.ts", status: "modified" }])
+
+        expect(aggregateFileLineStats(tree, new Map())).toEqual(new Map())
+        expect(
+            aggregateFileLineStats(
+                tree,
+                new Map([["src/a.ts", { additions: 0, deletions: 0 }]]),
+            ),
+        ).toEqual(new Map())
     })
 })
 

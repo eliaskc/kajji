@@ -20,8 +20,10 @@ import { getVisibleBookmarks } from "./sync-bookmarks"
 import { type Commit, type FileChange, getRevisionId } from "../commander/types"
 import { onConfigChange, readConfig } from "../config"
 import {
+    type FileLineStats,
     type FileTreeNode,
     type FlatFileNode,
+    aggregateFileLineStats,
     buildFileTree,
     flattenFlat,
     flattenTree,
@@ -83,6 +85,8 @@ interface SyncContextValue {
     viewMode: () => ViewMode
     fileTree: () => FileTreeNode | null
     flatFiles: () => FlatFileNode[]
+    fileLineStats: () => ReadonlyMap<string, FileLineStats>
+    setFileLineStats: (stats: ReadonlyMap<string, FileLineStats>) => void
     selectedFileIndex: () => number
     setSelectedFileIndex: (index: number) => void
     collapsedPaths: () => Set<string>
@@ -150,6 +154,15 @@ export function SyncProvider(props: { children: JSX.Element }) {
     const [viewMode, setViewMode] = createSignal<ViewMode>("log")
     const [files, setFiles] = createSignal<FileChange[]>([])
     const [fileTree, setFileTree] = createSignal<FileTreeNode | null>(null)
+    const [rawFileLineStats, setFileLineStats] = createSignal<
+        ReadonlyMap<string, FileLineStats>
+    >(new Map())
+    const fileLineStats = createMemo(() => {
+        const tree = fileTree()
+        return tree
+            ? aggregateFileLineStats(tree, rawFileLineStats())
+            : new Map<string, FileLineStats>()
+    })
     const [selectedFileIndex, setSelectedFileIndexInternal] = createSignal(0)
     const [userCollapsedPaths, setUserCollapsedPaths] = createSignal<
         Set<string>
@@ -1135,6 +1148,8 @@ export function SyncProvider(props: { children: JSX.Element }) {
         viewMode,
         fileTree,
         flatFiles,
+        fileLineStats,
+        setFileLineStats,
         selectedFileIndex,
         setSelectedFileIndex,
         collapsedPaths,

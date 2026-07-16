@@ -1,10 +1,11 @@
-import { For, Show } from "solid-js"
+import type { BoxRenderable, MouseEvent } from "@opentui/core"
+import { For, Show, createSignal } from "solid-js"
 import { useFocus } from "../context/focus"
 import { useTheme } from "../context/theme"
 import type { Context } from "../context/types"
 import { blendColors } from "../utils/color"
 import { createDoubleClickDetector } from "../utils/double-click"
-import type { FlatFileNode } from "../utils/file-tree"
+import type { FileLineStats, FlatFileNode } from "../utils/file-tree"
 import { type FileStatus, getStatusColor } from "../utils/status-colors"
 
 const STATUS_CHARS: Record<string, string> = {
@@ -17,6 +18,7 @@ const STATUS_CHARS: Record<string, string> = {
 
 export interface FileTreeListProps {
     files: () => FlatFileNode[]
+    fileLineStats?: () => ReadonlyMap<string, FileLineStats>
     selectedIndex: () => number
     setSelectedIndex: (index: number) => void
     collapsedPaths: () => Set<string>
@@ -31,6 +33,7 @@ export function FileTreeList(props: FileTreeListProps) {
     const { colors } = useTheme()
     const selectionBackground = () =>
         blendColors(colors().selectionBackground, colors().background, 0.5)
+    const [hoveredPath, setHoveredPath] = createSignal<string | null>(null)
 
     return (
         <For each={props.files()}>
@@ -41,6 +44,11 @@ export function FileTreeList(props: FileTreeListProps) {
                 const indent = "  ".repeat(item.visualDepth)
                 const isCollapsed = props.collapsedPaths().has(node.path)
                 const isBinary = () => Boolean(node.isBinary)
+                const lineStats = () => props.fileLineStats?.().get(node.path)
+                const visibleLineStats = () =>
+                    node.path === "" || hoveredPath() === node.path
+                        ? lineStats()
+                        : undefined
 
                 const icon = node.isDirectory ? (isCollapsed ? "▶" : "▼") : " "
                 const displayName = isTree ? node.name : node.path
@@ -60,6 +68,8 @@ export function FileTreeList(props: FileTreeListProps) {
                     }
                 })
 
+                let rowRef: BoxRenderable | undefined
+
                 const handleMouseDown = (e: {
                     stopPropagation: () => void
                 }) => {
@@ -71,11 +81,28 @@ export function FileTreeList(props: FileTreeListProps) {
                     handleDoubleClick()
                 }
 
+                const handleMouseOut = (event: MouseEvent) => {
+                    if (
+                        rowRef &&
+                        event.x >= rowRef.screenX &&
+                        event.x < rowRef.screenX + rowRef.width &&
+                        event.y >= rowRef.screenY &&
+                        event.y < rowRef.screenY + rowRef.height
+                    ) {
+                        return
+                    }
+                    setHoveredPath((path) => (path === node.path ? null : path))
+                }
+
                 const isListFocused = () => props.isFocused?.() ?? true
                 const showSelection = () => isSelected()
 
                 return (
+                    // biome-ignore lint/a11y/useKeyWithMouseEvents: File-tree rows are keyboard navigable independently of hover stats.
                     <box
+                        ref={(ref) => {
+                            rowRef = ref
+                        }}
                         backgroundColor={
                             showSelection()
                                 ? isListFocused()
@@ -85,8 +112,17 @@ export function FileTreeList(props: FileTreeListProps) {
                         }
                         overflow="hidden"
                         onMouseDown={handleMouseDown}
+                        onMouseOver={() => setHoveredPath(node.path)}
+                        onMouseOut={handleMouseOut}
+                        flexDirection="row"
                     >
-                        <text wrapMode="none">
+                        <text
+                            wrapMode="none"
+                            width={0}
+                            flexGrow={1}
+                            flexShrink={1}
+                            overflow="hidden"
+                        >
                             <span style={{ fg: colors().textMuted }}>
                                 {indent}
                             </span>
@@ -124,6 +160,42 @@ export function FileTreeList(props: FileTreeListProps) {
                                 </span>
                             </Show>
                         </text>
+                        <Show when={visibleLineStats()}>
+                            {(stats: () => FileLineStats) => (
+                                <box flexShrink={0} paddingLeft={1}>
+                                    <text wrapMode="none" flexShrink={0}>
+                                        <Show when={stats().additions > 0}>
+                                            <span
+                                                style={{
+                                                    fg: colors().diff
+                                                        .additionText,
+                                                }}
+                                            >
+                                                +{stats().additions}
+                                            </span>
+                                        </Show>
+                                        <Show
+                                            when={
+                                                stats().additions > 0 &&
+                                                stats().deletions > 0
+                                            }
+                                        >
+                                            <span> </span>
+                                        </Show>
+                                        <Show when={stats().deletions > 0}>
+                                            <span
+                                                style={{
+                                                    fg: colors().diff
+                                                        .deletionText,
+                                                }}
+                                            >
+                                                -{stats().deletions}
+                                            </span>
+                                        </Show>
+                                    </text>
+                                </box>
+                            )}
+                        </Show>
                     </box>
                 )
             }}
