@@ -226,8 +226,8 @@ export function flattenFile(file: DiffFile): FlattenedFile {
     let deletions = 0
 
     const hunks = file.hunks.map((hunk) => {
-        additions += hunk.additionCount
-        deletions += hunk.deletionCount
+        additions += hunk.additionLines
+        deletions += hunk.deletionLines
         return flattenHunk(file, hunk)
     })
 
@@ -280,8 +280,8 @@ export function getDiffTotals(files: DiffFile[]): {
 
     for (const file of files) {
         for (const hunk of file.hunks) {
-            additions += hunk.additionCount
-            deletions += hunk.deletionCount
+            additions += hunk.additionLines
+            deletions += hunk.deletionLines
         }
     }
 
