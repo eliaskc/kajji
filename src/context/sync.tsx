@@ -12,10 +12,7 @@ import {
     useContext,
 } from "solid-js"
 import type { Bookmark } from "../commander/bookmarks"
-import {
-    type GitHubPullRequestSummary,
-    ghListPullRequestsByHead,
-} from "../commander/github"
+import type { GitHubPullRequestSummary } from "../commander/github"
 import { getRepoPath } from "../repo"
 import { addRecentRepo } from "../utils/state"
 import { getVisibleBookmarks } from "./sync-bookmarks"
@@ -680,19 +677,17 @@ export function SyncProvider(props: { children: JSX.Element }) {
             return
         }
 
-        let cancelled = false
-        ghListPullRequestsByHead(names)
-            .then((pullsByHead) => {
-                if (cancelled) return
-                setPullRequestsByHead(pullsByHead)
-            })
+        const controller = new AbortController()
+        app.ghListPullRequestsByHead(names, {
+            cwd: getRepoPath(),
+            signal: controller.signal,
+        })
+            .then(setPullRequestsByHead)
             .catch(() => {
-                if (!cancelled) setPullRequestsByHead(new Map())
+                if (!controller.signal.aborted) setPullRequestsByHead(new Map())
             })
 
-        onCleanup(() => {
-            cancelled = true
-        })
+        onCleanup(() => controller.abort())
     })
 
     createEffect(() => {

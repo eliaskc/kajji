@@ -63,6 +63,71 @@ describe("ApplicationClient", () => {
         expect(completions).toBe(1)
     })
 
+    test("routes GitHub reads and browser operations through the supplied process", async () => {
+        const commands: string[] = []
+        const layer = makeAppProcessFake((command) => {
+            commands.push(`${command.executable} ${command.args.join(" ")}`)
+            if (command.executable === "git") {
+                return Effect.succeed({
+                    ...success,
+                    stdout: "git@github.com:eliaskc/kajji.git\n",
+                    stderr: "",
+                })
+            }
+            if (command.args[0] === "api") {
+                return Effect.succeed({
+                    ...success,
+                    stdout: JSON.stringify({
+                        data: {
+                            repository: {
+                                h0: {
+                                    associatedPullRequests: {
+                                        nodes: [
+                                            {
+                                                number: 42,
+                                                headRefName: "feature",
+                                                state: "OPEN",
+                                            },
+                                        ],
+                                    },
+                                },
+                            },
+                        },
+                    }),
+                    stderr: "",
+                })
+            }
+            command.onOutput?.("stdout", "opened\n")
+            return Effect.succeed({
+                ...success,
+                stdout: "opened\n",
+                stderr: "",
+            })
+        })
+        const client = makeApplicationClient(layer)
+
+        const pulls = await client.ghListPullRequestsByHead(["feature"], {
+            cwd: "/tmp/repository",
+        })
+        const opened = await client.ghPrCreateWeb("feature", {
+            cwd: "/tmp/repository",
+        })
+        await client.dispose()
+
+        expect(pulls.get("feature")?.number).toBe(42)
+        expect(opened).toMatchObject({
+            command: "gh pr create --web --head feature",
+            success: true,
+        })
+        expect(
+            commands.map((command) => command.split(" ").slice(0, 2)),
+        ).toEqual([
+            ["git", "remote"],
+            ["gh", "api"],
+            ["gh", "pr"],
+        ])
+    })
+
     test("routes the new family with explicit hook skipping", async () => {
         const commands: string[] = []
         const skipped: string[] = []

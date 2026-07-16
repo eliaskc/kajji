@@ -30,6 +30,7 @@ function run(
         cwd?: string
         env?: Record<string, string>
         timeoutMs?: number
+        stdin?: string
         stdoutFile?: string
         onOutput?: (stream: "stdout" | "stderr", chunk: string) => Promise<void>
     },
@@ -42,6 +43,7 @@ function run(
                 cwd: options?.cwd ?? process.cwd(),
                 env: options?.env,
                 timeoutMs: options?.timeoutMs,
+                stdin: options?.stdin,
                 stdoutFile: options?.stdoutFile,
                 onOutput: options?.onOutput,
             }),
@@ -75,6 +77,16 @@ describe("AppProcess", () => {
         expect(result.stderr).toBe("warning\n")
         expect(result.exitCode).toBe(0)
         expect(result.durationMs).toBeGreaterThanOrEqual(0)
+    })
+
+    test("writes provided stdin and closes the stream", async () => {
+        const result = await run(
+            "const input = await Bun.stdin.text(); process.stdout.write(input)",
+            { stdin: "request body" },
+        )
+
+        expect(result.stdout).toBe("request body")
+        expect(result.exitCode).toBe(0)
     })
 
     test("redirects stdout to a file without decoding it", async () => {

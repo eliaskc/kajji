@@ -14,7 +14,7 @@ export class OperationInterruptedError extends Data.TaggedError(
 export type OperationFailure = ProcessError | OperationInterruptedError
 
 export interface OperationSink {
-    readonly start: (command: string, kind?: "jj" | "hook") => void
+    readonly start: (command: string, kind?: "jj" | "hook" | "shell") => void
     readonly output: (stream: ProcessOutputStream, chunk: string) => void
     readonly finish: (result: ProcessResult) => void
     readonly fail: (error: OperationFailure) => void

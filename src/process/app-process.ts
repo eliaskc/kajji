@@ -8,6 +8,7 @@ export interface ProcessCommand {
     readonly cwd: string
     readonly env?: Readonly<Record<string, string>>
     readonly timeoutMs?: number
+    readonly stdin?: string
     readonly stdoutFile?: string
     readonly onOutput?: (
         stream: ProcessOutputStream,
@@ -33,6 +34,11 @@ export class ProcessReadError extends Data.TaggedError("ProcessReadError")<{
     readonly cause: unknown
 }> {}
 
+export class ProcessWriteError extends Data.TaggedError("ProcessWriteError")<{
+    readonly command: ProcessCommand
+    readonly cause: unknown
+}> {}
+
 export class ProcessTimeoutError extends Data.TaggedError(
     "ProcessTimeoutError",
 )<{
@@ -43,6 +49,7 @@ export class ProcessTimeoutError extends Data.TaggedError(
 export type ProcessError =
     | ProcessSpawnError
     | ProcessReadError
+    | ProcessWriteError
     | ProcessTimeoutError
 
 export interface AppProcessService {
@@ -58,6 +65,10 @@ export class AppProcess extends Context.Service<
 
 interface ChildHandle {
     readonly pid: number
+    readonly stdin?: {
+        write(input: string): unknown
+        end(): unknown
+    }
     readonly stdout?: ReadableStream<Uint8Array>
     readonly stderr: ReadableStream<Uint8Array>
     readonly exited: Promise<number>
@@ -149,7 +160,7 @@ const runLive = Effect.fn("AppProcess.run")(function* (
                 Bun.spawn([command.executable, ...command.args], {
                     cwd: command.cwd,
                     env: { ...process.env, ...command.env },
-                    stdin: "ignore",
+                    stdin: command.stdin === undefined ? "ignore" : "pipe",
                     stdout: command.stdoutFile
                         ? Bun.file(command.stdoutFile)
                         : "pipe",
@@ -160,6 +171,16 @@ const runLive = Effect.fn("AppProcess.run")(function* (
         }),
         (child) => Effect.promise(() => terminateChild(child)),
     )
+
+    if (command.stdin !== undefined) {
+        yield* Effect.try({
+            try: () => {
+                child.stdin?.write(command.stdin as string)
+                child.stdin?.end()
+            },
+            catch: (cause) => new ProcessWriteError({ command, cause }),
+        })
+    }
 
     const collect = Effect.all(
         [

@@ -588,6 +588,44 @@ The next migration phase is gh and git process ownership, followed by repository
 health and stack workflows. Remaining legacy captured wrappers and parser/template
 imports can be removed as their CLI and stack callers migrate.
 
+## Implementation Update — 2026-07-16 18:48:40 CEST
+
+The first gh/git ownership slice is complete. A narrow `Git` capability now owns
+silent origin-remote lookup, and a scoped `GitHub` capability owns repository
+resolution, PR discovery, and the TUI's browser-opening gh operations. Both run
+through `AppProcess`; no migrated GitHub path spawns directly.
+
+`AppProcess` now supports optional captured stdin with typed write failures, so
+later GraphQL or comment operations do not need a second process lifecycle.
+GitHub output observation remains operation-local and uses the existing command
+log sink with the `shell` command kind. Repository resolution still prefers a
+parseable GitHub origin and falls back to `gh repo view`; PR lookup preserves
+head de-duplication, closed/merged policy, and existing JSON parsing.
+
+`SyncProvider`, `LogPanel`, and `BookmarksPanel` now use Promise-facing
+`ApplicationClient` methods. PR metadata refreshes are abortable when their
+reactive owner is replaced, while browser operations preserve command output,
+exit status, diagnostics, and exactly-once command-log completion.
+
+The legacy functions in `commander/github.ts` remain for stack execution only.
+They will be removed when stack workflows receive supplied `GitHub` and journal
+dependencies rather than acquiring a hidden runtime or partially migrating the
+stack transaction.
+
+Verification evidence:
+
+- `bun test`: 372 passing tests
+- `bun check` and changed-file Biome checks pass
+- `bun test:e2e`: all 10 terminal workflows pass
+- `bun test:bench`: all 26 benchmark assertions pass
+- focused tests cover stdin delivery, origin-based repository resolution,
+  GraphQL command construction, operation-local output observation, and the
+  Promise client boundary
+
+The next slice is repository health over supplied process capabilities, followed
+by stack preparation and apply over supplied `Jj`, `GitHub`, and journal
+implementations.
+
 ## Work After Fetch
 
 ### 1. Consolidate captured jj execution

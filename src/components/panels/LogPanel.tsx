@@ -19,11 +19,6 @@ import {
     isBookmarkBackwardsError,
 } from "../../commander/bookmarks"
 import {
-    ghBrowseCommit,
-    ghPrCreateWeb,
-    ghPrViewWeb,
-} from "../../commander/github"
-import {
     type OpLogEntry,
     type OperationResult,
     isImmutableError,
@@ -737,7 +732,10 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
         await refresh()
         await loadBookmarks()
 
-        const prResult = await ghPrCreateWeb(bookmarkName, { observer })
+        const prResult = await app.ghPrCreateWeb(bookmarkName, {
+            cwd: getRepoPath(),
+            observer,
+        })
         commandLog.addEntry(prResult)
     }
 
@@ -779,9 +777,13 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                 })
             ) {
                 const observer = commandLog.observer()
-                const browseResult = await ghBrowseCommit(bookmark.commitId, {
-                    observer,
-                })
+                const browseResult = await app.ghBrowseCommit(
+                    bookmark.commitId,
+                    {
+                        cwd: getRepoPath(),
+                        observer,
+                    },
+                )
                 commandLog.addEntry(browseResult)
                 return
             }
@@ -811,8 +813,14 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
         const existingPrNumber = bookmarkPrNumbers().get(bookmark.name)
         const observer = commandLog.observer()
         const prResult = existingPrNumber
-            ? await ghPrViewWeb(existingPrNumber, { observer })
-            : await ghPrCreateWeb(bookmark.name, { observer })
+            ? await app.ghPrViewWeb(existingPrNumber, {
+                  cwd: getRepoPath(),
+                  observer,
+              })
+            : await app.ghPrCreateWeb(bookmark.name, {
+                  cwd: getRepoPath(),
+                  observer,
+              })
         commandLog.addEntry(prResult)
         if (prResult.success) {
             refreshPullRequestMetadata()
@@ -830,7 +838,8 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                 })
             ) {
                 const observer = commandLog.observer()
-                const browseResult = await ghBrowseCommit(commit.commitId, {
+                const browseResult = await app.ghBrowseCommit(commit.commitId, {
+                    cwd: getRepoPath(),
                     observer,
                 })
                 commandLog.addEntry(browseResult)

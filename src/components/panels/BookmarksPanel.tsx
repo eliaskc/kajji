@@ -14,11 +14,6 @@ import {
 } from "solid-js"
 import type { Bookmark } from "../../commander/bookmarks"
 import {
-    ghBrowseCommit,
-    ghPrCreateWeb,
-    ghPrViewWeb,
-} from "../../commander/github"
-import {
     type OperationResult,
     isImmutableError,
 } from "../../commander/operations"
@@ -135,9 +130,13 @@ export function BookmarksPanel() {
                 })
             ) {
                 const observer = commandLog.observer()
-                const browseResult = await ghBrowseCommit(bookmark.commitId, {
-                    observer,
-                })
+                const browseResult = await app.ghBrowseCommit(
+                    bookmark.commitId,
+                    {
+                        cwd: getRepoPath(),
+                        observer,
+                    },
+                )
                 commandLog.addEntry(browseResult)
                 return
             }
@@ -148,7 +147,10 @@ export function BookmarksPanel() {
         const knownPrNumber = bookmarkPrNumbers().get(bookmark.name)
         if (knownPrNumber) {
             const observer = commandLog.observer()
-            const viewResult = await ghPrViewWeb(knownPrNumber, { observer })
+            const viewResult = await app.ghPrViewWeb(knownPrNumber, {
+                cwd: getRepoPath(),
+                observer,
+            })
             commandLog.addEntry(viewResult)
             return
         }
@@ -173,7 +175,10 @@ export function BookmarksPanel() {
         }
 
         const observer = commandLog.observer()
-        const prResult = await ghPrCreateWeb(bookmark.name, { observer })
+        const prResult = await app.ghPrCreateWeb(bookmark.name, {
+            cwd: getRepoPath(),
+            observer,
+        })
         commandLog.addEntry(prResult)
         if (prResult.success) {
             refreshPullRequestMetadata()

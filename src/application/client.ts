@@ -1,5 +1,13 @@
 import { Effect, Layer, ManagedRuntime } from "effect"
 import type { Bookmark } from "../commander/bookmarks"
+import { GitLive } from "../commander/git"
+import type { GitHubPullRequestSummary } from "../commander/github"
+import {
+    GitHub,
+    GitHubLive,
+    type GitHubOperationResult,
+    type GitHubService,
+} from "../commander/github-service"
 import {
     Jj,
     type JjBookmarkCreateOptions,
@@ -43,6 +51,10 @@ interface ApplicationOperationOptions extends Omit<JjOperationOptions, "sink"> {
 
 interface ApplicationReadOptions extends Omit<JjOperationOptions, "sink"> {
     readonly signal?: AbortSignal
+}
+
+interface ApplicationGitHubOperationOptions extends ApplicationReadOptions {
+    readonly observer?: CommandObserver
 }
 
 interface ApplicationDiffOptions extends Omit<JjDiffOptions, "sink"> {
@@ -251,6 +263,22 @@ export interface ApplicationClient {
         options: ApplicationLogReadOptions,
         onBatch: (commits: readonly Commit[]) => void | Promise<void>,
     ) => ApplicationStreamHandle<FetchLogPageResult>
+    readonly ghListPullRequestsByHead: (
+        heads: readonly string[],
+        options: ApplicationReadOptions & { readonly includeClosed?: boolean },
+    ) => Promise<Map<string, GitHubPullRequestSummary>>
+    readonly ghPrCreateWeb: (
+        head: string,
+        options: ApplicationGitHubOperationOptions,
+    ) => Promise<OperationResult>
+    readonly ghBrowseCommit: (
+        commit: string,
+        options: ApplicationGitHubOperationOptions,
+    ) => Promise<OperationResult>
+    readonly ghPrViewWeb: (
+        prNumber: number,
+        options: ApplicationGitHubOperationOptions,
+    ) => Promise<OperationResult>
     readonly dispose: () => Promise<void>
 }
 
@@ -314,8 +342,17 @@ export function makeApplicationClient(
     const providedHooksLayer = hooksLayer.pipe(Layer.provide(appProcessLayer))
     const dependencies = Layer.merge(appProcessLayer, providedHooksLayer)
     const providedJjLayer = JjLayer.pipe(Layer.provide(dependencies))
+    const providedGitLayer = GitLive.pipe(Layer.provide(appProcessLayer))
+    const gitHubDependencies = Layer.merge(appProcessLayer, providedGitLayer)
+    const providedGitHubLayer = GitHubLive.pipe(
+        Layer.provide(gitHubDependencies),
+    )
     const runtime = ManagedRuntime.make(
-        Layer.merge(providedJjLayer, providedHooksLayer),
+        Layer.mergeAll(
+            providedJjLayer,
+            providedHooksLayer,
+            providedGitHubLayer,
+        ),
     )
     const historicalFiles = makeHistoricalFileStore()
     let accepting = true
@@ -353,6 +390,50 @@ export function makeApplicationClient(
         return runtime.runPromise(Hooks.use(operation), {
             signal: options.signal,
         })
+    }
+
+    const runGitHubRead = <A, E>(
+        options: ApplicationReadOptions,
+        operation: (gitHub: GitHubService) => Effect.Effect<A, E>,
+    ): Promise<A> => {
+        if (!accepting)
+            return Promise.reject(new ApplicationClientClosedError())
+        return runtime.runPromise(GitHub.use(operation), {
+            signal: options.signal,
+        })
+    }
+
+    const runGitHubOperation = async <E>(
+        options: ApplicationGitHubOperationOptions,
+        operation: (
+            gitHub: GitHubService,
+            sink: OperationSink,
+        ) => Effect.Effect<GitHubOperationResult, E>,
+    ): Promise<OperationResult> => {
+        if (!accepting) throw new ApplicationClientClosedError()
+        const { observer, signal, ...runOptions } = options
+        const { sink, wasLogged } = observerSink(observer)
+        const startedAt = performance.now()
+        const result = await runtime.runPromise(
+            GitHub.use((gitHub) => operation(gitHub, sink)),
+            { signal },
+        )
+        const success = result.exitCode === 0
+        diagnosticsLog(success ? "info" : "error", "gh command finished", {
+            command: result.command,
+            cwd: runOptions.cwd,
+            durationMs: Math.round(performance.now() - startedAt),
+            exitCode: result.exitCode,
+            ...(result.stderr ? { stderr: result.stderr.slice(0, 4000) } : {}),
+        })
+        return {
+            stdout: result.stdout,
+            stderr: result.stderr,
+            exitCode: result.exitCode,
+            success,
+            logged: wasLogged(),
+            command: result.command,
+        }
     }
 
     const runOperation = async (
@@ -562,6 +643,28 @@ export function makeApplicationClient(
         jjLogPage: (options) => runRead(options, (jj) => jj.logPage(options)),
         jjStreamLogPage: (options, onBatch) =>
             runStream(options, (jj) => jj.streamLogPage(options, onBatch)),
+        ghListPullRequestsByHead: (heads, options) =>
+            runGitHubRead(options, (gitHub) =>
+                gitHub.listPullRequestsByHead(heads, options),
+            ),
+        ghPrCreateWeb: (head, { observer, signal, ...options }) =>
+            runGitHubOperation(
+                { ...options, observer, signal },
+                (gitHub, sink) =>
+                    gitHub.prCreateWeb(head, { ...options, sink }),
+            ),
+        ghBrowseCommit: (commit, { observer, signal, ...options }) =>
+            runGitHubOperation(
+                { ...options, observer, signal },
+                (gitHub, sink) =>
+                    gitHub.browseCommit(commit, { ...options, sink }),
+            ),
+        ghPrViewWeb: (prNumber, { observer, signal, ...options }) =>
+            runGitHubOperation(
+                { ...options, observer, signal },
+                (gitHub, sink) =>
+                    gitHub.prViewWeb(prNumber, { ...options, sink }),
+            ),
         dispose: () => {
             accepting = false
             if (!disposePromise) {
