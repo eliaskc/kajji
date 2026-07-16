@@ -1,3 +1,21 @@
+export interface DisplayPathSegments {
+    directory: string
+    fileName: string
+    suffix: string
+}
+
+export function splitDisplayPath(text: string): DisplayPathSegments {
+    const suffixStart = text.indexOf(" ← ")
+    const pathEnd = suffixStart === -1 ? text.length : suffixStart
+    const fileNameStart = text.lastIndexOf("/", pathEnd - 1) + 1
+
+    return {
+        directory: text.slice(0, fileNameStart),
+        fileName: text.slice(fileNameStart, pathEnd),
+        suffix: text.slice(pathEnd),
+    }
+}
+
 function hardTruncate(
     text: string,
     maxLength: number,

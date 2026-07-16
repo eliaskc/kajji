@@ -20,7 +20,12 @@ import {
     tokenVersion,
     tokenizeLineSync,
 } from "../../diff"
-import { truncatePathMiddle } from "../../utils/path-truncate"
+import { splitDisplayPath, truncatePathMiddle } from "../../utils/path-truncate"
+import {
+    type DiffFileStatus,
+    getDiffStatusKey,
+    getStatusColor,
+} from "../../utils/status-colors"
 
 const BAR_CHAR = "▌"
 const SEPARATOR_COLOR = "#30363d"
@@ -206,6 +211,12 @@ function VirtualizedRow(props: VirtualizedRowProps) {
 
     if (props.row.type === "file-header") {
         const stats = props.fileStats.get(props.row.row.fileId)
+        const statusColor = stats
+            ? getStatusColor(
+                  getDiffStatusKey(stats.type as DiffFileStatus),
+                  colors(),
+              )
+            : colors().primary
         const statsWidth = stats?.isBinary
             ? 6
             : (stats?.additions ? `+${stats.additions}`.length : 0) +
@@ -220,6 +231,7 @@ function VirtualizedRow(props: VirtualizedRowProps) {
             `${props.row.row.content}${prevName}`,
             headerMax,
         )
+        const headerSegments = splitDisplayPath(headerText)
         return (
             <box
                 width={props.maxHeaderWidth + 4}
@@ -227,7 +239,7 @@ function VirtualizedRow(props: VirtualizedRowProps) {
                 backgroundColor={colors().background}
                 paddingRight={1}
             >
-                <text fg={colors().primary} flexShrink={0}>
+                <text fg={statusColor} flexShrink={0}>
                     {FILE_HEADER_PREFIX}
                 </text>
                 <box
@@ -236,7 +248,15 @@ function VirtualizedRow(props: VirtualizedRowProps) {
                     flexGrow={1}
                 >
                     <text wrapMode="none" flexShrink={0}>
-                        <span style={{ fg: colors().text }}>{headerText}</span>
+                        <span style={{ fg: colors().textMuted }}>
+                            {headerSegments.directory}
+                        </span>
+                        <span style={{ fg: colors().text }}>
+                            {headerSegments.fileName}
+                        </span>
+                        <span style={{ fg: colors().textMuted }}>
+                            {headerSegments.suffix}
+                        </span>
                     </text>
                     <text
                         wrapMode="none"

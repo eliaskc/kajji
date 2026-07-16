@@ -167,9 +167,9 @@ function FileStats(props: { stats: DiffStats; maxWidth: number }) {
             <text> </text>
             <For each={rows()}>
                 {(row) => {
-                    const paddedPath = row.pathText.padEnd(
-                        pathColumnWidth(),
-                        " ",
+                    const fileNameStart = row.pathText.lastIndexOf("/") + 1
+                    const pathPadding = " ".repeat(
+                        Math.max(0, pathColumnWidth() - row.pathText.length),
                     )
                     const bar = scaleBar(
                         row.file.insertions,
@@ -178,8 +178,14 @@ function FileStats(props: { stats: DiffStats; maxWidth: number }) {
                     )
                     return (
                         <text wrapMode="none">
+                            <span style={{ fg: colors().textMuted }}>
+                                {row.pathText.slice(0, fileNameStart)}
+                            </span>
                             <span style={{ fg: colors().text }}>
-                                {paddedPath}
+                                {row.pathText.slice(fileNameStart)}
+                            </span>
+                            <span style={{ fg: colors().textMuted }}>
+                                {pathPadding}
                             </span>
                             {" | "}
                             <span style={{ fg: colors().success }}>

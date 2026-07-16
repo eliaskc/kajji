@@ -1,7 +1,12 @@
 import { Show } from "solid-js"
 import { useTheme } from "../../context/theme"
 import type { FlattenedFile } from "../../diff"
-import { truncatePathMiddle } from "../../utils/path-truncate"
+import { splitDisplayPath, truncatePathMiddle } from "../../utils/path-truncate"
+import {
+    type DiffFileStatus,
+    getDiffStatusKey,
+    getStatusColor,
+} from "../../utils/status-colors"
 
 const ADDITION_COLOR = "#3fb950"
 const DELETION_COLOR = "#f85149"
@@ -18,6 +23,11 @@ export function DiffFileHeader(props: {
         (props.file.additions && props.file.deletions ? 1 : 0)
     const previousName = () =>
         props.file.prevName ? ` ← ${props.file.prevName}` : ""
+    const statusColor = () =>
+        getStatusColor(
+            getDiffStatusKey(props.file.type as DiffFileStatus),
+            colors(),
+        )
     const headerText = () =>
         truncatePathMiddle(
             `${props.file.name}${previousName()}`,
@@ -26,6 +36,7 @@ export function DiffFileHeader(props: {
                 props.maxWidth - statsWidth() - FILE_HEADER_PREFIX.length - 1,
             ),
         )
+    const headerSegments = () => splitDisplayPath(headerText())
 
     return (
         <box
@@ -35,11 +46,19 @@ export function DiffFileHeader(props: {
             backgroundColor={colors().background}
             paddingRight={1}
         >
-            <text fg={colors().primary} flexShrink={0}>
+            <text fg={statusColor()} flexShrink={0}>
                 {FILE_HEADER_PREFIX}
             </text>
             <text wrapMode="none" flexShrink={0}>
-                <span style={{ fg: colors().text }}>{headerText()}</span>
+                <span style={{ fg: colors().textMuted }}>
+                    {headerSegments().directory}
+                </span>
+                <span style={{ fg: colors().text }}>
+                    {headerSegments().fileName}
+                </span>
+                <span style={{ fg: colors().textMuted }}>
+                    {headerSegments().suffix}
+                </span>
             </text>
             <text wrapMode="none" flexGrow={1} fg={colors().backgroundElement}>
                 {"─".repeat(props.maxWidth)}
