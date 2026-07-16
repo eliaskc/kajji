@@ -1,21 +1,9 @@
 import { defineCommand, runMain } from "citty"
+import { makeApplicationClient } from "../application/client"
 import { getCurrentVersion } from "../utils/update"
-import { changesCommand } from "./changes"
-import { commentCommand } from "./comment"
+import { makeChangesCommand } from "./changes"
+import { makeCommentCommand } from "./comment"
 import { uninstallCommand } from "./uninstall"
-
-const main = defineCommand({
-    meta: {
-        name: "kajji",
-        version: getCurrentVersion(),
-        description: "Kajji CLI",
-    },
-    subCommands: {
-        changes: changesCommand,
-        comment: commentCommand,
-        uninstall: uninstallCommand,
-    },
-})
 
 export async function runCli(args: string[]): Promise<void> {
     let normalizedArgs = args
@@ -40,5 +28,19 @@ export async function runCli(args: string[]): Promise<void> {
             process.exit(1)
         }
     }
+    const application = makeApplicationClient()
+    const main = defineCommand({
+        meta: {
+            name: "kajji",
+            version: getCurrentVersion(),
+            description: "Kajji CLI",
+        },
+        subCommands: {
+            changes: makeChangesCommand(application),
+            comment: makeCommentCommand(application),
+            uninstall: uninstallCommand,
+        },
+        cleanup: () => application.dispose(),
+    })
     await runMain(main, { rawArgs: normalizedArgs })
 }

@@ -2,25 +2,12 @@ import { createHash } from "node:crypto"
 import { existsSync, readFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { join } from "node:path"
-import { execute } from "../commander/executor"
 import { writeFileAtomic } from "../utils/atomic-write"
 import type { CommentsState } from "./types"
 
 const COMMENTS_VERSION = 1
 const STATE_DIR = join(homedir(), ".local", "state", "kajji")
 const REPOS_DIR = join(STATE_DIR, "repos")
-
-export async function resolveRepoRoot(cwd = process.cwd()): Promise<string> {
-    const result = await execute(["root"], { cwd })
-    if (!result.success) {
-        throw new Error(result.stderr.trim() || "Not a jj repository")
-    }
-    const root = result.stdout.trim()
-    if (!root) {
-        throw new Error("Unable to resolve jj root")
-    }
-    return root
-}
 
 function hashRepoPath(path: string): string {
     return createHash("sha256").update(path).digest("hex")

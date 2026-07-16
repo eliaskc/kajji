@@ -1,28 +1,30 @@
 import { stdin as input, stdout as output } from "node:process"
 import { defineCommand } from "citty"
 import { nanoid } from "nanoid"
-import { execute } from "../commander/executor"
+import { JjReadError } from "../commander/jj"
 import {
     buildHunkAnchor,
     buildHunkIndex,
     relocateRevision,
 } from "../comments/relocate"
-import {
-    readComments,
-    resolveRepoRoot,
-    writeComments,
-} from "../comments/storage"
+import { readComments, writeComments } from "../comments/storage"
 import type {
     CommentAnchor,
     CommentAnchorLine,
     CommentEntry,
 } from "../comments/types"
-import { fetchParsedDiff } from "../diff/parser"
+import { parseDiffString } from "../diff/parser"
+import type { CliApplication } from "./client"
 import { formatLineRange } from "./format"
-import { type RevisionInfo, fetchRevisions } from "./revisions"
+import type { RevisionInfo } from "./revisions"
 
-async function resolveSingleRevision(revset: string): Promise<RevisionInfo> {
-    const revisions = await fetchRevisions(revset)
+async function resolveSingleRevision(
+    application: CliApplication,
+    revset: string,
+): Promise<RevisionInfo> {
+    const revisions = await application.jjRevisionSummaries(revset, {
+        cwd: process.cwd(),
+    })
     if (revisions.length === 0) {
         throw new Error(`No revisions found for revset: ${revset}`)
     }
@@ -118,15 +120,30 @@ async function confirmAction(
     })
 }
 
+async function resolveRepoRoot(
+    application: CliApplication,
+    cwd = process.cwd(),
+): Promise<string> {
+    return application.jjRepositoryRoot({ cwd })
+}
+
 async function readFileLinesAtRevision(
+    application: CliApplication,
     revision: string,
     filePath: string,
 ): Promise<string[]> {
-    const result = await execute(["file", "show", "-r", revision, filePath])
-    if (!result.success) {
-        throw new Error(result.stderr.trim() || `Unable to read ${filePath}`)
+    let content: string
+    try {
+        content = await application.jjFileContent(revision, filePath, {
+            cwd: process.cwd(),
+        })
+    } catch (error) {
+        if (!(error instanceof JjReadError)) throw error
+        throw new Error(
+            error.result.stderr.trim() || `Unable to read ${filePath}`,
+        )
     }
-    const normalized = result.stdout.replace(/\r\n/g, "\n")
+    const normalized = content.replace(/\r\n/g, "\n")
     const lines = normalized.split("\n")
     if (lines.length > 0 && lines[lines.length - 1] === "") {
         lines.pop()
@@ -156,130 +173,194 @@ function getLineContextLines(
     return result
 }
 
-export const commentCommand = defineCommand({
-    meta: {
-        name: "comment",
-        description: "Manage comments",
-    },
-    subCommands: {
-        list: defineCommand({
-            meta: {
-                name: "list",
-                description: "List comments",
-            },
-            args: {
-                revisions: {
-                    alias: "r",
-                    type: "string",
-                    default: "@",
-                    description: "Target revisions to show",
+export function makeCommentCommand(application: CliApplication) {
+    return defineCommand({
+        meta: {
+            name: "comment",
+            description: "Manage comments",
+        },
+        subCommands: {
+            list: defineCommand({
+                meta: {
+                    name: "list",
+                    description: "List comments",
                 },
-                json: {
-                    type: "boolean",
-                    description: "Output JSON",
+                args: {
+                    revisions: {
+                        alias: "r",
+                        type: "string",
+                        default: "@",
+                        description: "Target revisions to show",
+                    },
+                    json: {
+                        type: "boolean",
+                        description: "Output JSON",
+                    },
                 },
-            },
-            async run({ args }) {
-                const input = args as { revisions?: string; json?: boolean }
-                await listComments({
-                    revisions: input.revisions,
-                    json: input.json,
-                })
-            },
-        }),
-        set: defineCommand({
-            meta: {
-                name: "set",
-                description: "Add a comment to a hunk or line",
-            },
-            args: {
-                revisions: {
-                    alias: "r",
-                    type: "string",
-                    default: "@",
-                    description: "Target revisions",
+                async run({ args }) {
+                    const input = args as { revisions?: string; json?: boolean }
+                    await listComments(application, {
+                        revisions: input.revisions,
+                        json: input.json,
+                    })
                 },
-                hunk: {
-                    type: "string",
-                    description: "Hunk ID (h1, h2, ...)",
+            }),
+            set: defineCommand({
+                meta: {
+                    name: "set",
+                    description: "Add a comment to a hunk or line",
                 },
-                file: {
-                    type: "string",
-                    description: "Target file path",
+                args: {
+                    revisions: {
+                        alias: "r",
+                        type: "string",
+                        default: "@",
+                        description: "Target revisions",
+                    },
+                    hunk: {
+                        type: "string",
+                        description: "Hunk ID (h1, h2, ...)",
+                    },
+                    file: {
+                        type: "string",
+                        description: "Target file path",
+                    },
+                    line: {
+                        type: "string",
+                        description: "Target line number",
+                    },
+                    side: {
+                        type: "string",
+                        description: "Line side (new or old)",
+                    },
+                    message: {
+                        alias: "m",
+                        type: "string",
+                        required: true,
+                        description: "Comment text",
+                    },
+                    author: {
+                        type: "string",
+                        default: "human",
+                        description: "Comment author label",
+                    },
+                    explanation: {
+                        type: "boolean",
+                        description: "Mark as explanation",
+                    },
+                    type: {
+                        type: "string",
+                        default: "feedback",
+                        description: "Comment type",
+                    },
                 },
-                line: {
-                    type: "string",
-                    description: "Target line number",
-                },
-                side: {
-                    type: "string",
-                    description: "Line side (new or old)",
-                },
-                message: {
-                    alias: "m",
-                    type: "string",
-                    required: true,
-                    description: "Comment text",
-                },
-                author: {
-                    type: "string",
-                    default: "human",
-                    description: "Comment author label",
-                },
-                explanation: {
-                    type: "boolean",
-                    description: "Mark as explanation",
-                },
-                type: {
-                    type: "string",
-                    default: "feedback",
-                    description: "Comment type",
-                },
-            },
-            async run({ args }) {
-                const rev = (args as { revisions?: string }).revisions ?? "@"
-                const hunk = (args as { hunk?: string }).hunk
-                const file = (args as { file?: string }).file
-                const lineInput = (args as { line?: string | number }).line
-                const sideInput = (args as { side?: string }).side
-                const message = (args as { message?: string }).message
-                const author = (args as { author?: string }).author ?? "human"
-                const explanation = Boolean(
-                    (args as { explanation?: boolean }).explanation,
-                )
-                const type = (args as { type?: string }).type ?? "feedback"
-                if (!message) {
-                    throw new Error("Missing required option: --message")
-                }
-                if (hunk && (file || lineInput)) {
-                    throw new Error("Use either --hunk or --file/--line")
-                }
-                if (!hunk && (!file || lineInput === undefined)) {
-                    throw new Error("Provide --hunk or --file/--line")
-                }
-                if (sideInput && sideInput !== "new" && sideInput !== "old") {
-                    throw new Error("--side must be 'new' or 'old'")
-                }
-                const revision = await resolveSingleRevision(rev)
-                const repoRoot = await resolveRepoRoot()
-                const state = readComments(repoRoot)
-                const revisionEntry = state.revisions[revision.changeId] ?? {
-                    commitHash: revision.commitId,
-                    anchors: [],
-                }
-                revisionEntry.commitHash = revision.commitId
-
-                if (hunk) {
-                    const files = await fetchParsedDiff(revision.commitId)
-                    const hunks = buildHunkIndex(files)
-                    const target = hunks.find((entry) => entry.id === hunk)
-                    if (!target) {
-                        throw new Error(`Hunk not found: ${hunk}`)
+                async run({ args }) {
+                    const rev =
+                        (args as { revisions?: string }).revisions ?? "@"
+                    const hunk = (args as { hunk?: string }).hunk
+                    const file = (args as { file?: string }).file
+                    const lineInput = (args as { line?: string | number }).line
+                    const sideInput = (args as { side?: string }).side
+                    const message = (args as { message?: string }).message
+                    const author =
+                        (args as { author?: string }).author ?? "human"
+                    const explanation = Boolean(
+                        (args as { explanation?: boolean }).explanation,
+                    )
+                    const type = (args as { type?: string }).type ?? "feedback"
+                    if (!message) {
+                        throw new Error("Missing required option: --message")
                     }
-                    const anchor = buildHunkAnchor(
-                        hunk,
-                        target.file,
-                        target.hunk,
+                    if (hunk && (file || lineInput)) {
+                        throw new Error("Use either --hunk or --file/--line")
+                    }
+                    if (!hunk && (!file || lineInput === undefined)) {
+                        throw new Error("Provide --hunk or --file/--line")
+                    }
+                    if (
+                        sideInput &&
+                        sideInput !== "new" &&
+                        sideInput !== "old"
+                    ) {
+                        throw new Error("--side must be 'new' or 'old'")
+                    }
+                    const revision = await resolveSingleRevision(
+                        application,
+                        rev,
+                    )
+                    const repoRoot = await resolveRepoRoot(application)
+                    const state = readComments(repoRoot)
+                    const revisionEntry = state.revisions[
+                        revision.changeId
+                    ] ?? {
+                        commitHash: revision.commitId,
+                        anchors: [],
+                    }
+                    revisionEntry.commitHash = revision.commitId
+
+                    if (hunk) {
+                        const diff = await application.jjDiff(
+                            { revision: revision.commitId },
+                            { cwd: process.cwd() },
+                        )
+                        const files = parseDiffString(diff)
+                        const hunks = buildHunkIndex(files)
+                        const target = hunks.find((entry) => entry.id === hunk)
+                        if (!target) {
+                            throw new Error(`Hunk not found: ${hunk}`)
+                        }
+                        const anchor = buildHunkAnchor(
+                            hunk,
+                            target.file,
+                            target.hunk,
+                        )
+                        const comment = createCommentEntry({
+                            message,
+                            author,
+                            explanation,
+                            type,
+                        })
+                        const existingIndex = revisionEntry.anchors.findIndex(
+                            (entry) =>
+                                entry.type === "hunk" && entry.id === hunk,
+                        )
+                        if (existingIndex >= 0) {
+                            const existing = revisionEntry.anchors[
+                                existingIndex
+                            ] as CommentAnchor
+                            if (existing.type === "hunk") {
+                                revisionEntry.anchors[existingIndex] = {
+                                    ...existing,
+                                    filePath: anchor.filePath,
+                                    lineRange: anchor.lineRange,
+                                    contextLines: anchor.contextLines,
+                                    stale: false,
+                                    comments: [...existing.comments, comment],
+                                }
+                            }
+                        } else {
+                            revisionEntry.anchors.push({
+                                ...anchor,
+                                comments: [comment],
+                                stale: false,
+                            })
+                        }
+                        state.revisions[revision.changeId] = revisionEntry
+                        writeComments(repoRoot, state)
+                        console.log(`Added comment ${comment.id} on ${hunk}`)
+                        return
+                    }
+
+                    const lineNumber = parseLineNumber(lineInput)
+                    const filePath = file ?? ""
+                    const fileLines = await readFileLinesAtRevision(
+                        application,
+                        revision.commitId,
+                        filePath,
+                    )
+                    const contextLines = getLineContextLines(
+                        fileLines,
+                        lineNumber,
                     )
                     const comment = createCommentEntry({
                         message,
@@ -287,295 +368,268 @@ export const commentCommand = defineCommand({
                         explanation,
                         type,
                     })
+                    const side = sideInput as "new" | "old" | undefined
                     const existingIndex = revisionEntry.anchors.findIndex(
-                        (entry) => entry.type === "hunk" && entry.id === hunk,
+                        (entry) => {
+                            if (entry.type !== "line") return false
+                            if (entry.filePath !== filePath) return false
+                            if (entry.lineNumber !== lineNumber) return false
+                            if (side) return entry.side === side
+                            return entry.side === undefined
+                        },
                     )
                     if (existingIndex >= 0) {
                         const existing = revisionEntry.anchors[
                             existingIndex
-                        ] as CommentAnchor
-                        if (existing.type === "hunk") {
-                            revisionEntry.anchors[existingIndex] = {
-                                ...existing,
-                                filePath: anchor.filePath,
-                                lineRange: anchor.lineRange,
-                                contextLines: anchor.contextLines,
-                                stale: false,
-                                comments: [...existing.comments, comment],
-                            }
+                        ] as CommentAnchorLine
+                        revisionEntry.anchors[existingIndex] = {
+                            ...existing,
+                            contextLines,
+                            stale: false,
+                            comments: [...existing.comments, comment],
                         }
                     } else {
                         revisionEntry.anchors.push({
-                            ...anchor,
+                            id: `l_${nanoid(8)}`,
+                            type: "line",
+                            filePath,
+                            lineNumber,
+                            side,
+                            contextLines,
                             comments: [comment],
                             stale: false,
                         })
                     }
                     state.revisions[revision.changeId] = revisionEntry
                     writeComments(repoRoot, state)
-                    console.log(`Added comment ${comment.id} on ${hunk}`)
-                    return
-                }
-
-                const lineNumber = parseLineNumber(lineInput)
-                const filePath = file ?? ""
-                const fileLines = await readFileLinesAtRevision(
-                    revision.commitId,
-                    filePath,
-                )
-                const contextLines = getLineContextLines(fileLines, lineNumber)
-                const comment = createCommentEntry({
-                    message,
-                    author,
-                    explanation,
-                    type,
-                })
-                const side = sideInput as "new" | "old" | undefined
-                const existingIndex = revisionEntry.anchors.findIndex(
-                    (entry) => {
-                        if (entry.type !== "line") return false
-                        if (entry.filePath !== filePath) return false
-                        if (entry.lineNumber !== lineNumber) return false
-                        if (side) return entry.side === side
-                        return entry.side === undefined
-                    },
-                )
-                if (existingIndex >= 0) {
-                    const existing = revisionEntry.anchors[
-                        existingIndex
-                    ] as CommentAnchorLine
-                    revisionEntry.anchors[existingIndex] = {
-                        ...existing,
-                        contextLines,
-                        stale: false,
-                        comments: [...existing.comments, comment],
-                    }
-                } else {
-                    revisionEntry.anchors.push({
-                        id: `l_${nanoid(8)}`,
-                        type: "line",
-                        filePath,
-                        lineNumber,
-                        side,
-                        contextLines,
-                        comments: [comment],
-                        stale: false,
-                    })
-                }
-                state.revisions[revision.changeId] = revisionEntry
-                writeComments(repoRoot, state)
-                const sideLabel = side ? ` (${side})` : ""
-                console.log(
-                    `Added comment ${comment.id} on ${filePath}:${lineNumber}${sideLabel}`,
-                )
-            },
-        }),
-        delete: defineCommand({
-            meta: {
-                name: "delete",
-                description: "Delete comment(s)",
-            },
-            args: {
-                id: {
-                    type: "positional",
-                    description: "Comment ID",
-                    required: false,
-                },
-                revisions: {
-                    alias: "r",
-                    type: "string",
-                    default: "@",
-                    description: "Target revisions",
-                },
-                hunk: {
-                    type: "string",
-                    description: "Hunk ID",
-                },
-                file: {
-                    type: "string",
-                    description: "Target file path",
-                },
-                line: {
-                    type: "string",
-                    description: "Target line number",
-                },
-                side: {
-                    type: "string",
-                    description: "Line side (new or old)",
-                },
-                all: {
-                    type: "boolean",
-                    description: "Delete all comments in revision",
-                },
-                yes: {
-                    alias: "y",
-                    type: "boolean",
-                    description: "Skip confirmation",
-                },
-            },
-            async run({ args }) {
-                const repoRoot = await resolveRepoRoot()
-                const state = readComments(repoRoot)
-                let updated = false
-
-                if (args.id) {
-                    const id = args.id
-                    for (const [changeId, revision] of Object.entries(
-                        state.revisions,
-                    )) {
-                        const nextAnchors: CommentAnchor[] = []
-                        for (const anchor of revision.anchors) {
-                            const nextComments = anchor.comments.filter(
-                                (comment) => comment.id !== id,
-                            )
-                            if (
-                                nextComments.length !== anchor.comments.length
-                            ) {
-                                updated = true
-                            }
-                            if (nextComments.length > 0) {
-                                nextAnchors.push({
-                                    ...anchor,
-                                    comments: nextComments,
-                                })
-                            }
-                        }
-                        if (nextAnchors.length > 0) {
-                            revision.anchors = nextAnchors
-                        } else {
-                            delete state.revisions[changeId]
-                        }
-                    }
-
-                    if (!updated) {
-                        throw new Error(`Comment not found: ${id}`)
-                    }
-                    writeComments(repoRoot, state)
-                    console.log(`Deleted comment ${id}`)
-                    return
-                }
-
-                const rev = (args as { revisions?: string }).revisions ?? "@"
-                const hunk = (args as { hunk?: string }).hunk
-                const file = (args as { file?: string }).file
-                const lineInput = (args as { line?: string | number }).line
-                const sideInput = (args as { side?: string }).side
-                const all = Boolean((args as { all?: boolean }).all)
-                const yes = Boolean((args as { yes?: boolean }).yes)
-                if (sideInput && sideInput !== "new" && sideInput !== "old") {
-                    throw new Error("--side must be 'new' or 'old'")
-                }
-                if (all && (hunk || file || lineInput)) {
-                    throw new Error("Use either --all or specific filters")
-                }
-                if (hunk && (file || lineInput)) {
-                    throw new Error("Use either --hunk or --file/--line")
-                }
-                if (!all && !hunk && !file && lineInput !== undefined) {
-                    throw new Error("Provide --file with --line")
-                }
-                if (!all && !hunk && !file && lineInput === undefined) {
-                    throw new Error(
-                        "Provide a comment ID, --hunk, --file/--line, --file, or --all",
-                    )
-                }
-                const revision = await resolveSingleRevision(rev)
-                const entry = state.revisions[revision.changeId]
-                if (!entry) {
-                    throw new Error("No comments for that revision")
-                }
-
-                const side = sideInput as "new" | "old" | undefined
-                let removedCount = 0
-                let removedLabel = ""
-                if (all) {
-                    const total = entry.anchors.reduce(
-                        (sum, anchor) => sum + anchor.comments.length,
-                        0,
-                    )
-                    const confirmed = await confirmAction(
-                        `Delete ${formatCount(total, "comment")} from revision ${revision.changeId}?`,
-                        yes,
-                    )
-                    if (!confirmed) {
-                        return
-                    }
-                    delete state.revisions[revision.changeId]
-                    updated = true
-                    writeComments(repoRoot, state)
-                    return
-                }
-                if (hunk) {
-                    const nextAnchors = entry.anchors.filter((anchor) => {
-                        if (anchor.type !== "hunk") return true
-                        if (anchor.id !== hunk) return true
-                        removedCount += anchor.comments.length
-                        removedLabel = hunk
-                        return false
-                    })
-                    if (removedCount === 0) {
-                        throw new Error("No comments for that hunk")
-                    }
-                    entry.anchors = nextAnchors
-                } else if (lineInput !== undefined) {
-                    const lineNumber = parseLineNumber(lineInput)
-                    const filePath = file ?? ""
-                    const nextAnchors = entry.anchors.filter((anchor) => {
-                        if (anchor.type !== "line") return true
-                        if (anchor.filePath !== filePath) return true
-                        if (anchor.lineNumber !== lineNumber) return true
-                        if (side && anchor.side !== side) return true
-                        removedCount += anchor.comments.length
-                        removedLabel = `${filePath}:${lineNumber}${side ? ` (${side})` : ""}`
-                        return false
-                    })
-                    if (removedCount === 0) {
-                        throw new Error("No comments for that line")
-                    }
-                    entry.anchors = nextAnchors
-                } else if (file) {
-                    const filePath = file
-                    const nextAnchors = entry.anchors.filter((anchor) => {
-                        if (anchor.filePath !== filePath) return true
-                        removedCount += anchor.comments.length
-                        return false
-                    })
-                    if (removedCount === 0) {
-                        throw new Error("No comments for that file")
-                    }
-                    const confirmed = await confirmAction(
-                        `Delete ${formatCount(removedCount, "comment")} from ${filePath}?`,
-                        yes,
-                    )
-                    if (!confirmed) {
-                        return
-                    }
-                    entry.anchors = nextAnchors
-                    removedLabel = filePath
-                }
-
-                updated = true
-                if (entry.anchors.length === 0) {
-                    delete state.revisions[revision.changeId]
-                }
-                if (updated) {
-                    writeComments(repoRoot, state)
+                    const sideLabel = side ? ` (${side})` : ""
                     console.log(
-                        `Deleted ${formatCount(removedCount, "comment")} from ${removedLabel}`,
+                        `Added comment ${comment.id} on ${filePath}:${lineNumber}${sideLabel}`,
                     )
-                }
-            },
-        }),
-    },
-})
+                },
+            }),
+            delete: defineCommand({
+                meta: {
+                    name: "delete",
+                    description: "Delete comment(s)",
+                },
+                args: {
+                    id: {
+                        type: "positional",
+                        description: "Comment ID",
+                        required: false,
+                    },
+                    revisions: {
+                        alias: "r",
+                        type: "string",
+                        default: "@",
+                        description: "Target revisions",
+                    },
+                    hunk: {
+                        type: "string",
+                        description: "Hunk ID",
+                    },
+                    file: {
+                        type: "string",
+                        description: "Target file path",
+                    },
+                    line: {
+                        type: "string",
+                        description: "Target line number",
+                    },
+                    side: {
+                        type: "string",
+                        description: "Line side (new or old)",
+                    },
+                    all: {
+                        type: "boolean",
+                        description: "Delete all comments in revision",
+                    },
+                    yes: {
+                        alias: "y",
+                        type: "boolean",
+                        description: "Skip confirmation",
+                    },
+                },
+                async run({ args }) {
+                    const repoRoot = await resolveRepoRoot(application)
+                    const state = readComments(repoRoot)
+                    let updated = false
 
-async function listComments(args: {
-    revisions?: string
-    json?: boolean
-}): Promise<void> {
-    const repoRoot = await resolveRepoRoot()
+                    if (args.id) {
+                        const id = args.id
+                        for (const [changeId, revision] of Object.entries(
+                            state.revisions,
+                        )) {
+                            const nextAnchors: CommentAnchor[] = []
+                            for (const anchor of revision.anchors) {
+                                const nextComments = anchor.comments.filter(
+                                    (comment) => comment.id !== id,
+                                )
+                                if (
+                                    nextComments.length !==
+                                    anchor.comments.length
+                                ) {
+                                    updated = true
+                                }
+                                if (nextComments.length > 0) {
+                                    nextAnchors.push({
+                                        ...anchor,
+                                        comments: nextComments,
+                                    })
+                                }
+                            }
+                            if (nextAnchors.length > 0) {
+                                revision.anchors = nextAnchors
+                            } else {
+                                delete state.revisions[changeId]
+                            }
+                        }
+
+                        if (!updated) {
+                            throw new Error(`Comment not found: ${id}`)
+                        }
+                        writeComments(repoRoot, state)
+                        console.log(`Deleted comment ${id}`)
+                        return
+                    }
+
+                    const rev =
+                        (args as { revisions?: string }).revisions ?? "@"
+                    const hunk = (args as { hunk?: string }).hunk
+                    const file = (args as { file?: string }).file
+                    const lineInput = (args as { line?: string | number }).line
+                    const sideInput = (args as { side?: string }).side
+                    const all = Boolean((args as { all?: boolean }).all)
+                    const yes = Boolean((args as { yes?: boolean }).yes)
+                    if (
+                        sideInput &&
+                        sideInput !== "new" &&
+                        sideInput !== "old"
+                    ) {
+                        throw new Error("--side must be 'new' or 'old'")
+                    }
+                    if (all && (hunk || file || lineInput)) {
+                        throw new Error("Use either --all or specific filters")
+                    }
+                    if (hunk && (file || lineInput)) {
+                        throw new Error("Use either --hunk or --file/--line")
+                    }
+                    if (!all && !hunk && !file && lineInput !== undefined) {
+                        throw new Error("Provide --file with --line")
+                    }
+                    if (!all && !hunk && !file && lineInput === undefined) {
+                        throw new Error(
+                            "Provide a comment ID, --hunk, --file/--line, --file, or --all",
+                        )
+                    }
+                    const revision = await resolveSingleRevision(
+                        application,
+                        rev,
+                    )
+                    const entry = state.revisions[revision.changeId]
+                    if (!entry) {
+                        throw new Error("No comments for that revision")
+                    }
+
+                    const side = sideInput as "new" | "old" | undefined
+                    let removedCount = 0
+                    let removedLabel = ""
+                    if (all) {
+                        const total = entry.anchors.reduce(
+                            (sum, anchor) => sum + anchor.comments.length,
+                            0,
+                        )
+                        const confirmed = await confirmAction(
+                            `Delete ${formatCount(total, "comment")} from revision ${revision.changeId}?`,
+                            yes,
+                        )
+                        if (!confirmed) {
+                            return
+                        }
+                        delete state.revisions[revision.changeId]
+                        updated = true
+                        writeComments(repoRoot, state)
+                        return
+                    }
+                    if (hunk) {
+                        const nextAnchors = entry.anchors.filter((anchor) => {
+                            if (anchor.type !== "hunk") return true
+                            if (anchor.id !== hunk) return true
+                            removedCount += anchor.comments.length
+                            removedLabel = hunk
+                            return false
+                        })
+                        if (removedCount === 0) {
+                            throw new Error("No comments for that hunk")
+                        }
+                        entry.anchors = nextAnchors
+                    } else if (lineInput !== undefined) {
+                        const lineNumber = parseLineNumber(lineInput)
+                        const filePath = file ?? ""
+                        const nextAnchors = entry.anchors.filter((anchor) => {
+                            if (anchor.type !== "line") return true
+                            if (anchor.filePath !== filePath) return true
+                            if (anchor.lineNumber !== lineNumber) return true
+                            if (side && anchor.side !== side) return true
+                            removedCount += anchor.comments.length
+                            removedLabel = `${filePath}:${lineNumber}${side ? ` (${side})` : ""}`
+                            return false
+                        })
+                        if (removedCount === 0) {
+                            throw new Error("No comments for that line")
+                        }
+                        entry.anchors = nextAnchors
+                    } else if (file) {
+                        const filePath = file
+                        const nextAnchors = entry.anchors.filter((anchor) => {
+                            if (anchor.filePath !== filePath) return true
+                            removedCount += anchor.comments.length
+                            return false
+                        })
+                        if (removedCount === 0) {
+                            throw new Error("No comments for that file")
+                        }
+                        const confirmed = await confirmAction(
+                            `Delete ${formatCount(removedCount, "comment")} from ${filePath}?`,
+                            yes,
+                        )
+                        if (!confirmed) {
+                            return
+                        }
+                        entry.anchors = nextAnchors
+                        removedLabel = filePath
+                    }
+
+                    updated = true
+                    if (entry.anchors.length === 0) {
+                        delete state.revisions[revision.changeId]
+                    }
+                    if (updated) {
+                        writeComments(repoRoot, state)
+                        console.log(
+                            `Deleted ${formatCount(removedCount, "comment")} from ${removedLabel}`,
+                        )
+                    }
+                },
+            }),
+        },
+    })
+}
+
+async function listComments(
+    application: CliApplication,
+    args: {
+        revisions?: string
+        json?: boolean
+    },
+): Promise<void> {
+    const repoRoot = await resolveRepoRoot(application)
     const state = readComments(repoRoot)
-    const revisions = await fetchRevisions(args.revisions ?? "@")
+    const revisions = await application.jjRevisionSummaries(
+        args.revisions ?? "@",
+        { cwd: process.cwd() },
+    )
     const output: Array<{
         changeId: string
         commitId: string
@@ -590,7 +644,11 @@ async function listComments(args: {
         if (!stored) continue
 
         if (stored.commitHash !== revision.commitId) {
-            const files = await fetchParsedDiff(revision.commitId)
+            const diff = await application.jjDiff(
+                { revision: revision.commitId },
+                { cwd: process.cwd() },
+            )
+            const files = parseDiffString(diff)
             const relocation = relocateRevision(stored, files)
             state.revisions[revision.changeId] = {
                 ...relocation.updated,

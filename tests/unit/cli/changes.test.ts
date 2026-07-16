@@ -1,12 +1,12 @@
 import { describe, expect, mock, test } from "bun:test"
+import type { CliApplication } from "../../../src/cli/client"
 
-const mockFetchRevisions = mock(() => Promise.resolve([]))
+import { makeChangesCommand } from "../../../src/cli/changes"
 
-mock.module("../../../src/cli/revisions", () => ({
-    fetchRevisions: mockFetchRevisions,
-}))
-
-import { changesCommand } from "../../../src/cli/changes"
+const application = {
+    jjRevisionSummaries: () => Promise.resolve([]),
+} as unknown as CliApplication
+const changesCommand = makeChangesCommand(application)
 
 describe("changesCommand", () => {
     test("prints empty-state message when no revisions", async () => {

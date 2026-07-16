@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test"
+import type { CliApplication } from "../../../src/cli/client"
 import type { RevisionInfo } from "../../../src/cli/revisions"
 
 type StoredRevision = {
@@ -16,34 +17,24 @@ type CommentsStateLike = {
     revisions: Record<string, StoredRevision>
 }
 
-const mockFetchRevisions = mock(() => Promise.resolve([] as RevisionInfo[]))
-const mockResolveRepoRoot = mock(() => Promise.resolve("/repo"))
+const mockRevisionSummaries = mock(() => Promise.resolve([] as RevisionInfo[]))
 const mockReadComments = mock(() => ({ version: 2, revisions: {} }))
 const mockWriteComments = mock(() => {})
-const mockExecute = mock(() =>
-    Promise.resolve({
-        stdout: "",
-        stderr: "",
-        exitCode: 0,
-        success: true,
-    }),
-)
-
-mock.module("../../../src/cli/revisions", () => ({
-    fetchRevisions: mockFetchRevisions,
-}))
+const mockFileContent = mock(() => Promise.resolve(""))
 
 mock.module("../../../src/comments/storage", () => ({
-    resolveRepoRoot: mockResolveRepoRoot,
     readComments: mockReadComments,
     writeComments: mockWriteComments,
 }))
 
-mock.module("../../../src/commander/executor", () => ({
-    execute: mockExecute,
-}))
+import { makeCommentCommand } from "../../../src/cli/comment"
 
-import { commentCommand } from "../../../src/cli/comment"
+const application = {
+    jjRepositoryRoot: () => Promise.resolve("/repo"),
+    jjRevisionSummaries: mockRevisionSummaries,
+    jjFileContent: mockFileContent,
+} as unknown as CliApplication
+const commentCommand = makeCommentCommand(application)
 
 function getSubCommand(name: "list" | "set" | "delete") {
     const subCommands = commentCommand.subCommands as {
@@ -55,18 +46,13 @@ function getSubCommand(name: "list" | "set" | "delete") {
 }
 
 beforeEach(() => {
-    mockFetchRevisions.mockClear()
+    mockRevisionSummaries.mockClear()
     mockReadComments.mockClear()
     mockWriteComments.mockClear()
-    mockExecute.mockClear()
-    mockFetchRevisions.mockResolvedValue([])
+    mockFileContent.mockClear()
+    mockRevisionSummaries.mockResolvedValue([])
     mockReadComments.mockReturnValue({ version: 2, revisions: {} })
-    mockExecute.mockResolvedValue({
-        stdout: "",
-        stderr: "",
-        exitCode: 0,
-        success: true,
-    })
+    mockFileContent.mockResolvedValue("")
 })
 
 describe("commentCommand list", () => {
@@ -92,16 +78,11 @@ describe("commentCommand list", () => {
 
 describe("commentCommand set", () => {
     test("creates line anchor with --file/--line", async () => {
-        mockFetchRevisions.mockResolvedValueOnce([
+        mockRevisionSummaries.mockResolvedValueOnce([
             { changeId: "abc123", commitId: "def456", description: "desc" },
         ])
         mockReadComments.mockReturnValueOnce({ version: 2, revisions: {} })
-        mockExecute.mockResolvedValueOnce({
-            stdout: "first\nsecond\nthird\n",
-            stderr: "",
-            exitCode: 0,
-            success: true,
-        })
+        mockFileContent.mockResolvedValueOnce("first\nsecond\nthird\n")
 
         const logSpy = mock(() => {})
         const originalLog = console.log
@@ -144,7 +125,7 @@ describe("commentCommand set", () => {
 
 describe("commentCommand delete", () => {
     test("removes line anchor with --file/--line", async () => {
-        mockFetchRevisions.mockResolvedValueOnce([
+        mockRevisionSummaries.mockResolvedValueOnce([
             { changeId: "abc123", commitId: "def456", description: "desc" },
         ])
         mockReadComments.mockReturnValueOnce({

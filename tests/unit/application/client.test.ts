@@ -471,6 +471,18 @@ describe("ApplicationClient", () => {
                     return success
                 })
             }
+            if (args === "root") {
+                return Effect.succeed({ ...success, stdout: "/repo\n" })
+            }
+            if (args.startsWith("log -r cli-revisions")) {
+                return Effect.succeed({
+                    ...success,
+                    stdout: "change\tcommit\tdescription\n",
+                })
+            }
+            if (args.startsWith("file show")) {
+                return Effect.succeed({ ...success, stdout: "contents\n" })
+            }
             return Effect.succeed({
                 ...success,
                 stdout: "styled\n---KAJJI_DETAILS_SEPARATOR---\nsubject\nbody\n",
@@ -487,6 +499,19 @@ describe("ApplicationClient", () => {
             body: "body",
         })
         expect(await client.jjOpLog(1, options)).toEqual(["operation", ""])
+        expect(await client.jjRepositoryRoot(options)).toBe("/repo")
+        expect(
+            await client.jjRevisionSummaries("cli-revisions", options),
+        ).toEqual([
+            {
+                changeId: "change",
+                commitId: "commit",
+                description: "description",
+            },
+        ])
+        expect(
+            await client.jjFileContent("revision", "src/file.ts", options),
+        ).toBe("contents\n")
         const materialized = await client.jjMaterializeFiles(
             "revision",
             ["src/file.bin"],

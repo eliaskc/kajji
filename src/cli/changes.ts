@@ -1,8 +1,7 @@
 import { defineCommand } from "citty"
-import type { DiffFile } from "../diff/parser"
-import { fetchParsedDiff } from "../diff/parser"
+import { type DiffFile, parseDiffString } from "../diff/parser"
+import type { CliApplication } from "./client"
 import { formatLineRange } from "./format"
-import { fetchRevisions } from "./revisions"
 
 type FileStatus = "modified" | "added" | "deleted" | "renamed"
 
@@ -80,117 +79,125 @@ function buildHunkDiff(
     return lines.join("\n")
 }
 
-export const changesCommand = defineCommand({
-    meta: {
-        name: "changes",
-        description: "List changes with addressable hunk IDs",
-    },
-    args: {
-        revisions: {
-            alias: "r",
-            type: "string",
-            default: "@",
-            description: "Target revisions to show",
+export function makeChangesCommand(application: CliApplication) {
+    return defineCommand({
+        meta: {
+            name: "changes",
+            description: "List changes with addressable hunk IDs",
         },
-        json: {
-            type: "boolean",
-            description: "Output JSON",
+        args: {
+            revisions: {
+                alias: "r",
+                type: "string",
+                default: "@",
+                description: "Target revisions to show",
+            },
+            json: {
+                type: "boolean",
+                description: "Output JSON",
+            },
+            diff: {
+                type: "boolean",
+                description: "Include unified diff per hunk",
+            },
         },
-        diff: {
-            type: "boolean",
-            description: "Include unified diff per hunk",
-        },
-    },
-    async run({ args }) {
-        const input = args as {
-            revisions?: string
-            json?: boolean
-            diff?: boolean
-        }
-        const revset = input.revisions || "@"
-        const revisions = await fetchRevisions(revset)
+        async run({ args }) {
+            const input = args as {
+                revisions?: string
+                json?: boolean
+                diff?: boolean
+            }
+            const revset = input.revisions || "@"
+            const revisions = await application.jjRevisionSummaries(revset, {
+                cwd: process.cwd(),
+            })
 
-        const output: RevisionOutput[] = []
+            const output: RevisionOutput[] = []
 
-        for (const revision of revisions) {
-            const files = await fetchParsedDiff(revision.commitId)
-            let hunkCounter = 0
-            const fileOutputs = files.map((file) => {
-                const hunks = file.hunks.map((hunk) => {
-                    hunkCounter += 1
+            for (const revision of revisions) {
+                const diff = await application.jjDiff(
+                    { revision: revision.commitId },
+                    { cwd: process.cwd() },
+                )
+                const files = parseDiffString(diff)
+                let hunkCounter = 0
+                const fileOutputs = files.map((file) => {
+                    const hunks = file.hunks.map((hunk) => {
+                        hunkCounter += 1
+                        return {
+                            id: `h${hunkCounter}`,
+                            oldStart: hunk.deletionStart,
+                            oldCount: hunk.deletionLines,
+                            newStart: hunk.additionStart,
+                            newCount: hunk.additionLines,
+                            added: hunk.additionCount,
+                            removed: hunk.deletionCount,
+                            diff: input.diff
+                                ? buildHunkDiff(file, hunk)
+                                : undefined,
+                        }
+                    })
+
                     return {
-                        id: `h${hunkCounter}`,
-                        oldStart: hunk.deletionStart,
-                        oldCount: hunk.deletionLines,
-                        newStart: hunk.additionStart,
-                        newCount: hunk.additionLines,
-                        added: hunk.additionCount,
-                        removed: hunk.deletionCount,
-                        diff: input.diff
-                            ? buildHunkDiff(file, hunk)
-                            : undefined,
+                        path: file.name,
+                        status: mapStatus(file.type),
+                        isBinary: file.isBinary,
+                        hunks,
                     }
                 })
 
-                return {
-                    path: file.name,
-                    status: mapStatus(file.type),
-                    isBinary: file.isBinary,
-                    hunks,
-                }
-            })
+                output.push({
+                    changeId: revision.changeId,
+                    commitId: revision.commitId,
+                    description: revision.description,
+                    files: fileOutputs,
+                })
+            }
 
-            output.push({
-                changeId: revision.changeId,
-                commitId: revision.commitId,
-                description: revision.description,
-                files: fileOutputs,
-            })
-        }
+            if (input.json) {
+                const jsonOutput: ChangesJsonOutput = { revisions: output }
+                console.log(JSON.stringify(jsonOutput, null, 2))
+                return
+            }
 
-        if (input.json) {
-            const jsonOutput: ChangesJsonOutput = { revisions: output }
-            console.log(JSON.stringify(jsonOutput, null, 2))
-            return
-        }
+            if (output.length === 0) {
+                console.log("No changes found")
+                return
+            }
 
-        if (output.length === 0) {
-            console.log("No changes found")
-            return
-        }
-
-        for (const revision of output) {
-            console.log(`${revision.changeId} - "${revision.description}"`)
-            for (const file of revision.files) {
-                const indicator =
-                    file.status === "added"
-                        ? "A"
-                        : file.status === "deleted"
-                          ? "D"
-                          : file.status === "renamed"
-                            ? "R"
-                            : "M"
-                console.log(`  ${file.path} (${indicator})`)
-                for (const hunk of file.hunks) {
-                    const range = formatLineRange(
-                        hunk.oldStart,
-                        hunk.oldCount,
-                        hunk.newStart,
-                        hunk.newCount,
-                    )
-                    console.log(
-                        `    ${hunk.id}  lines ${range}   +${hunk.added} -${hunk.removed}`,
-                    )
-                    if (input.diff && hunk.diff) {
-                        for (const line of hunk.diff.split("\n")) {
-                            console.log(`      ${line}`)
+            for (const revision of output) {
+                console.log(`${revision.changeId} - "${revision.description}"`)
+                for (const file of revision.files) {
+                    const indicator =
+                        file.status === "added"
+                            ? "A"
+                            : file.status === "deleted"
+                              ? "D"
+                              : file.status === "renamed"
+                                ? "R"
+                                : "M"
+                    console.log(`  ${file.path} (${indicator})`)
+                    for (const hunk of file.hunks) {
+                        const range = formatLineRange(
+                            hunk.oldStart,
+                            hunk.oldCount,
+                            hunk.newStart,
+                            hunk.newCount,
+                        )
+                        console.log(
+                            `    ${hunk.id}  lines ${range}   +${hunk.added} -${hunk.removed}`,
+                        )
+                        if (input.diff && hunk.diff) {
+                            for (const line of hunk.diff.split("\n")) {
+                                console.log(`      ${line}`)
+                            }
                         }
                     }
                 }
+                if (output.length > 1) {
+                    console.log("")
+                }
             }
-            if (output.length > 1) {
-                console.log("")
-            }
-        }
-    },
-})
+        },
+    })
+}

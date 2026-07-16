@@ -463,6 +463,90 @@ describe("Jj", () => {
         expect(commands[0]?.stdoutFile).toBe("/tmp/output.bin")
     })
 
+    test("constructs and parses standalone CLI reads", async () => {
+        const commands: ProcessCommand[] = []
+        const processLayer = makeAppProcessFake((command) => {
+            commands.push(command)
+            if (command.args[0] === "root") {
+                return Effect.succeed({ ...success, stdout: "/repo\n" })
+            }
+            if (command.args[0] === "file") {
+                return Effect.succeed({ ...success, stdout: "contents\n" })
+            }
+            return Effect.succeed({
+                ...success,
+                stdout: "change\tcommit\tdescription\n",
+            })
+        })
+        const effect = Jj.use((jj) =>
+            Effect.all(
+                [
+                    jj.repositoryRoot({ cwd: "/tmp/repository" }),
+                    jj.revisionSummaries("mine()", {
+                        cwd: "/tmp/repository",
+                    }),
+                    jj.fileContent("commit", "src/file.ts", {
+                        cwd: "/tmp/repository",
+                    }),
+                ],
+                { concurrency: 1 },
+            ),
+        ).pipe(Effect.provide(JjLive), Effect.provide(processLayer))
+
+        const [root, revisions, content] = await Effect.runPromise(effect)
+
+        expect(root).toBe("/repo")
+        expect(revisions).toEqual([
+            {
+                changeId: "change",
+                commitId: "commit",
+                description: "description",
+            },
+        ])
+        expect(content).toBe("contents\n")
+        expect(commands.map((command) => command.args.slice(0, 4))).toEqual([
+            ["root"],
+            ["log", "-r", "mine()", "--no-graph"],
+            ["file", "show", "-r", "commit"],
+        ])
+    })
+
+    test("preserves standalone CLI read failures", async () => {
+        const processLayer = makeAppProcessFake((command) => {
+            if (command.args[0] === "root") {
+                return Effect.succeed({
+                    ...success,
+                    exitCode: 1,
+                    stderr: "not a repository\n",
+                })
+            }
+            return Effect.succeed({ ...success, exitCode: 1 })
+        })
+        const provide = <A, E>(effect: Effect.Effect<A, E, Jj>) =>
+            effect.pipe(Effect.provide(JjLive), Effect.provide(processLayer))
+
+        await expect(
+            Effect.runPromise(
+                provide(
+                    Jj.use((jj) =>
+                        jj.repositoryRoot({ cwd: "/tmp/repository" }),
+                    ),
+                ),
+            ),
+        ).rejects.toThrow("not a repository")
+        await expect(
+            Effect.runPromise(
+                provide(
+                    Jj.use((jj) =>
+                        jj.revisionSummaries("bad", {
+                            cwd: "/tmp/repository",
+                        }),
+                    ),
+                ),
+            ),
+        ).rejects.toThrow("jj log failed")
+    })
+
     test("interprets supporting read results", async () => {
         const processLayer = makeAppProcessFake((command) => {
             const args = command.args.join(" ")

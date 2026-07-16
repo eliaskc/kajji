@@ -29,6 +29,7 @@ import {
     type JjRebaseOptions,
     type JjRefreshState,
     type JjRestoreOptions,
+    type JjRevisionSummary,
     type JjService,
     type JjSquashOptions,
     type OperationFailure,
@@ -243,6 +244,18 @@ export interface ApplicationClient {
         paths: readonly string[],
         options: ApplicationReadOptions,
     ) => Promise<string[]>
+    readonly jjRepositoryRoot: (
+        options: ApplicationReadOptions,
+    ) => Promise<string>
+    readonly jjRevisionSummaries: (
+        revset: string,
+        options: ApplicationReadOptions,
+    ) => Promise<JjRevisionSummary[]>
+    readonly jjFileContent: (
+        revision: string,
+        path: string,
+        options: ApplicationReadOptions,
+    ) => Promise<string>
     readonly jjIsInTrunk: (
         revision: string,
         options: ApplicationReadOptions,
@@ -677,6 +690,12 @@ export function makeApplicationClient(
                     ),
             )
         },
+        jjRepositoryRoot: (options) =>
+            runRead(options, (jj) => jj.repositoryRoot(options)),
+        jjRevisionSummaries: (revset, options) =>
+            runRead(options, (jj) => jj.revisionSummaries(revset, options)),
+        jjFileContent: (revision, path, options) =>
+            runRead(options, (jj) => jj.fileContent(revision, path, options)),
         jjIsInTrunk: (revision, options) =>
             runRead(options, (jj) =>
                 jj.isInTrunk(revision, {

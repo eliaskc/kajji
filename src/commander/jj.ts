@@ -135,6 +135,12 @@ export interface JjCommitDetails {
     readonly body: string
 }
 
+export interface JjRevisionSummary {
+    readonly changeId: string
+    readonly commitId: string
+    readonly description: string
+}
+
 export class JjStaleWorkingCopyError extends Data.TaggedError(
     "JjStaleWorkingCopyError",
 )<{
@@ -165,6 +171,8 @@ export type JjReadFailureKind =
     | "operation-log"
     | "bookmarks"
     | "log"
+    | "revisions"
+    | "repository-root"
 
 export class JjReadError extends Data.TaggedError("JjReadError")<{
     readonly kind: JjReadFailureKind
@@ -172,6 +180,14 @@ export class JjReadError extends Data.TaggedError("JjReadError")<{
     readonly result: ProcessResult
 }> {
     override get message() {
+        if (this.kind === "repository-root") {
+            if (this.result.exitCode === 0) return "Unable to resolve jj root"
+            return this.result.stderr.trim() || "Not a jj repository"
+        }
+        if (this.kind === "revisions") {
+            const detail = this.result.stderr.trim()
+            return detail ? `jj log failed: ${detail}` : "jj log failed"
+        }
         const prefix =
             this.kind === "files"
                 ? "Failed to fetch files"
@@ -191,7 +207,16 @@ export class JjReadError extends Data.TaggedError("JjReadError")<{
 export interface JjService {
     readonly repositoryRoot: (
         options: JjOperationOptions,
-    ) => Effect.Effect<string | undefined, ProcessError>
+    ) => Effect.Effect<string, JjReadError | ProcessError>
+    readonly revisionSummaries: (
+        revset: string,
+        options: JjOperationOptions,
+    ) => Effect.Effect<JjRevisionSummary[], JjReadError | ProcessError>
+    readonly fileContent: (
+        revision: string,
+        path: string,
+        options: JjOperationOptions,
+    ) => Effect.Effect<string, JjReadError | ProcessError>
     readonly checkWorkingCopy: (
         options: JjOperationOptions,
     ) => Effect.Effect<void, JjStaleWorkingCopyError | ProcessError>
@@ -604,9 +629,64 @@ export const JjLayer: Layer.Layer<Jj, never, AppProcess | Hooks> = Layer.effect(
                 options: JjOperationOptions,
             ) {
                 const result = yield* runRaw(["root"], options)
-                if (result.exitCode !== 0) return undefined
                 const root = result.stdout.trim()
-                return root.length > 0 ? root : undefined
+                if (result.exitCode !== 0 || root.length === 0) {
+                    return yield* new JjReadError({
+                        kind: "repository-root",
+                        command: result.command,
+                        result,
+                    })
+                }
+                return root
+            }),
+            revisionSummaries: Effect.fn("Jj.revisionSummaries")(function* (
+                revset: string,
+                options: JjOperationOptions,
+            ) {
+                const template =
+                    'change_id ++ "\\t" ++ commit_id ++ "\\t" ++ description.first_line()'
+                const result = yield* runRaw(
+                    ["log", "-r", revset, "--no-graph", "-T", template],
+                    options,
+                )
+                if (result.exitCode !== 0) {
+                    return yield* new JjReadError({
+                        kind: "revisions",
+                        command: result.command,
+                        result,
+                    })
+                }
+                return result.stdout
+                    .split("\n")
+                    .filter((line) => line.trim().length > 0)
+                    .map((line) => {
+                        const parts = line.split("\t")
+                        return {
+                            changeId: parts[0] ?? "",
+                            commitId: parts[1] ?? "",
+                            description:
+                                parts.slice(2).join("\t") ||
+                                "(no description set)",
+                        }
+                    })
+            }),
+            fileContent: Effect.fn("Jj.fileContent")(function* (
+                revision: string,
+                path: string,
+                options: JjOperationOptions,
+            ) {
+                const result = yield* runRaw(
+                    ["file", "show", "-r", revision, path],
+                    options,
+                )
+                if (result.exitCode !== 0) {
+                    return yield* new JjReadError({
+                        kind: "file-show",
+                        command: result.command,
+                        result,
+                    })
+                }
+                return result.stdout
             }),
             checkWorkingCopy,
             gitInit: Effect.fn("Jj.gitInit")(

@@ -706,21 +706,40 @@ The last major transactional migration is complete. Remaining work is limited to
 standalone CLI ownership, interactive-process policy, and deletion of legacy
 compatibility code after their final callers move.
 
+## Implementation Update — 2026-07-16 23:39:20 CEST
+
+Standalone CLI process ownership is migrated. `runCli` now constructs one owned
+`ApplicationClient`, injects its narrow structural capability into the command
+definitions, and disposes it after command completion. CLI modules neither
+acquire an Effect runtime nor invoke the legacy commander executor.
+
+`Jj` now owns typed repository-root resolution, arbitrary revision-summary
+listing, and captured file-content reads. The existing captured diff capability
+supplies comment relocation and changes output, while pure diff parsing remains
+outside the process service. CLI callers preserve `Not a jj repository`,
+underlying stderr, and empty-root error behavior; `RepositoryBootstrap` converts
+the same typed root failure into the conservative absence used by startup
+probing.
+
+Comment storage is now process-free. Revision, file-content, root, and diff
+operations all flow through `AppProcess`; CLI output formatting, line context,
+comment relocation, hunk IDs, JSON shapes, and confirmation behavior are
+unchanged.
+
+Verification evidence:
+
+- `bun test`: 381 passing tests
+- `bun check` and changed-file Biome checks pass
+- `bun test:e2e`: all 10 terminal workflows pass
+- live `kajji changes -r @ --json` and `kajji comment list -r @ --json`
+  commands completed successfully through the owned client
+
+Standalone CLI ownership is complete. Remaining migration work is now limited
+to interactive-process policy and final compatibility cleanup.
+
 ## Remaining Migration Work
 
-### 1. Migrate standalone CLI process ownership
-
-The TUI's captured jj, hook, GitHub, git, repository bootstrap, streaming, and
-stack paths now use supplied services. Standalone CLI reads in
-`src/cli/comment.ts` and `src/cli/revisions.ts` still use legacy commander
-execution. Give CLI entry points an explicit layer composition rather than
-acquiring a hidden runtime.
-
-Move any commander file, diff, log, bookmark, or operation wrappers that remain
-solely for those CLI callers at the same time. Preserve their output formatting
-and exit-code contract.
-
-### 2. Decide interactive and miscellaneous process policy
+### 1. Decide interactive and miscellaneous process policy
 
 Interactive split, resolve, and squash still inherit terminal stdio directly.
 Editors, clipboard writes, updater pipelines, and other miscellaneous processes
@@ -728,7 +747,7 @@ should move only if a shared capability is demonstrated. They may need a
 separate interactive-process interface rather than widening captured
 `AppProcess`.
 
-### 3. Remove final compatibility code
+### 2. Remove final compatibility code
 
 After the CLI and interactive decisions:
 
@@ -742,13 +761,32 @@ No major transactional TUI migration remains. The end state has one captured
 process lifecycle, explicit runtime ownership, supplied domain dependencies, and
 no Effect-shaped Promise workflows in Solid components.
 
+## Post-Migration Consideration: Effect CLI
+
+After interactive-process policy and final compatibility cleanup are complete,
+consider replacing Citty with `effect/unstable/cli`. An isolated beta.98 spike
+confirmed that it can compose CLI handlers directly with supplied `Jj` and
+`AppProcess` layers and provides typed flags, structured help and errors, typo
+suggestions, shell completions, and straightforward `Command.runWith` testing.
+
+Do not fold this into the remaining migration phases. The current Effect CLI API
+is explicitly unstable, adds platform-service and cold-start overhead, always
+includes built-in completion and log-level flags, and does not expose configured
+default values in `HelpDoc`. Matching Kajji's compact help and version behavior
+would therefore require deliberate output design and likely a custom
+`CliOutput.Formatter`.
+
+Re-evaluate it as a separate CLI design change once the migration is otherwise
+finished. Compare the complete command tree rather than parser-only benchmarks,
+and review help, errors, aliases, default-value presentation, non-TTY color,
+completion behavior, startup time, and memory before choosing it over Citty.
+
 ## Deferred Decisions
 
 Resolve these when their next real caller makes the tradeoff concrete:
 
 - whether future capture limits retain the beginning, end, or both
 - whether interactive commands belong on `AppProcess` or a separate capability
-- how standalone CLI commands share layer construction
 - which successful warnings become persistent notices
 - whether operation data eventually needs fan-out beyond one explicit sink
 
