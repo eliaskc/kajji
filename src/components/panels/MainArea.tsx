@@ -8,6 +8,7 @@ import { useRenderer } from "@opentui/solid"
 import {
     For,
     Show,
+    batch,
     createEffect,
     createMemo,
     createSignal,
@@ -24,7 +25,12 @@ import { useCommandLog } from "../../context/commandlog"
 import { useFocus } from "../../context/focus"
 import { useLayout } from "../../context/layout"
 import { useStatus } from "../../context/status"
-import { type CommitDetails, type ViewMode, useSync } from "../../context/sync"
+import {
+    type BookmarkDiffView,
+    type CommitDetails,
+    type ViewMode,
+    useSync,
+} from "../../context/sync"
 import { useTheme } from "../../context/theme"
 import {
     type DiffPosition,
@@ -414,13 +420,41 @@ export function MainArea() {
     })
     const [parsedFiles, setParsedFiles] = createSignal<FlattenedFile[]>([])
     const [rawDiffOutput, setRawDiffOutput] = createSignal("")
-    const [parsedDiffLoading, setParsedDiffLoading] = createSignal(false)
+    const [displayedCommit, setDisplayedCommit] = createSignal<Commit>()
+    const [displayedBookmarkDiff, setDisplayedBookmarkDiff] =
+        createSignal<BookmarkDiffView | null>(null)
+    const [displayedCommitDetails, setDisplayedCommitDetails] =
+        createSignal<CommitDetails | null>(null)
+    const [displayedResolved, setDisplayedResolved] = createSignal(false)
     const [parsedDiffError, setParsedDiffError] = createSignal<string | null>(
         null,
     )
     const [currentFileId, setCurrentFileId] = createSignal<FileId | null>(null)
     const [currentDiffPosition, setCurrentDiffPosition] =
         createSignal<DiffPosition | null>(null)
+
+    const updateDisplayedSource = (
+        commit: Commit | undefined,
+        bookmarkDiff: BookmarkDiffView | null,
+        resolved: boolean,
+    ) => {
+        setDisplayedCommit(commit)
+        setDisplayedBookmarkDiff(bookmarkDiff)
+        setDisplayedResolved(resolved)
+        const details = commitDetails()
+        setDisplayedCommitDetails(
+            details && commit && details.changeId === commit.changeId
+                ? details
+                : null,
+        )
+    }
+
+    createEffect(() => {
+        const details = commitDetails()
+        const commit = displayedCommit()
+        if (!details || !commit || details.changeId !== commit.changeId) return
+        setDisplayedCommitDetails(details)
+    })
 
     const orderedFiles = createMemo(() =>
         orderFilesByPath(parsedFiles(), (file) => file.name, showTree()),
@@ -718,7 +752,9 @@ export function MainArea() {
         if (fetchKey === currentFetchKey) return
         currentFetchKey = fetchKey
 
-        setParsedDiffLoading(true)
+        if (!displayedCommit() && !displayedBookmarkDiff()) {
+            updateDisplayedSource(commit, bookmarkDiff, false)
+        }
         setParsedDiffError(null)
 
         const fetchStart = performance.now()
@@ -757,9 +793,12 @@ export function MainArea() {
                     profileMemory("memory:diff-fetch-complete")
 
                     const renderStart = performance.now()
-                    setParsedFiles([])
-                    setRawDiffOutput(renderedDiff)
-                    setParsedDiffLoading(false)
+                    batch(() => {
+                        setParsedFiles([])
+                        setRawDiffOutput(renderedDiff)
+                        setParsedDiffError(null)
+                        updateDisplayedSource(commit, bookmarkDiff, true)
+                    })
                     const signalMs = performance.now() - renderStart
 
                     queueMicrotask(() => {
@@ -794,9 +833,12 @@ export function MainArea() {
                 profileMemory("memory:diff-fetch-complete")
 
                 const renderStart = performance.now()
-                setRawDiffOutput("")
-                setParsedFiles(flattened)
-                setParsedDiffLoading(false)
+                batch(() => {
+                    setRawDiffOutput("")
+                    setParsedFiles(flattened)
+                    setParsedDiffError(null)
+                    updateDisplayedSource(commit, bookmarkDiff, true)
+                })
                 const signalMs = performance.now() - renderStart
 
                 queueMicrotask(() => {
@@ -811,7 +853,6 @@ export function MainArea() {
             .catch((err) => {
                 if (currentFetchKey === fetchKey) {
                     setParsedDiffError(err.message)
-                    setParsedDiffLoading(false)
                 }
             })
     })
@@ -846,8 +887,8 @@ export function MainArea() {
     })
 
     createEffect(() => {
-        const commit = activeCommit()
-        const bookmarkDiff = activeBookmarkDiff()
+        const commit = displayedCommit()
+        const bookmarkDiff = displayedBookmarkDiff()
         const nextId = bookmarkDiff
             ? `${bookmarkDiff.from}..${bookmarkDiff.to}`
             : commit?.changeId
@@ -878,10 +919,10 @@ export function MainArea() {
         scrollRef?.scrollTo(0)
     })
 
-    const activeDiffSourceKey = () => {
-        const bookmarkDiff = activeBookmarkDiff()
+    const displayedDiffSourceKey = () => {
+        const bookmarkDiff = displayedBookmarkDiff()
         if (bookmarkDiff) return `${bookmarkDiff.from}..${bookmarkDiff.to}`
-        const commit = activeCommit()
+        const commit = displayedCommit()
         return commit ? `${commit.changeId}:${commit.commitId}` : null
     }
 
@@ -904,7 +945,7 @@ export function MainArea() {
             setMetricsSourceKey(null)
         } else {
             setMetricsMode(viewMode())
-            setMetricsSourceKey(activeDiffSourceKey())
+            setMetricsSourceKey(displayedDiffSourceKey())
         }
         if (
             currentScroll !== scrollTop() ||
@@ -976,7 +1017,7 @@ export function MainArea() {
         }
 
         const repoPath = getRepoPath()
-        const commit = activeCommit()
+        const commit = displayedCommit()
         let editorPaths: string[]
         try {
             editorPaths =
@@ -1349,17 +1390,14 @@ export function MainArea() {
         },
     ])
 
-    const isLoading = () => parsedDiffLoading()
-    const hasError = () => parsedDiffError()
     const hasContent = () =>
         useJjFormatter()
             ? stripAnsi(rawDiffOutput()).trim().length > 0
             : parsedFiles().length > 0
+    const hasDisplayedSource = () =>
+        Boolean(displayedCommit() || displayedBookmarkDiff())
     const showEmptyState = () =>
-        (activeCommit() || activeBookmarkDiff()) &&
-        !isLoading() &&
-        !hasError() &&
-        !hasContent()
+        hasDisplayedSource() && displayedResolved() && !hasContent()
     return (
         <Panel
             title="Detail"
@@ -1369,10 +1407,7 @@ export function MainArea() {
             overflow="visible"
             topRight={renderRepoInfo}
         >
-            <Show when={hasError()}>
-                <text>Error: {hasError()}</text>
-            </Show>
-            <Show when={hasContent() || (!isLoading() && !hasError())}>
+            <Show when={hasDisplayedSource()}>
                 <box flexGrow={1} paddingRight={SCROLLBAR_GUTTER}>
                     <scrollbox
                         ref={scrollRef}
@@ -1394,26 +1429,29 @@ export function MainArea() {
                                 flexDirection="column"
                                 flexShrink={0}
                             >
-                                <Show when={activeBookmarkDiff()}>
+                                <Show when={displayedBookmarkDiff()}>
                                     <BookmarkDiffHeader
                                         bookmark={
-                                            activeBookmarkDiff()?.bookmark ?? ""
+                                            displayedBookmarkDiff()?.bookmark ??
+                                            ""
                                         }
-                                        from={activeBookmarkDiff()?.from ?? ""}
-                                        to={activeBookmarkDiff()?.to ?? ""}
+                                        from={
+                                            displayedBookmarkDiff()?.from ?? ""
+                                        }
+                                        to={displayedBookmarkDiff()?.to ?? ""}
                                     />
                                 </Show>
                                 <Show
                                     when={
                                         viewMode() !== "files" &&
-                                        !activeBookmarkDiff() &&
-                                        activeCommit()
+                                        !displayedBookmarkDiff() &&
+                                        displayedCommit()
                                     }
                                 >
                                     {(commit: () => Commit) => (
                                         <CommitHeader
                                             commit={commit()}
-                                            details={commitDetails()}
+                                            details={displayedCommitDetails()}
                                             stats={diffStats()}
                                             maxWidth={Math.max(
                                                 1,
@@ -1428,13 +1466,19 @@ export function MainArea() {
                                     Error: {parsedDiffError()}
                                 </text>
                             </Show>
-                            <Show when={!parsedDiffError()}>
+                            <Show
+                                when={
+                                    !parsedDiffError() ||
+                                    hasContent() ||
+                                    showEmptyState()
+                                }
+                            >
                                 <Show
                                     when={
                                         showEmptyState() &&
                                         metricsMode() === viewMode() &&
                                         metricsSourceKey() ===
-                                            activeDiffSourceKey()
+                                            displayedDiffSourceKey()
                                     }
                                 >
                                     <EmptyDiffState
