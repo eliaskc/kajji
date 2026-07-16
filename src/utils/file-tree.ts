@@ -194,15 +194,3 @@ export function getFilePaths(node: FileTreeNode): string[] {
     collect(node)
     return paths
 }
-
-export function getEffectiveCollapsedPaths(
-    collapsedPaths: ReadonlySet<string>,
-    revealedFilePath: string | null,
-): Set<string> {
-    if (!revealedFilePath) return new Set(collapsedPaths)
-    const effective = new Set(collapsedPaths)
-    for (const path of collapsedPaths) {
-        if (revealedFilePath.startsWith(`${path}/`)) effective.delete(path)
-    }
-    return effective
-}

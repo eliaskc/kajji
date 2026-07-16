@@ -25,7 +25,6 @@ import {
     buildFileTree,
     flattenFlat,
     flattenTree,
-    getEffectiveCollapsedPaths,
 } from "../utils/file-tree"
 import { useApplication } from "./application"
 import { useFocus } from "./focus"
@@ -272,14 +271,7 @@ export function SyncProvider(props: { children: JSX.Element }) {
         setPreviousRevsetFilterSignal(null)
     }
 
-    const collapsedPaths = createMemo(() => {
-        const collapsed = userCollapsedPaths()
-        const currentPath = currentDiffFilePath()
-        if (viewMode() !== "files" || !currentPath) {
-            return collapsed
-        }
-        return getEffectiveCollapsedPaths(collapsed, currentPath)
-    })
+    const collapsedPaths = userCollapsedPaths
 
     const flatFiles = createMemo(() => {
         const tree = fileTree()
