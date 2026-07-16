@@ -1415,9 +1415,14 @@ export function MainArea() {
                         flexGrow={1}
                         scrollX={false}
                         verticalScrollbarOptions={{
+                            visible: true,
                             trackOptions: {
-                                backgroundColor: colors().scrollbarTrack,
-                                foregroundColor: colors().scrollbarThumb,
+                                backgroundColor: hasContent()
+                                    ? colors().scrollbarTrack
+                                    : colors().background,
+                                foregroundColor: hasContent()
+                                    ? colors().scrollbarThumb
+                                    : colors().background,
                             },
                         }}
                         horizontalScrollbarOptions={{ visible: false }}
