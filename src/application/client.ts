@@ -44,9 +44,8 @@ import {
     type OperationFailure,
     type OperationSink,
 } from "../commander/jj"
-import type { FetchLogPageResult } from "../commander/log"
+import type { LogPageResult } from "../commander/log"
 import type { CommandObserver } from "../commander/observer"
-import type { OperationResult } from "../commander/operations"
 import type { Commit, FileChange } from "../commander/types"
 import { Hooks, HooksLive, type HooksService } from "../hooks/runner"
 import type { HookOperationId } from "../hooks/types"
@@ -56,6 +55,7 @@ import {
     InteractiveProcessLive,
     type InteractiveProcessSpawnError,
 } from "../process/interactive-process"
+import type { OperationResult } from "../process/operation-result"
 import {
     RepositoryBootstrap,
     RepositoryBootstrapLive,
@@ -340,11 +340,11 @@ export interface ApplicationClient {
     ) => ApplicationStreamHandle<Bookmark[]>
     readonly jjLogPage: (
         options: ApplicationLogReadOptions,
-    ) => Promise<FetchLogPageResult>
+    ) => Promise<LogPageResult>
     readonly jjStreamLogPage: (
         options: ApplicationLogReadOptions,
         onBatch: (commits: readonly Commit[]) => void | Promise<void>,
-    ) => ApplicationStreamHandle<FetchLogPageResult>
+    ) => ApplicationStreamHandle<LogPageResult>
     readonly stackParent: (
         bookmark: string,
         options: ApplicationReadOptions,

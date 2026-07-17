@@ -18,12 +18,7 @@ import {
     type Bookmark,
     isBookmarkBackwardsError,
 } from "../../commander/bookmarks"
-import {
-    type OpLogEntry,
-    type OperationResult,
-    isImmutableError,
-    parseOpLog,
-} from "../../commander/operations"
+import { type OpLogEntry, parseOpLog } from "../../commander/op-log"
 import { type Commit, getRevisionId } from "../../commander/types"
 import { useApplication } from "../../context/application"
 import { useCommand } from "../../context/command"
@@ -36,6 +31,7 @@ import { useSync } from "../../context/sync"
 import { useTheme } from "../../context/theme"
 import type { Context } from "../../context/types"
 import { HookOperation } from "../../hooks/types"
+import type { OperationResult } from "../../process/operation-result"
 import { getRepoPath } from "../../repo"
 import {
     findCommitBookmarkWithOriginDiff,
@@ -43,6 +39,7 @@ import {
 } from "../../utils/bookmark-origin-diff"
 import { blendColors } from "../../utils/color"
 import { createDoubleClickDetector } from "../../utils/double-click"
+import { isImmutableError } from "../../utils/error-parser"
 import { getRevisionRestorePlan } from "../../utils/revision-restore"
 import {
     type SelectionSource,

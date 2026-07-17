@@ -1,5 +1,3 @@
-import { isStaleWorkingCopyFailure } from "../utils/error-parser"
-import { execute } from "./executor"
 import type { Commit } from "./types"
 
 const MARKER = "__LJ__"
@@ -265,77 +263,20 @@ export function finalizeLogStream(state: LogStreamState): Commit[] {
     return completed
 }
 
-export interface FetchLogOptions {
-    cwd?: string
-    revset?: string
-    limit?: number
-}
-
-export interface FetchLogPageResult {
+export interface LogPageResult {
     commits: Commit[]
     hasMore: boolean
 }
 
 export function buildLogArgs(
-    options: FetchLogOptions | undefined,
+    options: { readonly revset?: string } | undefined,
     template: string,
     limit?: number,
 ) {
     const args = ["log", "--color", "always", "--template", template]
 
-    if (options?.revset) {
-        args.push("-r", options.revset)
-    }
-
-    if (limit) {
-        args.push("--limit", String(limit))
-    }
+    if (options?.revset) args.push("-r", options.revset)
+    if (limit) args.push("--limit", String(limit))
 
     return args
-}
-
-async function executeLog(
-    options: FetchLogOptions | undefined,
-    limit?: number,
-): Promise<string> {
-    const template = buildLogTemplate()
-    const args = buildLogArgs(options, template, limit)
-    const result = await execute(args, {
-        cwd: options?.cwd,
-    })
-
-    // Check for critical errors in both stdout and stderr (jj sometimes outputs errors to stdout)
-    const combinedOutput = result.stdout + result.stderr
-    if (isStaleWorkingCopyFailure(result)) {
-        throw new Error(`The working copy is stale\n${combinedOutput}`)
-    }
-
-    if (!result.success) {
-        throw new Error(`jj log failed: ${result.stderr}`)
-    }
-
-    return result.stdout
-}
-
-export async function fetchLogPage(
-    options?: FetchLogOptions,
-): Promise<FetchLogPageResult> {
-    const limit = options?.limit
-    const raw = await executeLog(options, limit ? limit + 1 : undefined)
-    const commits = parseLogOutput(raw)
-
-    if (!limit) {
-        return { commits, hasMore: false }
-    }
-
-    if (commits.length > limit) {
-        return { commits: commits.slice(0, limit), hasMore: true }
-    }
-
-    return { commits, hasMore: false }
-}
-
-export async function fetchLog(options?: FetchLogOptions): Promise<Commit[]> {
-    const result = await fetchLogPage(options)
-    return result.commits
 }

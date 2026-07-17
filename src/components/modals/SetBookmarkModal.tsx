@@ -9,11 +9,11 @@ import {
     type Bookmark,
     isBookmarkBackwardsError,
 } from "../../commander/bookmarks"
-import type { OperationResult } from "../../commander/operations"
 import { useCommandInputGuard, useDialogCommands } from "../../context/command"
 import { DIALOG_SIZE, useDialog } from "../../context/dialog"
 import { useTheme } from "../../context/theme"
 import { createSelectableList } from "../../hooks/selectable-list"
+import type { OperationResult } from "../../process/operation-result"
 import { FUZZY_THRESHOLD } from "../../utils/scroll"
 
 const SINGLE_LINE_KEYBINDINGS = [

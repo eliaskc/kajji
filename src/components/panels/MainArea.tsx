@@ -16,7 +16,6 @@ import {
     onMount,
 } from "solid-js"
 
-import type { DiffStats } from "../../commander/operations"
 import { type Commit, getRevisionId } from "../../commander/types"
 import { onConfigChange, readConfig } from "../../config"
 import { useApplication } from "../../context/application"
@@ -44,6 +43,7 @@ import {
     getMaxLineNumber,
     parseDiffString,
 } from "../../diff"
+import type { DiffStats } from "../../diff/types"
 import { getRepoPath } from "../../repo"
 import { stripAnsi } from "../../utils/ansi"
 import { openInEditor, shouldSuspendForEditor } from "../../utils/editor"

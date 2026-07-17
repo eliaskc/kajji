@@ -1,6 +1,6 @@
 import { createSignal } from "solid-js"
 import type { CommandKind, CommandObserver } from "../commander/observer"
-import type { OperationResult } from "../commander/operations"
+import type { OperationResult } from "../process/operation-result"
 import { createSimpleContext } from "./helper"
 
 export type CommandLogStatus =

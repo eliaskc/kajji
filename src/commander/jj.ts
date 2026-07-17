@@ -25,7 +25,7 @@ import {
 } from "./bookmarks"
 import { parseFileSummary } from "./files"
 import {
-    type FetchLogPageResult,
+    type LogPageResult,
     type LogStreamState,
     buildLogArgs,
     buildLogTemplate,
@@ -364,14 +364,14 @@ export interface JjService {
     readonly logPage: (
         options: JjLogReadOptions,
     ) => Effect.Effect<
-        FetchLogPageResult,
+        LogPageResult,
         JjReadError | JjStaleWorkingCopyError | ProcessError
     >
     readonly streamLogPage: (
         options: JjLogReadOptions,
         onBatch: (commits: readonly Commit[]) => void | Promise<void>,
     ) => Effect.Effect<
-        FetchLogPageResult,
+        LogPageResult,
         JjReadError | JjStaleWorkingCopyError | ProcessError
     >
 }

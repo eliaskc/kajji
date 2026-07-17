@@ -1,5 +1,4 @@
 import { describe, expect, test } from "bun:test"
-import { Effect } from "effect"
 import { buildBookmarkStackModel } from "../../../src/stack/discovery"
 import { buildSyncPlanSync } from "../../../src/stack/planner"
 
@@ -25,16 +24,13 @@ const threeBookmarks = [
     { name: "feature-c", commitId: "c", changeId: "c" },
 ]
 
-const model = async () =>
-    Effect.runPromise(buildBookmarkStackModel({ commits, bookmarks }))
+const model = async () => buildBookmarkStackModel({ commits, bookmarks })
 
 const threeBookmarkModel = async () =>
-    Effect.runPromise(
-        buildBookmarkStackModel({
-            commits: threeBookmarkCommits,
-            bookmarks: threeBookmarks,
-        }),
-    )
+    buildBookmarkStackModel({
+        commits: threeBookmarkCommits,
+        bookmarks: threeBookmarks,
+    })
 
 describe("stack planners", () => {
     test("sync plans PR creation, retargeting and pushes", async () => {

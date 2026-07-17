@@ -1,6 +1,3 @@
-import { findBinaryFiles } from "../utils/diff-binary"
-import { isStaleWorkingCopyFailure } from "../utils/error-parser"
-import { execute } from "./executor"
 import type { FileChange, FileStatus } from "./types"
 
 const STATUS_MAP: Record<string, FileStatus> = {
@@ -20,12 +17,10 @@ function parseRenamedPath(rawPath: string): {
     const match = rawPath.match(BRACED_RENAME_REGEX)
     if (match?.[2] && match[3]) {
         const prefix = match[1] ?? ""
-        const oldPart = match[2]
-        const newPart = match[3]
         const suffix = match[4] ?? ""
         return {
-            oldPath: prefix + oldPart + suffix,
-            newPath: prefix + newPart + suffix,
+            oldPath: prefix + match[2] + suffix,
+            newPath: prefix + match[3] + suffix,
         }
     }
 
@@ -47,11 +42,8 @@ export function parseFileSummary(output: string): FileChange[] {
         const trimmed = line.trim()
         if (!trimmed) continue
 
-        const statusChar = trimmed[0]
-        if (!statusChar) continue
-        const status = STATUS_MAP[statusChar]
+        const status = STATUS_MAP[trimmed[0] ?? ""]
         if (!status) continue
-
         const rawPath = trimmed.slice(2)
 
         if (status === "renamed" || status === "copied") {
@@ -63,57 +55,4 @@ export function parseFileSummary(output: string): FileChange[] {
     }
 
     return files
-}
-
-async function fetchFilesWithArgs(
-    summaryArgs: string[],
-    binaryArgs: string[],
-): Promise<FileChange[]> {
-    const [summaryResult, binaryResult] = await Promise.all([
-        execute(summaryArgs),
-        execute(binaryArgs),
-    ])
-
-    // Check both streams because jj sometimes outputs errors to stdout.
-    const combinedOutput =
-        summaryResult.stdout +
-        summaryResult.stderr +
-        binaryResult.stdout +
-        binaryResult.stderr
-    if (
-        isStaleWorkingCopyFailure(summaryResult) ||
-        isStaleWorkingCopyFailure(binaryResult)
-    ) {
-        throw new Error(`The working copy is stale\n${combinedOutput}`)
-    }
-
-    if (!summaryResult.success) {
-        throw new Error(`Failed to fetch files: ${summaryResult.stderr}`)
-    }
-
-    const binaryFiles = binaryResult.success
-        ? findBinaryFiles(binaryResult.stdout)
-        : new Set<string>()
-
-    return parseFileSummary(summaryResult.stdout).map((file) => ({
-        ...file,
-        isBinary: binaryFiles.has(file.path),
-    }))
-}
-
-export async function fetchFiles(revision: string): Promise<FileChange[]> {
-    return fetchFilesWithArgs(
-        ["diff", "--summary", "-r", revision],
-        ["diff", "--git", "-r", revision],
-    )
-}
-
-export async function fetchFilesRange(
-    from: string,
-    to: string,
-): Promise<FileChange[]> {
-    return fetchFilesWithArgs(
-        ["diff", "--summary", "--from", from, "--to", to],
-        ["diff", "--git", "--from", from, "--to", to],
-    )
 }

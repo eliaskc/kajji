@@ -1,4 +1,5 @@
 import type { ProcessResult } from "../process/app-process"
+import type { OperationResult } from "../process/operation-result"
 
 /**
  * Parsed jj error with structured information
@@ -29,6 +30,14 @@ export function isStaleWorkingCopyFailure(
     return (
         result.exitCode !== 0 &&
         STALE_WORKING_COPY_PATTERN.test(result.stdout + result.stderr)
+    )
+}
+
+export function isImmutableError(result: OperationResult): boolean {
+    return (
+        !result.success &&
+        (result.stderr.includes("immutable") ||
+            result.stderr.includes("Immutable"))
     )
 }
 

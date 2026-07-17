@@ -4,6 +4,8 @@ Takeaways from analyzing lazyjj (Rust/ratatui) and jjui (Go/bubbletea), and how 
 
 The main perf issue on large repos is lag on mutating jj commands (`jj new`, etc.), not diff rendering — the custom diff pipeline with Shiki progressive enhancement is working well.
 
+> Historical note: the commander paths and executor sketches below describe the pre-Effect architecture. Process ownership now lives in scoped `Jj`, `AppProcess`, and `InteractiveProcess` services; retain the performance observations, but do not reintroduce the deleted compatibility adapters.
+
 ## 1. Streaming log with backpressure (from jjui)
 
 jjui's `GraphStreamer` pulls 50 rows at a time from a live `jj log` process via a Go channel. The process stays alive — the UI requests more batches as the user scrolls. On revset change, the old process is killed immediately via `context.Cancel()`.

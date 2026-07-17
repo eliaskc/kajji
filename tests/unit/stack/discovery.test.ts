@@ -1,5 +1,4 @@
 import { describe, expect, test } from "bun:test"
-import { Effect } from "effect"
 import { buildBookmarkStackModel } from "../../../src/stack/discovery"
 
 const commits = [
@@ -19,10 +18,8 @@ const bookmarks = [
 ]
 
 describe("buildBookmarkStackModel", () => {
-    test("renders only actual multi-bookmark stacks under trunk", async () => {
-        const model = await Effect.runPromise(
-            buildBookmarkStackModel({ commits, bookmarks }),
-        )
+    test("renders only actual multi-bookmark stacks under trunk", () => {
+        const model = buildBookmarkStackModel({ commits, bookmarks })
 
         expect(model.rows.map((row) => [row.bookmark.name, row.depth])).toEqual(
             [
@@ -39,10 +36,8 @@ describe("buildBookmarkStackModel", () => {
         expect(model.parentByName.has("standalone")).toBe(false)
     })
 
-    test("marks all stack members with the stack root key for highlighting", async () => {
-        const model = await Effect.runPromise(
-            buildBookmarkStackModel({ commits, bookmarks }),
-        )
+    test("marks all stack members with the stack root key for highlighting", () => {
+        const model = buildBookmarkStackModel({ commits, bookmarks })
         const stackKeysByName = new Map(
             model.rows.map((row) => [row.bookmark.name, row.stackKeys]),
         )
@@ -54,17 +49,15 @@ describe("buildBookmarkStackModel", () => {
         expect(stackKeysByName.get("standalone")).toEqual([])
     })
 
-    test("does not stack when every bookmark targets trunk", async () => {
-        const model = await Effect.runPromise(
-            buildBookmarkStackModel({
-                commits,
-                bookmarks: [
-                    { name: "main", commitId: "main", changeId: "main" },
-                    { name: "one", commitId: "a", changeId: "a" },
-                    { name: "two", commitId: "solo", changeId: "solo" },
-                ],
-            }),
-        )
+    test("does not stack when every bookmark targets trunk", () => {
+        const model = buildBookmarkStackModel({
+            commits,
+            bookmarks: [
+                { name: "main", commitId: "main", changeId: "main" },
+                { name: "one", commitId: "a", changeId: "a" },
+                { name: "two", commitId: "solo", changeId: "solo" },
+            ],
+        })
 
         expect(model.rows.map((row) => [row.bookmark.name, row.depth])).toEqual(
             [

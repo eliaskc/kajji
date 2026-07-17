@@ -6,9 +6,7 @@ import {
     type ParsedPatch,
     parsePatchFiles,
 } from "@pierre/diffs"
-import { execute } from "../commander/executor"
 import { findBinaryFiles } from "../utils/diff-binary"
-import { toFilesetArgs } from "../utils/jj-fileset"
 import { type FileId, type HunkId, fileId, hunkId } from "./identifiers"
 
 // Re-export types for convenience
@@ -21,51 +19,6 @@ export type {
 }
 
 export type DiffFile = FileDiffMetadata & { isBinary?: boolean }
-
-export interface ParseDiffOptions {
-    cwd?: string
-    /** Specific file paths to include in the diff */
-    paths?: string[]
-}
-
-/**
- * Fetch and parse a diff from jj into structured format.
- * Uses --git format for proper parsing (no ANSI colors).
- */
-async function fetchParsedDiffWithArgs(
-    args: string[],
-    options: ParseDiffOptions,
-): Promise<DiffFile[]> {
-    if (options.paths && options.paths.length > 0) {
-        args.push(...toFilesetArgs(options.paths))
-    }
-
-    const result = await execute(args, { cwd: options.cwd })
-
-    if (!result.success) {
-        throw new Error(`jj diff failed: ${result.stderr}`)
-    }
-
-    return parseDiffString(result.stdout)
-}
-
-export async function fetchParsedDiff(
-    revision: string,
-    options: ParseDiffOptions = {},
-): Promise<DiffFile[]> {
-    return fetchParsedDiffWithArgs(["diff", "-r", revision, "--git"], options)
-}
-
-export async function fetchParsedDiffRange(
-    from: string,
-    to: string,
-    options: ParseDiffOptions = {},
-): Promise<DiffFile[]> {
-    return fetchParsedDiffWithArgs(
-        ["diff", "--from", from, "--to", to, "--git"],
-        options,
-    )
-}
 
 /**
  * Parse a git-format diff string into structured format.

@@ -112,7 +112,7 @@ export const StackLive = Layer.effect(
                 parentCommitIds: commit.parentCommitIds ?? [],
                 immutable: commit.immutable,
             }))
-            const stackModel = yield* buildBookmarkStackModel({
+            const stackModel = buildBookmarkStackModel({
                 commits: commitInputs,
                 bookmarks: localBookmarks,
             })
@@ -148,7 +148,7 @@ export const StackLive = Layer.effect(
                 ),
                 persistedState.entries,
             )
-            const stackModel = yield* buildBookmarkStackModel({
+            const stackModel = buildBookmarkStackModel({
                 commits: freshState.commits,
                 bookmarks: localBookmarks,
             })

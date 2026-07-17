@@ -16,6 +16,13 @@ export type DiffViewStyle = "unified" | "split"
  */
 export type HunkSelection = "keep" | "split"
 
+export interface DiffStats {
+    files: { path: string; insertions: number; deletions: number }[]
+    totalFiles: number
+    totalInsertions: number
+    totalDeletions: number
+}
+
 /**
  * Annotation for PR review / AI explanations.
  */

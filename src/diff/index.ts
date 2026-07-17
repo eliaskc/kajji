@@ -13,8 +13,6 @@ export {
 
 // Parser and utilities
 export {
-    fetchParsedDiff,
-    fetchParsedDiffRange,
     flattenDiff,
     flattenFile,
     flattenHunk,
@@ -28,7 +26,6 @@ export {
     type DiffLineType,
     type FlattenedFile,
     type FlattenedHunk,
-    type ParseDiffOptions,
 } from "./parser"
 
 // Re-export @pierre/diffs types
@@ -47,6 +44,7 @@ export {
     type DiffAnnotation,
     type DiffMode,
     type DiffState,
+    type DiffStats,
     type DiffViewStyle,
     type HunkSelection,
 } from "./types"

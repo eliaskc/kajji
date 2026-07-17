@@ -1,7 +1,4 @@
-import { isStaleWorkingCopyFailure } from "../utils/error-parser"
-import { execute, executeWithColor } from "./executor"
-import type { OperationRunOptions } from "./observer"
-import type { OperationResult } from "./operations"
+import type { OperationResult } from "../process/operation-result"
 
 const BOOKMARK_MARKER = "__BJ__"
 const BOOKMARK_DESCRIPTION =
@@ -43,47 +40,10 @@ export interface Bookmark {
     remote?: string
 }
 
-export interface FetchBookmarksOptions {
-    cwd?: string
-    allRemotes?: boolean
-}
-
-export async function fetchBookmarks(
-    options: FetchBookmarksOptions = {},
-): Promise<Bookmark[]> {
-    const args = [
-        "bookmark",
-        "list",
-        "--sort",
-        "committer-date-",
-        "--template",
-        BOOKMARK_TEMPLATE,
-    ]
-
-    if (options.allRemotes) {
-        args.push("--all-remotes")
-    }
-
-    const result = await executeWithColor(args, { cwd: options.cwd })
-
-    // Check for critical errors in both stdout and stderr (jj sometimes outputs errors to stdout)
-    const combinedOutput = result.stdout + result.stderr
-    if (isStaleWorkingCopyFailure(result)) {
-        throw new Error(`The working copy is stale\n${combinedOutput}`)
-    }
-
-    if (!result.success) {
-        throw new Error(`jj bookmark list failed: ${result.stderr}`)
-    }
-
-    return parseBookmarkOutput(result.stdout)
-}
-
 export function parseBookmarkOutput(output: string): Bookmark[] {
     const bookmarks: Bookmark[] = []
-    const lines = output.split("\n")
 
-    for (const line of lines) {
+    for (const line of output.split("\n")) {
         if (!line.includes(BOOKMARK_MARKER)) continue
         const parts = line.split(BOOKMARK_MARKER)
         if (parts.length < 9) continue
@@ -96,7 +56,6 @@ export function parseBookmarkOutput(output: string): Bookmark[] {
         const changeId = stripAnsi(parts[6] ?? "")
         const commitId = stripAnsi(parts[7] ?? "")
         const descriptionDisplay = parts[8] ?? ""
-        const description = stripAnsi(descriptionDisplay).trim()
         const isLocal = remote.length === 0
 
         bookmarks.push({
@@ -107,7 +66,7 @@ export function parseBookmarkOutput(output: string): Bookmark[] {
             changeIdDisplay,
             commitIdDisplay,
             descriptionDisplay,
-            description,
+            description: stripAnsi(descriptionDisplay).trim(),
             isLocal,
             remote: isLocal ? undefined : remote,
         })
@@ -116,97 +75,8 @@ export function parseBookmarkOutput(output: string): Bookmark[] {
     return bookmarks
 }
 
-export async function jjBookmarkCreate(
-    name: string,
-    options?: { revision?: string } & OperationRunOptions,
-): Promise<OperationResult> {
-    const args = ["bookmark", "create", name]
-    if (options?.revision) {
-        args.push("-r", options.revision)
-    }
-    const result = await execute(args, {
-        observer: options?.observer,
-        command: `jj ${args.join(" ")}`,
-    })
-    return {
-        ...result,
-        command: `jj ${args.join(" ")}`,
-    }
-}
-
-export async function jjBookmarkDelete(name: string): Promise<OperationResult> {
-    const args = ["bookmark", "delete", name]
-    const result = await execute(args)
-    return {
-        ...result,
-        command: `jj ${args.join(" ")}`,
-    }
-}
-
-export async function jjBookmarkRename(
-    oldName: string,
-    newName: string,
-): Promise<OperationResult> {
-    const args = ["bookmark", "rename", oldName, newName]
-    const result = await execute(args)
-    return {
-        ...result,
-        command: `jj ${args.join(" ")}`,
-    }
-}
-
-export async function jjBookmarkForget(name: string): Promise<OperationResult> {
-    const args = ["bookmark", "forget", name]
-    const result = await execute(args)
-    return {
-        ...result,
-        command: `jj ${args.join(" ")}`,
-    }
-}
-
-export async function jjBookmarkSet(
-    name: string,
-    revision: string,
-    options?: { allowBackwards?: boolean } & OperationRunOptions,
-): Promise<OperationResult> {
-    const args = ["bookmark", "set", name, "-r", revision]
-    if (options?.allowBackwards) {
-        args.push("--allow-backwards")
-    }
-    const result = await execute(args, {
-        observer: options?.observer,
-        command: `jj ${args.join(" ")}`,
-    })
-    return {
-        ...result,
-        command: `jj ${args.join(" ")}`,
-    }
-}
-
 export function isBookmarkBackwardsError(result: OperationResult): boolean {
     if (result.success) return false
     const combined = `${result.stdout}\n${result.stderr}`
     return /allow-backwards/i.test(combined) || /backward/i.test(combined)
-}
-
-export async function fetchNearestAncestorBookmarkNames(
-    revision: string,
-): Promise<string[]> {
-    const revset = `heads(::${revision} & bookmarks())`
-    const args = [
-        "bookmark",
-        "list",
-        "-r",
-        revset,
-        "--template",
-        'name ++ "\\n"',
-    ]
-    const result = await execute(args)
-    if (!result.success) {
-        throw new Error(`jj bookmark list failed: ${result.stderr}`)
-    }
-    return result.stdout
-        .split("\n")
-        .map((line) => line.trim())
-        .filter((line) => line.length > 0)
 }

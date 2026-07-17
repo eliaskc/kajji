@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test"
 import { writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { ptyToJson } from "ghostty-opentui"
-import { parseOpLog } from "../../src/commander/operations"
+import { parseOpLog } from "../../src/commander/op-log"
 
 const RESULTS_FILE = join(import.meta.dir, "../../bench-results.json")
 

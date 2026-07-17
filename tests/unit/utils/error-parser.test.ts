@@ -1,9 +1,31 @@
 import { describe, expect, test } from "bun:test"
 import {
+    isImmutableError,
     isStaleWorkingCopyFailure,
     parseJjError,
     shouldShowCriticalError,
 } from "../../../src/utils/error-parser"
+
+describe("operation errors", () => {
+    const result = (success: boolean, stderr: string) => ({
+        success,
+        stderr,
+        stdout: "",
+        exitCode: success ? 0 : 1,
+        command: "jj edit abc123",
+    })
+
+    test("recognizes immutable command failures", () => {
+        expect(isImmutableError(result(false, "commit is immutable"))).toBe(
+            true,
+        )
+        expect(isImmutableError(result(false, "Immutable commit"))).toBe(true)
+        expect(isImmutableError(result(true, "immutable warning"))).toBe(false)
+        expect(isImmutableError(result(false, "revision not found"))).toBe(
+            false,
+        )
+    })
+})
 
 describe("stale working copy errors", () => {
     test("recognizes an unreadable working copy operation", () => {

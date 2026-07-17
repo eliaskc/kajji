@@ -2,20 +2,25 @@
 
 ## Status
 
-**First production slice complete.** User-triggered `jj git fetch` now runs
-through the Effect-native `Jj` and `AppProcess` capabilities. The resulting
-interfaces have been exercised in production use and are ready to extend one
-capability at a time; this document is not a complete design for every later
-module.
+**Complete.** Repository-domain process execution now runs through scoped Effect
+capabilities. Captured commands use `AppProcess`; inherited-stdio jj commands use
+the separate `InteractiveProcess`; and `Jj`, `Git`, `GitHub`, `Hooks`,
+`RepositoryBootstrap`, and `Stack` own their domain policies. The TUI and CLI
+consume a Promise-facing `ApplicationClient`, and Solid owns no Effect runtime,
+environment, fiber, or scope.
 
-Kajji currently pins `effect@4.0.0-beta.98`. Keep that version fixed during a
-migration slice and verify APIs against the matching Effect source. Upgrade
-Effect before beginning a later slice so lifecycle and dependency changes are
-not introduced midway through implementation.
+The legacy executor, global observer, commander compatibility wrappers, and
+their obsolete adapter tests have been removed. The only direct subprocesses
+outside the two owned process capabilities are explicit local OS integrations
+for editor launching and clipboard writes.
 
-The first production slice is `jj git fetch`. Later work should proceed
-capability by capability, with existing behavior preserved at each compatibility
-seam.
+Kajji currently pins `effect@4.0.0-beta.98`. Upgrade it as a deliberate,
+separately validated change rather than combining lifecycle API changes with
+unrelated product work.
+
+This document records the architecture, original rollout plan, and timestamped
+implementation history. Post-migration review candidates and the Effect CLI
+exploration live in [Effect Post-Migration Review](./effect-post-migration.md).
 
 ## Why Effect
 
@@ -52,11 +57,11 @@ substitution. It is not expected to improve rendering or ordinary local state.
 
 - Rewriting the TUI or Solid contexts as Effect services.
 - Wrapping pure parsers, planners, and formatting helpers in Effect.
-- Migrating every process family in the first slice.
+- Migrating every process family in one change.
 - Designing a universal event bus.
 - Adding Node support or a second process implementation without a real need.
-- Redesigning notices, error screens, or command-log UX as part of the first
-  slice.
+- Redesigning notices, error screens, or command-log UX as part of process
+  ownership migration.
 - Keeping compatibility adapters after their callers have migrated.
 
 ## Validated Decisions
@@ -85,7 +90,7 @@ The spike established these decisions:
 
 The spike intentionally did not settle streaming and backpressure details,
 process groups, command events, application shutdown integration, or final file
-layout. The first production slices should settle those through working code and
+layout. Those decisions were subsequently settled through working slices and
 contract tests rather than a larger up-front abstraction.
 
 ## Dependency Direction
@@ -99,9 +104,9 @@ Owned ManagedRuntime
       |
 Application workflows
       |
-Jj / GitHub / RepositoryBootstrap / StackJournal
+Jj / Git / GitHub / Hooks / RepositoryBootstrap / Stack / InteractiveJj
       |
-AppProcess / operation sink
+AppProcess / InteractiveProcess / StackStore / operation sink
 ```
 
 Solid code calls a narrow application client and receives ordinary values or
@@ -222,11 +227,8 @@ capture-limit evidence for every normal exit. It does not return a redundant
 
 `Jj` owns jj-specific argument construction, environment policy, exit
 interpretation, and parser invocation. It uses `AppProcess` and returns
-jj-specific results or typed errors.
-
-The first capability is git fetch, including the current options for branches,
-tracked bookmarks, selected remotes, and all remotes. Existing parser modules
-remain pure as later read capabilities move behind `Jj`.
+jj-specific results or typed errors. Bookmark, file, log, diff, and operation-log
+parsers remain ordinary pure modules beside the service.
 
 ### Runtime and application client
 
@@ -247,20 +249,19 @@ sequence.
 
 ### Compatibility and command output
 
-New Effect implementations are the source of truth. Temporary adapters preserve
-the current Promise result and rejection behavior for unchanged callers.
+Effect implementations are the source of truth. The Promise-facing application
+client translates typed service results into structural values for the TUI and
+CLI; no legacy process compatibility path remains.
 
-The first operation uses an explicit, infallible output/operation sink. Do not
-introduce a queue, `PubSub`, or application-wide event bus until multiple real
-consumers require fan-out.
+Commands use an explicit, infallible operation sink. Do not introduce a queue,
+`PubSub`, or application-wide event bus until multiple real consumers require
+fan-out. The application edge translates sink events into the existing
+`CommandObserver`: one user operation produces exactly one visible command-log
+entry, and observer failure never fails the underlying command.
 
-The compatibility edge may translate process output and completion into the
-existing `CommandObserver`. One user operation must produce exactly one visible
-command-log entry. Output-sink failure must not fail the underlying command.
+## Historical Rollout Plan: First Slice (`jj git fetch`)
 
-## First Production Slice: `jj git fetch`
-
-The first slice proves the architecture end to end without stack mutation. Fetch
+The first slice proved the architecture end to end without stack mutation. Fetch
 is representative because it is user-triggered, network-duration, observable,
 fallible, and useful for testing cancellation and shutdown.
 
@@ -774,58 +775,54 @@ Editor launching and clipboard writes remain explicit OS/UI integrations rather
 than repository-domain process capabilities. Effect CLI adoption and diff
 virtualization work also remain separate decisions.
 
-## Remaining Migration Work
+## Implementation Update — 2026-07-17 19:00:02 CEST
 
-### 1. Remove final compatibility code
+Final compatibility cleanup is complete. The legacy
+`commander/executor.ts`, captured wrappers in `commander/operations.ts`, the
+obsolete `commander/diff.ts` adapter, and their mock-based compatibility tests
+have been deleted. Bookmark, file, log, and diff modules now retain only the
+structural models, templates, argument builders, and parsers used by the scoped
+services.
 
-Now that the CLI and interactive decisions are complete:
+Promise-facing operation results now have one neutral structural definition in
+`process/operation-result.ts`; Effect-native services continue to use
+`ProcessResult` and typed failures internally. Operation-log parsing has moved
+to a dedicated pure module, diff statistics live with diff view types, and
+immutable-result classification lives with the other jj error policies.
 
-- delete the remaining legacy `execute` adapter and dead commander wrappers
-- remove duplicated result shapes and `success` booleans from Effect-native
-  internals
-- remove Promise compatibility adapters with no callers
-- keep `ApplicationClient` as the stable Promise-facing Solid boundary
+Stack discovery is now an ordinary pure function instead of an Effect-wrapped
+calculation. Solid no longer invokes `Effect.runSync`; it consumes the same pure
+stack model directly while all lifecycle-bearing Effect execution remains in
+the application runtime.
 
-No process-ownership migration remains. The end state has separate captured and
-interactive process lifecycles, explicit runtime ownership, supplied domain
-dependencies, and no Effect-shaped Promise workflows in Solid components.
+The remaining direct subprocesses are the two owned process capabilities plus
+the explicitly local editor and clipboard OS integrations. There is no direct
+jj, git, gh, or hook execution outside supplied services, and no Effect runtime
+execution in Solid components.
 
-## Post-Migration Consideration: Effect CLI
+Verification evidence:
 
-After interactive-process policy and final compatibility cleanup are complete,
-consider replacing Citty with `effect/unstable/cli`. An isolated beta.98 spike
-confirmed that it can compose CLI handlers directly with supplied `Jj` and
-`AppProcess` layers and provides typed flags, structured help and errors, typo
-suggestions, shell completions, and straightforward `Command.runWith` testing.
+- `bun test`: 326 passing focused unit tests after removing 62 obsolete adapter
+  tests
+- `bun check` and changed-file Biome checks pass
+- `bun test:e2e`: all 10 terminal workflows pass
+- `bun test:bench`: all 26 benchmark assertions pass
 
-Do not fold this into the remaining migration phases. The current Effect CLI API
-is explicitly unstable, adds platform-service and cold-start overhead, always
-includes built-in completion and log-level flags, and does not expose configured
-default values in `HelpDoc`. Matching Kajji's compact help and version behavior
-would therefore require deliberate output design and likely a custom
-`CliOutput.Formatter`.
+The Effect migration is complete. Follow-up product, performance, and optional
+architecture work is tracked separately.
 
-Re-evaluate it as a separate CLI design change once the migration is otherwise
-finished. Compare the complete command tree rather than parser-only benchmarks,
-and review help, errors, aliases, default-value presentation, non-TTY color,
-completion behavior, startup time, and memory before choosing it over Citty.
+## Post-Migration Work
 
-## Deferred Decisions
+The migration is finished; remaining architecture review, optional module
+extractions, unresolved process-policy questions, and the Effect CLI evaluation
+are tracked in
+[Effect Post-Migration Review](./effect-post-migration.md). Diff virtualization
+and scrolling performance remain separate product-performance work.
 
-Resolve these when their next real caller makes the tradeoff concrete:
+## Historical Review Gates
 
-- whether future capture limits retain the beginning, end, or both
-- whether interactive commands belong on `AppProcess` or a separate capability
-- which successful warnings become persistent notices
-- whether operation data eventually needs fan-out beyond one explicit sink
-
-Process-group termination, scoped streaming, backpressure, and operation-local
-observation are now implemented rather than deferred.
-
-## Review Gates
-
-Each migration slice must be independently reviewable and leave the application
-working. Require:
+Each migration slice was required to be independently reviewable and leave the
+application working. The gates were:
 
 - focused unit and live process contract tests
 - fake-layer tests for domain command construction and failure policy

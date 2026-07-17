@@ -1,6 +1,5 @@
 import type { ScrollBoxRenderable, TextareaRenderable } from "@opentui/core"
 import { useKeyboard } from "@opentui/solid"
-import { Effect } from "effect"
 import fuzzysort from "fuzzysort"
 import {
     For,
@@ -13,10 +12,6 @@ import {
     onMount,
 } from "solid-js"
 import type { Bookmark } from "../../commander/bookmarks"
-import {
-    type OperationResult,
-    isImmutableError,
-} from "../../commander/operations"
 import { getRevisionId } from "../../commander/types"
 import { useApplication } from "../../context/application"
 import { useCommand } from "../../context/command"
@@ -29,6 +24,7 @@ import { useSync } from "../../context/sync"
 import { useTheme } from "../../context/theme"
 import { featureFlags } from "../../feature-flags"
 import { createHorizontalCropScroll } from "../../hooks/horizontal-crop-scroll"
+import type { OperationResult } from "../../process/operation-result"
 import { getRepoPath } from "../../repo"
 import { buildBookmarkStackModel } from "../../stack/discovery"
 import type {
@@ -40,6 +36,7 @@ import { resolveAnsiForeground } from "../../theme/ansi"
 import { getVisibleWidth } from "../../utils/ansi"
 import { hasOriginDiff } from "../../utils/bookmark-origin-diff"
 import { createDoubleClickDetector } from "../../utils/double-click"
+import { isImmutableError } from "../../utils/error-parser"
 import {
     FUZZY_THRESHOLD,
     type SelectionSource,
@@ -285,16 +282,14 @@ export function BookmarksPanel() {
     >(() => {
         if (!githubStackingEnabled()) return undefined
         if (hasActiveFilter() || showRemoteOnly()) return undefined
-        return Effect.runSync(
-            buildBookmarkStackModel({
-                commits: commits().map((commit) => ({
-                    commitId: commit.commitId,
-                    parentCommitIds: commit.parentCommitIds ?? [],
-                    immutable: commit.immutable,
-                })),
-                bookmarks: displayBookmarks(),
-            }),
-        )
+        return buildBookmarkStackModel({
+            commits: commits().map((commit) => ({
+                commitId: commit.commitId,
+                parentCommitIds: commit.parentCommitIds ?? [],
+                immutable: commit.immutable,
+            })),
+            bookmarks: displayBookmarks(),
+        })
     })
 
     const displayBookmarkRows = createMemo<readonly BookmarkRow[]>(() => {
