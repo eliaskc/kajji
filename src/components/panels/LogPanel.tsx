@@ -1477,7 +1477,9 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
             context: "log.revisions",
 
             panel: "log",
-            visibleIn: ["palette"] as const,
+            visibleIn: selectedLogCommit()?.conflict
+                ? (["palette", "statusBar"] as const)
+                : (["palette"] as const),
             execute: async () => {
                 const commit = selectedLogCommit()
                 if (!commit) return

@@ -36,12 +36,24 @@ describe("parseLogOutput", () => {
         expect(commits[0]?.inTrunk).toBe(false)
         expect(commits[0]?.empty).toBe(false)
         expect(commits[0]?.divergent).toBe(false)
+        expect(commits[0]?.conflict).toBe(false)
         expect(commits[0]?.isWorkingCopy).toBe(false)
         expect(commits[0]?.description).toBe("feat: add feature")
         expect(commits[0]?.author).toBe("John Doe")
         expect(commits[0]?.authorEmail).toBe("john@example.com")
         expect(commits[0]?.timestamp).toBe("2025-01-01 12:00:00")
         expect(commits[0]?.lines).toHaveLength(2)
+    })
+
+    test("parses conflict state from the current template", () => {
+        const output =
+            "@  __LJ__abc123__LJ__def456__LJ__parent123__LJ__false__LJ__false__LJ__false__LJ__false__LJ__true__LJ__conflicted commit__LJ__Jane__LJ__jane@test.com__LJ__2025-01-02 10:00:00__LJ____LJ__false__LJ____LJ__abc123"
+
+        const commits = parseLogOutput(output)
+
+        expect(commits[0]?.parentCommitIds).toEqual(["parent123"])
+        expect(commits[0]?.conflict).toBe(true)
+        expect(commits[0]?.description).toBe("conflicted commit")
     })
 
     test("detects working copy from @ in gutter", () => {

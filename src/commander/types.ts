@@ -23,6 +23,7 @@ export interface Commit {
     inTrunk: boolean
     empty: boolean
     divergent: boolean
+    conflict: boolean
     bookmarks: string[]
     gitHead: boolean
     workingCopies: string[]

@@ -59,6 +59,8 @@ export function buildLogTemplate(): string {
         `"${MARKER}"`,
         "divergent",
         `"${MARKER}"`,
+        "conflict",
+        `"${MARKER}"`,
         styledDescription,
         `"${MARKER}"`,
         "author.name()",
@@ -91,15 +93,16 @@ export function parseLogOutput(output: string): Commit[] {
                 }
 
                 const gutter = parts[0] ?? ""
+                const hasConflict = parts.length >= 17
                 const hasParentIds = parts.length >= 16
                 const parentCommitIdsRaw = hasParentIds
                     ? stripAnsi(parts[3] ?? "")
                     : ""
-                const bookmarksRaw = stripAnsi(
-                    parts[hasParentIds ? 12 : 11] ?? "",
-                )
+                const metadataOffset =
+                    (hasParentIds ? 1 : 0) + (hasConflict ? 1 : 0)
+                const bookmarksRaw = stripAnsi(parts[11 + metadataOffset] ?? "")
                 const workingCopiesRaw = stripAnsi(
-                    parts[hasParentIds ? 14 : 13] ?? "",
+                    parts[13 + metadataOffset] ?? "",
                 )
                 current = {
                     changeId: stripAnsi(parts[1] ?? ""),
@@ -115,10 +118,12 @@ export function parseLogOutput(output: string): Commit[] {
                         stripAnsi(parts[hasParentIds ? 6 : 5] ?? "") === "true",
                     divergent:
                         stripAnsi(parts[hasParentIds ? 7 : 6] ?? "") === "true",
-                    description: stripAnsi(parts[hasParentIds ? 8 : 7] ?? ""),
-                    author: stripAnsi(parts[hasParentIds ? 9 : 8] ?? ""),
-                    authorEmail: stripAnsi(parts[hasParentIds ? 10 : 9] ?? ""),
-                    timestamp: stripAnsi(parts[hasParentIds ? 11 : 10] ?? ""),
+                    conflict:
+                        hasConflict && stripAnsi(parts[8] ?? "") === "true",
+                    description: stripAnsi(parts[7 + metadataOffset] ?? ""),
+                    author: stripAnsi(parts[8 + metadataOffset] ?? ""),
+                    authorEmail: stripAnsi(parts[9 + metadataOffset] ?? ""),
+                    timestamp: stripAnsi(parts[10 + metadataOffset] ?? ""),
                     bookmarks: bookmarksRaw ? bookmarksRaw.split(",") : [],
                     gitHead:
                         stripAnsi(parts[hasParentIds ? 13 : 12] ?? "") ===
@@ -127,12 +132,12 @@ export function parseLogOutput(output: string): Commit[] {
                         ? workingCopiesRaw.split(",")
                         : [],
                     isWorkingCopy: gutter.includes("@"),
-                    refLine: parts[hasParentIds ? 15 : 14] ?? "",
-                    lines: [gutter + (parts[hasParentIds ? 15 : 14] ?? "")],
+                    refLine: parts[14 + metadataOffset] ?? "",
+                    lines: [gutter + (parts[14 + metadataOffset] ?? "")],
                     displayLines: [
                         createCommitDisplayLine(
                             gutter,
-                            parts[hasParentIds ? 15 : 14] ?? "",
+                            parts[14 + metadataOffset] ?? "",
                         ),
                     ],
                 }
@@ -169,14 +174,15 @@ function parseLogLine(line: string, state: LogStreamState): Commit | null {
         if (parts.length >= 15) {
             const completed = state.current
             const gutter = parts[0] ?? ""
+            const hasConflict = parts.length >= 17
             const hasParentIds = parts.length >= 16
             const parentCommitIdsRaw = hasParentIds
                 ? stripAnsi(parts[3] ?? "")
                 : ""
-            const bookmarksRaw = stripAnsi(parts[hasParentIds ? 12 : 11] ?? "")
-            const workingCopiesRaw = stripAnsi(
-                parts[hasParentIds ? 14 : 13] ?? "",
-            )
+            const metadataOffset =
+                (hasParentIds ? 1 : 0) + (hasConflict ? 1 : 0)
+            const bookmarksRaw = stripAnsi(parts[11 + metadataOffset] ?? "")
+            const workingCopiesRaw = stripAnsi(parts[13 + metadataOffset] ?? "")
             state.current = {
                 changeId: stripAnsi(parts[1] ?? ""),
                 commitId: stripAnsi(parts[2] ?? ""),
@@ -190,10 +196,11 @@ function parseLogLine(line: string, state: LogStreamState): Commit | null {
                 empty: stripAnsi(parts[hasParentIds ? 6 : 5] ?? "") === "true",
                 divergent:
                     stripAnsi(parts[hasParentIds ? 7 : 6] ?? "") === "true",
-                description: stripAnsi(parts[hasParentIds ? 8 : 7] ?? ""),
-                author: stripAnsi(parts[hasParentIds ? 9 : 8] ?? ""),
-                authorEmail: stripAnsi(parts[hasParentIds ? 10 : 9] ?? ""),
-                timestamp: stripAnsi(parts[hasParentIds ? 11 : 10] ?? ""),
+                conflict: hasConflict && stripAnsi(parts[8] ?? "") === "true",
+                description: stripAnsi(parts[7 + metadataOffset] ?? ""),
+                author: stripAnsi(parts[8 + metadataOffset] ?? ""),
+                authorEmail: stripAnsi(parts[9 + metadataOffset] ?? ""),
+                timestamp: stripAnsi(parts[10 + metadataOffset] ?? ""),
                 bookmarks: bookmarksRaw ? bookmarksRaw.split(",") : [],
                 gitHead:
                     stripAnsi(parts[hasParentIds ? 13 : 12] ?? "") === "true",
@@ -201,12 +208,12 @@ function parseLogLine(line: string, state: LogStreamState): Commit | null {
                     ? workingCopiesRaw.split(",")
                     : [],
                 isWorkingCopy: gutter.includes("@"),
-                refLine: parts[hasParentIds ? 15 : 14] ?? "",
-                lines: [gutter + (parts[hasParentIds ? 15 : 14] ?? "")],
+                refLine: parts[14 + metadataOffset] ?? "",
+                lines: [gutter + (parts[14 + metadataOffset] ?? "")],
                 displayLines: [
                     createCommitDisplayLine(
                         gutter,
-                        parts[hasParentIds ? 15 : 14] ?? "",
+                        parts[14 + metadataOffset] ?? "",
                     ),
                 ],
             }

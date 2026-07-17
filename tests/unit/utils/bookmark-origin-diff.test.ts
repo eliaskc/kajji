@@ -19,6 +19,7 @@ function makeCommit(overrides: Partial<Commit> = {}): Commit {
         inTrunk: false,
         empty: false,
         divergent: false,
+        conflict: false,
         bookmarks: [],
         gitHead: false,
         workingCopies: [],

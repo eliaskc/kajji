@@ -753,17 +753,22 @@ messages. Spawn failures remain typed inside Effect, and runtime disposal or
 request cancellation interrupts and reaps the inherited-stdio child.
 
 The old direct `Bun.spawn` implementations have been removed from
-`commander/operations.ts`. Focused tests cover argument construction, client
-routing, normal non-zero exits, typed spawn failures, and fiber interruption.
+`commander/operations.ts`. Log projection now also carries jj's conflict state,
+so Resolve remains available in the command palette for every revision but is
+promoted to the status bar only when the selected revision has conflicts.
+Focused tests cover argument construction, client routing, conflict parsing,
+normal non-zero exits, typed spawn failures, and fiber interruption.
 
 Verification evidence:
 
-- `bun test`: 387 passing tests
+- `bun test`: 388 passing tests
 - `bun check` and changed-file Biome checks pass
 - `bun test:e2e`: all 10 terminal workflows pass
 - `bun test:bench`: all 26 benchmark assertions pass
 - Terminal Control verified resolve through the command palette, inherited-stdio
-  completion, renderer resumption, command-log reporting, and refresh
+  completion, renderer resumption, command-log reporting, and refresh; a real
+  conflicted repository also showed Resolve only while the conflicted revision
+  was selected
 
 Editor launching and clipboard writes remain explicit OS/UI integrations rather
 than repository-domain process capabilities. Effect CLI adoption and diff
