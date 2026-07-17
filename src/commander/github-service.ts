@@ -1,8 +1,8 @@
-import { Context, Data, Effect, Layer } from "effect"
+import { Context, Effect, Layer, Schema } from "effect"
 import {
     AppProcess,
     type ProcessError,
-    type ProcessResult,
+    ProcessResult,
 } from "../process/app-process"
 import {
     OperationInterruptedError,
@@ -31,41 +31,71 @@ export interface GitHubOperationResult extends ProcessResult {
     readonly command: string
 }
 
-export class GitHubCommandError extends Data.TaggedError("GitHubCommandError")<{
-    readonly command: string
-    readonly result: ProcessResult
-}> {
+export class GitHubCommandError extends Schema.TaggedErrorClass<GitHubCommandError>()(
+    "GitHubCommandError",
+    {
+        command: Schema.String,
+        result: ProcessResult,
+    },
+) {
     override get message() {
         return this.result.stderr || this.result.stdout || "gh command failed"
     }
 }
 
+const GitHubDecodeOperation = Schema.Literals([
+    "repository",
+    "pull-requests",
+    "comments",
+])
+
+const GitHubComments = Schema.Array(
+    Schema.Struct({
+        id: Schema.Number,
+        body: Schema.NullOr(Schema.String),
+    }),
+)
+
+export type GitHubDecodeOperation = typeof GitHubDecodeOperation.Type
+
+export class GitHubDecodeError extends Schema.TaggedErrorClass<GitHubDecodeError>()(
+    "GitHubDecodeError",
+    {
+        operation: GitHubDecodeOperation,
+        output: Schema.String,
+        cause: Schema.Defect(),
+    },
+) {
+    override get message() {
+        return `Invalid gh ${this.operation} response`
+    }
+}
+
+export type GitHubError = GitHubCommandError | GitHubDecodeError | ProcessError
+
 export interface GitHubService {
     readonly listPullRequestsByHead: (
         heads: readonly string[],
         options: GitHubReadOptions & { readonly includeClosed?: boolean },
-    ) => Effect.Effect<
-        Map<string, GitHubPullRequestSummary>,
-        GitHubCommandError | ProcessError
-    >
+    ) => Effect.Effect<Map<string, GitHubPullRequestSummary>, GitHubError>
     readonly prCreate: (
         input: { readonly head: string; readonly base: string },
         options: GitHubOperationOptions,
-    ) => Effect.Effect<GitHubOperationResult, GitHubCommandError | ProcessError>
+    ) => Effect.Effect<GitHubOperationResult, GitHubError>
     readonly prEditBase: (
         prNumber: number,
         base: string,
         options: GitHubOperationOptions,
-    ) => Effect.Effect<GitHubOperationResult, GitHubCommandError | ProcessError>
+    ) => Effect.Effect<GitHubOperationResult, GitHubError>
     readonly prClose: (
         prNumber: number,
         options: GitHubOperationOptions,
-    ) => Effect.Effect<GitHubOperationResult, GitHubCommandError | ProcessError>
+    ) => Effect.Effect<GitHubOperationResult, GitHubError>
     readonly upsertStackComment: (
         prNumber: number,
         body: string,
         options: GitHubOperationOptions,
-    ) => Effect.Effect<GitHubOperationResult, GitHubCommandError | ProcessError>
+    ) => Effect.Effect<GitHubOperationResult, GitHubError>
     readonly prCreateWeb: (
         head: string,
         options: GitHubOperationOptions,
@@ -77,7 +107,7 @@ export interface GitHubService {
     readonly prViewWeb: (
         prNumber: number,
         options: GitHubOperationOptions,
-    ) => Effect.Effect<GitHubOperationResult, GitHubCommandError | ProcessError>
+    ) => Effect.Effect<GitHubOperationResult, GitHubError>
 }
 
 export class GitHub extends Context.Service<GitHub, GitHubService>()(
@@ -91,6 +121,19 @@ function notify(callback: () => void) {
         // Observation must not alter command execution.
     }
 }
+
+const decodeGitHubOutput = Effect.fn("GitHub.decodeOutput")(
+    <A>(
+        operation: GitHubDecodeOperation,
+        output: string,
+        decode: () => A,
+    ): Effect.Effect<A, GitHubDecodeError> =>
+        Effect.try({
+            try: decode,
+            catch: (cause) =>
+                new GitHubDecodeError({ operation, output, cause }),
+        }),
+)
 
 export const GitHubLive = Layer.effect(
     GitHub,
@@ -166,11 +209,12 @@ export const GitHubLive = Layer.effect(
                     ? parseGitHubRemoteUrl(originUrl)
                     : undefined
                 if (originRepository) return originRepository
-                return parseGhRepositoryJson(
-                    yield* output(
-                        ["repo", "view", "--json", "owner,name"],
-                        options,
-                    ),
+                const stdout = yield* output(
+                    ["repo", "view", "--json", "owner,name"],
+                    options,
+                )
+                return yield* decodeGitHubOutput("repository", stdout, () =>
+                    parseGhRepositoryJson(stdout),
                 )
             },
         )
@@ -224,11 +268,16 @@ ${uniqueHeads
                         ],
                         options,
                     )
-                    return options.includeClosed
-                        ? parseGhPullRequestsByHeadGraphqlJsonIncludingClosed(
-                              stdout,
-                          )
-                        : parseGhPullRequestsByHeadGraphqlJson(stdout)
+                    return yield* decodeGitHubOutput(
+                        "pull-requests",
+                        stdout,
+                        () =>
+                            options.includeClosed
+                                ? parseGhPullRequestsByHeadGraphqlJsonIncludingClosed(
+                                      stdout,
+                                  )
+                                : parseGhPullRequestsByHeadGraphqlJson(stdout),
+                    )
                 },
             ),
             prCreate: Effect.fn("GitHub.prCreate")(function* (input, options) {
@@ -266,30 +315,25 @@ ${uniqueHeads
                 function* (prNumber, body, options) {
                     const repository = yield* resolveRepository(options)
                     const marker = `<!-- kajji-stack pr=${prNumber} -->`
-                    const comments = JSON.parse(
-                        yield* output(
-                            [
-                                "api",
-                                `repos/${repository.owner}/${repository.name}/issues/${prNumber}/comments`,
-                            ],
-                            options,
-                        ),
-                    ) as unknown
-                    const existing = Array.isArray(comments)
-                        ? comments.find((comment) => {
-                              if (!comment || typeof comment !== "object")
-                                  return false
-                              const record = comment as Record<string, unknown>
-                              return (
-                                  typeof record.body === "string" &&
-                                  record.body.includes(marker)
-                              )
-                          })
-                        : undefined
-                    const existingId =
-                        existing && typeof existing === "object"
-                            ? (existing as Record<string, unknown>).id
-                            : undefined
+                    const stdout = yield* output(
+                        [
+                            "api",
+                            `repos/${repository.owner}/${repository.name}/issues/${prNumber}/comments`,
+                        ],
+                        options,
+                    )
+                    const comments = yield* decodeGitHubOutput(
+                        "comments",
+                        stdout,
+                        () =>
+                            Schema.decodeUnknownSync(GitHubComments)(
+                                JSON.parse(stdout),
+                            ),
+                    )
+                    const existing = comments.find((comment) =>
+                        comment.body?.includes(marker),
+                    )
+                    const existingId = existing?.id
                     const path =
                         typeof existingId === "number"
                             ? `repos/${repository.owner}/${repository.name}/issues/comments/${existingId}`

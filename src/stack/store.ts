@@ -1,6 +1,5 @@
-import { mkdir, open, rename, writeFile } from "node:fs/promises"
-import { dirname } from "node:path"
-import { Context, Data, Effect, Layer } from "effect"
+import { Context, Effect, Layer, Schema } from "effect"
+import { writeFileAtomicDurable } from "../utils/atomic-write"
 import {
     type PersistedStackState,
     readPersistedStackState,
@@ -20,10 +19,17 @@ export interface StackJournal {
     readonly entries: StackJournalEntry[]
 }
 
-export class StackStoreError extends Data.TaggedError("StackStoreError")<{
-    readonly operation: "read-state" | "write-state" | "write-journal"
-    readonly cause: unknown
-}> {
+export class StackStoreError extends Schema.TaggedErrorClass<StackStoreError>()(
+    "StackStoreError",
+    {
+        operation: Schema.Literals([
+            "read-state",
+            "write-state",
+            "write-journal",
+        ]),
+        cause: Schema.Defect(),
+    },
+) {
     override get message() {
         return this.cause instanceof Error
             ? this.cause.message
@@ -49,26 +55,6 @@ export class StackStore extends Context.Service<
     StackStore,
     StackStoreService
 >()("kajji/StackStore") {}
-
-async function durableWrite(path: string, contents: string): Promise<void> {
-    const directory = dirname(path)
-    await mkdir(directory, { recursive: true })
-    const temporaryPath = `${path}.${crypto.randomUUID()}.tmp`
-    await writeFile(temporaryPath, contents)
-    const temporary = await open(temporaryPath, "r")
-    try {
-        await temporary.sync()
-    } finally {
-        await temporary.close()
-    }
-    await rename(temporaryPath, path)
-    const directoryHandle = await open(directory, "r")
-    try {
-        await directoryHandle.sync()
-    } finally {
-        await directoryHandle.close()
-    }
-}
 
 function journalPath(repositoryRoot: string, journalId: string): string {
     const cacheHome =
@@ -102,7 +88,7 @@ export const StackStoreLive = Layer.succeed(
             (repositoryRoot, journal) =>
                 Effect.tryPromise({
                     try: () =>
-                        durableWrite(
+                        writeFileAtomicDurable(
                             journalPath(repositoryRoot, journal.id),
                             `${JSON.stringify(journal, null, 2)}\n`,
                         ),

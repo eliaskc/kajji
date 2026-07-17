@@ -1,22 +1,30 @@
 import { dirname, resolve } from "node:path"
+import { Schema } from "effect"
 import { getRepoPath } from "../repo"
+import { writeFileAtomicDurable } from "../utils/atomic-write"
 
-export interface PersistedStackEntry {
-    readonly bookmark: string
-    readonly parent: string
-    readonly prNumber?: number
-    readonly headChangeId?: string
-    readonly headCommitId?: string
-    readonly parentChangeId?: string
-    readonly parentCommitId?: string
-    readonly baseRefName?: string
-    readonly syncedAt: string
-}
+export const PersistedStackEntry = Schema.Struct({
+    bookmark: Schema.String,
+    parent: Schema.String,
+    prNumber: Schema.optionalKey(Schema.Number),
+    headChangeId: Schema.optionalKey(Schema.String),
+    headCommitId: Schema.optionalKey(Schema.String),
+    parentChangeId: Schema.optionalKey(Schema.String),
+    parentCommitId: Schema.optionalKey(Schema.String),
+    baseRefName: Schema.optionalKey(Schema.String),
+    syncedAt: Schema.String,
+})
 
-export interface PersistedStackState {
-    readonly version: 1
-    readonly entries: readonly PersistedStackEntry[]
-}
+export interface PersistedStackEntry
+    extends Schema.Schema.Type<typeof PersistedStackEntry> {}
+
+export const PersistedStackState = Schema.Struct({
+    version: Schema.Literal(1),
+    entries: Schema.Array(PersistedStackEntry),
+})
+
+export interface PersistedStackState
+    extends Schema.Schema.Type<typeof PersistedStackState> {}
 
 const emptyState = (): PersistedStackState => ({ version: 1, entries: [] })
 
@@ -40,19 +48,26 @@ export async function stackStatePath(
     return `${repoPath}/kajji/stack-state.json`
 }
 
+function isMissingFile(error: unknown): boolean {
+    return (
+        error instanceof Error &&
+        "code" in error &&
+        (error as NodeJS.ErrnoException).code === "ENOENT"
+    )
+}
+
 export async function readPersistedStackState(
     repositoryRoot = getRepoPath(),
 ): Promise<PersistedStackState> {
+    const path = await stackStatePath(repositoryRoot)
+    let raw: string
     try {
-        const path = await stackStatePath(repositoryRoot)
-        const raw = await Bun.file(path).text()
-        const parsed = JSON.parse(raw) as Partial<PersistedStackState>
-        if (parsed.version !== 1 || !Array.isArray(parsed.entries))
-            return emptyState()
-        return { version: 1, entries: parsed.entries }
-    } catch {
-        return emptyState()
+        raw = await Bun.file(path).text()
+    } catch (error) {
+        if (isMissingFile(error)) return emptyState()
+        throw error
     }
+    return Schema.decodeUnknownPromise(PersistedStackState)(JSON.parse(raw))
 }
 
 export async function writePersistedStackState(
@@ -60,10 +75,7 @@ export async function writePersistedStackState(
     repositoryRoot = getRepoPath(),
 ): Promise<void> {
     const path = await stackStatePath(repositoryRoot)
-    await import("node:fs/promises").then((fs) =>
-        fs.mkdir(dirname(path), { recursive: true }),
-    )
-    await Bun.write(path, `${JSON.stringify(state, null, 2)}\n`)
+    await writeFileAtomicDurable(path, `${JSON.stringify(state, null, 2)}\n`)
 }
 
 export function entriesByBookmark(state: PersistedStackState) {

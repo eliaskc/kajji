@@ -60,22 +60,41 @@ function parseGhPullRequestsByHeadGraphqlJsonInternal(
     includeClosed: boolean,
 ): Map<string, GitHubPullRequestSummary> {
     const value = JSON.parse(stdout) as unknown
-    if (!value || typeof value !== "object") return new Map()
-    const data = (value as Record<string, unknown>).data
-    if (!data || typeof data !== "object") return new Map()
+    if (!value || typeof value !== "object") {
+        throw new Error("Invalid gh GraphQL response")
+    }
+    const envelope = value as Record<string, unknown>
+    if (Array.isArray(envelope.errors) && envelope.errors.length > 0) {
+        throw new Error("gh GraphQL response contains errors")
+    }
+    const data = envelope.data
+    if (!data || typeof data !== "object") {
+        throw new Error("Invalid gh GraphQL data")
+    }
     const repository = (data as Record<string, unknown>).repository
-    if (!repository || typeof repository !== "object") return new Map()
+    if (!repository || typeof repository !== "object") {
+        throw new Error("Invalid gh GraphQL repository")
+    }
+    const connections = Object.values(repository as Record<string, unknown>)
+    if (connections.length === 0) {
+        throw new Error("Invalid empty gh GraphQL repository")
+    }
 
     const pulls = new Map<string, GitHubPullRequestSummary>()
-    for (const connection of Object.values(
-        repository as Record<string, unknown>,
-    )) {
-        if (!connection || typeof connection !== "object") continue
+    for (const connection of connections) {
+        if (connection === null) continue
+        if (typeof connection !== "object") {
+            throw new Error("Invalid gh GraphQL connection")
+        }
         const record = connection as Record<string, unknown>
         const pullConnection = record.associatedPullRequests ?? connection
-        if (!pullConnection || typeof pullConnection !== "object") continue
+        if (!pullConnection || typeof pullConnection !== "object") {
+            throw new Error("Invalid gh pull request connection")
+        }
         const nodes = (pullConnection as Record<string, unknown>).nodes
-        if (!Array.isArray(nodes)) continue
+        if (!Array.isArray(nodes)) {
+            throw new Error("Invalid gh pull request nodes")
+        }
         for (const node of nodes) {
             if (!node || typeof node !== "object") continue
             const record = node as Record<string, unknown>

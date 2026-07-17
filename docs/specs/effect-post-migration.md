@@ -22,6 +22,33 @@ The remaining direct editor and clipboard subprocesses are explicit local OS
 integrations, not leaked repository-domain execution. No extraction below is
 urgent merely because a file is long.
 
+## Implementation Update — 2026-07-17 22:02:54 CEST
+
+Typed Effect failures now use `Schema.TaggedErrorClass` throughout the process,
+command, hook, GitHub, and stack services. Shared structural payloads such as
+`ProcessResult` are schemas as well as TypeScript interfaces, while process
+failures retain a schema-backed diagnostic projection of each command instead
+of embedding runtime output callbacks in their error values. This keeps
+`catchTag`, yieldable-error, and existing message behavior while adding explicit
+construction, encoding, and decoding contracts.
+
+The same pass hardened the two untrusted data boundaries identified during the
+post-migration review. Successful but malformed gh repository, GraphQL, and
+comment responses now fail as `GitHubDecodeError` rather than defects. Persisted
+stack state is fully schema-decoded; only a missing state file means empty state,
+while malformed or unreadable state reaches the typed `StackStoreError` channel.
+Stack state and journals now share durable temporary-file replacement with file
+and directory synchronization.
+
+Focused tests cover typed gh decode failures across repository, GraphQL, and
+comment responses, error schema round trips, missing versus corrupt stack state,
+and durable state replacement. `bun test` reports 331 passing tests, and
+typecheck and changed-file Biome checks pass.
+
+An Effect `Stream` prototype remains a separate follow-up. It should prove one
+complete process-to-`ApplicationClient` bookmark path before replacing the
+current callback-backed streaming implementation.
+
 ## Review `src/commander/jj.ts`
 
 `jj.ts` is large because it currently contains four related things: public

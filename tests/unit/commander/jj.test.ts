@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { Effect, Exit } from "effect"
+import { Effect, Exit, Schema } from "effect"
 import {
     Jj,
     JjCommandError,
@@ -842,6 +842,25 @@ describe("Jj", () => {
             "--limit",
             "2",
         ])
+    })
+
+    test("encodes and decodes typed read failures through their schema", async () => {
+        const error = new JjReadError({
+            kind: "log",
+            command: "jj log",
+            result: { ...success, exitCode: 1, stderr: "failed" },
+        })
+
+        const encoded = await Schema.encodeUnknownPromise(JjReadError)(error)
+        expect(encoded).toEqual({
+            _tag: "JjReadError",
+            kind: "log",
+            command: "jj log",
+            result: { ...success, exitCode: 1, stderr: "failed" },
+        })
+        const decoded = await Schema.decodeUnknownPromise(JjReadError)(encoded)
+        expect(decoded).toBeInstanceOf(JjReadError)
+        expect(decoded.message).toBe("jj log failed: failed")
     })
 
     test("reports normal read failures with capability context", async () => {

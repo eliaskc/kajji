@@ -1,4 +1,4 @@
-import { Context, Data, Effect, Layer } from "effect"
+import { Context, Effect, Layer, Schema } from "effect"
 
 export type ProcessOutputStream = "stdout" | "stderr"
 
@@ -16,35 +16,54 @@ export interface ProcessCommand {
     ) => void | Promise<void>
 }
 
-export interface ProcessResult {
-    readonly stdout: string
-    readonly stderr: string
-    readonly exitCode: number
-    readonly durationMs: number
-}
+export const ProcessResult = Schema.Struct({
+    stdout: Schema.String,
+    stderr: Schema.String,
+    exitCode: Schema.Number,
+    durationMs: Schema.Number,
+})
 
-export class ProcessSpawnError extends Data.TaggedError("ProcessSpawnError")<{
-    readonly command: ProcessCommand
-    readonly cause: unknown
-}> {}
+export interface ProcessResult
+    extends Schema.Schema.Type<typeof ProcessResult> {}
 
-export class ProcessReadError extends Data.TaggedError("ProcessReadError")<{
-    readonly command: ProcessCommand
-    readonly stream: ProcessOutputStream
-    readonly cause: unknown
-}> {}
+const ProcessCommandDiagnostic = Schema.Struct({
+    executable: Schema.String,
+    args: Schema.Array(Schema.String),
+    cwd: Schema.String,
+})
 
-export class ProcessWriteError extends Data.TaggedError("ProcessWriteError")<{
-    readonly command: ProcessCommand
-    readonly cause: unknown
-}> {}
+export class ProcessSpawnError extends Schema.TaggedErrorClass<ProcessSpawnError>()(
+    "ProcessSpawnError",
+    {
+        command: ProcessCommandDiagnostic,
+        cause: Schema.Defect(),
+    },
+) {}
 
-export class ProcessTimeoutError extends Data.TaggedError(
+export class ProcessReadError extends Schema.TaggedErrorClass<ProcessReadError>()(
+    "ProcessReadError",
+    {
+        command: ProcessCommandDiagnostic,
+        stream: Schema.Literals(["stdout", "stderr"]),
+        cause: Schema.Defect(),
+    },
+) {}
+
+export class ProcessWriteError extends Schema.TaggedErrorClass<ProcessWriteError>()(
+    "ProcessWriteError",
+    {
+        command: ProcessCommandDiagnostic,
+        cause: Schema.Defect(),
+    },
+) {}
+
+export class ProcessTimeoutError extends Schema.TaggedErrorClass<ProcessTimeoutError>()(
     "ProcessTimeoutError",
-)<{
-    readonly command: ProcessCommand
-    readonly timeoutMs: number
-}> {}
+    {
+        command: ProcessCommandDiagnostic,
+        timeoutMs: Schema.Number,
+    },
+) {}
 
 export type ProcessError =
     | ProcessSpawnError

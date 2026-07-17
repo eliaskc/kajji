@@ -1,11 +1,11 @@
-import { Context, Data, Effect, Layer } from "effect"
+import { Context, Effect, Layer, Schema } from "effect"
 import { Hooks, HooksLive } from "../hooks/runner"
 import { HookOperation } from "../hooks/types"
 import {
     AppProcess,
     type ProcessError,
     type ProcessOutputStream,
-    type ProcessResult,
+    ProcessResult,
 } from "../process/app-process"
 import {
     OperationInterruptedError,
@@ -141,20 +141,24 @@ export interface JjRevisionSummary {
     readonly description: string
 }
 
-export class JjStaleWorkingCopyError extends Data.TaggedError(
+export class JjStaleWorkingCopyError extends Schema.TaggedErrorClass<JjStaleWorkingCopyError>()(
     "JjStaleWorkingCopyError",
-)<{
-    readonly output: string
-}> {
+    {
+        output: Schema.String,
+    },
+) {
     override get message() {
         return `The working copy is stale\n${this.output}`
     }
 }
 
-export class JjCommandError extends Data.TaggedError("JjCommandError")<{
-    readonly command: string
-    readonly result: ProcessResult
-}> {
+export class JjCommandError extends Schema.TaggedErrorClass<JjCommandError>()(
+    "JjCommandError",
+    {
+        command: Schema.String,
+        result: ProcessResult,
+    },
+) {
     override get message() {
         return (
             this.result.stderr ||
@@ -164,21 +168,27 @@ export class JjCommandError extends Data.TaggedError("JjCommandError")<{
     }
 }
 
-export type JjReadFailureKind =
-    | "files"
-    | "file-show"
-    | "diff"
-    | "operation-log"
-    | "bookmarks"
-    | "log"
-    | "revisions"
-    | "repository-root"
+const JjReadFailureKind = Schema.Literals([
+    "files",
+    "file-show",
+    "diff",
+    "operation-log",
+    "bookmarks",
+    "log",
+    "revisions",
+    "repository-root",
+])
 
-export class JjReadError extends Data.TaggedError("JjReadError")<{
-    readonly kind: JjReadFailureKind
-    readonly command: string
-    readonly result: ProcessResult
-}> {
+export type JjReadFailureKind = typeof JjReadFailureKind.Type
+
+export class JjReadError extends Schema.TaggedErrorClass<JjReadError>()(
+    "JjReadError",
+    {
+        kind: JjReadFailureKind,
+        command: Schema.String,
+        result: ProcessResult,
+    },
+) {
     override get message() {
         if (this.kind === "repository-root") {
             if (this.result.exitCode === 0) return "Unable to resolve jj root"

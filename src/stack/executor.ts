@@ -1,4 +1,4 @@
-import { Context, Data, Effect, Layer, Semaphore } from "effect"
+import { Context, Effect, Layer, Schema, Semaphore } from "effect"
 import type { Bookmark } from "../commander/bookmarks"
 import { GitHub } from "../commander/github-service"
 import { Jj } from "../commander/jj"
@@ -38,26 +38,35 @@ function errorMessage(error: unknown): string {
     return String(error)
 }
 
-export class StackPrepareError extends Data.TaggedError("StackPrepareError")<{
-    readonly message: string
-    readonly cause: unknown
-}> {}
+export class StackPrepareError extends Schema.TaggedErrorClass<StackPrepareError>()(
+    "StackPrepareError",
+    {
+        message: Schema.String,
+        cause: Schema.Defect(),
+    },
+) {}
 
-export class StackPlanStaleError extends Data.TaggedError(
+export class StackPlanStaleError extends Schema.TaggedErrorClass<StackPlanStaleError>()(
     "StackPlanStaleError",
-)<{
-    readonly stackRootName: string
-}> {
+    {
+        stackRootName: Schema.String,
+    },
+) {
     override get message() {
         return `Stack ${this.stackRootName} changed after preview; prepare it again`
     }
 }
 
-export class StackApplyError extends Data.TaggedError("StackApplyError")<{
-    readonly message: string
-    readonly cause: unknown
-    readonly completedEntries: readonly StackJournalEntry[]
-}> {}
+export class StackApplyError extends Schema.TaggedErrorClass<StackApplyError>()(
+    "StackApplyError",
+    {
+        message: Schema.String,
+        cause: Schema.Defect(),
+        completedEntries: Schema.Array(
+            Schema.Record(Schema.String, Schema.Unknown),
+        ),
+    },
+) {}
 
 export interface StackService {
     readonly persistedParent: (

@@ -1,4 +1,4 @@
-import { Context, Data, Effect, Layer } from "effect"
+import { Context, Effect, Layer, Schema } from "effect"
 
 export interface InteractiveProcessCommand {
     readonly executable: string
@@ -12,12 +12,19 @@ export interface InteractiveProcessResult {
     readonly durationMs: number
 }
 
-export class InteractiveProcessSpawnError extends Data.TaggedError(
+const InteractiveProcessCommandDiagnostic = Schema.Struct({
+    executable: Schema.String,
+    args: Schema.Array(Schema.String),
+    cwd: Schema.String,
+})
+
+export class InteractiveProcessSpawnError extends Schema.TaggedErrorClass<InteractiveProcessSpawnError>()(
     "InteractiveProcessSpawnError",
-)<{
-    readonly command: InteractiveProcessCommand
-    readonly cause: unknown
-}> {}
+    {
+        command: InteractiveProcessCommandDiagnostic,
+        cause: Schema.Defect(),
+    },
+) {}
 
 export interface InteractiveProcessService {
     readonly run: (

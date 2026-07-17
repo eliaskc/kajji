@@ -1,15 +1,16 @@
-import { Data } from "effect"
+import { Schema } from "effect"
 import type {
     ProcessError,
     ProcessOutputStream,
     ProcessResult,
 } from "./app-process"
 
-export class OperationInterruptedError extends Data.TaggedError(
+export class OperationInterruptedError extends Schema.TaggedErrorClass<OperationInterruptedError>()(
     "OperationInterruptedError",
-)<{
-    readonly command: string
-}> {}
+    {
+        command: Schema.String,
+    },
+) {}
 
 export type OperationFailure = ProcessError | OperationInterruptedError
 

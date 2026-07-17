@@ -89,6 +89,80 @@ describe("GitHub", () => {
         expect(commands[1]?.args).toContain("name=kajji")
     })
 
+    test("reports malformed successful responses as typed decode failures", async () => {
+        const effect = runWithFake(
+            (command) =>
+                Effect.succeed({
+                    ...success,
+                    ...(command.executable === "git"
+                        ? { exitCode: 1 }
+                        : { stdout: "{" }),
+                }),
+            (gitHub) =>
+                gitHub.listPullRequestsByHead(["feature"], {
+                    cwd: "/tmp/repository",
+                }),
+        )
+
+        await expect(effect).rejects.toMatchObject({
+            _tag: "GitHubDecodeError",
+            operation: "repository",
+        })
+    })
+
+    test("reports malformed GraphQL and comment responses as typed decode failures", async () => {
+        const runMalformed = <A, E>(
+            stdout: string,
+            operation: (gitHub: GitHubService) => Effect.Effect<A, E>,
+        ) =>
+            runWithFake((command) => {
+                if (command.executable === "git") {
+                    return Effect.succeed({
+                        ...success,
+                        stdout: "git@github.com:eliaskc/kajji.git\n",
+                    })
+                }
+                return Effect.succeed({ ...success, stdout })
+            }, operation)
+
+        await expect(
+            runMalformed('{"data":{"repository":{}}}', (gitHub) =>
+                gitHub.listPullRequestsByHead(["feature"], {
+                    cwd: "/tmp/repository",
+                }),
+            ),
+        ).rejects.toMatchObject({
+            _tag: "GitHubDecodeError",
+            operation: "pull-requests",
+        })
+        await expect(
+            runMalformed(
+                '{"errors":[{"message":"denied"}],"data":{"repository":{"p0":{"nodes":[]}}}}',
+                (gitHub) =>
+                    gitHub.listPullRequestsByHead(["feature"], {
+                        cwd: "/tmp/repository",
+                    }),
+            ),
+        ).rejects.toMatchObject({
+            _tag: "GitHubDecodeError",
+            operation: "pull-requests",
+        })
+        await expect(
+            runMalformed(
+                '[{"id":"invalid","body":"<!-- kajji-stack pr=42 -->"}]',
+                (gitHub) =>
+                    gitHub.upsertStackComment(
+                        42,
+                        "<!-- kajji-stack pr=42 -->",
+                        { cwd: "/tmp/repository" },
+                    ),
+            ),
+        ).rejects.toMatchObject({
+            _tag: "GitHubDecodeError",
+            operation: "comments",
+        })
+    })
+
     test("constructs stack mutation operations", async () => {
         const commands: ProcessCommand[] = []
         await runWithFake(
