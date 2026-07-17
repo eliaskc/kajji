@@ -45,9 +45,42 @@ comment responses, error schema round trips, missing versus corrupt stack state,
 and durable state replacement. `bun test` reports 331 passing tests, and
 typecheck and changed-file Biome checks pass.
 
-An Effect `Stream` prototype remains a separate follow-up. It should prove one
-complete process-to-`ApplicationClient` bookmark path before replacing the
-current callback-backed streaming implementation.
+## Implementation Update — 2026-07-17 22:40:49 CEST
+
+The Effect `Stream` prototype now covers the complete live log path. Log was
+chosen instead of bookmarks because it exercises the harder requirements:
+incremental parser state, throttled batches, pagination metadata, stale-working-
+copy classification, consumer backpressure, cancellation, and final completion.
+
+`AppProcess.stream` emits ordered output and one terminal process-result event
+from a scope-owned child. A capacity-one suspending queue provides backpressure;
+ending consumption interrupts the producer and releases the child. Captured
+`AppProcess.run` now consumes that same stream, so process spawn, stdin, timeout,
+output collection, and cleanup still have one implementation rather than a
+parallel streaming lifecycle.
+
+`Jj.streamLogPage` is now an Effect `Stream` of batch and completion events. It
+owns incremental log parsing and command-exit policy, while `ApplicationClient`
+consumes the Stream inside its managed runtime and retains the existing
+Promise/cancel/callback API for Solid. Batch consumer failures are typed and
+propagate through the result Promise; they no longer disappear at the process
+output callback boundary. Cancellation, decoder tails, command observation,
+visible-limit behavior, and final `hasMore` calculation are preserved.
+
+Bookmarks deliberately remain on the previous callback-backed path for a direct
+comparison before generalizing the design. Tests now cover process-stream
+backpressure and completion, child interruption after downstream failure,
+incremental log events, Promise-boundary consumer failures, and existing stream
+cancellation. `bun test` reports 334 passing tests, typecheck and changed-file
+Biome checks pass, all 10 E2E workflows pass across the validation run and an
+isolated retry of one transient navigation timeout, and all 26 benchmark
+assertions pass.
+
+The prototype supports adopting Stream for the remaining bookmark source. It
+removes swallowed downstream failures and makes ownership explicit without
+exposing Effect to Solid; the main cost is the explicit output/completion event
+protocol needed because a subprocess has both many output values and one final
+exit result.
 
 ## Review `src/commander/jj.ts`
 

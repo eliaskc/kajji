@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { Effect, Exit, Schema } from "effect"
+import { Effect, Exit, Schema, Stream } from "effect"
 import {
     Jj,
     JjCommandError,
@@ -10,6 +10,7 @@ import {
     JjStaleWorkingCopyError,
     type OperationSink,
 } from "../../../src/commander/jj"
+import type { LogPageResult } from "../../../src/commander/log"
 import { ConfigSchema } from "../../../src/config"
 import { makeHooksLayer } from "../../../src/hooks/runner"
 import {
@@ -775,32 +776,48 @@ describe("Jj", () => {
         expect(batches).toEqual([["main"], ["main", "feature"]])
     })
 
-    test("incrementally parses log output with backpressured batches", async () => {
+    test("incrementally parses log stream events", async () => {
         const lines = [
             "@  __LJ__one__LJ__commit-one__LJ__false__LJ__false__LJ__false__LJ__false__LJ__one__LJ__A__LJ__a@example.com__LJ__2025-01-01 12:00:00__LJ____LJ__false__LJ____LJ__one",
             "○  __LJ__two__LJ__commit-two__LJ__false__LJ__false__LJ__false__LJ__false__LJ__two__LJ__A__LJ__a@example.com__LJ__2025-01-01 11:00:00__LJ____LJ__false__LJ____LJ__two",
             "◆  __LJ__three__LJ__commit-three__LJ__true__LJ__true__LJ__false__LJ__false__LJ__three__LJ__A__LJ__a@example.com__LJ__2025-01-01 10:00:00__LJ____LJ__false__LJ____LJ__three",
         ]
-        const processLayer = makeAppProcessFake((command) =>
-            Effect.promise(async () => {
-                for (const line of lines) {
-                    await command.onOutput?.("stdout", `${line}\n`)
-                }
-                return { ...success, stdout: `${lines.join("\n")}\n` }
-            }),
+        const stdout = `${lines.join("\n")}\n`
+        const processLayer = makeAppProcessFake(
+            () => Effect.succeed({ ...success, stdout }),
+            () =>
+                Stream.fromIterable([
+                    ...lines.map((line) => ({
+                        _tag: "Output" as const,
+                        stream: "stdout" as const,
+                        chunk: `${line}\n`,
+                    })),
+                    {
+                        _tag: "Complete" as const,
+                        result: { ...success, stdout },
+                    },
+                ]),
         )
         const batches: string[][] = []
+        let finalResult: LogPageResult | undefined
         const effect = Jj.use((jj) =>
-            jj.streamLogPage(
-                { cwd: "/tmp/repository", limit: 2 },
-                async (commits) => {
-                    batches.push(commits.map((commit) => commit.changeId))
-                    await Bun.sleep(1)
-                },
+            jj.streamLogPage({ cwd: "/tmp/repository", limit: 2 }).pipe(
+                Stream.runForEach((event) =>
+                    Effect.sync(() => {
+                        if (event._tag === "Batch") {
+                            batches.push(
+                                event.commits.map((commit) => commit.changeId),
+                            )
+                        } else {
+                            finalResult = event.result
+                        }
+                    }),
+                ),
             ),
         ).pipe(Effect.provide(JjLive), Effect.provide(processLayer))
 
-        await expect(Effect.runPromise(effect)).resolves.toMatchObject({
+        await Effect.runPromise(effect)
+        expect(finalResult).toMatchObject({
             commits: [{ changeId: "one" }, { changeId: "two" }],
             hasMore: true,
         })

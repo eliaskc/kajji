@@ -1,4 +1,4 @@
-import { Context, Effect, Layer, Schema } from "effect"
+import { Context, Effect, Layer, Schema, Stream } from "effect"
 import { Hooks, HooksLive } from "../hooks/runner"
 import { HookOperation } from "../hooks/types"
 import {
@@ -34,6 +34,16 @@ import {
     parseLogOutput,
 } from "./log"
 import type { Commit, FileChange } from "./types"
+
+export type JjLogStreamEvent =
+    | {
+          readonly _tag: "Batch"
+          readonly commits: readonly Commit[]
+      }
+    | {
+          readonly _tag: "Complete"
+          readonly result: LogPageResult
+      }
 
 export interface JjOperationOptions {
     readonly cwd: string
@@ -379,9 +389,8 @@ export interface JjService {
     >
     readonly streamLogPage: (
         options: JjLogReadOptions,
-        onBatch: (commits: readonly Commit[]) => void | Promise<void>,
-    ) => Effect.Effect<
-        LogPageResult,
+    ) => Stream.Stream<
+        JjLogStreamEvent,
         JjReadError | JjStaleWorkingCopyError | ProcessError
     >
 }
@@ -500,6 +509,63 @@ export const JjLayer: Layer.Layer<Jj, never, AppProcess | Hooks> = Layer.effect(
             notify(() => options.sink?.finish(result))
             return { ...result, command }
         })
+
+        const streamRaw = (
+            args: readonly string[],
+            options: JjOperationOptions,
+        ) => {
+            const command = `jj ${args.join(" ")}`
+            let settled = false
+            const processCommand = {
+                executable: "jj",
+                args,
+                cwd: options.cwd,
+                env: {
+                    JJ_EDITOR: "true",
+                    EDITOR: "true",
+                    VISUAL: "true",
+                },
+                timeoutMs: options.timeoutMs,
+            }
+            const start = Stream.fromEffect(
+                Effect.sync(() =>
+                    notify(() => options.sink?.start(command, "jj")),
+                ),
+            ).pipe(Stream.drain)
+            const events = appProcess.stream(processCommand).pipe(
+                Stream.map((event) => {
+                    if (event._tag === "Output") {
+                        notify(() =>
+                            options.sink?.output(event.stream, event.chunk),
+                        )
+                    } else {
+                        settled = true
+                        notify(() => options.sink?.finish(event.result))
+                    }
+                    return event
+                }),
+                Stream.tapError((error) =>
+                    Effect.sync(() => {
+                        settled = true
+                        notify(() => options.sink?.fail(error))
+                    }),
+                ),
+                Stream.ensuring(
+                    Effect.sync(() => {
+                        if (settled) return
+                        notify(() =>
+                            options.sink?.fail(
+                                new OperationInterruptedError({ command }),
+                            ),
+                        )
+                    }),
+                ),
+            )
+            return {
+                command,
+                events: start.pipe(Stream.concat(events)),
+            }
+        }
 
         const run = Effect.fn("Jj.run")(function* (
             args: readonly string[],
@@ -1176,65 +1242,86 @@ export const JjLayer: Layer.Layer<Jj, never, AppProcess | Hooks> = Layer.effect(
                 }
                 return { commits, hasMore: false }
             }),
-            streamLogPage: Effect.fn("Jj.streamLogPage")(function* (
-                options: JjLogReadOptions,
-                onBatch: (commits: readonly Commit[]) => void | Promise<void>,
-            ) {
-                const commandLimit = options.limit
-                    ? options.limit + 1
-                    : undefined
-                const maxCommits = commandLimit ?? Number.POSITIVE_INFINITY
-                const state: LogStreamState = { buffer: "", current: null }
-                const commits: Commit[] = []
-                let lastBatchAt = 0
-
-                const append = (next: readonly Commit[]) => {
-                    for (const commit of next) {
-                        if (commits.length >= maxCommits) break
-                        commits.push(commit)
+            streamLogPage: (options: JjLogReadOptions) =>
+                Stream.suspend(() => {
+                    const commandLimit = options.limit
+                        ? options.limit + 1
+                        : undefined
+                    const maxCommits = commandLimit ?? Number.POSITIVE_INFINITY
+                    const state: LogStreamState = {
+                        buffer: "",
+                        current: null,
                     }
-                }
-                const visible = () =>
-                    options.limit
-                        ? commits.slice(0, options.limit)
-                        : commits.slice()
+                    const commits: Commit[] = []
+                    let lastBatchAt = 0
 
-                const result = yield* runRaw(
-                    buildLogArgs(options, buildLogTemplate(), commandLimit),
-                    options,
-                    {
-                        onOutput: async (stream, chunk) => {
-                            if (stream !== "stdout") return
-                            const previousLength = commits.length
-                            append(consumeLogChunk(chunk, state))
-                            const now = performance.now()
-                            if (
-                                commits.length > previousLength &&
-                                (lastBatchAt === 0 || now - lastBatchAt >= 25)
-                            ) {
-                                lastBatchAt = now
-                                await onBatch(visible())
+                    const append = (next: readonly Commit[]) => {
+                        for (const commit of next) {
+                            if (commits.length >= maxCommits) break
+                            commits.push(commit)
+                        }
+                    }
+                    const visible = () =>
+                        options.limit
+                            ? commits.slice(0, options.limit)
+                            : commits.slice()
+                    const { command, events } = streamRaw(
+                        buildLogArgs(options, buildLogTemplate(), commandLimit),
+                        options,
+                    )
+
+                    return events.pipe(
+                        Stream.flatMap((event) => {
+                            if (event._tag === "Output") {
+                                if (event.stream !== "stdout")
+                                    return Stream.empty
+                                const previousLength = commits.length
+                                append(consumeLogChunk(event.chunk, state))
+                                const now = performance.now()
+                                if (
+                                    commits.length > previousLength &&
+                                    (lastBatchAt === 0 ||
+                                        now - lastBatchAt >= 25)
+                                ) {
+                                    lastBatchAt = now
+                                    return Stream.succeed<JjLogStreamEvent>({
+                                        _tag: "Batch",
+                                        commits: visible(),
+                                    })
+                                }
+                                return Stream.empty
                             }
-                        },
-                    },
-                )
-                yield* throwIfStale(result)
-                if (result.exitCode !== 0) {
-                    return yield* new JjReadError({
-                        kind: "log",
-                        command: result.command,
-                        result,
-                    })
-                }
 
-                append(finalizeLogStream(state))
-                return {
-                    commits: visible(),
-                    hasMore: options.limit
-                        ? commits.length > options.limit
-                        : false,
-                }
-            }),
+                            const result = {
+                                ...event.result,
+                                command,
+                            }
+                            return Stream.fromEffect(
+                                Effect.gen(function* () {
+                                    yield* throwIfStale(result)
+                                    if (result.exitCode !== 0) {
+                                        return yield* new JjReadError({
+                                            kind: "log",
+                                            command,
+                                            result,
+                                        })
+                                    }
+                                    append(finalizeLogStream(state))
+                                    return {
+                                        _tag: "Complete" as const,
+                                        result: {
+                                            commits: visible(),
+                                            hasMore: options.limit
+                                                ? commits.length > options.limit
+                                                : false,
+                                        },
+                                    }
+                                }),
+                            )
+                        }),
+                        Stream.withSpan("Jj.streamLogPage"),
+                    )
+                }),
         })
     }),
 )

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test"
 import { mkdtempSync, readFileSync, realpathSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { Effect, Fiber } from "effect"
+import { Effect, Fiber, Stream } from "effect"
 import {
     AppProcess,
     AppProcessLive,
@@ -153,6 +153,77 @@ describe("AppProcess", () => {
         await consumingPromise
         await Effect.runPromise(Fiber.interrupt(fiber))
 
+        expect(await waitForFile(ready)).toMatch(/^\d+$/)
+        expect(await waitForFile(settled)).toBe("settled")
+    })
+
+    test("streams output with consumer backpressure and completion", async () => {
+        let release: (() => void) | undefined
+        const gate = new Promise<void>((resolve) => {
+            release = resolve
+        })
+        let consuming!: () => void
+        const consumingPromise = new Promise<void>((resolve) => {
+            consuming = resolve
+        })
+        let settled = false
+        const events: string[] = []
+        const effect = AppProcess.use((appProcess) =>
+            appProcess
+                .stream({
+                    executable: Bun.which("bun") ?? processExecPath(),
+                    args: ["-e", 'process.stdout.write("output")'],
+                    cwd: process.cwd(),
+                })
+                .pipe(
+                    Stream.runForEach((event) => {
+                        if (event._tag === "Complete") {
+                            return Effect.sync(() => {
+                                events.push(`complete:${event.result.exitCode}`)
+                            })
+                        }
+                        return Effect.promise(async () => {
+                            events.push(`${event.stream}:${event.chunk}`)
+                            consuming()
+                            await gate
+                        })
+                    }),
+                ),
+        ).pipe(Effect.provide(AppProcessLive))
+        const resultPromise = Effect.runPromise(effect).finally(() => {
+            settled = true
+        })
+
+        await consumingPromise
+        expect(settled).toBe(false)
+        release?.()
+        await resultPromise
+
+        expect(events).toEqual(["stdout:output", "complete:0"])
+    })
+
+    test("interrupts the process when a stream consumer fails", async () => {
+        const directory = makeTempDir()
+        const ready = join(directory, "ready")
+        const settled = join(directory, "settled")
+        const script = `await Bun.write(${JSON.stringify(ready)}, String(process.pid)); process.on("SIGTERM", async () => { await Bun.write(${JSON.stringify(settled)}, "settled"); process.exit(0) }); process.stdout.write("output"); await new Promise(() => {})`
+        const effect = AppProcess.use((appProcess) =>
+            appProcess
+                .stream({
+                    executable: Bun.which("bun") ?? processExecPath(),
+                    args: ["-e", script],
+                    cwd: directory,
+                })
+                .pipe(
+                    Stream.runForEach((event) =>
+                        event._tag === "Output"
+                            ? Effect.fail("consumer failed")
+                            : Effect.void,
+                    ),
+                ),
+        ).pipe(Effect.provide(AppProcessLive))
+
+        await expect(Effect.runPromise(effect)).rejects.toBeDefined()
         expect(await waitForFile(ready)).toMatch(/^\d+$/)
         expect(await waitForFile(settled)).toBe("settled")
     })

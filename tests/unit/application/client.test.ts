@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { Effect, Layer } from "effect"
+import { Effect, Layer, Stream } from "effect"
 import { makeApplicationClient } from "../../../src/application/client"
 import type { Bookmark } from "../../../src/commander/bookmarks"
 import type { CommandObserver } from "../../../src/commander/observer"
@@ -599,6 +599,37 @@ describe("ApplicationClient", () => {
             success: false,
             stderr: "failed",
         })
+    })
+
+    test("propagates streaming consumer failures", async () => {
+        const output =
+            "@  __LJ__one__LJ__commit-one__LJ__false__LJ__false__LJ__false__LJ__false__LJ__one__LJ__A__LJ__a@example.com__LJ__2025-01-01 12:00:00__LJ____LJ__false__LJ____LJ__one\n" +
+            "○  __LJ__two__LJ__commit-two__LJ__false__LJ__false__LJ__false__LJ__false__LJ__two__LJ__A__LJ__a@example.com__LJ__2025-01-01 11:00:00__LJ____LJ__false__LJ____LJ__two\n"
+        const layer = makeAppProcessFake(
+            () => Effect.succeed({ ...success, stdout: output }),
+            () =>
+                Stream.fromIterable([
+                    {
+                        _tag: "Output" as const,
+                        stream: "stdout" as const,
+                        chunk: output,
+                    },
+                    {
+                        _tag: "Complete" as const,
+                        result: { ...success, stdout: output },
+                    },
+                ]),
+        )
+        const client = makeApplicationClient(layer)
+        const stream = client.jjStreamLogPage(
+            { cwd: "/tmp/repository", limit: 50 },
+            () => {
+                throw new Error("consumer failed")
+            },
+        )
+
+        await expect(stream.result).rejects.toThrow("consumer failed")
+        await client.dispose()
     })
 
     test("cancels scoped streaming reads", async () => {

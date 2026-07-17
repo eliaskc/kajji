@@ -1,4 +1,4 @@
-import { Context, Effect, Layer, Schema } from "effect"
+import { Context, Effect, Layer, Queue, Schema, Stream } from "effect"
 
 export type ProcessOutputStream = "stdout" | "stderr"
 
@@ -25,6 +25,17 @@ export const ProcessResult = Schema.Struct({
 
 export interface ProcessResult
     extends Schema.Schema.Type<typeof ProcessResult> {}
+
+export type ProcessEvent =
+    | {
+          readonly _tag: "Output"
+          readonly stream: ProcessOutputStream
+          readonly chunk: string
+      }
+    | {
+          readonly _tag: "Complete"
+          readonly result: ProcessResult
+      }
 
 const ProcessCommandDiagnostic = Schema.Struct({
     executable: Schema.String,
@@ -75,6 +86,9 @@ export interface AppProcessService {
     readonly run: (
         command: ProcessCommand,
     ) => Effect.Effect<ProcessResult, ProcessError>
+    readonly stream: (
+        command: Omit<ProcessCommand, "onOutput">,
+    ) => Stream.Stream<ProcessEvent, ProcessError>
 }
 
 export class AppProcess extends Context.Service<
@@ -107,36 +121,39 @@ async function notifyOutput(
     }
 }
 
-function readOutput(
+function readOutput<E>(
     command: ProcessCommand,
     stream: ProcessOutputStream,
     input: ReadableStream<Uint8Array>,
+    emit: (chunk: string) => Effect.Effect<unknown, E>,
 ) {
-    return Effect.tryPromise({
-        try: async () => {
-            const reader = input.getReader()
+    return Effect.scoped(
+        Effect.gen(function* () {
+            const reader = yield* Effect.acquireRelease(
+                Effect.sync(() => input.getReader()),
+                (reader) => Effect.sync(() => reader.releaseLock()),
+            )
             const decoder = new TextDecoder()
             let output = ""
-            try {
-                while (true) {
-                    const { done, value } = await reader.read()
-                    if (done) break
-                    const chunk = decoder.decode(value, { stream: true })
-                    output += chunk
-                    await notifyOutput(command, stream, chunk)
-                }
-                const tail = decoder.decode()
-                if (tail) {
-                    output += tail
-                    await notifyOutput(command, stream, tail)
-                }
-                return output
-            } finally {
-                reader.releaseLock()
+            while (true) {
+                const { done, value } = yield* Effect.tryPromise({
+                    try: () => reader.read(),
+                    catch: (cause) =>
+                        new ProcessReadError({ command, stream, cause }),
+                })
+                if (done) break
+                const chunk = decoder.decode(value, { stream: true })
+                output += chunk
+                yield* emit(chunk)
             }
-        },
-        catch: (cause) => new ProcessReadError({ command, stream, cause }),
-    })
+            const tail = decoder.decode()
+            if (tail) {
+                output += tail
+                yield* emit(tail)
+            }
+            return output
+        }),
+    )
 }
 
 async function terminateChild(child: ChildHandle) {
@@ -172,74 +189,160 @@ async function terminateChild(child: ChildHandle) {
 const runLive = Effect.fn("AppProcess.run")(function* (
     command: ProcessCommand,
 ) {
-    const startedAt = performance.now()
-    const child = yield* Effect.acquireRelease(
-        Effect.try({
-            try: () =>
-                Bun.spawn([command.executable, ...command.args], {
-                    cwd: command.cwd,
-                    env: { ...process.env, ...command.env },
-                    stdin: command.stdin === undefined ? "ignore" : "pipe",
-                    stdout: command.stdoutFile
-                        ? Bun.file(command.stdoutFile)
-                        : "pipe",
-                    stderr: "pipe",
-                    detached: process.platform !== "win32",
-                }) as unknown as ChildHandle,
-            catch: (cause) => new ProcessSpawnError({ command, cause }),
+    let result: ProcessResult | undefined
+    yield* streamLive(command).pipe(
+        Stream.runForEach((event) => {
+            if (event._tag === "Complete") {
+                return Effect.sync(() => {
+                    result = event.result
+                })
+            }
+            return Effect.promise(() =>
+                notifyOutput(command, event.stream, event.chunk),
+            )
         }),
-        (child) => Effect.promise(() => terminateChild(child)),
     )
-
-    if (command.stdin !== undefined) {
-        yield* Effect.try({
-            try: () => {
-                child.stdin?.write(command.stdin as string)
-                child.stdin?.end()
-            },
-            catch: (cause) => new ProcessWriteError({ command, cause }),
-        })
+    if (result === undefined) {
+        return yield* Effect.die(
+            new Error("Process stream completed without an exit result"),
+        )
     }
-
-    const collect = Effect.all(
-        [
-            child.stdout
-                ? readOutput(command, "stdout", child.stdout)
-                : Effect.succeed(""),
-            readOutput(command, "stderr", child.stderr),
-            Effect.promise(() => child.exited),
-        ] as const,
-        { concurrency: "unbounded" },
-    ).pipe(
-        Effect.map(([stdout, stderr, exitCode]) => ({
-            stdout,
-            stderr,
-            exitCode,
-            durationMs: performance.now() - startedAt,
-        })),
-    )
-
-    if (command.timeoutMs === undefined) return yield* collect
-    return yield* Effect.timeoutOrElse(collect, {
-        duration: command.timeoutMs,
-        orElse: () =>
-            Effect.fail(
-                new ProcessTimeoutError({
-                    command,
-                    timeoutMs: command.timeoutMs as number,
-                }),
-            ),
-    })
+    return result
 })
+
+function streamLive(
+    command: Omit<ProcessCommand, "onOutput">,
+): Stream.Stream<ProcessEvent, ProcessError> {
+    return Stream.callback<ProcessEvent, ProcessError>(
+        (queue) =>
+            Effect.gen(function* () {
+                const producer = Effect.gen(function* () {
+                    const startedAt = performance.now()
+                    const child = yield* Effect.acquireRelease(
+                        Effect.try({
+                            try: () =>
+                                Bun.spawn(
+                                    [command.executable, ...command.args],
+                                    {
+                                        cwd: command.cwd,
+                                        env: {
+                                            ...process.env,
+                                            ...command.env,
+                                        },
+                                        stdin:
+                                            command.stdin === undefined
+                                                ? "ignore"
+                                                : "pipe",
+                                        stdout: command.stdoutFile
+                                            ? Bun.file(command.stdoutFile)
+                                            : "pipe",
+                                        stderr: "pipe",
+                                        detached: process.platform !== "win32",
+                                    },
+                                ) as unknown as ChildHandle,
+                            catch: (cause) =>
+                                new ProcessSpawnError({ command, cause }),
+                        }),
+                        (child) => Effect.promise(() => terminateChild(child)),
+                    )
+
+                    if (command.stdin !== undefined) {
+                        yield* Effect.try({
+                            try: () => {
+                                child.stdin?.write(command.stdin as string)
+                                child.stdin?.end()
+                            },
+                            catch: (cause) =>
+                                new ProcessWriteError({ command, cause }),
+                        })
+                    }
+
+                    const collect = Effect.all(
+                        [
+                            child.stdout
+                                ? readOutput(
+                                      command,
+                                      "stdout",
+                                      child.stdout,
+                                      (chunk) =>
+                                          Queue.offer(queue, {
+                                              _tag: "Output",
+                                              stream: "stdout",
+                                              chunk,
+                                          }),
+                                  )
+                                : Effect.succeed(""),
+                            readOutput(
+                                command,
+                                "stderr",
+                                child.stderr,
+                                (chunk) =>
+                                    Queue.offer(queue, {
+                                        _tag: "Output",
+                                        stream: "stderr",
+                                        chunk,
+                                    }),
+                            ),
+                            Effect.promise(() => child.exited),
+                        ] as const,
+                        { concurrency: "unbounded" },
+                    ).pipe(
+                        Effect.map(([stdout, stderr, exitCode]) => ({
+                            stdout,
+                            stderr,
+                            exitCode,
+                            durationMs: performance.now() - startedAt,
+                        })),
+                    )
+                    const timeoutMs = command.timeoutMs
+                    return yield* timeoutMs === undefined
+                        ? collect
+                        : Effect.timeoutOrElse(collect, {
+                              duration: timeoutMs,
+                              orElse: () =>
+                                  Effect.fail(
+                                      new ProcessTimeoutError({
+                                          command,
+                                          timeoutMs,
+                                      }),
+                                  ),
+                          })
+                })
+
+                yield* producer.pipe(
+                    Effect.flatMap((result) =>
+                        Queue.offer(queue, {
+                            _tag: "Complete",
+                            result,
+                        }),
+                    ),
+                    Effect.matchCauseEffect({
+                        onFailure: (cause) => Queue.failCause(queue, cause),
+                        onSuccess: () => Queue.end(queue),
+                    }),
+                    Effect.forkScoped,
+                )
+            }),
+        { bufferSize: 1, strategy: "suspend" },
+    )
+}
 
 export const AppProcessLive = Layer.succeed(AppProcess)(
     AppProcess.of({
         run: (command) => Effect.scoped(runLive(command)),
+        stream: streamLive,
     }),
 )
 
 export function makeAppProcessFake(
     run: AppProcessService["run"],
+    stream: AppProcessService["stream"] = (command) =>
+        Stream.fromEffect(run(command)).pipe(
+            Stream.map((result) => ({
+                _tag: "Complete" as const,
+                result,
+            })),
+        ),
 ): Layer.Layer<AppProcess> {
-    return Layer.succeed(AppProcess)(AppProcess.of({ run }))
+    return Layer.succeed(AppProcess)(AppProcess.of({ run, stream }))
 }

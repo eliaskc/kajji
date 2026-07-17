@@ -1,4 +1,4 @@
-import { Effect, Layer, ManagedRuntime } from "effect"
+import { Effect, Layer, ManagedRuntime, Schema, Stream } from "effect"
 import type { Bookmark } from "../commander/bookmarks"
 import { GitLive } from "../commander/git"
 import type { GitHubPullRequestSummary } from "../commander/github"
@@ -32,6 +32,7 @@ import {
     type JjGitPushOptions,
     JjLayer,
     type JjLogReadOptions,
+    type JjLogStreamEvent,
     type JjNewOptions,
     type JjOperationOptions,
     type JjOperationResult,
@@ -383,6 +384,26 @@ export class ApplicationClientClosedError extends Error {
     }
 }
 
+class ApplicationStreamConsumerError extends Schema.TaggedErrorClass<ApplicationStreamConsumerError>()(
+    "ApplicationStreamConsumerError",
+    { cause: Schema.Defect() },
+) {
+    override get message() {
+        return this.cause instanceof Error
+            ? this.cause.message
+            : String(this.cause)
+    }
+}
+
+class ApplicationStreamIncompleteError extends Schema.TaggedErrorClass<ApplicationStreamIncompleteError>()(
+    "ApplicationStreamIncompleteError",
+    {},
+) {
+    override get message() {
+        return "Application stream completed without a result"
+    }
+}
+
 function errorMessage(error: OperationFailure): string {
     if (error._tag === "ProcessTimeoutError") {
         return `Command timed out after ${error.timeoutMs}ms`
@@ -493,6 +514,49 @@ export function makeApplicationClient(
             : controller.signal
         return {
             result: runRead({ ...options, signal }, operation),
+            cancel: () => controller.abort(),
+        }
+    }
+
+    const runLogStream = (
+        options: ApplicationLogReadOptions,
+        onBatch: (commits: readonly Commit[]) => void | Promise<void>,
+    ): ApplicationStreamHandle<LogPageResult> => {
+        const controller = new AbortController()
+        const signal = options.signal
+            ? AbortSignal.any([options.signal, controller.signal])
+            : controller.signal
+        if (!accepting) {
+            return {
+                result: Promise.reject(new ApplicationClientClosedError()),
+                cancel: () => controller.abort(),
+            }
+        }
+        const effect = Jj.use((jj) =>
+            Effect.gen(function* () {
+                let finalResult: LogPageResult | undefined
+                yield* jj.streamLogPage(options).pipe(
+                    Stream.runForEach((event: JjLogStreamEvent) => {
+                        if (event._tag === "Complete") {
+                            return Effect.sync(() => {
+                                finalResult = event.result
+                            })
+                        }
+                        return Effect.tryPromise({
+                            try: () => Promise.resolve(onBatch(event.commits)),
+                            catch: (cause) =>
+                                new ApplicationStreamConsumerError({ cause }),
+                        })
+                    }),
+                )
+                if (finalResult === undefined) {
+                    return yield* new ApplicationStreamIncompleteError()
+                }
+                return finalResult
+            }),
+        )
+        return {
+            result: runtime.runPromise(effect, { signal }),
             cancel: () => controller.abort(),
         }
     }
@@ -830,8 +894,7 @@ export function makeApplicationClient(
         jjStreamBookmarks: (options, onBatch) =>
             runStream(options, (jj) => jj.streamBookmarks(options, onBatch)),
         jjLogPage: (options) => runRead(options, (jj) => jj.logPage(options)),
-        jjStreamLogPage: (options, onBatch) =>
-            runStream(options, (jj) => jj.streamLogPage(options, onBatch)),
+        jjStreamLogPage: (options, onBatch) => runLogStream(options, onBatch),
         stackParent: (bookmark, options) =>
             runStack(options, (stack) =>
                 stack.persistedParent(bookmark, options.cwd),
