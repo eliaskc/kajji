@@ -737,19 +737,43 @@ Verification evidence:
 Standalone CLI ownership is complete. Remaining migration work is now limited
 to interactive-process policy and final compatibility cleanup.
 
+## Implementation Update — 2026-07-17 18:27:00 CEST
+
+Interactive jj process ownership is migrated. Split, resolve, and interactive
+squash now run through a scoped `InteractiveProcess` capability and an
+`InteractiveJj` domain service. The separate process capability preserves
+inherited stdin, stdout, and stderr without widening captured `AppProcess` or
+forcing terminal commands through captured-output policy.
+
+The Promise-facing `ApplicationClient` exposes structural interactive results,
+while Solid continues to own renderer suspension, immutable confirmation,
+refresh, selection, operation-log reloads, and the existing manual resolve
+command-log entry. Normal non-zero exits preserve the prior operation-specific
+messages. Spawn failures remain typed inside Effect, and runtime disposal or
+request cancellation interrupts and reaps the inherited-stdio child.
+
+The old direct `Bun.spawn` implementations have been removed from
+`commander/operations.ts`. Focused tests cover argument construction, client
+routing, normal non-zero exits, typed spawn failures, and fiber interruption.
+
+Verification evidence:
+
+- `bun test`: 387 passing tests
+- `bun check` and changed-file Biome checks pass
+- `bun test:e2e`: all 10 terminal workflows pass
+- `bun test:bench`: all 26 benchmark assertions pass
+- Terminal Control verified resolve through the command palette, inherited-stdio
+  completion, renderer resumption, command-log reporting, and refresh
+
+Editor launching and clipboard writes remain explicit OS/UI integrations rather
+than repository-domain process capabilities. Effect CLI adoption and diff
+virtualization work also remain separate decisions.
+
 ## Remaining Migration Work
 
-### 1. Decide interactive and miscellaneous process policy
+### 1. Remove final compatibility code
 
-Interactive split, resolve, and squash still inherit terminal stdio directly.
-Editors, clipboard writes, updater pipelines, and other miscellaneous processes
-should move only if a shared capability is demonstrated. They may need a
-separate interactive-process interface rather than widening captured
-`AppProcess`.
-
-### 2. Remove final compatibility code
-
-After the CLI and interactive decisions:
+Now that the CLI and interactive decisions are complete:
 
 - delete the remaining legacy `execute` adapter and dead commander wrappers
 - remove duplicated result shapes and `success` booleans from Effect-native
@@ -757,9 +781,9 @@ After the CLI and interactive decisions:
 - remove Promise compatibility adapters with no callers
 - keep `ApplicationClient` as the stable Promise-facing Solid boundary
 
-No major transactional TUI migration remains. The end state has one captured
-process lifecycle, explicit runtime ownership, supplied domain dependencies, and
-no Effect-shaped Promise workflows in Solid components.
+No process-ownership migration remains. The end state has separate captured and
+interactive process lifecycles, explicit runtime ownership, supplied domain
+dependencies, and no Effect-shaped Promise workflows in Solid components.
 
 ## Post-Migration Consideration: Effect CLI
 

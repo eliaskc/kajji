@@ -9,6 +9,15 @@ import {
     type GitHubService,
 } from "../commander/github-service"
 import {
+    InteractiveJj,
+    InteractiveJjLive,
+    type InteractiveJjOptions,
+    type InteractiveJjResolveOptions,
+    type InteractiveJjResult,
+    type InteractiveJjService,
+    type InteractiveJjSquashOptions,
+} from "../commander/interactive-jj"
+import {
     Jj,
     type JjBookmarkCreateOptions,
     type JjBookmarkReadOptions,
@@ -42,6 +51,11 @@ import type { Commit, FileChange } from "../commander/types"
 import { Hooks, HooksLive, type HooksService } from "../hooks/runner"
 import type { HookOperationId } from "../hooks/types"
 import { AppProcessLive, type ProcessError } from "../process/app-process"
+import {
+    type InteractiveProcess,
+    InteractiveProcessLive,
+    type InteractiveProcessSpawnError,
+} from "../process/interactive-process"
 import {
     RepositoryBootstrap,
     RepositoryBootstrapLive,
@@ -118,6 +132,25 @@ interface ApplicationSquashOptions extends Omit<JjSquashOptions, "sink"> {
     readonly signal?: AbortSignal
 }
 
+interface ApplicationInteractiveOptions extends InteractiveJjOptions {
+    readonly signal?: AbortSignal
+}
+
+interface ApplicationInteractiveResolveOptions
+    extends InteractiveJjResolveOptions {
+    readonly signal?: AbortSignal
+}
+
+interface ApplicationInteractiveSquashOptions
+    extends InteractiveJjSquashOptions {
+    readonly signal?: AbortSignal
+}
+
+export interface ApplicationInteractiveResult {
+    readonly success: boolean
+    readonly error?: string
+}
+
 interface ApplicationRestoreOptions extends Omit<JjRestoreOptions, "sink"> {
     readonly observer?: CommandObserver
     readonly signal?: AbortSignal
@@ -184,6 +217,17 @@ export interface ApplicationClient {
         revision: string | undefined,
         options: ApplicationSquashOptions,
     ) => Promise<OperationResult>
+    readonly jjSplitInteractive: (
+        revision: string,
+        options: ApplicationInteractiveOptions,
+    ) => Promise<ApplicationInteractiveResult>
+    readonly jjResolveInteractive: (
+        options: ApplicationInteractiveResolveOptions,
+    ) => Promise<ApplicationInteractiveResult>
+    readonly jjSquashInteractive: (
+        revision: string,
+        options: ApplicationInteractiveSquashOptions,
+    ) => Promise<ApplicationInteractiveResult>
     readonly jjRebase: (
         revision: string,
         destination: string,
@@ -390,6 +434,7 @@ export function makeApplicationClient(
     hooksLayer = HooksLive,
     stackLayer: Layer.Layer<Stack, never, Jj | GitHub | StackStore> = StackLive,
     stackStoreLayer = StackStoreLive,
+    interactiveProcessLayer: Layer.Layer<InteractiveProcess> = InteractiveProcessLive,
 ): ApplicationClient {
     const providedHooksLayer = hooksLayer.pipe(Layer.provide(appProcessLayer))
     const dependencies = Layer.merge(appProcessLayer, providedHooksLayer)
@@ -412,6 +457,9 @@ export function makeApplicationClient(
         stackStoreLayer,
     )
     const providedStackLayer = stackLayer.pipe(Layer.provide(stackDependencies))
+    const providedInteractiveJjLayer = InteractiveJjLive.pipe(
+        Layer.provide(interactiveProcessLayer),
+    )
     const runtime = ManagedRuntime.make(
         Layer.mergeAll(
             providedJjLayer,
@@ -419,6 +467,7 @@ export function makeApplicationClient(
             providedGitHubLayer,
             providedRepositoryBootstrapLayer,
             providedStackLayer,
+            providedInteractiveJjLayer,
         ),
     )
     const historicalFiles = makeHistoricalFileStore()
@@ -446,6 +495,25 @@ export function makeApplicationClient(
             result: runRead({ ...options, signal }, operation),
             cancel: () => controller.abort(),
         }
+    }
+
+    const runInteractive = async (
+        signal: AbortSignal | undefined,
+        failureCommand: string,
+        operation: (
+            jj: InteractiveJjService,
+        ) => Effect.Effect<InteractiveJjResult, InteractiveProcessSpawnError>,
+    ): Promise<ApplicationInteractiveResult> => {
+        if (!accepting) throw new ApplicationClientClosedError()
+        const result = await runtime.runPromise(InteractiveJj.use(operation), {
+            signal,
+        })
+        return result.exitCode === 0
+            ? { success: true }
+            : {
+                  success: false,
+                  error: `${failureCommand} exited with code ${result.exitCode}`,
+              }
     }
 
     const runHookRead = <A, E>(
@@ -617,6 +685,16 @@ export function makeApplicationClient(
         jjSquash: (revision, { observer, signal, ...options }) =>
             runOperation({ ...options, observer, signal }, (jj, sink) =>
                 jj.squash(revision, { ...options, sink }),
+            ),
+        jjSplitInteractive: (revision, { signal, ...options }) =>
+            runInteractive(signal, "jj split", (jj) =>
+                jj.split(revision, options),
+            ),
+        jjResolveInteractive: ({ signal, ...options }) =>
+            runInteractive(signal, "jj resolve", (jj) => jj.resolve(options)),
+        jjSquashInteractive: (revision, { signal, ...options }) =>
+            runInteractive(signal, "jj squash -i", (jj) =>
+                jj.squash(revision, options),
             ),
         jjRebase: (revision, destination, { observer, signal, ...options }) =>
             runOperation({ ...options, observer, signal }, (jj, sink) =>

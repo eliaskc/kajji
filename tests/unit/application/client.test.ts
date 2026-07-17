@@ -10,6 +10,7 @@ import {
     type ProcessResult,
     makeAppProcessFake,
 } from "../../../src/process/app-process"
+import { makeInteractiveProcessFake } from "../../../src/process/interactive-process"
 import { Stack } from "../../../src/stack/executor"
 import type { StackPlan } from "../../../src/stack/model"
 
@@ -418,6 +419,55 @@ describe("ApplicationClient", () => {
             "jj duplicate duplicate",
             "jj abandon abandon",
             "jj restore --from parent --into revision path",
+        ])
+    })
+
+    test("routes interactive jj commands and preserves exit behavior", async () => {
+        const commands: string[] = []
+        let exitCode = 0
+        const interactiveLayer = makeInteractiveProcessFake((command) => {
+            commands.push(
+                `${command.cwd}:${command.executable} ${command.args.join(" ")}`,
+            )
+            return Effect.succeed({ exitCode, durationMs: 10 })
+        })
+        const client = makeApplicationClient(
+            makeAppProcessFake(() => Effect.succeed(success)),
+            undefined,
+            undefined,
+            undefined,
+            interactiveLayer,
+        )
+
+        await expect(
+            client.jjSplitInteractive("split", {
+                cwd: "/tmp/split",
+                ignoreImmutable: true,
+            }),
+        ).resolves.toEqual({ success: true })
+        await expect(
+            client.jjResolveInteractive({
+                cwd: "/tmp/resolve",
+                revision: "resolve",
+                paths: ["path"],
+            }),
+        ).resolves.toEqual({ success: true })
+        exitCode = 2
+        await expect(
+            client.jjSquashInteractive("squash", {
+                cwd: "/tmp/squash",
+                into: "target",
+            }),
+        ).resolves.toEqual({
+            success: false,
+            error: "jj squash -i exited with code 2",
+        })
+        await client.dispose()
+
+        expect(commands).toEqual([
+            "/tmp/split:jj split -r split --ignore-immutable",
+            "/tmp/resolve:jj resolve -r resolve path",
+            "/tmp/squash:jj squash -i --from squash --into target",
         ])
     })
 

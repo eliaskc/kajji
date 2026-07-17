@@ -22,9 +22,6 @@ import {
     type OpLogEntry,
     type OperationResult,
     isImmutableError,
-    jjResolveInteractive,
-    jjSplitInteractive,
-    jjSquashInteractive,
     parseOpLog,
 } from "../../commander/operations"
 import { type Commit, getRevisionId } from "../../commander/types"
@@ -1486,10 +1483,12 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                 if (!commit) return
                 renderer.suspend?.()
                 const revId = getRevisionId(commit)
-                const result = await jjResolveInteractive({
-                    revision: revId,
-                })
-                renderer.resume?.()
+                const result = await app
+                    .jjResolveInteractive({
+                        cwd: getRepoPath(),
+                        revision: revId,
+                    })
+                    .finally(() => renderer.resume?.())
                 commandLog.addEntry({
                     command: `jj resolve -r ${revId}`,
                     success: result.success,
@@ -1608,17 +1607,21 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                                     renderer.suspend?.()
                                     try {
                                         const result =
-                                            await jjSquashInteractive(revId, {
-                                                into:
-                                                    target !== revId
-                                                        ? target
-                                                        : undefined,
-                                                useDestinationMessage:
-                                                    options.useDestinationMessage,
-                                                keepEmptied:
-                                                    options.keepEmptied,
-                                                ignoreImmutable,
-                                            })
+                                            await app.jjSquashInteractive(
+                                                revId,
+                                                {
+                                                    cwd: getRepoPath(),
+                                                    into:
+                                                        target !== revId
+                                                            ? target
+                                                            : undefined,
+                                                    useDestinationMessage:
+                                                        options.useDestinationMessage,
+                                                    keepEmptied:
+                                                        options.keepEmptied,
+                                                    ignoreImmutable,
+                                                },
+                                            )
                                         if (result.success) {
                                             await refresh({
                                                 selectIndex: (commitList) =>
@@ -1871,7 +1874,8 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
 
                 renderer.suspend?.()
                 try {
-                    await jjSplitInteractive(getRevisionId(commit), {
+                    await app.jjSplitInteractive(getRevisionId(commit), {
+                        cwd: getRepoPath(),
                         ignoreImmutable,
                     })
                 } finally {

@@ -1,41 +1,8 @@
-import { getRepoPath } from "../repo"
 import { type ExecuteResult, execute } from "./executor"
 import type { OperationRunOptions } from "./observer"
 
 export interface OperationResult extends ExecuteResult {
     command: string
-}
-
-export interface InteractiveOptions {
-    cwd?: string
-    ignoreImmutable?: boolean
-}
-
-export async function jjSplitInteractive(
-    revision: string,
-    options?: InteractiveOptions,
-): Promise<{ success: boolean; error?: string }> {
-    const args = ["split", "-r", revision]
-    if (options?.ignoreImmutable) {
-        args.push("--ignore-immutable")
-    }
-    const cwd = options?.cwd ?? getRepoPath()
-
-    const proc = Bun.spawn(["jj", ...args], {
-        cwd,
-        stdin: "inherit",
-        stdout: "inherit",
-        stderr: "inherit",
-    })
-
-    const exitCode = await proc.exited
-    return {
-        success: exitCode === 0,
-        error:
-            exitCode !== 0
-                ? `jj split exited with code ${exitCode}`
-                : undefined,
-    }
 }
 
 export interface OpLogEntry {
@@ -86,41 +53,6 @@ export async function jjDuplicate(revision: string): Promise<OperationResult> {
     return {
         ...result,
         command: `jj ${args.join(" ")}`,
-    }
-}
-
-export async function jjResolveInteractive(options?: {
-    revision?: string
-    paths?: string[]
-    tool?: string
-    cwd?: string
-}): Promise<{ success: boolean; error?: string }> {
-    const args = ["resolve"]
-    if (options?.revision) {
-        args.push("-r", options.revision)
-    }
-    if (options?.tool) {
-        args.push("--tool", options.tool)
-    }
-    if (options?.paths?.length) {
-        args.push(...options.paths)
-    }
-
-    const cwd = options?.cwd ?? getRepoPath()
-    const proc = Bun.spawn(["jj", ...args], {
-        cwd,
-        stdin: "inherit",
-        stdout: "inherit",
-        stderr: "inherit",
-    })
-
-    const exitCode = await proc.exited
-    return {
-        success: exitCode === 0,
-        error:
-            exitCode !== 0
-                ? `jj resolve exited with code ${exitCode}`
-                : undefined,
     }
 }
 
@@ -176,47 +108,6 @@ export async function jjSquash(
     return {
         ...result,
         command: `jj ${args.join(" ")}`,
-    }
-}
-
-export async function jjSquashInteractive(
-    revision: string,
-    options?: SquashOptions & { cwd?: string },
-): Promise<{ success: boolean; error?: string }> {
-    const args = ["squash", "-i"]
-
-    if (options?.into) {
-        args.push("--from", revision, "--into", options.into)
-    } else {
-        args.push("-r", revision)
-    }
-
-    if (options?.useDestinationMessage) {
-        args.push("-u")
-    }
-    if (options?.keepEmptied) {
-        args.push("-k")
-    }
-    if (options?.ignoreImmutable) {
-        args.push("--ignore-immutable")
-    }
-
-    const cwd = options?.cwd ?? getRepoPath()
-
-    const proc = Bun.spawn(["jj", ...args], {
-        cwd,
-        stdin: "inherit",
-        stdout: "inherit",
-        stderr: "inherit",
-    })
-
-    const exitCode = await proc.exited
-    return {
-        success: exitCode === 0,
-        error:
-            exitCode !== 0
-                ? `jj squash -i exited with code ${exitCode}`
-                : undefined,
     }
 }
 
