@@ -35,14 +35,14 @@ import {
 } from "./log"
 import type { Commit, FileChange } from "./types"
 
-export type JjLogStreamEvent =
+export type JjStreamEvent<A, R> =
     | {
           readonly _tag: "Batch"
-          readonly commits: readonly Commit[]
+          readonly items: readonly A[]
       }
     | {
           readonly _tag: "Complete"
-          readonly result: LogPageResult
+          readonly result: R
       }
 
 export interface JjOperationOptions {
@@ -376,9 +376,8 @@ export interface JjService {
     >
     readonly streamBookmarks: (
         options: JjBookmarkReadOptions,
-        onBatch: (bookmarks: readonly Bookmark[]) => void | Promise<void>,
-    ) => Effect.Effect<
-        Bookmark[],
+    ) => Stream.Stream<
+        JjStreamEvent<Bookmark, Bookmark[]>,
         JjReadError | JjStaleWorkingCopyError | ProcessError
     >
     readonly logPage: (
@@ -390,7 +389,7 @@ export interface JjService {
     readonly streamLogPage: (
         options: JjLogReadOptions,
     ) => Stream.Stream<
-        JjLogStreamEvent,
+        JjStreamEvent<Commit, LogPageResult>,
         JjReadError | JjStaleWorkingCopyError | ProcessError
     >
 }
@@ -462,10 +461,6 @@ export const JjLayer: Layer.Layer<Jj, never, AppProcess | Hooks> = Layer.effect(
                 displayCommand?: string
                 env?: Readonly<Record<string, string>>
                 stdoutFile?: string
-                onOutput?: (
-                    stream: ProcessOutputStream,
-                    chunk: string,
-                ) => void | Promise<void>
             } = {},
         ) {
             const command = runOptions.displayCommand ?? `jj ${args.join(" ")}`
@@ -483,13 +478,8 @@ export const JjLayer: Layer.Layer<Jj, never, AppProcess | Hooks> = Layer.effect(
                 },
                 timeoutMs: options.timeoutMs,
                 stdoutFile: runOptions.stdoutFile,
-                onOutput: async (
-                    stream: ProcessOutputStream,
-                    chunk: string,
-                ) => {
-                    notify(() => options.sink?.output(stream, chunk))
-                    await runOptions.onOutput?.(stream, chunk)
-                },
+                onOutput: (stream: ProcessOutputStream, chunk: string) =>
+                    notify(() => options.sink?.output(stream, chunk)),
             }
             const result = yield* appProcess.run(processCommand).pipe(
                 Effect.tapError((error) =>
@@ -1171,50 +1161,71 @@ export const JjLayer: Layer.Layer<Jj, never, AppProcess | Hooks> = Layer.effect(
                 }
                 return parseBookmarkOutput(result.stdout)
             }),
-            streamBookmarks: Effect.fn("Jj.streamBookmarks")(function* (
-                options: JjBookmarkReadOptions,
-                onBatch: (
-                    bookmarks: readonly Bookmark[],
-                ) => void | Promise<void>,
-            ) {
-                const args = [
-                    "--color",
-                    "always",
-                    "bookmark",
-                    "list",
-                    "--sort",
-                    "committer-date-",
-                    "--template",
-                    BOOKMARK_TEMPLATE,
-                ]
-                if (options.allRemotes) args.push("--all-remotes")
+            streamBookmarks: (options: JjBookmarkReadOptions) =>
+                Stream.suspend(() => {
+                    const args = [
+                        "--color",
+                        "always",
+                        "bookmark",
+                        "list",
+                        "--sort",
+                        "committer-date-",
+                        "--template",
+                        BOOKMARK_TEMPLATE,
+                    ]
+                    if (options.allRemotes) args.push("--all-remotes")
 
-                let output = ""
-                let lastCount = 0
-                const result = yield* runRaw(args, options, {
-                    onOutput: async (stream, chunk) => {
-                        if (stream !== "stdout") return
-                        output += chunk
-                        const completeEnd = output.lastIndexOf("\n")
-                        if (completeEnd < 0) return
-                        const bookmarks = parseBookmarkOutput(
-                            output.slice(0, completeEnd + 1),
-                        )
-                        if (bookmarks.length <= lastCount) return
-                        lastCount = bookmarks.length
-                        await onBatch(bookmarks)
-                    },
-                })
-                yield* throwIfStale(result)
-                if (result.exitCode !== 0) {
-                    return yield* new JjReadError({
-                        kind: "bookmarks",
-                        command: result.command,
-                        result,
-                    })
-                }
-                return parseBookmarkOutput(result.stdout)
-            }),
+                    let output = ""
+                    let lastCount = 0
+                    const { command, events } = streamRaw(args, options)
+                    return events.pipe(
+                        Stream.flatMap((event) => {
+                            if (event._tag === "Output") {
+                                if (event.stream !== "stdout")
+                                    return Stream.empty
+                                output += event.chunk
+                                const completeEnd = output.lastIndexOf("\n")
+                                if (completeEnd < 0) return Stream.empty
+                                const bookmarks = parseBookmarkOutput(
+                                    output.slice(0, completeEnd + 1),
+                                )
+                                if (bookmarks.length <= lastCount)
+                                    return Stream.empty
+                                lastCount = bookmarks.length
+                                return Stream.succeed<
+                                    JjStreamEvent<Bookmark, Bookmark[]>
+                                >({
+                                    _tag: "Batch",
+                                    items: bookmarks,
+                                })
+                            }
+
+                            const result = {
+                                ...event.result,
+                                command,
+                            }
+                            return Stream.fromEffect(
+                                Effect.gen(function* () {
+                                    yield* throwIfStale(result)
+                                    if (result.exitCode !== 0) {
+                                        return yield* new JjReadError({
+                                            kind: "bookmarks",
+                                            command,
+                                            result,
+                                        })
+                                    }
+                                    return {
+                                        _tag: "Complete" as const,
+                                        result: parseBookmarkOutput(
+                                            result.stdout,
+                                        ),
+                                    }
+                                }),
+                            )
+                        }),
+                        Stream.withSpan("Jj.streamBookmarks"),
+                    )
+                }),
             logPage: Effect.fn("Jj.logPage")(function* (
                 options: JjLogReadOptions,
             ) {
@@ -1284,9 +1295,11 @@ export const JjLayer: Layer.Layer<Jj, never, AppProcess | Hooks> = Layer.effect(
                                         now - lastBatchAt >= 25)
                                 ) {
                                     lastBatchAt = now
-                                    return Stream.succeed<JjLogStreamEvent>({
+                                    return Stream.succeed<
+                                        JjStreamEvent<Commit, LogPageResult>
+                                    >({
                                         _tag: "Batch",
-                                        commits: visible(),
+                                        items: visible(),
                                     })
                                 }
                                 return Stream.empty

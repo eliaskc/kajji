@@ -47,10 +47,11 @@ typecheck and changed-file Biome checks pass.
 
 ## Implementation Update — 2026-07-17 22:40:49 CEST
 
-The Effect `Stream` prototype now covers the complete live log path. Log was
-chosen instead of bookmarks because it exercises the harder requirements:
-incremental parser state, throttled batches, pagination metadata, stale-working-
-copy classification, consumer backpressure, cancellation, and final completion.
+The Effect `Stream` prototype now covers both live streaming paths. Log was
+migrated first because it exercises the harder requirements: incremental parser
+state, throttled batches, pagination metadata, stale-working-copy
+classification, consumer backpressure, cancellation, and final completion.
+Bookmarks then moved onto the same event protocol and application adapter.
 
 `AppProcess.stream` emits ordered output and one terminal process-result event
 from a scope-owned child. A capacity-one suspending queue provides backpressure;
@@ -59,28 +60,27 @@ ending consumption interrupts the producer and releases the child. Captured
 output collection, and cleanup still have one implementation rather than a
 parallel streaming lifecycle.
 
-`Jj.streamLogPage` is now an Effect `Stream` of batch and completion events. It
-owns incremental log parsing and command-exit policy, while `ApplicationClient`
-consumes the Stream inside its managed runtime and retains the existing
+`Jj.streamLogPage` and `Jj.streamBookmarks` are now Effect Streams over one
+generic batch/completion event type. Each owns incremental parsing and
+command-exit policy, while one `ApplicationClient` adapter consumes either
+Stream inside its managed runtime and retains the existing
 Promise/cancel/callback API for Solid. Batch consumer failures are typed and
 propagate through the result Promise; they no longer disappear at the process
 output callback boundary. Cancellation, decoder tails, command observation,
-visible-limit behavior, and final `hasMore` calculation are preserved.
+visible-limit behavior, and final pagination calculation are preserved.
 
-Bookmarks deliberately remain on the previous callback-backed path for a direct
-comparison before generalizing the design. Tests now cover process-stream
-backpressure and completion, child interruption after downstream failure,
-incremental log events, Promise-boundary consumer failures, and existing stream
-cancellation. `bun test` reports 334 passing tests, typecheck and changed-file
-Biome checks pass, all 10 E2E workflows pass across the validation run and an
-isolated retry of one transient navigation timeout, and all 26 benchmark
-assertions pass.
+Tests cover process-stream backpressure and completion, child interruption
+after downstream failure, incremental log and bookmark events, Promise-boundary
+consumer failures, and existing stream cancellation. `bun test` reports 334
+passing tests, typecheck and changed-file Biome checks pass, all 10 E2E workflows
+pass, and all 26 benchmark assertions pass.
 
-The prototype supports adopting Stream for the remaining bookmark source. It
-removes swallowed downstream failures and makes ownership explicit without
-exposing Effect to Solid; the main cost is the explicit output/completion event
-protocol needed because a subprocess has both many output values and one final
-exit result.
+This completes the current streaming surface: local bookmarks and paged logs
+were the only live incremental consumers. Remote bookmarks and diffs remain
+captured reads. Stream removes swallowed downstream failures and makes ownership
+explicit without exposing Effect to Solid; the main cost is the explicit
+output/completion event protocol needed because a subprocess has both many
+output values and one final exit result.
 
 ## Review `src/commander/jj.ts`
 

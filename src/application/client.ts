@@ -32,7 +32,6 @@ import {
     type JjGitPushOptions,
     JjLayer,
     type JjLogReadOptions,
-    type JjLogStreamEvent,
     type JjNewOptions,
     type JjOperationOptions,
     type JjOperationResult,
@@ -42,6 +41,7 @@ import {
     type JjRevisionSummary,
     type JjService,
     type JjSquashOptions,
+    type JjStreamEvent,
     type OperationFailure,
     type OperationSink,
 } from "../commander/jj"
@@ -504,24 +504,11 @@ export function makeApplicationClient(
         return runtime.runPromise(Jj.use(operation), { signal: options.signal })
     }
 
-    const runStream = <A, E>(
+    const runStream = <A, R, E>(
         options: ApplicationReadOptions,
-        operation: (jj: JjService) => Effect.Effect<A, E>,
-    ): ApplicationStreamHandle<A> => {
-        const controller = new AbortController()
-        const signal = options.signal
-            ? AbortSignal.any([options.signal, controller.signal])
-            : controller.signal
-        return {
-            result: runRead({ ...options, signal }, operation),
-            cancel: () => controller.abort(),
-        }
-    }
-
-    const runLogStream = (
-        options: ApplicationLogReadOptions,
-        onBatch: (commits: readonly Commit[]) => void | Promise<void>,
-    ): ApplicationStreamHandle<LogPageResult> => {
+        operation: (jj: JjService) => Stream.Stream<JjStreamEvent<A, R>, E>,
+        onBatch: (items: readonly A[]) => void | Promise<void>,
+    ): ApplicationStreamHandle<R> => {
         const controller = new AbortController()
         const signal = options.signal
             ? AbortSignal.any([options.signal, controller.signal])
@@ -534,16 +521,16 @@ export function makeApplicationClient(
         }
         const effect = Jj.use((jj) =>
             Effect.gen(function* () {
-                let finalResult: LogPageResult | undefined
-                yield* jj.streamLogPage(options).pipe(
-                    Stream.runForEach((event: JjLogStreamEvent) => {
+                let finalResult: R | undefined
+                yield* operation(jj).pipe(
+                    Stream.runForEach((event: JjStreamEvent<A, R>) => {
                         if (event._tag === "Complete") {
                             return Effect.sync(() => {
                                 finalResult = event.result
                             })
                         }
                         return Effect.tryPromise({
-                            try: () => Promise.resolve(onBatch(event.commits)),
+                            try: () => Promise.resolve(onBatch(event.items)),
                             catch: (cause) =>
                                 new ApplicationStreamConsumerError({ cause }),
                         })
@@ -892,9 +879,10 @@ export function makeApplicationClient(
         jjBookmarks: (options) =>
             runRead(options, (jj) => jj.bookmarks(options)),
         jjStreamBookmarks: (options, onBatch) =>
-            runStream(options, (jj) => jj.streamBookmarks(options, onBatch)),
+            runStream(options, (jj) => jj.streamBookmarks(options), onBatch),
         jjLogPage: (options) => runRead(options, (jj) => jj.logPage(options)),
-        jjStreamLogPage: (options, onBatch) => runLogStream(options, onBatch),
+        jjStreamLogPage: (options, onBatch) =>
+            runStream(options, (jj) => jj.streamLogPage(options), onBatch),
         stackParent: (bookmark, options) =>
             runStack(options, (stack) =>
                 stack.persistedParent(bookmark, options.cwd),

@@ -754,25 +754,43 @@ describe("Jj", () => {
             output.slice(24, firstLineEnd),
             output.slice(firstLineEnd),
         ]
-        const processLayer = makeAppProcessFake((command) =>
-            Effect.promise(async () => {
-                for (const chunk of chunks) {
-                    await command.onOutput?.("stdout", chunk)
-                }
-                return { ...success, stdout: output }
-            }),
+        const processLayer = makeAppProcessFake(
+            () => Effect.succeed({ ...success, stdout: output }),
+            () =>
+                Stream.fromIterable([
+                    ...chunks.map((chunk) => ({
+                        _tag: "Output" as const,
+                        stream: "stdout" as const,
+                        chunk,
+                    })),
+                    {
+                        _tag: "Complete" as const,
+                        result: { ...success, stdout: output },
+                    },
+                ]),
         )
         const batches: string[][] = []
+        let finalNames: string[] = []
         const effect = Jj.use((jj) =>
-            jj.streamBookmarks({ cwd: "/tmp/repository" }, (bookmarks) => {
-                batches.push(bookmarks.map((bookmark) => bookmark.name))
-            }),
+            jj.streamBookmarks({ cwd: "/tmp/repository" }).pipe(
+                Stream.runForEach((event) =>
+                    Effect.sync(() => {
+                        if (event._tag === "Batch") {
+                            batches.push(
+                                event.items.map((bookmark) => bookmark.name),
+                            )
+                        } else {
+                            finalNames = event.result.map(
+                                (bookmark) => bookmark.name,
+                            )
+                        }
+                    }),
+                ),
+            ),
         ).pipe(Effect.provide(JjLive), Effect.provide(processLayer))
 
-        await expect(Effect.runPromise(effect)).resolves.toMatchObject([
-            { name: "main" },
-            { name: "feature" },
-        ])
+        await Effect.runPromise(effect)
+        expect(finalNames).toEqual(["main", "feature"])
         expect(batches).toEqual([["main"], ["main", "feature"]])
     })
 
@@ -806,7 +824,7 @@ describe("Jj", () => {
                     Effect.sync(() => {
                         if (event._tag === "Batch") {
                             batches.push(
-                                event.commits.map((commit) => commit.changeId),
+                                event.items.map((commit) => commit.changeId),
                             )
                         } else {
                             finalResult = event.result
