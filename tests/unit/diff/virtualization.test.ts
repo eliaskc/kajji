@@ -1,7 +1,10 @@
 import { describe, expect, test } from "bun:test"
 import type { FileId, HunkId } from "../../../src/diff/identifiers"
+import type { FlattenedFile } from "../../../src/diff/parser"
 import {
+    BINARY_PREVIEW_HEIGHT,
     findDiffScrollAnchorRowIndex,
+    flattenToRows,
     getAdjacentHunk,
     getAdjacentHunkFromRow,
     getCurrentDiffPosition,
@@ -11,6 +14,46 @@ import {
     getFileScrollTailHeight,
     getHunkRowOffsets,
 } from "../../../src/diff/virtualization"
+
+describe("flattenToRows", () => {
+    test("keeps binary previews in file order", () => {
+        const file = (
+            fileId: FileId,
+            name: string,
+            isBinary = false,
+        ): FlattenedFile => ({
+            fileId,
+            name,
+            type: "change",
+            hunks: [],
+            additions: 0,
+            deletions: 0,
+            isBinary,
+        })
+        const files = [
+            file("first" as FileId, "a.txt"),
+            file("binary" as FileId, "b.png", true),
+            file("last" as FileId, "c.txt"),
+        ]
+
+        const rows = flattenToRows(files)
+        const binaryHeader = rows.findIndex(
+            (row) => row.fileId === "binary" && row.type === "file-header",
+        )
+        const lastHeader = rows.findIndex(
+            (row) => row.fileId === "last" && row.type === "file-header",
+        )
+
+        expect(binaryHeader).toBeGreaterThan(0)
+        expect(lastHeader).toBe(binaryHeader + BINARY_PREVIEW_HEIGHT + 2)
+        expect(
+            rows.filter((row) => row.type === "binary-preview"),
+        ).toHaveLength(1)
+        expect(
+            rows.filter((row) => row.type === "binary-preview-reserved-row"),
+        ).toHaveLength(BINARY_PREVIEW_HEIGHT - 1)
+    })
+})
 
 describe("getHunkRowOffsets", () => {
     test("returns the first visual row for each hunk", () => {

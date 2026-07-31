@@ -51,7 +51,6 @@ import { orderFilesByPath } from "../../utils/file-tree"
 import { getFilesLayoutWeights } from "../../utils/layout"
 import { truncatePathMiddle } from "../../utils/path-truncate"
 import { AnsiText } from "../AnsiText"
-import { BinaryGroupFooter } from "../BinaryGroupFooter"
 import { EmptyDiffState } from "../EmptyDiffState"
 import { Panel } from "../Panel"
 import { BookmarkDiffHeader, stripEmailAndDate } from "../RevisionHeader"
@@ -448,16 +447,6 @@ export function MainArea() {
         orderFilesByPath(parsedFiles(), (file) => file.name, showTree()),
     )
 
-    const textFiles = createMemo(() =>
-        orderedFiles().filter((file) => !file.isBinary),
-    )
-
-    const binaryPaths = createMemo(() =>
-        orderedFiles()
-            .filter((file) => file.isBinary)
-            .map((file) => file.name),
-    )
-
     const repoInfo = createMemo(() => {
         activeCommit()
         activeBookmarkDiff()
@@ -481,7 +470,7 @@ export function MainArea() {
     // fits in the viewport and the scrollbox cannot move.
     const currentFile = createMemo(() => {
         const fileId = fileNavigationTarget() ?? currentFileId()
-        return textFiles().find((file) => file.fileId === fileId)
+        return orderedFiles().find((file) => file.fileId === fileId)
     })
 
     const [hunkRowOffsets, setHunkRowOffsets] = createSignal(
@@ -689,7 +678,7 @@ export function MainArea() {
     // Navigation functions
     const navigateFile = (direction: 1 | -1) => {
         hunkNavigationTarget = null
-        const files = textFiles()
+        const files = orderedFiles()
         if (files.length === 0) return
         const currentIndex = Math.max(
             0,
@@ -711,7 +700,7 @@ export function MainArea() {
 
     const navigateHunk = (direction: 1 | -1) => {
         setFileNavigationTarget(null)
-        const files = textFiles()
+        const files = orderedFiles()
         const visibleRow =
             (hunkNavigationTarget
                 ? hunkRowOffsets().get(hunkNavigationTarget)
@@ -1580,11 +1569,11 @@ export function MainArea() {
                                         <Show
                                             when={
                                                 viewStyle() === "unified" &&
-                                                textFiles().length > 0
+                                                orderedFiles().length > 0
                                             }
                                         >
                                             <VirtualizedUnifiedView
-                                                files={textFiles()}
+                                                files={orderedFiles()}
                                                 activeFileId={null}
                                                 onHunkRowOffsets={
                                                     setHunkRowOffsets
@@ -1619,11 +1608,11 @@ export function MainArea() {
                                         <Show
                                             when={
                                                 viewStyle() === "split" &&
-                                                textFiles().length > 0
+                                                orderedFiles().length > 0
                                             }
                                         >
                                             <VirtualizedSplitView
-                                                files={textFiles()}
+                                                files={orderedFiles()}
                                                 activeFileId={null}
                                                 onHunkRowOffsets={
                                                     setHunkRowOffsets
@@ -1655,16 +1644,7 @@ export function MainArea() {
                                                 scrollLeft={scrollLeft()}
                                             />
                                         </Show>
-                                        <Show when={binaryPaths().length > 0}>
-                                            <BinaryGroupFooter
-                                                width={Math.max(
-                                                    1,
-                                                    viewportWidth(),
-                                                )}
-                                                paths={binaryPaths()}
-                                            />
-                                        </Show>
-                                        <Show when={textFiles().length > 0}>
+                                        <Show when={orderedFiles().length > 0}>
                                             <box
                                                 height={scrollTailHeight()}
                                                 flexShrink={0}

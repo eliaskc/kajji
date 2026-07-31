@@ -1,6 +1,7 @@
 import { For, Show, createEffect, createMemo } from "solid-js"
 import { useTheme } from "../../context/theme"
 import {
+    BINARY_PREVIEW_HEIGHT,
     type DiffPosition,
     type DiffRow,
     type DiffScrollAnchor,
@@ -29,6 +30,7 @@ import {
     getDiffStatusKey,
     getStatusColor,
 } from "../../utils/status-colors"
+import { BinaryPreview } from "../BinaryPreview"
 
 const BAR_CHAR = "▌"
 const SEPARATOR_COLOR = "#30363d"
@@ -62,7 +64,15 @@ interface VirtualizedUnifiedViewProps {
 }
 
 type WrappedRow =
-    | { type: "file-header" | "gap" | "file-gap"; row: DiffRow }
+    | {
+          type:
+              | "file-header"
+              | "binary-preview"
+              | "binary-preview-reserved-row"
+              | "gap"
+              | "file-gap"
+          row: DiffRow
+      }
     | {
           type: "content"
           row: DiffRow
@@ -337,6 +347,20 @@ function VirtualizedRow(props: VirtualizedRowProps) {
         )
     }
 
+    if (props.row.type === "binary-preview") {
+        return (
+            <BinaryPreview
+                width={props.maxHeaderWidth + 4}
+                height={BINARY_PREVIEW_HEIGHT}
+                path={props.row.row.fileName}
+            />
+        )
+    }
+
+    if (props.row.type === "binary-preview-reserved-row") {
+        return <box height={0} />
+    }
+
     if (props.row.type === "gap") {
         const gutterWidth = props.lineNumWidth + 2
         const ellipsis = "···"
@@ -495,6 +519,8 @@ function buildWrappedRows(
     for (const row of rows) {
         if (
             row.type === "file-header" ||
+            row.type === "binary-preview" ||
+            row.type === "binary-preview-reserved-row" ||
             row.type === "gap" ||
             row.type === "file-gap"
         ) {

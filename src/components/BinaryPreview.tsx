@@ -3,7 +3,7 @@ import { type BinaryCardLine, BinaryRainCard } from "./BinaryRainCard"
 
 const CARD_MAX_FILENAME_WIDTH = 48
 
-export interface BinaryPlaceholderProps {
+export interface BinaryPreviewProps {
     width: number
     height: number
     path?: string
@@ -18,7 +18,7 @@ function truncateMiddle(value: string, max: number): string {
     return `${value.slice(0, left)}…${value.slice(value.length - right)}`
 }
 
-export function BinaryPlaceholder(props: BinaryPlaceholderProps) {
+export function BinaryPreview(props: BinaryPreviewProps) {
     const lines = createMemo<BinaryCardLine[]>(() => {
         const path = props.path
         const base = path ? path.split("/").pop() : undefined

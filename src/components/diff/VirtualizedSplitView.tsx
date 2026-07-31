@@ -11,6 +11,7 @@ import type {
     WordDiffSegment,
 } from "../../diff"
 import {
+    BINARY_PREVIEW_HEIGHT,
     computeWordDiff,
     findDiffScrollAnchorRowIndex,
     getCurrentDiffPosition,
@@ -32,6 +33,7 @@ import {
     getDiffStatusKey,
     getStatusColor,
 } from "../../utils/status-colors"
+import { BinaryPreview } from "../BinaryPreview"
 
 const SEPARATOR_COLOR = "#30363d"
 const GAP_PATTERN_CHAR = "╱"
@@ -48,7 +50,13 @@ const EMPTY_STRIPE_CHAR = "╱"
 const EMPTY_STRIPE_COLOR = "#2a2a2a"
 const RIGHT_PADDING = 0
 
-type SplitRowType = "file-header" | "file-gap" | "gap" | "content"
+type SplitRowType =
+    | "file-header"
+    | "binary-preview"
+    | "binary-preview-reserved-row"
+    | "file-gap"
+    | "gap"
+    | "content"
 
 interface SplitRow {
     type: SplitRowType
@@ -80,6 +88,23 @@ function flattenToSplitRows(files: FlattenedFile[]): SplitRow[] {
             right: null,
             rowIndex: rowIndex++,
         })
+
+        if (file.isBinary) {
+            for (let row = 0; row < BINARY_PREVIEW_HEIGHT; row += 1) {
+                rows.push({
+                    type:
+                        row === 0
+                            ? "binary-preview"
+                            : "binary-preview-reserved-row",
+                    fileId: file.fileId,
+                    hunkId: null,
+                    fileName: file.name,
+                    left: null,
+                    right: null,
+                    rowIndex: rowIndex++,
+                })
+            }
+        }
 
         let prevHunk = null as FlattenedFile["hunks"][number] | null
         for (const hunk of file.hunks) {
@@ -272,7 +297,15 @@ interface VirtualizedSplitViewProps {
 }
 
 type WrappedSplitRow =
-    | { type: "file-header" | "gap" | "file-gap"; row: SplitRow }
+    | {
+          type:
+              | "file-header"
+              | "binary-preview"
+              | "binary-preview-reserved-row"
+              | "gap"
+              | "file-gap"
+          row: SplitRow
+      }
     | {
           type: "content"
           layout: "split"
@@ -573,6 +606,20 @@ function VirtualizedSplitRow(props: VirtualizedSplitRowProps) {
                 </box>
             </box>
         )
+    }
+
+    if (props.row.type === "binary-preview") {
+        return (
+            <BinaryPreview
+                width={props.maxHeaderWidth + 4}
+                height={BINARY_PREVIEW_HEIGHT}
+                path={props.row.row.fileName}
+            />
+        )
+    }
+
+    if (props.row.type === "binary-preview-reserved-row") {
+        return <box height={0} />
     }
 
     if (props.row.type === "gap") {
@@ -1024,6 +1071,8 @@ function buildWrappedSplitRows(
     for (const row of rows) {
         if (
             row.type === "file-header" ||
+            row.type === "binary-preview" ||
+            row.type === "binary-preview-reserved-row" ||
             row.type === "gap" ||
             row.type === "file-gap"
         ) {

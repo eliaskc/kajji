@@ -1,8 +1,13 @@
 import type { FileId, HunkId } from "./identifiers"
 import type { FlattenedFile } from "./parser"
 
+/** Visual and virtual row height reserved for each inline binary preview. */
+export const BINARY_PREVIEW_HEIGHT = 9
+
 export type DiffRowType =
     | "file-header"
+    | "binary-preview"
+    | "binary-preview-reserved-row"
     | "file-gap"
     | "gap"
     | "context"
@@ -36,6 +41,25 @@ export function flattenToRows(files: FlattenedFile[]): DiffRow[] {
             rowIndex: rowIndex++,
             fileName: file.name,
         })
+
+        if (file.isBinary) {
+            // The first row owns the full-height preview component; the rest
+            // reserve matching row positions for virtualization and scrolling.
+            for (let row = 0; row < BINARY_PREVIEW_HEIGHT; row += 1) {
+                rows.push({
+                    type:
+                        row === 0
+                            ? "binary-preview"
+                            : "binary-preview-reserved-row",
+                    content: "",
+                    fileId: file.fileId,
+                    hunkId: null,
+                    side: null,
+                    rowIndex: rowIndex++,
+                    fileName: file.name,
+                })
+            }
+        }
 
         let prevHunk = null as FlattenedFile["hunks"][number] | null
         for (const hunk of file.hunks) {
