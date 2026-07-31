@@ -2302,7 +2302,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                 if (result?.success) {
                     const nextIndex = Math.min(
                         fileIndex,
-                        flatFiles().length - 2,
+                        flatFiles().length - 1,
                     )
                     setSelectedFileIndex(Math.max(0, nextIndex))
                 }
