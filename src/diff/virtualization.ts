@@ -143,6 +143,16 @@ export interface ViewportState {
     totalRows: number
 }
 
+export function shouldShowStickyFileHeader(
+    scrollTop: number,
+    leadingContentHeight: number,
+    stickyFromStart = false,
+): boolean {
+    return (
+        stickyFromStart || (scrollTop > 0 && scrollTop >= leadingContentHeight)
+    )
+}
+
 export interface DiffPosition {
     fileId: FileId
     lineNumber?: number

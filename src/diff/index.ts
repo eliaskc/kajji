@@ -89,6 +89,7 @@ export {
     getFileScrollTailHeight,
     getHunkRowOffsets,
     getVisibleRange,
+    shouldShowStickyFileHeader,
     type DiffPosition,
     type DiffRow,
     type DiffScrollAnchor,

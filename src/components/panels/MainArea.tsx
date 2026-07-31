@@ -42,6 +42,7 @@ import {
     getLineNumWidth,
     getMaxLineNumber,
     parseDiffString,
+    shouldShowStickyFileHeader,
 } from "../../diff"
 import type { DiffStats } from "../../diff/types"
 import { getRepoPath } from "../../repo"
@@ -1657,7 +1658,12 @@ export function MainArea() {
                     </scrollbox>
                     <Show
                         when={
-                            !useJjFormatter() && scrollTop() > headerHeight()
+                            !useJjFormatter() &&
+                            shouldShowStickyFileHeader(
+                                scrollTop(),
+                                headerHeight(),
+                                viewMode() === "files",
+                            )
                                 ? currentFile()
                                 : undefined
                         }

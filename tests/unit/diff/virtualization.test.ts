@@ -13,6 +13,7 @@ import {
     getFileRowOffsets,
     getFileScrollTailHeight,
     getHunkRowOffsets,
+    shouldShowStickyFileHeader,
 } from "../../../src/diff/virtualization"
 
 describe("flattenToRows", () => {
@@ -133,6 +134,23 @@ describe("getFileScrollTailHeight", () => {
 
     test("adds no space for a single file", () => {
         expect(getFileScrollTailHeight(rows.slice(2), 3, 10)).toBe(0)
+    })
+})
+
+describe("shouldShowStickyFileHeader", () => {
+    test("covers the row where the leading header becomes fully scrolled out", () => {
+        expect(shouldShowStickyFileHeader(5, 6)).toBe(false)
+        expect(shouldShowStickyFileHeader(6, 6)).toBe(true)
+        expect(shouldShowStickyFileHeader(7, 6)).toBe(true)
+    })
+
+    test("leaves the inline file header visible at the initial zero offset", () => {
+        expect(shouldShowStickyFileHeader(0, 0)).toBe(false)
+        expect(shouldShowStickyFileHeader(1, 0)).toBe(true)
+    })
+
+    test("can stay sticky from the first row when there is no leading header", () => {
+        expect(shouldShowStickyFileHeader(0, 0, true)).toBe(true)
     })
 })
 
