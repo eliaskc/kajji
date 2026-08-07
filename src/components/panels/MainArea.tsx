@@ -748,18 +748,27 @@ export function MainArea() {
     // Track current fetch to prevent stale updates
     let currentFetchKey: string | null = null
 
+    // Mode of the content currently painted; a fetch that changes the mode
+    // clears stale content and shows the loading state instead of silently
+    // revalidating underneath it.
+    type DiffContentMode = "jj" | "custom" | "structural"
+    let displayedContentMode: DiffContentMode | null = null
+    const [diffLoading, setDiffLoading] = createSignal(false)
+
     // --- Structural (Difftastic) diff engine ---
 
     let structuralAnchorTimer: ReturnType<typeof setTimeout> | undefined
 
-    // Pin the top-of-viewport source line across the textual->structural row
-    // swap, reusing the anchor machinery from view-mode switches.
-    const armStructuralScrollAnchor = () => {
-        if (useJjFormatter()) return
-        // At the very top the commit header is visible; keep it pinned
-        // instead of holding a content line stationary.
+    // Pin the top-of-viewport source line across content swaps, reusing the
+    // anchor machinery from view-mode switches. Captured while the old rows
+    // are still displayed; released shortly after the new rows paint.
+    const captureScrollAnchor = () => {
         if (scrollTop() <= 0) return
+        clearTimeout(structuralAnchorTimer)
         setModeScrollAnchor(currentScrollAnchor())
+    }
+
+    const releaseScrollAnchorSoon = () => {
         clearTimeout(structuralAnchorTimer)
         structuralAnchorTimer = setTimeout(() => {
             setModeScrollAnchor(null)
@@ -769,14 +778,16 @@ export function MainArea() {
     let structuralAbort: AbortController | null = null
     let difftMissingNotified = false
 
-    // The textual diff has already rendered; upgrade the current selection
-    // to structural rows when Difftastic finishes.
+    // Upgrade the current selection to structural rows when Difftastic
+    // finishes. `onFallback` paints the textual diff when structural results
+    // are unavailable (idempotent when the textual diff already rendered).
     const startStructuralUpgrade = (
         fetchKey: string,
         target: JjDiffTarget,
         files: FlattenedFile[],
+        onStructural: (files: FlattenedFile[]) => void,
+        onFallback: () => void,
     ) => {
-        if (!files.some(structuralCandidate)) return
         structuralAbort?.abort()
         const controller = new AbortController()
         structuralAbort = controller
@@ -800,12 +811,14 @@ export function MainArea() {
                             stderr: "difft not found on PATH — structural diffs unavailable (install difftastic)",
                         })
                     }
+                    onFallback()
                     return
                 }
                 if (outcome.kind === "failed") {
                     profileLog("structural-diff-failed", {
                         message: outcome.message,
                     })
+                    onFallback()
                     return
                 }
                 profileLog("structural-diff-complete", {
@@ -814,8 +827,7 @@ export function MainArea() {
                     structural: outcome.files.filter((file) => file.structural)
                         .length,
                 })
-                armStructuralScrollAnchor()
-                setParsedFiles(outcome.files)
+                onStructural(outcome.files)
             })
             .catch(() => {
                 // Interrupted (selection change / unmount) — nothing to do.
@@ -838,11 +850,29 @@ export function MainArea() {
             : commit
               ? `${commit.changeId}:${commit.commitId}`
               : "none"
-        const fetchKey = `${sourceKey}:all:${showJjFormatter ? "jj" : showStructural ? "structural" : "custom"}`
+        const mode: DiffContentMode = showJjFormatter
+            ? "jj"
+            : showStructural
+              ? "structural"
+              : "custom"
+        const fetchKey = `${sourceKey}:all:${mode}`
         if (fetchKey === currentFetchKey) return
         currentFetchKey = fetchKey
         structuralAbort?.abort()
         setFileLineStats(new Map())
+
+        // Mode switches are explicit user actions: clear stale content and
+        // show the loading state until the new mode's content is ready.
+        const modeSwitched = displayedContentMode !== mode
+        if (modeSwitched && displayedContentMode !== null) {
+            // Only row-based modes have a meaningful anchor to carry over.
+            if (displayedContentMode !== "jj") captureScrollAnchor()
+            batch(() => {
+                setParsedFiles([])
+                setRawDiffOutput("")
+                setDiffLoading(true)
+            })
+        }
 
         if (!displayedCommit() && !displayedBookmarkDiff()) {
             updateDisplayedSource(commit, bookmarkDiff, false)
@@ -894,8 +924,10 @@ export function MainArea() {
                         setParsedFiles([])
                         setRawDiffOutput(renderedDiff)
                         setParsedDiffError(null)
+                        setDiffLoading(false)
                         updateDisplayedSource(commit, bookmarkDiff, true)
                     })
+                    displayedContentMode = "jj"
                     const signalMs = performance.now() - renderStart
 
                     queueMicrotask(() => {
@@ -930,19 +962,52 @@ export function MainArea() {
                 profileMemory("memory:diff-fetch-complete")
 
                 const renderStart = performance.now()
-                batch(() => {
-                    setRawDiffOutput("")
-                    setParsedFiles(flattened)
-                    setParsedDiffError(null)
-                    updateDisplayedSource(commit, bookmarkDiff, true)
-                })
+                const paintTextual = () => {
+                    batch(() => {
+                        setRawDiffOutput("")
+                        setParsedFiles(flattened)
+                        setParsedDiffError(null)
+                        setDiffLoading(false)
+                        updateDisplayedSource(commit, bookmarkDiff, true)
+                    })
+                    displayedContentMode = mode
+                    releaseScrollAnchorSoon()
+                }
 
-                if (showStructural && structuralTarget) {
+                if (
+                    showStructural &&
+                    structuralTarget &&
+                    flattened.some(structuralCandidate)
+                ) {
+                    // On an explicit engine switch, hold the loading state
+                    // until structural rows are ready; during revision
+                    // navigation, paint the textual diff immediately and
+                    // upgrade in place.
+                    if (!modeSwitched) paintTextual()
                     startStructuralUpgrade(
                         fetchKey,
                         structuralTarget,
                         flattened,
+                        (structuralFiles) => {
+                            if (!modeSwitched) captureScrollAnchor()
+                            batch(() => {
+                                setRawDiffOutput("")
+                                setParsedFiles(structuralFiles)
+                                setParsedDiffError(null)
+                                setDiffLoading(false)
+                                updateDisplayedSource(
+                                    commit,
+                                    bookmarkDiff,
+                                    true,
+                                )
+                            })
+                            displayedContentMode = mode
+                            releaseScrollAnchorSoon()
+                        },
+                        paintTextual,
                     )
+                } else {
+                    paintTextual()
                 }
                 const signalMs = performance.now() - renderStart
 
@@ -957,6 +1022,7 @@ export function MainArea() {
             })
             .catch((err) => {
                 if (currentFetchKey === fetchKey) {
+                    setDiffLoading(false)
                     setParsedDiffError(err.message)
                 }
             })
@@ -1018,6 +1084,9 @@ export function MainArea() {
     createEffect(() => {
         if (useJjFormatter()) return
         if (parsedFiles().length > 0) return
+        // Keep the scroll position while a mode switch is loading so the
+        // captured anchor can restore it when the new rows paint.
+        if (diffLoading()) return
         if (headerHeight() > viewportHeight()) return
         if (scrollTop() === 0) return
         setScrollTop(0)
@@ -1585,7 +1654,10 @@ export function MainArea() {
     const hasDisplayedSource = () =>
         Boolean(displayedCommit() || displayedBookmarkDiff())
     const showEmptyState = () =>
-        hasDisplayedSource() && displayedResolved() && !hasContent()
+        hasDisplayedSource() &&
+        displayedResolved() &&
+        !hasContent() &&
+        !diffLoading()
     return (
         <Panel
             title="Detail"
@@ -1658,6 +1730,9 @@ export function MainArea() {
                                 <text fg={colors().error}>
                                     Error: {parsedDiffError()}
                                 </text>
+                            </Show>
+                            <Show when={diffLoading() && !hasContent()}>
+                                <text fg={colors().textMuted}>Loading…</text>
                             </Show>
                             <Show
                                 when={
