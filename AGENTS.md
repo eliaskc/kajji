@@ -118,6 +118,9 @@ Commands are registered with `context`, `type`, `panel`, and `visibility`. The k
 ### Dialog System (`src/context/dialog.tsx`)
 Modal stack with backdrop overlay. Dialogs push/pop from stack. Theme-aware styling.
 
+### Process Execution (`src/process/app-process.ts`, `src/commander/`)
+All child processes run through the Effect `AppProcess` service, wrapped by commander-layer services (`Jj`, `Git`, `GitHub`, `StructuralDiff`, ...) and exposed to the UI via `ApplicationClient`. Do not call `Bun.spawn` directly in app code — the service layer provides typed errors, timeouts, env merging, child reaping, and cancellation via fiber interruption (`AbortSignal` at the client edge). Tests and benchmarks may spawn directly.
+
 ### Prefix Injection (Log Parsing)
 We inject unique prefixes into `jj log` template output to reliably parse multi-line entries. See `src/commander/log.ts`.
 
