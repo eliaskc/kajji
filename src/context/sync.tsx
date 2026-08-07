@@ -628,7 +628,6 @@ export function SyncProvider(props: { children: JSX.Element }) {
                     )
                     if (request !== filesRequestId) return
                     showFiles(result)
-                    focus.setActiveContext("log.files")
                 } catch (e) {
                     if (request !== filesRequestId) return
                     setFilesError(
