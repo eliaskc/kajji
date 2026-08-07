@@ -51,8 +51,8 @@ export type KeybindConfigKey =
     | "bookmark_diff_origin"
     | "bookmark_toggle_remote"
     | "toggle_file_tree"
-    | "toggle_diff_engine"
-    | "toggle_diff_formatter"
+    | "cycle_diff_engine"
+    | "cycle_diff_engine_global"
     | "toggle_diff_style"
     | "toggle_diff_wrap"
     | "diff_scroll_left"
@@ -130,8 +130,8 @@ export const DEFAULT_KEYBINDS: KeybindConfig = {
     bookmark_diff_origin: "C",
     bookmark_toggle_remote: "R",
     toggle_file_tree: "-",
-    toggle_diff_engine: "ctrl+e",
-    toggle_diff_formatter: "-",
+    cycle_diff_engine: "-",
+    cycle_diff_engine_global: "ctrl+e",
     toggle_diff_style: "v",
     toggle_diff_wrap: "w",
     diff_scroll_left: "h,left",

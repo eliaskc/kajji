@@ -43,10 +43,12 @@ export const DiffSchema = z.object({
             "Auto-switch to split view above this terminal width (only used when layout is auto)",
         ),
     wrap: z.boolean().default(true).describe("Wrap long lines in diff view"),
-    useJjFormatter: z
-        .boolean()
-        .default(false)
-        .describe("Use jj's ui.diff-formatter output in the diff view"),
+    engine: z
+        .enum(["textual", "structural", "jj-formatter"])
+        .default("textual")
+        .describe(
+            "Diff engine: textual (built-in), structural (Difftastic, requires difft on PATH, falls back to textual), or jj-formatter (jj's ui.diff-formatter output)",
+        ),
 })
 
 export const HookCommandSchema = z
@@ -113,7 +115,7 @@ export const ConfigSchema = z
                 layout: "auto",
                 autoSwitchWidth: 120,
                 wrap: true,
-                useJjFormatter: false,
+                engine: "textual",
             })
             .describe("Diff display settings"),
 

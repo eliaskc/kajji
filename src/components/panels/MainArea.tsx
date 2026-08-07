@@ -18,7 +18,11 @@ import {
 
 import type { JjDiffTarget } from "../../commander/jj"
 import { type Commit, getRevisionId } from "../../commander/types"
-import { onConfigChange, readConfig } from "../../config"
+import {
+    type AppConfig,
+    onConfigChange,
+    readConfig,
+} from "../../config"
 import { useApplication } from "../../context/application"
 import { useCommand } from "../../context/command"
 import { useCommandLog } from "../../context/commandlog"
@@ -357,18 +361,26 @@ export function MainArea() {
         readConfig().diff.autoSwitchWidth,
     )
     const [diffWrap, setDiffWrap] = createSignal(readConfig().diff.wrap)
-    const [diffUseJjFormatter, setDiffUseJjFormatter] = createSignal(
-        readConfig().diff.useJjFormatter,
+    // Diff engine (textual / structural / jj-formatter): config default with
+    // a session override cycled by the diff-engine command.
+    const [configuredEngine, setConfiguredEngine] = createSignal(
+        readConfig().diff.engine,
     )
-    const [useJjFormatterOverride, setUseJjFormatterOverride] = createSignal<
-        boolean | null
+    const [engineOverride, setEngineOverride] = createSignal<
+        AppConfig["diff"]["engine"] | null
     >(null)
+    const diffEngineMode = createMemo(
+        () => engineOverride() ?? configuredEngine(),
+    )
+    const useJjFormatter = createMemo(
+        () => diffEngineMode() === "jj-formatter",
+    )
+    const structuralEnabled = createMemo(
+        () => diffEngineMode() === "structural",
+    )
     const [viewStyleOverride, setViewStyleOverride] =
         createSignal<DiffViewStyle | null>(null)
     const [wrapOverride, setWrapOverride] = createSignal<boolean | null>(null)
-    const useJjFormatter = createMemo(
-        () => useJjFormatterOverride() ?? diffUseJjFormatter(),
-    )
 
     const configuredViewStyle = createMemo<DiffViewStyle>(() => {
         const layout = diffLayout()
@@ -405,11 +417,6 @@ export function MainArea() {
         )
     })
     const [parsedFiles, setParsedFiles] = createSignal<FlattenedFile[]>([])
-    // Structural (Difftastic) diff engine: session-only toggle. Like the
-    // jj-formatter toggle, the engine is part of the fetch key, so flipping
-    // it refetches. The textual pipeline always renders first; structural
-    // results replace it when ready.
-    const [structuralEnabled, setStructuralEnabled] = createSignal(false)
     const [rawDiffOutput, setRawDiffOutput] = createSignal("")
     const [displayedCommit, setDisplayedCommit] = createSignal<Commit>()
     const [displayedBookmarkDiff, setDisplayedBookmarkDiff] =
@@ -1210,11 +1217,16 @@ export function MainArea() {
         clearTimeout(structuralAnchorTimer)
     })
 
-    const toggleStructuralDiff = () => {
-        // The structural view replaces the pierre textual view, so leave the
-        // jj-formatter pager when toggling it on.
-        if (useJjFormatter()) setUseJjFormatterOverride(false)
-        setStructuralEnabled((enabled) => !enabled)
+    const ENGINE_CYCLE = ["textual", "structural", "jj-formatter"] as const
+
+    const cycleDiffEngine = () => {
+        const current = diffEngineMode()
+        const next =
+            ENGINE_CYCLE[
+                (ENGINE_CYCLE.indexOf(current) + 1) % ENGINE_CYCLE.length
+            ] ?? "textual"
+        // Land back on config-following when the cycle reaches the default.
+        setEngineOverride(next === configuredEngine() ? null : next)
     }
 
     onMount(() => {
@@ -1222,8 +1234,8 @@ export function MainArea() {
             setDiffLayout(config.diff.layout)
             setDiffAutoSwitchWidth(config.diff.autoSwitchWidth)
             setDiffWrap(config.diff.wrap)
-            setDiffUseJjFormatter(config.diff.useJjFormatter)
-            setUseJjFormatterOverride(null)
+            setConfiguredEngine(config.diff.engine)
+            setEngineOverride(null)
             setViewStyleOverride(null)
             setWrapOverride(null)
         })
@@ -1549,29 +1561,22 @@ export function MainArea() {
             },
         },
         {
-            id: "global.toggle_diff_engine",
-            title: "difftastic",
-            keybind: "toggle_diff_engine",
+            id: "global.cycle_diff_engine",
+            title: "diff engine",
+            keybind: "cycle_diff_engine_global",
             context: "global",
 
             visibleIn: ["palette"] as const,
-            execute: toggleStructuralDiff,
+            execute: cycleDiffEngine,
         },
         {
-            id: "detail.toggle_jj_formatter",
-            title: "diff tool",
-            keybind: "toggle_diff_formatter",
+            id: "detail.cycle_diff_engine",
+            title: "diff engine",
+            keybind: "cycle_diff_engine",
             context: "detail",
 
-            visibleIn: ["palette", "statusBar"] as const,
-            execute: () => {
-                setUseJjFormatterOverride((enabled) => {
-                    if (enabled === null) {
-                        return !diffUseJjFormatter()
-                    }
-                    return !enabled
-                })
-            },
+            visibleIn: ["statusBar"] as const,
+            execute: cycleDiffEngine,
         },
         {
             id: "detail.prev_hunk",

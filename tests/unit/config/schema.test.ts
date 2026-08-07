@@ -9,7 +9,7 @@ describe("ConfigSchema", () => {
         expect(config.ui.syntaxTheme).toEqual({})
         expect(config.diff.layout).toBe("auto")
         expect(config.diff.autoSwitchWidth).toBe(120)
-        expect(config.diff.useJjFormatter).toBe(false)
+        expect(config.diff.engine).toBe("textual")
         expect(config.ui.showFileTree).toBe(true)
         expect(config.whatsNewDisabled).toBe(false)
         expect(config.autoUpdatesDisabled).toBe(false)
@@ -41,7 +41,7 @@ describe("ConfigSchema", () => {
         })
         expect(config.diff.layout).toBe("split")
         expect(config.diff.autoSwitchWidth).toBe(120)
-        expect(config.diff.useJjFormatter).toBe(false)
+        expect(config.diff.engine).toBe("textual")
     })
 
     test("existing config with only whatsNewDisabled still works", () => {

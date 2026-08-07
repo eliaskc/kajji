@@ -79,6 +79,31 @@ export function migrateLegacyHooks(raw: unknown): unknown {
     return config
 }
 
+/**
+ * Migrate the legacy `diff.useJjFormatter` boolean into the `diff.engine`
+ * enum. `useJjFormatter: true` maps to "jj-formatter" unless an explicit
+ * engine is already set; the legacy key is dropped either way.
+ */
+export function migrateLegacyDiffEngine(raw: unknown): unknown {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return raw
+
+    const config = raw as Record<string, unknown>
+    const diff = config.diff
+    if (!diff || typeof diff !== "object" || Array.isArray(diff)) return raw
+    const diffRecord = diff as Record<string, unknown>
+    if (!("useJjFormatter" in diffRecord)) return raw
+
+    const migratedDiff = { ...diffRecord }
+    if (
+        migratedDiff.useJjFormatter === true &&
+        migratedDiff.engine === undefined
+    ) {
+        migratedDiff.engine = "jj-formatter"
+    }
+    delete migratedDiff.useJjFormatter
+    return { ...config, diff: migratedDiff }
+}
+
 function migrateConfigFile(config: AppConfig): void {
     try {
         writeFileAtomic(getConfigPath(), JSON.stringify(config, null, "\t"))
@@ -107,7 +132,9 @@ export function readConfig(): AppConfig {
     try {
         const content = readFileSync(configPath, "utf-8")
         const raw = parseJsonc(content)
-        const migratedRaw = migrateLegacyHooks(raw ?? {})
+        const migratedRaw = migrateLegacyDiffEngine(
+            migrateLegacyHooks(raw ?? {}),
+        )
         const result = ConfigSchema.safeParse(migratedRaw)
         if (result.success) {
             cachedConfig = result.data

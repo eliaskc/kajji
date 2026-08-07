@@ -3,7 +3,10 @@ import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { parse as parseJsonc } from "jsonc-parser"
-import { migrateLegacyHooks } from "../../../src/config/config"
+import {
+    migrateLegacyDiffEngine,
+    migrateLegacyHooks,
+} from "../../../src/config/config"
 
 describe("config migration", () => {
     test("moves legacy hooks with onlyIn into matching repo config", () => {
@@ -118,5 +121,35 @@ describe("JSONC parsing", () => {
         const input = `{"whatsNewDisabled": true}`
         const result = parseJsonc(input)
         expect(result.whatsNewDisabled).toBe(true)
+    })
+})
+
+describe("legacy diff engine migration", () => {
+    test("maps useJjFormatter: true to the jj-formatter engine", () => {
+        const migrated = migrateLegacyDiffEngine({
+            diff: { layout: "auto", useJjFormatter: true },
+        })
+        expect(migrated).toEqual({
+            diff: { layout: "auto", engine: "jj-formatter" },
+        })
+    })
+
+    test("drops useJjFormatter: false without changing the engine", () => {
+        const migrated = migrateLegacyDiffEngine({
+            diff: { useJjFormatter: false, engine: "structural" },
+        })
+        expect(migrated).toEqual({ diff: { engine: "structural" } })
+    })
+
+    test("keeps an explicit engine over useJjFormatter: true", () => {
+        const migrated = migrateLegacyDiffEngine({
+            diff: { useJjFormatter: true, engine: "textual" },
+        })
+        expect(migrated).toEqual({ diff: { engine: "textual" } })
+    })
+
+    test("returns the input unchanged when there is nothing to migrate", () => {
+        const raw = { diff: { engine: "structural" } }
+        expect(migrateLegacyDiffEngine(raw)).toBe(raw)
     })
 })
