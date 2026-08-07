@@ -16,6 +16,7 @@ import {
     onMount,
 } from "solid-js"
 
+import type { JjDiffTarget } from "../../commander/jj"
 import { type Commit, getRevisionId } from "../../commander/types"
 import { onConfigChange, readConfig } from "../../config"
 import { useApplication } from "../../context/application"
@@ -32,6 +33,7 @@ import {
 } from "../../context/sync"
 import { useTheme } from "../../context/theme"
 import {
+    type DiffFile,
     type DiffPosition,
     type DiffScrollAnchor,
     type FileId,
@@ -44,6 +46,7 @@ import {
     parseDiffString,
     shouldShowStickyFileHeader,
 } from "../../diff"
+import { structuralCandidate } from "../../diff/structural/flatten"
 import type { DiffStats } from "../../diff/types"
 import { getRepoPath } from "../../repo"
 import { stripAnsi } from "../../utils/ansi"
@@ -403,6 +406,18 @@ export function MainArea() {
         )
     })
     const [parsedFiles, setParsedFiles] = createSignal<FlattenedFile[]>([])
+    // Structural (Difftastic) diff engine: session-only toggle. The textual
+    // pipeline always renders first; structural results swap in when ready.
+    const [structuralEnabled, setStructuralEnabled] = createSignal(false)
+    const [structuralResult, setStructuralResult] = createSignal<{
+        key: string
+        files: FlattenedFile[]
+    } | null>(null)
+    const [textualSource, setTextualSource] = createSignal<{
+        key: string
+        files: DiffFile[]
+        target: JjDiffTarget
+    } | null>(null)
     const [rawDiffOutput, setRawDiffOutput] = createSignal("")
     const [displayedCommit, setDisplayedCommit] = createSignal<Commit>()
     const [displayedBookmarkDiff, setDisplayedBookmarkDiff] =
@@ -444,8 +459,20 @@ export function MainArea() {
         setDisplayedCommitDetails(details)
     })
 
+    const displayFiles = createMemo(() => {
+        const structural = structuralResult()
+        if (
+            structuralEnabled() &&
+            structural &&
+            structural.key === textualSource()?.key
+        ) {
+            return structural.files
+        }
+        return parsedFiles()
+    })
+
     const orderedFiles = createMemo(() =>
-        orderFilesByPath(parsedFiles(), (file) => file.name, showTree()),
+        orderFilesByPath(displayFiles(), (file) => file.name, showTree()),
     )
 
     const repoInfo = createMemo(() => {
@@ -458,8 +485,24 @@ export function MainArea() {
         }
     })
 
+    // Dev-only indicator for the experimental structural diff engine.
+    // Remove when (if) difftastic is promoted to the default engine.
+    const showStructuralIndicator = () =>
+        Bun.env.NODE_ENV === "development" && structuralEnabled()
+
     const renderRepoInfo = () => (
-        <text fg={isFocused() ? colors().borderFocused : colors().textMuted}>
+        <text fg={isFocused() ? colors().titleTextFocused : colors().textMuted}>
+            <Show when={showStructuralIndicator()}>
+                <span
+                    style={{
+                        fg: isFocused()
+                            ? colors().titleTextMuted
+                            : colors().textMuted,
+                    }}
+                >
+                    DIFFTASTIC{" "}
+                </span>
+            </Show>
             {repoInfo().repoName}
         </text>
     )
@@ -765,6 +808,11 @@ export function MainArea() {
             : commit
               ? app.jjDiff({ revision: getRevisionId(commit) }, diffOptions)
               : Promise.resolve("")
+        const structuralTarget: JjDiffTarget | null = bookmarkDiff
+            ? { from: bookmarkDiff.from, to: bookmarkDiff.to }
+            : commit
+              ? { revision: getRevisionId(commit) }
+              : null
         const fetcher = rawDiff.then((result) =>
             showJjFormatter ? result : parseDiffString(result),
         )
@@ -788,6 +836,7 @@ export function MainArea() {
                     const renderStart = performance.now()
                     batch(() => {
                         setParsedFiles([])
+                        setTextualSource(null)
                         setRawDiffOutput(renderedDiff)
                         setParsedDiffError(null)
                         updateDisplayedSource(commit, bookmarkDiff, true)
@@ -829,6 +878,15 @@ export function MainArea() {
                 batch(() => {
                     setRawDiffOutput("")
                     setParsedFiles(flattened)
+                    setTextualSource(
+                        structuralTarget
+                            ? {
+                                  key: fetchKey,
+                                  files: parsedDiff,
+                                  target: structuralTarget,
+                              }
+                            : null,
+                    )
                     setParsedDiffError(null)
                     updateDisplayedSource(commit, bookmarkDiff, true)
                 })
@@ -1022,6 +1080,92 @@ export function MainArea() {
             scrollSyncTimer = undefined
             syncScrollMetrics()
         }, 0)
+    }
+
+    // --- Structural (Difftastic) diff engine ---
+
+    let structuralAnchorTimer: ReturnType<typeof setTimeout> | undefined
+
+    // Pin the top-of-viewport source line across the textual<->structural row
+    // swap, reusing the anchor machinery from view-mode switches.
+    const armStructuralScrollAnchor = () => {
+        if (useJjFormatter()) return
+        // At the very top the commit header is visible; keep it pinned
+        // instead of holding a content line stationary.
+        if (scrollTop() <= 0) return
+        setModeScrollAnchor(currentScrollAnchor())
+        clearTimeout(structuralAnchorTimer)
+        structuralAnchorTimer = setTimeout(() => {
+            setModeScrollAnchor(null)
+        }, 50)
+    }
+
+    let structuralAbort: AbortController | null = null
+    let difftMissingNotified = false
+
+    createEffect(() => {
+        if (!structuralEnabled()) return
+        const source = textualSource()
+        if (!source) return
+        if (structuralResult()?.key === source.key) return
+        if (!source.files.some(structuralCandidate)) return
+
+        structuralAbort?.abort()
+        const controller = new AbortController()
+        structuralAbort = controller
+        const cwd = getRepoPath()
+        const startedAt = performance.now()
+        app.structuralDiff(
+            { target: source.target, cwd, files: source.files },
+            { cwd, signal: controller.signal },
+        )
+            .then((outcome) => {
+                if (structuralAbort !== controller) return
+                if (textualSource()?.key !== source.key) return
+                if (outcome.kind === "difft-missing") {
+                    if (!difftMissingNotified) {
+                        difftMissingNotified = true
+                        commandLog.addEntry({
+                            command: "difft",
+                            success: false,
+                            exitCode: 1,
+                            stdout: "",
+                            stderr: "difft not found on PATH — structural diffs unavailable (install difftastic)",
+                        })
+                    }
+                    return
+                }
+                if (outcome.kind === "failed") {
+                    profileLog("structural-diff-failed", {
+                        message: outcome.message,
+                    })
+                    return
+                }
+                profileLog("structural-diff-complete", {
+                    ms: Math.round(performance.now() - startedAt),
+                    files: outcome.files.length,
+                    structural: outcome.files.filter((file) => file.structural)
+                        .length,
+                })
+                armStructuralScrollAnchor()
+                setStructuralResult({ key: source.key, files: outcome.files })
+            })
+            .catch(() => {
+                // Interrupted (selection change / unmount) — nothing to do.
+            })
+    })
+
+    onCleanup(() => {
+        structuralAbort?.abort()
+        clearTimeout(structuralAnchorTimer)
+    })
+
+    const toggleStructuralDiff = () => {
+        armStructuralScrollAnchor()
+        // The structural view replaces the pierre textual view, so leave the
+        // jj-formatter pager when toggling it on.
+        if (useJjFormatter()) setUseJjFormatterOverride(false)
+        setStructuralEnabled((enabled) => !enabled)
     }
 
     onMount(() => {
@@ -1354,6 +1498,15 @@ export function MainArea() {
                 if (wrapEnabled()) return
                 setScrollLeftClamped(scrollLeft() + HORIZONTAL_SCROLL_STEP)
             },
+        },
+        {
+            id: "global.toggle_diff_engine",
+            title: "difftastic",
+            keybind: "toggle_diff_engine",
+            context: "global",
+
+            visibleIn: ["palette"] as const,
+            execute: toggleStructuralDiff,
         },
         {
             id: "detail.toggle_jj_formatter",

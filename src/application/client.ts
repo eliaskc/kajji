@@ -47,7 +47,13 @@ import {
 } from "../commander/jj"
 import type { LogPageResult } from "../commander/log"
 import type { CommandObserver } from "../commander/observer"
+import {
+    StructuralDiff,
+    StructuralDiffLive,
+    type StructuralDiffRequest,
+} from "../commander/structural-diff"
 import type { Commit, FileChange } from "../commander/types"
+import type { FlattenedFile } from "../diff/parser"
 import { Hooks, HooksLive, type HooksService } from "../hooks/runner"
 import type { HookOperationId } from "../hooks/types"
 import { AppProcessLive, type ProcessError } from "../process/app-process"
@@ -86,6 +92,11 @@ interface ApplicationGitHubOperationOptions extends ApplicationReadOptions {
 interface ApplicationStackOptions extends ApplicationReadOptions {
     readonly observer?: CommandObserver
 }
+
+export type StructuralDiffOutcome =
+    | { kind: "ok"; files: FlattenedFile[] }
+    | { kind: "difft-missing" }
+    | { kind: "failed"; message: string }
 
 interface ApplicationDiffOptions extends Omit<JjDiffOptions, "sink"> {
     readonly signal?: AbortSignal
@@ -332,6 +343,10 @@ export interface ApplicationClient {
         target: JjDiffTarget,
         options: ApplicationDiffOptions,
     ) => Promise<string>
+    readonly structuralDiff: (
+        request: StructuralDiffRequest,
+        options: ApplicationReadOptions,
+    ) => Promise<StructuralDiffOutcome>
     readonly jjBookmarks: (
         options: ApplicationBookmarkReadOptions,
     ) => Promise<Bookmark[]>
@@ -461,6 +476,9 @@ export function makeApplicationClient(
     const dependencies = Layer.merge(appProcessLayer, providedHooksLayer)
     const providedJjLayer = JjLayer.pipe(Layer.provide(dependencies))
     const providedGitLayer = GitLive.pipe(Layer.provide(appProcessLayer))
+    const providedStructuralDiffLayer = StructuralDiffLive.pipe(
+        Layer.provide(appProcessLayer),
+    )
     const gitHubDependencies = Layer.merge(appProcessLayer, providedGitLayer)
     const providedGitHubLayer = GitHubLive.pipe(
         Layer.provide(gitHubDependencies),
@@ -489,6 +507,7 @@ export function makeApplicationClient(
             providedRepositoryBootstrapLayer,
             providedStackLayer,
             providedInteractiveJjLayer,
+            providedStructuralDiffLayer,
         ),
     )
     const historicalFiles = makeHistoricalFileStore()
@@ -876,6 +895,32 @@ export function makeApplicationClient(
             ),
         jjDiff: (target, options) =>
             runRead(options, (jj) => jj.diff(target, options)),
+        structuralDiff: (request, options) => {
+            if (!accepting)
+                return Promise.reject(new ApplicationClientClosedError())
+            const effect = StructuralDiff.use((structural) =>
+                structural.diff(request),
+            ).pipe(
+                Effect.map(
+                    (files): StructuralDiffOutcome => ({ kind: "ok", files }),
+                ),
+                Effect.catch((error) =>
+                    Effect.succeed<StructuralDiffOutcome>(
+                        error._tag === "ProcessSpawnError" &&
+                            error.command.executable === "difft"
+                            ? { kind: "difft-missing" }
+                            : {
+                                  kind: "failed",
+                                  message:
+                                      error._tag === "StructuralDiffError"
+                                          ? error.reason
+                                          : error._tag,
+                              },
+                    ),
+                ),
+            )
+            return runtime.runPromise(effect, { signal: options.signal })
+        },
         jjBookmarks: (options) =>
             runRead(options, (jj) => jj.bookmarks(options)),
         jjStreamBookmarks: (options, onBatch) =>

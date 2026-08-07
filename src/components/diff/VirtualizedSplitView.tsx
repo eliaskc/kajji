@@ -159,6 +159,21 @@ function flattenToSplitRows(files: FlattenedFile[]): SplitRow[] {
                         rowIndex: rowIndex++,
                     })
                 }
+            } else if (hunk.alignedRows) {
+                // Structural engine: alignment and emphasis are precomputed.
+                for (const aligned of hunk.alignedRows) {
+                    rows.push({
+                        type: "content",
+                        fileId: file.fileId,
+                        hunkId: hunk.hunkId,
+                        fileName: file.name,
+                        left: aligned.left,
+                        right: aligned.right,
+                        leftWordDiff: aligned.left?.wordDiff,
+                        rightWordDiff: aligned.right?.wordDiff,
+                        rowIndex: rowIndex++,
+                    })
+                }
             } else {
                 const alignedRows = buildAlignedRows(hunk.lines)
                 for (const aligned of alignedRows) {

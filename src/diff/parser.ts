@@ -8,6 +8,7 @@ import {
 } from "@pierre/diffs"
 import { findBinaryFiles } from "../utils/diff-binary"
 import { type FileId, type HunkId, fileId, hunkId } from "./identifiers"
+import type { WordDiffSegment } from "./word-diff"
 
 // Re-export types for convenience
 export type {
@@ -46,9 +47,9 @@ export function parseDiffString(diffString: string): DiffFile[] {
  */
 export type DiffLineType = "context" | "addition" | "deletion"
 
-const TAB_WIDTH = 4
+export const TAB_WIDTH = 4
 
-function expandTabs(value: string): string {
+export function expandTabs(value: string): string {
     if (!value.includes("\t")) return value
     let column = 0
     let result = ""
@@ -78,6 +79,18 @@ export interface DiffLine {
     newLineNumber?: number
     // Parent hunk for navigation
     hunkId: HunkId
+    // Precomputed inline emphasis segments (structural engine only).
+    // The textual engine computes word diffs positionally in the split view.
+    wordDiff?: WordDiffSegment[]
+}
+
+/**
+ * A pre-aligned side-by-side row pair. Produced by the structural engine,
+ * where alignment comes from Difftastic rather than positional pairing.
+ */
+export interface AlignedLinePair {
+    left: DiffLine | null
+    right: DiffLine | null
 }
 
 /**
@@ -91,6 +104,9 @@ export interface FlattenedHunk {
     oldLines: number
     newStart: number
     newLines: number
+    // Pre-aligned split-view rows (structural engine only). When absent the
+    // split view derives alignment positionally from `lines`.
+    alignedRows?: AlignedLinePair[]
 }
 
 /**
@@ -105,6 +121,8 @@ export interface FlattenedFile {
     additions: number
     deletions: number
     isBinary?: boolean
+    // True when hunks were produced by the structural (Difftastic) engine.
+    structural?: boolean
 }
 
 /**

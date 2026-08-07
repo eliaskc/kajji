@@ -415,6 +415,10 @@ interface DiffLineRowProps {
     highlighterReady: () => boolean
 }
 
+interface TokenWithEmphasis extends SyntaxToken {
+    emphasis?: boolean
+}
+
 function DiffLineRow(props: DiffLineRowProps) {
     const { colors, syntaxTheme } = useTheme()
 
@@ -432,25 +436,46 @@ function DiffLineRow(props: DiffLineRowProps) {
     })
 
     // Worker-based tokenization - returns immediately, re-renders when tokens arrive
-    const tokens = createMemo((): SyntaxToken[] => {
+    const tokens = createMemo((): TokenWithEmphasis[] => {
         // Track tokenVersion to re-render when worker sends new tokens
         tokenVersion()
 
         // Strip trailing newline - shiki does this internally, but plain text fallback doesn't
         const content = props.row.content.replace(/\n$/, "")
         const defaultColor = colors().text
+        const wordDiff = props.row.wordDiff
+        const emphasisType = props.row.type === "deletion" ? "removed" : "added"
 
-        // If highlighter not ready, return plain text
-        if (!props.highlighterReady()) {
-            return [{ content, color: defaultColor }]
+        if (!wordDiff) {
+            // If highlighter not ready, return plain text
+            if (!props.highlighterReady()) {
+                return [{ content, color: defaultColor }]
+            }
+
+            // Request tokenization from worker (returns cached or queues request)
+            const result = tokenizeLineSync(content, language(), syntaxTheme())
+            return result.map((t) => ({
+                content: t.content,
+                color: t.color ?? defaultColor,
+            }))
         }
 
-        // Request tokenization from worker (returns cached or queues request)
-        const result = tokenizeLineSync(content, language(), syntaxTheme())
-        return result.map((t) => ({
-            content: t.content,
-            color: t.color ?? defaultColor,
-        }))
+        // Tokenize each emphasis segment separately so syntax colors and
+        // structural emphasis backgrounds compose.
+        const result: TokenWithEmphasis[] = []
+        for (const segment of wordDiff) {
+            const segmentTokens = props.highlighterReady()
+                ? tokenizeLineSync(segment.text, language(), syntaxTheme())
+                : [{ content: segment.text, color: defaultColor }]
+            for (const token of segmentTokens) {
+                result.push({
+                    content: token.content,
+                    color: token.color ?? defaultColor,
+                    emphasis: segment.type === emphasisType,
+                })
+            }
+        }
+        return result
     })
 
     const lineNum = createMemo(() => {
@@ -499,7 +524,20 @@ function DiffLineRow(props: DiffLineRowProps) {
                     )}
                 >
                     {(token) => (
-                        <span style={{ fg: token.color }}>{token.content}</span>
+                        <span
+                            style={{
+                                fg: token.color,
+                                bg: token.emphasis
+                                    ? props.row.type === "deletion"
+                                        ? colors().diff
+                                              .deletionEmphasisBackground
+                                        : colors().diff
+                                              .additionEmphasisBackground
+                                    : undefined,
+                            }}
+                        >
+                            {token.content}
+                        </span>
                     )}
                 </For>
             </text>
