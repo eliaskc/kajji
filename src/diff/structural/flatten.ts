@@ -1,7 +1,6 @@
-import { type HunkId, fileId } from "../identifiers"
+import type { HunkId } from "../identifiers"
 import {
     type AlignedLinePair,
-    type DiffFile,
     type DiffLine,
     type FlattenedFile,
     type FlattenedHunk,
@@ -15,7 +14,9 @@ import type { DifftChange, DifftSide, StructuralFileResult } from "./difft-json"
 const CONTEXT_ROWS = 3
 
 /** Files that can meaningfully go through the structural engine. */
-export function structuralCandidate(file: DiffFile): boolean {
+export function structuralCandidate(
+    file: Pick<FlattenedFile, "isBinary" | "type">,
+): boolean {
     return !file.isBinary && file.type !== "new" && file.type !== "deleted"
 }
 
@@ -149,7 +150,7 @@ function makeChangedLine(
  * Difftastic's alignment) so views stay dumb consumers.
  */
 export function flattenStructuralFile(
-    file: DiffFile,
+    file: FlattenedFile,
     oldContent: string,
     newContent: string,
     result: StructuralFileResult,
@@ -216,7 +217,7 @@ export function flattenStructuralFile(
         }
     }
 
-    const fid = fileId(file)
+    const fid = file.fileId
     const hunks: FlattenedHunk[] = mergedRanges.map((range) => {
         const pairs = aligned.slice(range.start, range.end + 1)
         const presentOld = pairs.flatMap(([line]) =>
@@ -325,24 +326,11 @@ export function flattenStructuralFile(
 
     // Keep the textual +/- stats: they arrive free, users can reconcile
     // them, and structural "stats" would be an invented metric.
-    let additions = 0
-    let deletions = 0
-    for (const hunk of file.hunks) {
-        additions += hunk.additionLines
-        deletions += hunk.deletionLines
-    }
-
     return {
         kind: "structural",
         file: {
-            fileId: fid,
-            name: file.name,
-            prevName: file.prevName,
-            type: file.type,
+            ...file,
             hunks,
-            additions,
-            deletions,
-            isBinary: file.isBinary,
             structural: true,
         },
     }

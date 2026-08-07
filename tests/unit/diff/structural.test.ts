@@ -1,10 +1,27 @@
 import { describe, expect, test } from "bun:test"
-import type { DiffFile } from "../../../src/diff"
+import type { FlattenedFile } from "../../../src/diff"
 import type { StructuralFileResult } from "../../../src/diff/structural/difft-json"
 import {
     type StructuralFlattenResult,
     flattenStructuralFile,
 } from "../../../src/diff/structural/flatten"
+
+
+function fakeTextualFile(
+    name: string,
+    type: string,
+    additions: number,
+    deletions: number,
+): FlattenedFile {
+    return {
+        fileId: name,
+        name,
+        type,
+        hunks: [],
+        additions,
+        deletions,
+    } as unknown as FlattenedFile
+}
 
 function structuralFileOf(result: StructuralFlattenResult) {
     if (result.kind !== "structural") {
@@ -59,11 +76,7 @@ describe("structural flattener", () => {
                 ],
             ],
         }
-        const file = {
-            name: "client.ts",
-            type: "change",
-            hunks: [{ additionLines: 2, deletionLines: 2 }],
-        } as DiffFile
+        const file = fakeTextualFile("client.ts", "change", 2, 2)
 
         const flattened = structuralFileOf(
             flattenStructuralFile(
@@ -110,11 +123,7 @@ describe("structural flattener", () => {
     })
 
     test("does not emphasize one-sided additions", () => {
-        const file = {
-            name: "added.ts",
-            type: "change",
-            hunks: [{ additionLines: 1, deletionLines: 0 }],
-        } as DiffFile
+        const file = fakeTextualFile("added.ts", "change", 1, 0)
         const content = "const added = true"
 
         const flattened = structuralFileOf(
@@ -151,11 +160,7 @@ describe("structural flattener", () => {
             "const wordDiff = props.row.wordDiff",
             "const emphasisType = added",
         ]
-        const file = {
-            name: "filled-alignment.ts",
-            type: "change",
-            hunks: [{ additionLines: 2, deletionLines: 2 }],
-        } as DiffFile
+        const file = fakeTextualFile("filled-alignment.ts", "change", 2, 2)
 
         const flattened = structuralFileOf(
             flattenStructuralFile(
@@ -230,11 +235,7 @@ describe("structural flattener", () => {
             "`",
         ]
         const newLines = ["const sql = `", "  id TEXT,", "  channel TEXT,", "`"]
-        const file = {
-            name: "atom.ts",
-            type: "change",
-            hunks: [{ additionLines: 1, deletionLines: 1 }],
-        } as DiffFile
+        const file = fakeTextualFile("atom.ts", "change", 1, 1)
 
         const changesFor = (text: string) => [
             { start: 0, end: text.length, content: text },
@@ -286,11 +287,7 @@ describe("structural flattener", () => {
     })
 
     test("reports formatting-only files instead of hiding them", () => {
-        const file = {
-            name: "format.ts",
-            type: "change",
-            hunks: [{ additionLines: 3, deletionLines: 1 }],
-        } as DiffFile
+        const file = fakeTextualFile("format.ts", "change", 3, 1)
 
         const flattened = flattenStructuralFile(
             file,
@@ -304,11 +301,7 @@ describe("structural flattener", () => {
     })
 
     test("falls back to textual when alignment data is missing", () => {
-        const file = {
-            name: "created.ts",
-            type: "new",
-            hunks: [{ additionLines: 1, deletionLines: 0 }],
-        } as DiffFile
+        const file = fakeTextualFile("created.ts", "new", 1, 0)
 
         const flattened = flattenStructuralFile(file, "", "const a = 1\n", {
             language: "TypeScript",
@@ -321,11 +314,7 @@ describe("structural flattener", () => {
     test("expands tabs consistently across emphasis segments", () => {
         const oldRaw = "\tconst a = old"
         const newRaw = "\tconst a = updated"
-        const file = {
-            name: "tabs.ts",
-            type: "change",
-            hunks: [{ additionLines: 1, deletionLines: 1 }],
-        } as DiffFile
+        const file = fakeTextualFile("tabs.ts", "change", 1, 1)
 
         const oldStart = oldRaw.indexOf("old")
         const newStart = newRaw.indexOf("updated")

@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rename, rm, stat, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { Context, Effect, Layer, Schema } from "effect"
-import { type DiffFile, type FlattenedFile, flattenFile } from "../diff/parser"
+import type { FlattenedFile } from "../diff/parser"
 import type { DifftFileResult } from "../diff/structural/difft-json"
 import { difftOutputSchema } from "../diff/structural/difft-json"
 import {
@@ -22,8 +22,9 @@ export class StructuralDiffError extends Schema.TaggedErrorClass<StructuralDiffE
 export interface StructuralDiffRequest {
     readonly target: JjDiffTarget
     readonly cwd: string
-    /** Files from the textual parse of the same revision. */
-    readonly files: readonly DiffFile[]
+    /** Textual (flattened) files of the same revision; also the per-file
+     * fallback when a file cannot be represented structurally. */
+    readonly files: readonly FlattenedFile[]
 }
 
 export interface StructuralDiffService {
@@ -61,7 +62,7 @@ async function exists(path: string): Promise<boolean> {
  */
 async function normalizeRenames(
     left: string,
-    files: readonly DiffFile[],
+    files: readonly FlattenedFile[],
 ): Promise<void> {
     for (const file of files) {
         if (!file.prevName || file.prevName === file.name) continue
@@ -78,7 +79,7 @@ async function normalizeRenames(
 }
 
 async function buildFiles(
-    files: readonly DiffFile[],
+    files: readonly FlattenedFile[],
     results: readonly DifftFileResult[],
     left: string,
     right: string,
@@ -95,7 +96,7 @@ async function buildFiles(
             ) {
                 // Includes formatting-only files (status "unchanged"): they
                 // stay visible as textual diffs rather than being hidden.
-                return flattenFile(file)
+                return file
             }
             try {
                 const [oldContent, newContent] = await Promise.all([
@@ -110,11 +111,11 @@ async function buildFiles(
                 )
                 return flattened.kind === "structural"
                     ? flattened.file
-                    : flattenFile(file)
+                    : file
             } catch {
                 // Tree contents unavailable for this file; keep the
                 // textual rendering.
-                return flattenFile(file)
+                return file
             }
         }),
     )

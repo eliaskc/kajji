@@ -14,6 +14,7 @@ import {
     createSignal,
     onCleanup,
     onMount,
+    untrack,
 } from "solid-js"
 
 import type { JjDiffTarget } from "../../commander/jj"
@@ -33,7 +34,6 @@ import {
 } from "../../context/sync"
 import { useTheme } from "../../context/theme"
 import {
-    type DiffFile,
     type DiffPosition,
     type DiffScrollAnchor,
     type FileId,
@@ -415,7 +415,6 @@ export function MainArea() {
     } | null>(null)
     const [textualSource, setTextualSource] = createSignal<{
         key: string
-        files: DiffFile[]
         target: JjDiffTarget
     } | null>(null)
     const [rawDiffOutput, setRawDiffOutput] = createSignal("")
@@ -880,11 +879,7 @@ export function MainArea() {
                     setParsedFiles(flattened)
                     setTextualSource(
                         structuralTarget
-                            ? {
-                                  key: fetchKey,
-                                  files: parsedDiff,
-                                  target: structuralTarget,
-                              }
+                            ? { key: fetchKey, target: structuralTarget }
                             : null,
                     )
                     setParsedDiffError(null)
@@ -1108,7 +1103,10 @@ export function MainArea() {
         const source = textualSource()
         if (!source) return
         if (structuralResult()?.key === source.key) return
-        if (!source.files.some(structuralCandidate)) return
+        // Untracked read: parsedFiles is set in the same batch as
+        // textualSource, so keying on the source is sufficient.
+        const files = untrack(parsedFiles)
+        if (!files.some(structuralCandidate)) return
 
         structuralAbort?.abort()
         const controller = new AbortController()
@@ -1116,7 +1114,7 @@ export function MainArea() {
         const cwd = getRepoPath()
         const startedAt = performance.now()
         app.structuralDiff(
-            { target: source.target, cwd, files: source.files },
+            { target: source.target, cwd, files },
             { cwd, signal: controller.signal },
         )
             .then((outcome) => {
