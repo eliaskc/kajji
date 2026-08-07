@@ -138,10 +138,10 @@ describe("getFileScrollTailHeight", () => {
 })
 
 describe("shouldShowStickyFileHeader", () => {
-    test("covers the row where the leading header becomes fully scrolled out", () => {
-        expect(shouldShowStickyFileHeader(5, 6)).toBe(false)
+    test("covers the final leading-header row before diff content reaches the top", () => {
+        expect(shouldShowStickyFileHeader(4, 6)).toBe(false)
+        expect(shouldShowStickyFileHeader(5, 6)).toBe(true)
         expect(shouldShowStickyFileHeader(6, 6)).toBe(true)
-        expect(shouldShowStickyFileHeader(7, 6)).toBe(true)
     })
 
     test("leaves the inline file header visible at the initial zero offset", () => {
@@ -149,8 +149,8 @@ describe("shouldShowStickyFileHeader", () => {
         expect(shouldShowStickyFileHeader(1, 0)).toBe(true)
     })
 
-    test("can stay sticky from the first row when there is no leading header", () => {
-        expect(shouldShowStickyFileHeader(0, 0, true)).toBe(true)
+    test("does not cover the inline header when content cannot scroll", () => {
+        expect(shouldShowStickyFileHeader(0, 0)).toBe(false)
     })
 })
 

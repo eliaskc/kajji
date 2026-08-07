@@ -1815,7 +1815,6 @@ export function MainArea() {
                             shouldShowStickyFileHeader(
                                 scrollTop(),
                                 headerHeight(),
-                                viewMode() === "files",
                             )
                                 ? currentFile()
                                 : undefined

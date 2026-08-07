@@ -149,11 +149,8 @@ export interface ViewportState {
 export function shouldShowStickyFileHeader(
     scrollTop: number,
     leadingContentHeight: number,
-    stickyFromStart = false,
 ): boolean {
-    return (
-        stickyFromStart || (scrollTop > 0 && scrollTop >= leadingContentHeight)
-    )
+    return scrollTop > 0 && scrollTop + 1 >= leadingContentHeight
 }
 
 export interface DiffPosition {
