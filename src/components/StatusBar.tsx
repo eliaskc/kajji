@@ -10,7 +10,7 @@ import { getCurrentVersion } from "../utils/update"
 export function StatusBar() {
     const command = useCommand()
     const status = useStatus()
-    const { viewMode } = useSync()
+    const { viewMode, visualMode } = useSync()
     const update = useUpdate()
     const { colors, style } = useTheme()
     const [animationTick, setAnimationTick] = createSignal(0)
@@ -115,7 +115,7 @@ export function StatusBar() {
                             <box
                                 flexShrink={0}
                                 backgroundColor={
-                                    isDiffMode()
+                                    isDiffMode() || visualMode()
                                         ? colors().titleBarFocused
                                         : undefined
                                 }
@@ -123,12 +123,16 @@ export function StatusBar() {
                                 <text
                                     wrapMode="none"
                                     fg={
-                                        isDiffMode()
+                                        isDiffMode() || visualMode()
                                             ? colors().titleTextFocused
                                             : colors().textMuted
                                     }
                                 >
-                                    {isDiffMode() ? " DIFF " : " NORMAL"}
+                                    {isDiffMode()
+                                        ? " DIFF "
+                                        : visualMode()
+                                          ? " VISUAL "
+                                          : " NORMAL"}
                                 </text>
                             </box>
                             <box width={1} />

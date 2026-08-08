@@ -18,11 +18,7 @@ import {
 
 import type { JjDiffTarget } from "../../commander/jj"
 import { type Commit, getRevisionId } from "../../commander/types"
-import {
-    type AppConfig,
-    onConfigChange,
-    readConfig,
-} from "../../config"
+import { type AppConfig, onConfigChange, readConfig } from "../../config"
 import { useApplication } from "../../context/application"
 import { useCommand } from "../../context/command"
 import { useCommandLog } from "../../context/commandlog"
@@ -60,11 +56,22 @@ import { truncatePathMiddle } from "../../utils/path-truncate"
 import { AnsiText } from "../AnsiText"
 import { EmptyDiffState } from "../EmptyDiffState"
 import { Panel } from "../Panel"
-import { BookmarkDiffHeader, stripEmailAndDate } from "../RevisionHeader"
+import {
+    BookmarkDiffHeader,
+    DiffStatsSummary,
+    RevisionRangeHeader,
+    stripEmail,
+} from "../RevisionHeader"
 import { VirtualizedSplitView, VirtualizedUnifiedView } from "../diff"
 import { DiffFileHeader } from "../diff/DiffFileHeader"
 
 type DiffViewStyle = "unified" | "split"
+
+type MultiDiffView = {
+    revset: string
+    commits: Commit[]
+    totalCount: number
+}
 
 import { profileLog, profileMemory } from "../../utils/profiler"
 
@@ -207,26 +214,7 @@ function FileStats(props: { stats: DiffStats; maxWidth: number }) {
                     )
                 }}
             </For>
-            <text>
-                <span style={{ fg: colors().text }}>
-                    {s().totalFiles} file{s().totalFiles !== 1 ? "s" : ""}{" "}
-                    changed
-                </span>
-                <Show when={s().totalInsertions > 0}>
-                    <span style={{ fg: colors().text }}>{", "}</span>
-                    <span style={{ fg: colors().success }}>
-                        {s().totalInsertions} insertion
-                        {s().totalInsertions !== 1 ? "s" : ""}(+)
-                    </span>
-                </Show>
-                <Show when={s().totalDeletions > 0}>
-                    <span style={{ fg: colors().text }}>{", "}</span>
-                    <span style={{ fg: colors().error }}>
-                        {s().totalDeletions} deletion
-                        {s().totalDeletions !== 1 ? "s" : ""}(-)
-                    </span>
-                </Show>
-            </text>
+            <DiffStatsSummary stats={s()} />
             <text fg={colors().textMuted}>
                 {"─".repeat(props.maxWidth + 2)}
             </text>
@@ -250,11 +238,7 @@ function CommitHeader(props: {
     })
 
     const cleanRefLine = () =>
-        stripEmailAndDate(
-            props.commit.refLine,
-            props.commit.authorEmail,
-            props.commit.timestamp,
-        )
+        stripEmail(props.commit.refLine, props.commit.authorEmail)
 
     return (
         <box flexDirection="column" flexShrink={0}>
@@ -263,12 +247,6 @@ function CommitHeader(props: {
                 <span style={{ fg: colors().textMuted }}>{"Author: "}</span>
                 <span style={{ fg: colors().secondary }}>
                     {`${props.commit.author} <${props.commit.authorEmail}>`}
-                </span>
-            </text>
-            <text>
-                <span style={{ fg: colors().textMuted }}>{"Date:   "}</span>
-                <span style={{ fg: colors().secondary }}>
-                    {props.commit.timestamp}
                 </span>
             </text>
             <text> </text>
@@ -322,7 +300,21 @@ export function MainArea() {
         refresh,
         flatFiles,
         selectedFile,
+        multiSelectedCommits,
+        multiSelectionRevsetIds,
     } = useSync()
+
+    // Takes over the detail panel while two or more revisions are marked.
+    const multiDiff = createMemo<MultiDiffView | null>(() => {
+        const marked = multiSelectedCommits()
+        if (marked.length < 2) return null
+        const revsetIds = multiSelectionRevsetIds()
+        return {
+            revset: revsetIds.join(" | "),
+            commits: marked,
+            totalCount: revsetIds.length,
+        }
+    })
     const layout = useLayout()
     const { mainAreaWidth, terminalWidth } = layout
     const effectiveMainAreaWidth = () => {
@@ -372,9 +364,7 @@ export function MainArea() {
     const diffEngineMode = createMemo(
         () => engineOverride() ?? configuredEngine(),
     )
-    const useJjFormatter = createMemo(
-        () => diffEngineMode() === "jj-formatter",
-    )
+    const useJjFormatter = createMemo(() => diffEngineMode() === "jj-formatter")
     const structuralEnabled = createMemo(
         () => diffEngineMode() === "structural",
     )
@@ -421,6 +411,8 @@ export function MainArea() {
     const [displayedCommit, setDisplayedCommit] = createSignal<Commit>()
     const [displayedBookmarkDiff, setDisplayedBookmarkDiff] =
         createSignal<BookmarkDiffView | null>(null)
+    const [displayedMultiDiff, setDisplayedMultiDiff] =
+        createSignal<MultiDiffView | null>(null)
     const [displayedCommitDetails, setDisplayedCommitDetails] =
         createSignal<CommitDetails | null>(null)
     const [displayedResolved, setDisplayedResolved] = createSignal(false)
@@ -438,10 +430,12 @@ export function MainArea() {
     const updateDisplayedSource = (
         commit: Commit | undefined,
         bookmarkDiff: BookmarkDiffView | null,
+        multi: MultiDiffView | null,
         resolved: boolean,
     ) => {
         setDisplayedCommit(commit)
         setDisplayedBookmarkDiff(bookmarkDiff)
+        setDisplayedMultiDiff(multi)
         setDisplayedResolved(resolved)
         const details = commitDetails()
         setDisplayedCommitDetails(
@@ -845,18 +839,21 @@ export function MainArea() {
     createEffect(() => {
         const commit = activeCommit()
         const bookmarkDiff = activeBookmarkDiff()
+        const multi = bookmarkDiff ? null : multiDiff()
         viewMode()
         const showJjFormatter = useJjFormatter()
         const showStructural = structuralEnabled() && !showJjFormatter
-        if (!commit && !bookmarkDiff) return
+        if (!commit && !bookmarkDiff && !multi) return
 
         const paths: string[] | undefined = undefined
 
         const sourceKey = bookmarkDiff
             ? `${bookmarkDiff.from}..${bookmarkDiff.to}`
-            : commit
-              ? `${commit.changeId}:${commit.commitId}`
-              : "none"
+            : multi
+              ? `multi:${multi.revset}`
+              : commit
+                ? `${commit.changeId}:${commit.commitId}`
+                : "none"
         const mode: DiffContentMode = showJjFormatter
             ? "jj"
             : showStructural
@@ -881,8 +878,12 @@ export function MainArea() {
             })
         }
 
-        if (!displayedCommit() && !displayedBookmarkDiff()) {
-            updateDisplayedSource(commit, bookmarkDiff, false)
+        if (
+            !displayedCommit() &&
+            !displayedBookmarkDiff() &&
+            !displayedMultiDiff()
+        ) {
+            updateDisplayedSource(commit, bookmarkDiff, multi, false)
         }
         setParsedDiffError(null)
 
@@ -898,14 +899,18 @@ export function MainArea() {
                   { from: bookmarkDiff.from, to: bookmarkDiff.to },
                   diffOptions,
               )
-            : commit
-              ? app.jjDiff({ revision: getRevisionId(commit) }, diffOptions)
-              : Promise.resolve("")
+            : multi
+              ? app.jjDiff({ revision: multi.revset }, diffOptions)
+              : commit
+                ? app.jjDiff({ revision: getRevisionId(commit) }, diffOptions)
+                : Promise.resolve("")
         const structuralTarget: JjDiffTarget | null = bookmarkDiff
             ? { from: bookmarkDiff.from, to: bookmarkDiff.to }
-            : commit
-              ? { revision: getRevisionId(commit) }
-              : null
+            : multi
+              ? { revision: multi.revset }
+              : commit
+                ? { revision: getRevisionId(commit) }
+                : null
         const fetcher = rawDiff.then((result) =>
             showJjFormatter ? result : parseDiffString(result),
         )
@@ -932,7 +937,7 @@ export function MainArea() {
                         setRawDiffOutput(renderedDiff)
                         setParsedDiffError(null)
                         setDiffLoading(false)
-                        updateDisplayedSource(commit, bookmarkDiff, true)
+                        updateDisplayedSource(commit, bookmarkDiff, multi, true)
                     })
                     displayedContentMode = "jj"
                     const signalMs = performance.now() - renderStart
@@ -975,7 +980,7 @@ export function MainArea() {
                         setParsedFiles(flattened)
                         setParsedDiffError(null)
                         setDiffLoading(false)
-                        updateDisplayedSource(commit, bookmarkDiff, true)
+                        updateDisplayedSource(commit, bookmarkDiff, multi, true)
                     })
                     displayedContentMode = mode
                     releaseScrollAnchorSoon()
@@ -1005,6 +1010,7 @@ export function MainArea() {
                                 updateDisplayedSource(
                                     commit,
                                     bookmarkDiff,
+                                    multi,
                                     true,
                                 )
                             })
@@ -1028,9 +1034,22 @@ export function MainArea() {
                 })
             })
             .catch((err) => {
-                if (currentFetchKey === fetchKey) {
-                    setDiffLoading(false)
-                    setParsedDiffError(err.message)
+                if (currentFetchKey !== fetchKey) return
+                setDiffLoading(false)
+                setParsedDiffError(err.message)
+                if (multi) {
+                    // jj refuses to diff revsets with gaps; clear the stale
+                    // diff so the error isn't shown above unrelated content.
+                    batch(() => {
+                        setParsedFiles([])
+                        setRawDiffOutput("")
+                        updateDisplayedSource(
+                            commit,
+                            bookmarkDiff,
+                            multi,
+                            false,
+                        )
+                    })
                 }
             })
     })
@@ -1067,9 +1086,12 @@ export function MainArea() {
     createEffect(() => {
         const commit = displayedCommit()
         const bookmarkDiff = displayedBookmarkDiff()
+        const multi = displayedMultiDiff()
         const nextId = bookmarkDiff
             ? `${bookmarkDiff.from}..${bookmarkDiff.to}`
-            : commit?.changeId
+            : multi
+              ? `multi:${multi.revset}`
+              : commit?.changeId
         if (nextId && nextId !== currentCommitId()) {
             hunkNavigationTarget = null
             setFileNavigationTarget(null)
@@ -1112,6 +1134,8 @@ export function MainArea() {
     const displayedDiffSourceKey = () => {
         const bookmarkDiff = displayedBookmarkDiff()
         if (bookmarkDiff) return `${bookmarkDiff.from}..${bookmarkDiff.to}`
+        const multi = displayedMultiDiff()
+        if (multi) return `multi:${multi.revset}`
         const commit = displayedCommit()
         return commit ? `${commit.changeId}:${commit.commitId}` : null
     }
@@ -1657,7 +1681,11 @@ export function MainArea() {
             ? stripAnsi(rawDiffOutput()).trim().length > 0
             : parsedFiles().length > 0
     const hasDisplayedSource = () =>
-        Boolean(displayedCommit() || displayedBookmarkDiff())
+        Boolean(
+            displayedCommit() ||
+                displayedBookmarkDiff() ||
+                displayedMultiDiff(),
+        )
     const showEmptyState = () =>
         hasDisplayedSource() &&
         displayedResolved() &&
@@ -1713,8 +1741,31 @@ export function MainArea() {
                                 </Show>
                                 <Show
                                     when={
+                                        viewMode() !== "files"
+                                            ? displayedMultiDiff()
+                                            : undefined
+                                    }
+                                >
+                                    {(multi: () => MultiDiffView) => (
+                                        <RevisionRangeHeader
+                                            commits={multi().commits}
+                                            elidedCount={
+                                                multi().totalCount -
+                                                multi().commits.length
+                                            }
+                                            stats={diffStats()}
+                                            maxWidth={Math.max(
+                                                1,
+                                                viewportWidth(),
+                                            )}
+                                        />
+                                    )}
+                                </Show>
+                                <Show
+                                    when={
                                         viewMode() !== "files" &&
                                         !displayedBookmarkDiff() &&
+                                        !displayedMultiDiff() &&
                                         displayedCommit()
                                     }
                                 >

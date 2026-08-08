@@ -183,6 +183,16 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
         selectedIndex,
         setSelectedIndex,
         selectedCommit,
+        multiSelection,
+        effectiveMultiSelection,
+        multiSelectedCommits,
+        multiSelectionRevsetIds,
+        toggleMultiSelection,
+        clearMultiSelection,
+        visualMode,
+        startVisualSelection,
+        commitVisualSelection,
+        cancelVisualSelection,
         loading,
         error,
         selectNext,
@@ -465,6 +475,14 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
             setAppliedFilterGroups(groups)
             setAppliedFilterNoMatch(false)
             setRevsetFilter(selectedRevset)
+            // Reload the main log so multi-select operates on the filtered
+            // revisions.
+            await loadLog()
+            const selectedId = selectedFilterCommitId()
+            const index = commits().findIndex(
+                (commit) => commit.changeId === selectedId,
+            )
+            if (index >= 0) setSelectedIndex(index)
         } else if (query) {
             setAppliedFilterGroups([])
             setAppliedFilterNoMatch(true)
@@ -1200,9 +1218,26 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
         if (entry) selectGroupedCommit(entry.group, entry.commit, true)
     }
 
-    const selectNextCommit = () => {
+    // In filter results, visual mode moves the cursor over the main log and
+    // keeps the filter cursor in sync for rendering.
+    const selectNextCommit = async () => {
         if (showFilterResults()) {
-            selectGroupedCommitByOffset(1)
+            if (visualMode()) {
+                const previousIndex = selectedIndex()
+                selectNext()
+                if (
+                    selectedIndex() === previousIndex &&
+                    logHasMore() &&
+                    !logLoadingMore()
+                ) {
+                    await loadMoreLog()
+                    selectNext()
+                }
+                const commit = commits()[selectedIndex()]
+                if (commit) setSelectedFilterCommitId(commit.changeId)
+            } else {
+                selectGroupedCommitByOffset(1)
+            }
             return
         }
         if (logLoadingMore()) return
@@ -1217,16 +1252,36 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
 
     const selectPrevCommit = () => {
         if (showFilterResults()) {
-            selectGroupedCommitByOffset(-1)
+            if (visualMode()) {
+                selectPrev()
+                const commit = commits()[selectedIndex()]
+                if (commit) setSelectedFilterCommitId(commit.changeId)
+            } else {
+                selectGroupedCommitByOffset(-1)
+            }
             return
         }
         setLogSelectionSource("keyboard")
         selectPrev()
     }
 
+    // Returns false when the filtered commit is not in the loaded log.
+    const syncFilteredRevisionCursor = () => {
+        if (!showFilterResults()) return true
+        const selectedId = selectedFilterCommitId()
+        const index = commits().findIndex(
+            (commit) => commit.changeId === selectedId,
+        )
+        if (index < 0) return false
+        setSelectedIndex(index)
+        return true
+    }
+
     const selectedOperation = () => opLogEntries()[opLogSelectedIndex()]
 
     const selectedLogCommit = () => {
+        // Single-revision actions stand down while a multi-selection is active.
+        if (multiSelectedCommits().length >= 2) return undefined
         if (showFilterResults()) {
             return groupedFilterCommits().find(
                 (entry) => entry.commit.changeId === selectedFilterCommitId(),
@@ -1294,6 +1349,38 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
             panel: "log",
             visibleIn: ["palette"] as const,
             execute: selectPrevCommit,
+        },
+        {
+            id: "log.revisions.toggle_select",
+            title: "select",
+            keybind: "multiselect_toggle",
+            context: "log.revisions",
+
+            panel: "log",
+            visibleIn: ["palette", "statusBar"] as const,
+            execute: () => {
+                if (!syncFilteredRevisionCursor()) return
+                const commit = selectedCommit()
+                if (!commit) return
+                toggleMultiSelection(commit.changeId)
+            },
+        },
+        {
+            id: "log.revisions.visual_select",
+            title: visualMode() ? "exit visual" : "visual",
+            keybind: "multiselect_visual",
+            context: "log.revisions",
+
+            panel: "log",
+            visibleIn: ["palette", "statusBar"] as const,
+            execute: () => {
+                if (visualMode()) {
+                    commitVisualSelection()
+                    return
+                }
+                if (!syncFilteredRevisionCursor()) return
+                startVisualSelection()
+            },
         },
         {
             id: "log.revisions.view_files",
@@ -2137,8 +2224,21 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
 
             panel: "log",
             visibleIn: [] as const,
-            execute: () =>
-                isFilesView() ? exitFilesView() : handleClearFilter(),
+            execute: () => {
+                if (isFilesView()) {
+                    exitFilesView()
+                    return
+                }
+                if (visualMode()) {
+                    cancelVisualSelection()
+                    return
+                }
+                if (multiSelection().size > 0) {
+                    clearMultiSelection()
+                    return
+                }
+                handleClearFilter()
+            },
         },
         {
             id: "log.revisions.bookmark_diff_origin",
@@ -2344,6 +2444,19 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
             isLogSelectionFocused()
                 ? colors().selectionBackground
                 : inactiveSelectionBackground()
+        const marked = () =>
+            effectiveMultiSelection().has(props.commit.changeId)
+        const markedBackground = () =>
+            blendColors(selectionBackground(), colors().background, 0.45)
+        const markedSelectionBackground = () =>
+            blendColors(colors().text, selectionBackground(), 0.15)
+        const rowBackground = () => {
+            if (props.selected())
+                return marked()
+                    ? markedSelectionBackground()
+                    : selectionBackground()
+            return marked() ? markedBackground() : undefined
+        }
         return (
             <box onMouseDown={handleMouseDown}>
                 <For each={props.commit.displayLines}>
@@ -2357,11 +2470,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                                 : undefined
                         return (
                             <box
-                                backgroundColor={
-                                    props.selected()
-                                        ? selectionBackground()
-                                        : undefined
-                                }
+                                backgroundColor={rowBackground()}
                                 overflow="hidden"
                                 flexDirection="row"
                             >
@@ -2685,6 +2794,8 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
     }
 
     const filesTitle = () => {
+        const selectionCount = multiSelectionRevsetIds().length
+        if (selectionCount >= 2) return `Files (${selectionCount} revisions)`
         const commit = selectedLogCommit()
         return commit ? `Files (${commit.changeId.slice(0, 8)})` : "Files"
     }

@@ -22,6 +22,8 @@ export type KeybindConfigKey =
     | "refresh"
     | "enter"
     | "escape"
+    | "multiselect_toggle"
+    | "multiselect_visual"
     | "prev_tab"
     | "next_tab"
     | "jj_new"
@@ -101,6 +103,8 @@ export const DEFAULT_KEYBINDS: KeybindConfig = {
     refresh: "ctrl+r",
     enter: "enter",
     escape: "escape",
+    multiselect_toggle: "space",
+    multiselect_visual: "v",
     prev_tab: "[,h,left",
     next_tab: "],l,right",
     jj_new: "n",

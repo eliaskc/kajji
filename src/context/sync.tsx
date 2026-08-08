@@ -13,7 +13,9 @@ import {
 } from "solid-js"
 import type { Bookmark } from "../commander/bookmarks"
 import type { GitHubPullRequestSummary } from "../commander/github"
+import type { JjDiffTarget } from "../commander/jj"
 import { getRepoPath } from "../repo"
+import { connectedRevisionRange } from "../utils/revision-range"
 import { addRecentRepo } from "../utils/state"
 import { getVisibleBookmarks } from "./sync-bookmarks"
 
@@ -62,6 +64,16 @@ interface SyncContextValue {
     selectLast: () => void
     selectedCommit: () => Commit | undefined
     activeCommit: () => Commit | undefined
+    multiSelection: () => ReadonlySet<string>
+    effectiveMultiSelection: () => ReadonlySet<string>
+    multiSelectedCommits: () => Commit[]
+    multiSelectionRevsetIds: () => string[]
+    toggleMultiSelection: (changeId: string) => void
+    clearMultiSelection: () => void
+    visualMode: () => boolean
+    startVisualSelection: () => void
+    commitVisualSelection: () => void
+    cancelVisualSelection: () => void
     activeBookmarkDiff: () => BookmarkDiffView | null
     commitDetails: () => CommitDetails | null
     loadLog: (options?: RefreshOptions) => Promise<void>
@@ -367,7 +379,7 @@ export function SyncProvider(props: { children: JSX.Element }) {
 
             if (viewMode() === "files") {
                 const diff = activeBookmarkDiff()
-                const commit = selectedCommit()
+                const target = filesSourceTarget()
                 const request = ++filesRequestId
                 filesRequestKind = diff ? "bookmark" : "commit"
                 try {
@@ -376,11 +388,8 @@ export function SyncProvider(props: { children: JSX.Element }) {
                               { from: diff.from, to: diff.to },
                               { cwd: getRepoPath() },
                           )
-                        : commit
-                          ? await app.jjFiles(
-                                { revision: getRevisionId(commit) },
-                                { cwd: getRepoPath() },
-                            )
+                        : target
+                          ? await app.jjFiles(target, { cwd: getRepoPath() })
                           : null
                     if (result && request === filesRequestId) {
                         setFiles(result)
@@ -538,7 +547,10 @@ export function SyncProvider(props: { children: JSX.Element }) {
         }
     })
 
-    const activeCommit = () => selectedCommit()
+    // Undefined while a multi-selection is active so single-revision
+    // consumers stand down in favor of the combined view.
+    const activeCommit = () =>
+        multiSelectedCommits().length >= 2 ? undefined : selectedCommit()
 
     let currentDetailsCacheKey: string | null = null
     createEffect(() => {
@@ -596,9 +608,216 @@ export function SyncProvider(props: { children: JSX.Element }) {
 
     const selectedCommit = () => commits()[selectedIndex()]
 
+    // Multi-select marks, keyed by changeId.
+    const [multiSelection, setMultiSelection] = createSignal<
+        ReadonlySet<string>
+    >(new Set())
+
+    // Elided revisions folded in by committed visual ranges, so selection
+    // revsets have no gaps.
+    const [connectorIds, setConnectorIds] = createSignal<ReadonlySet<string>>(
+        new Set(),
+    )
+
+    const toggleMultiSelection = (changeId: string) => {
+        setMultiSelection((prev) => {
+            const next = new Set(prev)
+            if (next.has(changeId)) {
+                next.delete(changeId)
+            } else {
+                next.add(changeId)
+            }
+            return next
+        })
+        if (multiSelection().size === 0) setConnectorIds(new Set<string>())
+    }
+
+    const clearMultiSelection = () => {
+        if (multiSelection().size > 0) setMultiSelection(new Set<string>())
+        if (connectorIds().size > 0) setConnectorIds(new Set<string>())
+    }
+
+    // Visual select mode: cursor movement extends the range from the anchor.
+    const [visualAnchorId, setVisualAnchorId] = createSignal<string | null>(
+        null,
+    )
+    const visualMode = () => visualAnchorId() !== null
+
+    const visualRangeInfo = createMemo(() => {
+        const anchorId = visualAnchorId()
+        if (anchorId === null) return null
+        const list = commits()
+        if (list.length === 0) return null
+        const cursor = Math.min(selectedIndex(), list.length - 1)
+        const anchorIndex = list.findIndex(
+            (commit) => commit.changeId === anchorId,
+        )
+        const range = connectedRevisionRange(
+            list,
+            anchorIndex < 0 ? cursor : anchorIndex,
+            cursor,
+        )
+        const top = range.chain[0]
+        const bottom = range.chain[range.chain.length - 1]
+        if (!top || !bottom) return null
+        return {
+            ...range,
+            key: `${bottom.changeId}::${top.changeId}`,
+            revset: `${getRevisionId(bottom)}::${getRevisionId(top)}`,
+        }
+    })
+
+    // Ranges crossing elided revisions are resolved via jj. Resolutions are
+    // cached per range key, resolved without debounce, and the latest one
+    // stays displayed while the next resolves, so the highlight neither
+    // flickers nor trails the cursor.
+    const [resolvedVisualRange, setResolvedVisualRange] = createSignal<{
+        key: string
+        visibleIds: string[]
+        hiddenIds: string[]
+    } | null>(null)
+    const resolvedVisualRangeCache = new Map<
+        string,
+        { visibleIds: string[]; hiddenIds: string[] }
+    >()
+    let visualResolveToken = 0
+
+    createEffect(() => {
+        const info = visualRangeInfo()
+        if (!info) {
+            visualResolveToken++
+            setResolvedVisualRange(null)
+            resolvedVisualRangeCache.clear()
+            return
+        }
+        if (info.connected) {
+            visualResolveToken++
+            setResolvedVisualRange(null)
+            return
+        }
+        const cached = resolvedVisualRangeCache.get(info.key)
+        if (cached) {
+            visualResolveToken++
+            setResolvedVisualRange({ key: info.key, ...cached })
+            return
+        }
+        const token = ++visualResolveToken
+        const { key, revset } = info
+        ;(async () => {
+            try {
+                const result = await app.jjLogPage({
+                    cwd: getRepoPath(),
+                    revset,
+                    limit: 1000,
+                })
+                const loaded = new Set(
+                    commits().map((commit) => commit.changeId),
+                )
+                const visibleIds: string[] = []
+                const hiddenIds: string[] = []
+                for (const commit of result.commits) {
+                    if (loaded.has(commit.changeId)) {
+                        visibleIds.push(commit.changeId)
+                    } else {
+                        hiddenIds.push(getRevisionId(commit))
+                    }
+                }
+                resolvedVisualRangeCache.set(key, { visibleIds, hiddenIds })
+                if (token !== visualResolveToken) return
+                setResolvedVisualRange({ key, visibleIds, hiddenIds })
+            } catch {
+                if (token === visualResolveToken) setResolvedVisualRange(null)
+            }
+        })()
+    })
+
+    const visualVisibleChangeIds = () => {
+        const info = visualRangeInfo()
+        if (!info) return []
+        const ids = info.chain.map((commit) => commit.changeId)
+        if (info.connected) return ids
+        // Any resolution (even a stale one from the previous step) beats the
+        // local estimate, which can overmark dead-end siblings hanging off
+        // an endpoint. Endpoints stay selected even when jj finds no path.
+        const resolved = resolvedVisualRange()
+        if (!resolved) return ids
+        const set = new Set(resolved.visibleIds)
+        const first = info.chain[0]
+        const last = info.chain[info.chain.length - 1]
+        if (first) set.add(first.changeId)
+        if (last) set.add(last.changeId)
+        return [...set]
+    }
+
+    const visualHiddenIds = () => {
+        const info = visualRangeInfo()
+        if (!info || info.connected) return []
+        return resolvedVisualRange()?.hiddenIds ?? []
+    }
+
+    // Marks plus the live visual range.
+    const effectiveMultiSelection = createMemo<ReadonlySet<string>>(() => {
+        const base = multiSelection()
+        const rangeIds = visualVisibleChangeIds()
+        if (rangeIds.length === 0) return base
+        const next = new Set(base)
+        for (const id of rangeIds) next.add(id)
+        return next
+    })
+
+    const startVisualSelection = () => {
+        const commit = selectedCommit()
+        if (commit) setVisualAnchorId(commit.changeId)
+    }
+
+    const commitVisualSelection = () => {
+        const visibleIds = visualVisibleChangeIds()
+        if (visibleIds.length > 0) {
+            setMultiSelection((prev) => new Set([...prev, ...visibleIds]))
+        }
+        const hiddenIds = visualHiddenIds()
+        if (hiddenIds.length > 0) {
+            setConnectorIds((prev) => new Set([...prev, ...hiddenIds]))
+        }
+        setVisualAnchorId(null)
+    }
+
+    const cancelVisualSelection = () => setVisualAnchorId(null)
+
+    const multiSelectedCommits = createMemo(() => {
+        const marks = effectiveMultiSelection()
+        if (marks.size === 0) return []
+        return commits().filter((commit) => marks.has(commit.changeId))
+    })
+
+    // Ids for selection revsets: visible marks plus elided connectors.
+    const multiSelectionRevsetIds = createMemo(() => {
+        const ids = new Set<string>()
+        for (const commit of multiSelectedCommits()) {
+            ids.add(getRevisionId(commit))
+        }
+        for (const id of connectorIds()) ids.add(id)
+        for (const id of visualHiddenIds()) ids.add(id)
+        return [...ids]
+    })
+
+    const multiSelectionTarget = createMemo<{ revision: string } | null>(() => {
+        if (multiSelectedCommits().length < 2) return null
+        return { revision: multiSelectionRevsetIds().join(" | ") }
+    })
+
+    const filesSourceTarget = (): JjDiffTarget | null => {
+        const target = multiSelectionTarget()
+        if (target) return target
+        const commit = selectedCommit()
+        return commit ? { revision: getRevisionId(commit) } : null
+    }
+
     createEffect(
         on(
             () => {
+                const target = multiSelectionTarget()
+                if (target) return `multi:${target.revision}`
                 const commit = selectedCommit()
                 return commit ? `${commit.changeId}:${commit.commitId}` : ""
             },
@@ -614,18 +833,17 @@ export function SyncProvider(props: { children: JSX.Element }) {
                 }
                 const request = ++filesRequestId
                 filesRequestKind = "commit"
-                const commit = selectedCommit()
-                if (!commit) {
+                const target = filesSourceTarget()
+                if (!target) {
                     setFilesLoading(false)
                     return
                 }
                 setFilesLoading(true)
                 setFilesError(null)
                 try {
-                    const result = await app.jjFiles(
-                        { revision: getRevisionId(commit) },
-                        { cwd: getRepoPath() },
-                    )
+                    const result = await app.jjFiles(target, {
+                        cwd: getRepoPath(),
+                    })
                     if (request !== filesRequestId) return
                     showFiles(result)
                 } catch (e) {
@@ -1024,24 +1242,19 @@ export function SyncProvider(props: { children: JSX.Element }) {
     }
 
     const enterFilesView = async () => {
-        const commit = selectedCommit()
-        if (!commit) return
+        const target = filesSourceTarget()
+        if (!target) return
 
         setActiveBookmarkDiff(null)
         const request = ++filesRequestId
         filesRequestKind = "commit"
-        const revisionId = getRevisionId(commit)
+        const sourceKey = JSON.stringify(target)
         setFilesLoading(true)
         setFilesError(null)
         try {
-            const result = await app.jjFiles(
-                { revision: revisionId },
-                { cwd: getRepoPath() },
-            )
-            const currentCommit = selectedCommit()
+            const result = await app.jjFiles(target, { cwd: getRepoPath() })
             if (request !== filesRequestId) return
-            if (!currentCommit || getRevisionId(currentCommit) !== revisionId)
-                return
+            if (JSON.stringify(filesSourceTarget()) !== sourceKey) return
             showFiles(result)
             focus.setActiveContext("log.files")
         } catch (e) {
@@ -1124,6 +1337,16 @@ export function SyncProvider(props: { children: JSX.Element }) {
         selectLast,
         selectedCommit,
         activeCommit,
+        multiSelection,
+        effectiveMultiSelection,
+        multiSelectedCommits,
+        multiSelectionRevsetIds,
+        toggleMultiSelection,
+        clearMultiSelection,
+        visualMode,
+        startVisualSelection,
+        commitVisualSelection,
+        cancelVisualSelection,
         activeBookmarkDiff,
         commitDetails,
         loadLog,

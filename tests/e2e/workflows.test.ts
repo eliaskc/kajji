@@ -550,3 +550,72 @@ test("preserves selection across terminal resizes", async () => {
         expect(restored.text).not.toContain("ui.txt")
     })
 }, 45_000)
+
+test("selects multiple revisions and shows a combined diff", async () => {
+    await withKajji(async (session) => {
+        // Mark the working copy and its parent with space.
+        await session.keyboard.type(" j ")
+        await session.screen.waitUntil(
+            (snapshot) =>
+                snapshot.text.includes("2 revisions") &&
+                snapshot.text.includes("Committed:") &&
+                snapshot.text.includes("ui.txt") &&
+                snapshot.text.includes("parser.txt"),
+            { timeoutMs: 10_000 },
+        )
+
+        // Escape clears the marks and restores the single-revision detail.
+        await session.keyboard.press("Escape")
+        await session.screen.waitUntil(
+            (snapshot) =>
+                !snapshot.text.includes("2 revisions") &&
+                snapshot.text.includes("Author:"),
+            { timeoutMs: 10_000 },
+        )
+
+        // Visual mode: v anchors, j extends, v commits the range.
+        await session.keyboard.type("v")
+        await session.screen.waitForText("VISUAL", { timeoutMs: 5_000 })
+        await session.keyboard.type("j")
+        await session.screen.waitUntil(
+            (snapshot) =>
+                snapshot.text.includes("2 revisions") &&
+                snapshot.text.includes("parser.txt") &&
+                snapshot.text.includes("base.txt"),
+            { timeoutMs: 10_000 },
+        )
+        await session.keyboard.type("v")
+        await session.screen.waitUntil(
+            (snapshot) =>
+                !snapshot.text.includes("VISUAL") &&
+                snapshot.text.includes("2 revisions"),
+            { timeoutMs: 5_000 },
+        )
+
+        // The files view shows the combined file list for the selection.
+        await session.keyboard.press("Enter")
+        await session.screen.waitUntil(
+            (snapshot) =>
+                snapshot.text.includes("Files (2 revisions)") &&
+                snapshot.text.includes("parser.txt") &&
+                snapshot.text.includes("base.txt"),
+            { timeoutMs: 10_000 },
+        )
+
+        // First escape leaves the files view, second clears the selection.
+        await session.keyboard.press("Escape")
+        await session.screen.waitUntil(
+            (snapshot) =>
+                snapshot.text.includes("1 Revisions") &&
+                snapshot.text.includes("2 Bookmarks"),
+            { timeoutMs: 5_000 },
+        )
+        await session.keyboard.press("Escape")
+        await session.screen.waitUntil(
+            (snapshot) =>
+                !snapshot.text.includes("2 revisions") &&
+                snapshot.text.includes("Author:"),
+            { timeoutMs: 10_000 },
+        )
+    })
+}, 45_000)

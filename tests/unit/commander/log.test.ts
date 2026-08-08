@@ -1,10 +1,56 @@
 import { describe, expect, test } from "bun:test"
 import { parseLogOutput } from "../../../src/commander/log"
 
-// Template format: gutter + MARKER + changeId + MARKER + commitId + MARKER + immutable + MARKER + inTrunk + MARKER + empty + MARKER + divergent + MARKER + description + MARKER + author + MARKER + email + MARKER + timestamp + MARKER + bookmarks + MARKER + gitHead + MARKER + workingCopies + MARKER + refLine
-// Total: 15 parts (14 markers)
+// Current template format (18 parts): gutter + MARKER + changeId + commitId
+// + parentCommitIds + immutable + inTrunk + empty + divergent + conflict
+// + description + author + email + authorTimestamp + committerTimestamp
+// + bookmarks + gitHead + workingCopies + refLine.
+//
+// Older fixtures below use reduced variants (15–17 parts) that the parser
+// still supports; they omit committerTimestamp and some metadata fields.
 
 describe("parseLogOutput", () => {
+    test("parses the full current template", () => {
+        const fields = [
+            "abc123", // changeId
+            "def456", // commitId
+            "parent123,parent456", // parentCommitIds
+            "false", // immutable
+            "false", // inTrunk
+            "false", // empty
+            "false", // divergent
+            "true", // conflict
+            "feat: add feature", // description
+            "John Doe", // author
+            "john@example.com", // email
+            "2025-01-01 12:00:00 +00:00", // author timestamp
+            "2025-01-02 08:30:00 +00:00", // committer timestamp
+            "main,feature", // bookmarks
+            "true", // gitHead
+            "default", // workingCopies
+        ]
+        const output = `@  __LJ__${fields.join("__LJ__")}__LJ__abc123 refline`
+
+        const commits = parseLogOutput(output)
+
+        expect(commits).toHaveLength(1)
+        const commit = commits[0]
+        expect(commit?.changeId).toBe("abc123")
+        expect(commit?.commitId).toBe("def456")
+        expect(commit?.parentCommitIds).toEqual(["parent123", "parent456"])
+        expect(commit?.conflict).toBe(true)
+        expect(commit?.description).toBe("feat: add feature")
+        expect(commit?.author).toBe("John Doe")
+        expect(commit?.authorEmail).toBe("john@example.com")
+        expect(commit?.timestamp).toBe("2025-01-01 12:00:00 +00:00")
+        expect(commit?.committerTimestamp).toBe("2025-01-02 08:30:00 +00:00")
+        expect(commit?.bookmarks).toEqual(["main", "feature"])
+        expect(commit?.gitHead).toBe(true)
+        expect(commit?.workingCopies).toEqual(["default"])
+        expect(commit?.refLine).toBe("abc123 refline")
+        expect(commit?.isWorkingCopy).toBe(true)
+    })
+
     test("parses single commit", () => {
         const output = `○  __LJ__abc123__LJ__def456__LJ__false__LJ__false__LJ__false__LJ__false__LJ__feat: add feature__LJ__John Doe__LJ__john@example.com__LJ__2025-01-01 12:00:00__LJ____LJ__false__LJ____LJ__abc123 user@email.com
 │  description continues here`
@@ -36,6 +82,7 @@ describe("parseLogOutput", () => {
         expect(commits[0]?.parentCommitIds).toEqual(["parent123"])
         expect(commits[0]?.conflict).toBe(true)
         expect(commits[0]?.description).toBe("conflicted commit")
+        expect(commits[0]?.committerTimestamp).toBeUndefined()
     })
 
     test("detects working copy from @ in gutter", () => {

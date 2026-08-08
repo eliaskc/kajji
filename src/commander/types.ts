@@ -12,7 +12,13 @@ export interface Commit {
     description: string
     author: string
     authorEmail: string
+    /** Author timestamp (local). */
     timestamp: string
+    /**
+     * Committer timestamp (local). Absent when parsed from older template
+     * fixtures; fall back to the author timestamp.
+     */
+    committerTimestamp?: string
     lines: string[]
     /** Display lines split into sticky graph/gutter and horizontally scrollable content */
     displayLines: CommitLine[]
