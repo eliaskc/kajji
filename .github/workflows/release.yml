@@ -173,30 +173,25 @@ jobs:
             ---
 
             **Merge this PR to publish.** On merge with the `release` label, a single workflow run will:
-            1. Tag `v${{ steps.post.outputs.version }}` at the merge commit
-            2. Build binaries for darwin-{arm64,x64} and linux-{x64,arm64} on native runners
-            3. Publish all 5 npm packages (`kajji` + 4 platform packages)
+            1. Build binaries for darwin-{arm64,x64} and linux-{x64,arm64} on native runners
+            2. Publish all 5 npm packages (`kajji` + 4 platform packages)
+            3. Tag `v${{ steps.post.outputs.version }}` at the merge commit
             4. Create the GitHub release with these notes and binary archives
 
   # ---------------------------------------------------------------------------
-  # When the release PR is merged: tag the merge commit and push the tag.
-  #
-  # NOTE: the tag is pushed using GITHUB_TOKEN, which by design does NOT
-  # re-trigger workflows (anti-loop guard). So we cannot rely on the
-  # `push: tags` trigger to fan out into build/publish here — instead, build
-  # and publish are chained as `needs: tag-on-merge` so everything runs in the
-  # same workflow run. The `push: tags` trigger is kept as an escape hatch for
-  # manual tag pushes from a developer's machine (which DO trigger workflows).
+  # When the release PR is merged, validate the version and expose it to the
+  # build. The tag is deliberately created later, after build and npm publish
+  # succeed, so failed releases do not leave a release tag behind.
   # ---------------------------------------------------------------------------
-  tag-on-merge:
+  prepare-release:
     if: >-
       github.event_name == 'pull_request' &&
       github.event.pull_request.merged == true &&
       contains(github.event.pull_request.labels.*.name, 'release')
     runs-on: ubuntu-latest
     outputs:
-      version: ${{ steps.tag.outputs.version }}
-      tag: ${{ steps.tag.outputs.tag }}
+      version: ${{ steps.release.outputs.version }}
+      ref: ${{ github.event.pull_request.merge_commit_sha }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -204,8 +199,8 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Create and push tag
-        id: tag
+      - name: Validate release version
+        id: release
         run: |
           set -euo pipefail
           VERSION=$(jq -r .version package.json)
@@ -216,13 +211,7 @@ jobs:
             exit 1
           fi
 
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag -a "$TAG" -m "Release $TAG"
-          git push origin "$TAG"
-          echo "Pushed tag $TAG"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
   # ---------------------------------------------------------------------------
   # Validate manual recovery input before starting the build matrix.
@@ -256,16 +245,16 @@ jobs:
 
   # ---------------------------------------------------------------------------
   # Build platform binaries on native runners. Triggered by either:
-  #   (a) PR-merge path: chained after tag-on-merge in the same run
+  #   (a) PR-merge path: chained after prepare-release in the same run
   #   (b) Tag-push path: developer manually pushes a vX.Y.Z tag from their
   #       machine (recovery / hotfix).
   # ---------------------------------------------------------------------------
   build:
-    needs: [tag-on-merge, validate-release-tag]
+    needs: [prepare-release, validate-release-tag]
     if: |
       !cancelled() &&
       (
-        needs.tag-on-merge.result == 'success' ||
+        needs.prepare-release.result == 'success' ||
         (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
         (github.event_name == 'workflow_dispatch' && inputs.mode == 'publish-tag')
       )
@@ -292,7 +281,7 @@ jobs:
           elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             echo "ref=refs/tags/${{ inputs.release_tag }}" >> "$GITHUB_OUTPUT"
           else
-            echo "ref=refs/tags/${{ needs.tag-on-merge.outputs.tag }}" >> "$GITHUB_OUTPUT"
+            echo "ref=${{ needs.prepare-release.outputs.ref }}" >> "$GITHUB_OUTPUT"
           fi
 
       - uses: actions/checkout@v5
@@ -321,7 +310,7 @@ jobs:
   # logic as `build`.
   # ---------------------------------------------------------------------------
   publish:
-    needs: [tag-on-merge, build]
+    needs: [prepare-release, build]
     if: |
       !cancelled() &&
       needs.build.result == 'success'
@@ -338,7 +327,7 @@ jobs:
           elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             echo "ref=refs/tags/${{ inputs.release_tag }}" >> "$GITHUB_OUTPUT"
           else
-            echo "ref=refs/tags/${{ needs.tag-on-merge.outputs.tag }}" >> "$GITHUB_OUTPUT"
+            echo "ref=${{ needs.prepare-release.outputs.ref }}" >> "$GITHUB_OUTPUT"
           fi
 
       - uses: actions/checkout@v5
@@ -385,7 +374,7 @@ jobs:
             EXPECTED="${{ inputs.release_tag }}"
             EXPECTED="${EXPECTED#v}"
           else
-            EXPECTED="${{ needs.tag-on-merge.outputs.version }}"
+            EXPECTED="${{ needs.prepare-release.outputs.version }}"
           fi
           if [[ "$EXPECTED" != "$PKG_VERSION" ]]; then
             echo "::error::Expected v$EXPECTED but package.json is $PKG_VERSION"
@@ -416,6 +405,17 @@ jobs:
         env:
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
         run: bun run scripts/update-homebrew-tap.ts --check "${{ steps.notes.outputs.version }}"
+
+      - name: Create and push release tag
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          TAG="v${{ steps.notes.outputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "Release $TAG"
+          git push origin "$TAG"
+          echo "Pushed tag $TAG after build and npm publish succeeded"
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
