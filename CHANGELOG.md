@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.17.0
+
+### new
+- revision multi-select with visual mode (`space`, `v`), combined diffs, and batch revision actions ([`c56476a`](../../commit/c56476a), [`7312959`](../../commit/7312959), [`4c8b6f8`](../../commit/4c8b6f8), [`d1aae8c`](../../commit/d1aae8c), [`37d7bf0`](../../commit/37d7bf0))
+- structural diffs with difftastic and configurable diff engines (`-`, `ctrl+e`) ([`796a42c`](../../commit/796a42c), [`55e2b3e`](../../commit/55e2b3e))
+- historical revision files open in the editor ([`743fd07`](../../commit/743fd07))
+- discard file changes from historical revisions ([`4941312`](../../commit/4941312))
+- resolve action shown for conflicted revisions ([`6492e45`](../../commit/6492e45))
+- diff stats in the file tree ([`4559095`](../../commit/4559095))
+
+### improved
+- ux: unavailable revision commands explain why they cannot run ([`a0fe1de`](../../commit/a0fe1de), [`704eeb5`](../../commit/704eeb5), [`5c2c945`](../../commit/5c2c945))
+- layout: diff file headers, boundaries, and loading states are clearer ([`2b5dad9`](../../commit/2b5dad9), [`a9ca2e3`](../../commit/a9ca2e3), [`e062ffb`](../../commit/e062ffb), [`a762c27`](../../commit/a762c27))
+
+### fixed
+- perf: horizontal diff scrolling avoids unnecessary relayouts ([`c76f99f`](../../commit/c76f99f))
+- ux: file focus and selection stay in sync while navigating diffs and discarding files ([`124d13e`](../../commit/124d13e), [`31bf502`](../../commit/31bf502), [`a0f4cad`](../../commit/a0f4cad))
+- layout: sticky diff headers transition and remain visible correctly ([`3675ef8`](../../commit/3675ef8), [`8424396`](../../commit/8424396))
+- layout: diff scrolling, loading, and layout changes preserve the viewport without scrollbar artifacts ([`12342da`](../../commit/12342da), [`8a23615`](../../commit/8a23615), [`fa637bb`](../../commit/fa637bb), [`795728a`](../../commit/795728a))
+- layout: file ordering, binary previews, and collapsed directories remain consistent ([`1a49a28`](../../commit/1a49a28), [`fe528f4`](../../commit/fe528f4), [`0c67e8a`](../../commit/0c67e8a))
+- theming: word-level diff highlighting is restored ([`dc3b027`](../../commit/dc3b027))
+- ux: diff layout controls use the correct name and keybind order ([`46b1d35`](../../commit/46b1d35))
+- stale working-copy errors no longer appear incorrectly ([`9330c43`](../../commit/9330c43))
+- diff stats count only changed lines ([`4224838`](../../commit/4224838))
+
 ## 0.16.0
 
 ### new
