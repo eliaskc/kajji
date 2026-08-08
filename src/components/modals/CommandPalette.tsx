@@ -23,7 +23,11 @@ import {
     createMemo,
     createSignal,
 } from "solid-js"
-import { type CommandGroup, commandGroup } from "../../command/policy"
+import {
+    type CommandGroup,
+    commandGroup,
+    commandUnavailableReason,
+} from "../../command/policy"
 import {
     type CommandOption,
     type Context,
@@ -108,6 +112,9 @@ export function CommandPalette() {
     })
 
     const isActive = (cmd: CommandOption) => command.isActive(cmd.id)
+
+    const rowDescription = (cmd: CommandOption) =>
+        commandUnavailableReason(cmd) ?? cmd.description
 
     createEffect(() => {
         filter()
@@ -356,7 +363,9 @@ export function CommandPalette() {
                                                 wrapMode="none"
                                             >
                                                 {capitalize(cmd.title)}
-                                                <Show when={cmd.description}>
+                                                <Show
+                                                    when={rowDescription(cmd)}
+                                                >
                                                     {(
                                                         description: Accessor<string>,
                                                     ) => (

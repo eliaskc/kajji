@@ -26,6 +26,13 @@ export interface CommandDefinition {
     dialogId?: string
     allowInInput?: boolean
     hintLabel?: string
+    /**
+     * Reason the command cannot run right now (e.g. it needs a single
+     * revision while a multi-selection is active). Unavailable commands are
+     * hidden from the status bar, shown muted in the palette, and pressing
+     * their keybind surfaces the reason instead of executing.
+     */
+    unavailable?: () => string | null
     execute: () => void
 }
 
@@ -64,6 +71,12 @@ export function isCommandApplicable(
     if (!contextMatches(command.context, environment.context)) return false
     if (command.panel && command.panel !== environment.panel) return false
     return true
+}
+
+export function commandUnavailableReason(
+    command: CommandDefinition,
+): string | null {
+    return command.unavailable?.() ?? null
 }
 
 export function isCommandVisible(

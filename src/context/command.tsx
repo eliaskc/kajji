@@ -11,6 +11,7 @@ import {
     type CommandDefinition,
     type CommandSurface,
     canDispatchCommand,
+    commandUnavailableReason,
     commandsForSurface,
     isCommandApplicable,
     isCommandVisible,
@@ -20,6 +21,7 @@ import { useDialog } from "./dialog"
 import { useFocus } from "./focus"
 import { createSimpleContext } from "./helper"
 import { useKeybind } from "./keybind"
+import { useStatus } from "./status"
 import type { Context } from "./types"
 
 export type { Context }
@@ -38,6 +40,7 @@ export const { use: useCommand, provider: CommandProvider } =
             const keybind = useKeybind()
             const focus = useFocus()
             const dialog = useDialog()
+            const status = useStatus()
 
             const allCommands = createMemo(() => {
                 return registrations().flatMap((r) => r())
@@ -88,7 +91,12 @@ export const { use: useCommand, provider: CommandProvider } =
                 if (mostSpecificMatch) {
                     evt.preventDefault()
                     evt.stopPropagation()
-                    mostSpecificMatch.execute()
+                    const reason = commandUnavailableReason(mostSpecificMatch)
+                    if (reason) {
+                        status.show(reason)
+                    } else {
+                        mostSpecificMatch.execute()
+                    }
                 }
             })
 
@@ -107,6 +115,11 @@ export const { use: useCommand, provider: CommandProvider } =
                     const cmd = allCommands().find((c) => c.id === id)
                     if (!cmd || !canDispatchCommand(cmd, environment()))
                         return false
+                    const reason = commandUnavailableReason(cmd)
+                    if (reason) {
+                        status.show(reason)
+                        return false
+                    }
                     cmd.execute()
                     return true
                 },
@@ -118,12 +131,14 @@ export const { use: useCommand, provider: CommandProvider } =
                     allCommands().filter(
                         (cmd) =>
                             isCommandVisible(cmd, surface) &&
-                            isCommandApplicable(cmd, environment()),
+                            isCommandApplicable(cmd, environment()) &&
+                            !commandUnavailableReason(cmd),
                     ),
                 isActive: (id: string) => {
                     const cmd = allCommands().find((item) => item.id === id)
                     return cmd
-                        ? canDispatchCommand(cmd, paletteEnvironment())
+                        ? canDispatchCommand(cmd, paletteEnvironment()) &&
+                              !commandUnavailableReason(cmd)
                         : false
                 },
                 keyLabel: (id: string) => {

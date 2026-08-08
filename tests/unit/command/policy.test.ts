@@ -3,6 +3,7 @@ import {
     type CommandDefinition,
     canDispatchCommand,
     commandGroup,
+    commandUnavailableReason,
     commandsForSurface,
     isCommandApplicable,
     isCommandVisible,
@@ -92,6 +93,49 @@ describe("command presentation", () => {
             "palette",
         )
         expect(commands.map(({ id }) => id)).toEqual(["first"])
+    })
+})
+
+describe("command availability", () => {
+    test("commands are available by default", () => {
+        expect(commandUnavailableReason(command())).toBeNull()
+        expect(
+            commandUnavailableReason(command({ unavailable: () => null })),
+        ).toBeNull()
+    })
+
+    test("unavailable commands report their reason", () => {
+        expect(
+            commandUnavailableReason(
+                command({ unavailable: () => "needs a single revision" }),
+            ),
+        ).toBe("needs a single revision")
+    })
+
+    test("unavailable commands still claim their keybind", () => {
+        // The dispatcher surfaces the reason instead of executing, so the
+        // key must resolve to the unavailable command rather than falling
+        // through to a less specific match.
+        const result = resolveCommandKey(
+            [
+                command({ id: "global" }),
+                command({
+                    id: "exact",
+                    context: "log.revisions",
+                    unavailable: () => "needs a single revision",
+                }),
+            ],
+            { keybind: "enter" },
+            {
+                context: "log.revisions",
+                panel: "log",
+                dialogOpen: false,
+                dialogId: undefined,
+                inputMode: false,
+            },
+            (keybind, value) => keybind === value.keybind,
+        )
+        expect(result?.id).toBe("exact")
     })
 })
 
