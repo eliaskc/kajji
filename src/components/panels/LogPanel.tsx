@@ -1359,6 +1359,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
             panel: "log",
             visibleIn: ["palette", "statusBar"] as const,
             execute: () => {
+                if (visualMode()) return
                 if (!syncFilteredRevisionCursor()) return
                 const commit = selectedCommit()
                 if (!commit) return

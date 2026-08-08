@@ -755,30 +755,22 @@ export function SyncProvider(props: { children: JSX.Element }) {
         return resolvedVisualRange()?.hiddenIds ?? []
     }
 
-    // Marks plus the live visual range.
     const effectiveMultiSelection = createMemo<ReadonlySet<string>>(() => {
-        const base = multiSelection()
-        const rangeIds = visualVisibleChangeIds()
-        if (rangeIds.length === 0) return base
-        const next = new Set(base)
-        for (const id of rangeIds) next.add(id)
-        return next
+        if (!visualMode()) return multiSelection()
+        return new Set(visualVisibleChangeIds())
     })
 
+    // Entering visual mode starts a fresh selection, replacing any marks.
     const startVisualSelection = () => {
         const commit = selectedCommit()
-        if (commit) setVisualAnchorId(commit.changeId)
+        if (!commit) return
+        clearMultiSelection()
+        setVisualAnchorId(commit.changeId)
     }
 
     const commitVisualSelection = () => {
-        const visibleIds = visualVisibleChangeIds()
-        if (visibleIds.length > 0) {
-            setMultiSelection((prev) => new Set([...prev, ...visibleIds]))
-        }
-        const hiddenIds = visualHiddenIds()
-        if (hiddenIds.length > 0) {
-            setConnectorIds((prev) => new Set([...prev, ...hiddenIds]))
-        }
+        setMultiSelection(new Set(visualVisibleChangeIds()))
+        setConnectorIds(new Set(visualHiddenIds()))
         setVisualAnchorId(null)
     }
 
@@ -796,8 +788,8 @@ export function SyncProvider(props: { children: JSX.Element }) {
         for (const commit of multiSelectedCommits()) {
             ids.add(getRevisionId(commit))
         }
-        for (const id of connectorIds()) ids.add(id)
-        for (const id of visualHiddenIds()) ids.add(id)
+        const hidden = visualMode() ? visualHiddenIds() : connectorIds()
+        for (const id of hidden) ids.add(id)
         return [...ids]
     })
 
