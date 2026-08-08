@@ -1295,6 +1295,39 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
             ? `${action} only works for a single revision`
             : null
 
+    // Target for actions that accept either the cursor revision or the
+    // multi-selection. Commits are in log order (newest first); the revset
+    // includes elided connectors so ranges crossing elisions have no gaps.
+    const revisionActionTarget = () => {
+        const marked = multiSelectedCommits()
+        if (marked.length >= 2) {
+            const revisions = multiSelectionRevsetIds()
+            return {
+                multi: true,
+                commits: marked,
+                revisions,
+                revset: revisions.join(" | "),
+                label: `${revisions.length} revisions`,
+            }
+        }
+        const commit = selectedLogCommit()
+        if (!commit) return null
+        const revision = getRevisionId(commit)
+        return {
+            multi: false,
+            commits: [commit],
+            revisions: [revision],
+            revset: revision,
+            label: commit.changeId.slice(0, 8),
+        }
+    }
+
+    const clearActionSelection = (target: { multi: boolean }) => {
+        if (!target.multi) return
+        cancelVisualSelection()
+        clearMultiSelection()
+    }
+
     const selectedOriginDiffBookmark = createMemo(() =>
         findCommitBookmarkWithOriginDiff(
             selectedLogCommit(),
@@ -1545,19 +1578,19 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
 
             panel: "log",
             visibleIn: ["palette"] as const,
-            unavailable: singleRevisionOnly("duplicate"),
-            execute: () => {
-                const commit = selectedLogCommit()
-                if (!commit) return
-                runAppOperation(
+            execute: async () => {
+                const target = revisionActionTarget()
+                if (!target) return
+                const result = await runAppOperation(
                     "Duplicating...",
                     (observer) =>
-                        app.jjDuplicate(getRevisionId(commit), {
+                        app.jjDuplicate(target.revset, {
                             cwd: getRepoPath(),
                             observer,
                         }),
-                    selectDuplicatedCommit,
+                    target.multi ? undefined : selectDuplicatedCommit,
                 )
+                if (result.success) clearActionSelection(target)
             },
         },
         {
@@ -2083,49 +2116,50 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
 
             panel: "log",
             visibleIn: ["palette"] as const,
-            unavailable: singleRevisionOnly("abandon"),
             execute: async () => {
-                const commit = selectedLogCommit()
-                if (!commit) return
+                const target = revisionActionTarget()
+                if (!target) return
                 const confirmed = await dialog.confirm({
                     ...DIALOG_SIZE.confirm,
                     message: [
                         { text: "Abandon", style: "action" },
-                        " change ",
-                        { text: commit.changeId.slice(0, 8), style: "target" },
+                        target.multi ? " " : " change ",
+                        { text: target.label, style: "target" },
                         "?",
                     ],
                 })
                 if (!confirmed) return
-                const revId = getRevisionId(commit)
-                const result = await app.jjAbandon(revId, {
+                const result = await app.jjAbandon(target.revset, {
                     cwd: getRepoPath(),
                 })
                 if (isImmutableError(result)) {
                     const immutableConfirmed = await dialog.confirm({
                         ...DIALOG_SIZE.confirm,
                         message: [
-                            {
-                                text: commit.changeId.slice(0, 8),
-                                style: "target",
-                            },
-                            " is immutable. ",
+                            { text: target.label, style: "target" },
+                            target.multi
+                                ? " include immutable revisions. "
+                                : " is immutable. ",
                             { text: "Abandon", style: "action" },
                             " anyway?",
                         ],
                     })
                     if (immutableConfirmed) {
-                        await runAppOperation("Abandoning...", (observer) =>
-                            app.jjAbandon(revId, {
-                                cwd: getRepoPath(),
-                                ignoreImmutable: true,
-                                observer,
-                            }),
+                        const retry = await runAppOperation(
+                            "Abandoning...",
+                            (observer) =>
+                                app.jjAbandon(target.revset, {
+                                    cwd: getRepoPath(),
+                                    ignoreImmutable: true,
+                                    observer,
+                                }),
                         )
+                        if (retry.success) clearActionSelection(target)
                     }
                 } else {
                     commandLog.addEntry(result)
                     if (result.success) {
+                        clearActionSelection(target)
                         refresh()
                         loadOpLog()
                     }
