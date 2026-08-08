@@ -11,7 +11,6 @@ export interface SquashOptions {
 }
 
 interface SquashModalProps {
-    source: Commit
     commits: Commit[]
     defaultTarget?: string
     height?: number

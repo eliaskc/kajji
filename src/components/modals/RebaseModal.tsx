@@ -14,7 +14,6 @@ export interface RebaseOptions {
 }
 
 interface RebaseModalProps {
-    source: Commit
     commits: Commit[]
     defaultTarget?: string
     height?: number

@@ -1677,40 +1677,41 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
 
             panel: "log",
             visibleIn: ["palette", "statusBar"] as const,
-            unavailable: singleRevisionOnly("squash"),
             execute: () => {
-                const commit = selectedLogCommit()
-                if (!commit) return
+                const target = revisionActionTarget()
+                if (!target) return
 
                 const commitList = commits()
-                const revId = getRevisionId(commit)
-                const parentRevisionId = getFirstParentRevisionId(
-                    commit,
-                    commitList,
+                const revset = target.revset
+                const anchorChangeId = target.commits[0]?.changeId
+                const oldest = target.commits[target.commits.length - 1]
+                const parentRevisionId = oldest
+                    ? getFirstParentRevisionId(oldest, commitList)
+                    : undefined
+                const hasImmutable = target.commits.some(
+                    (commit) => commit.immutable,
                 )
 
                 dialog.open(
                     () => (
                         <SquashModal
-                            source={commit}
                             commits={commitList}
                             defaultTarget={parentRevisionId}
-                            onSquash={async (target, options) => {
+                            onSquash={async (destination, options) => {
                                 if (options.interactive) {
                                     // Check if immutable first (before suspending TUI)
                                     let ignoreImmutable = false
-                                    if (commit.immutable) {
+                                    if (hasImmutable) {
                                         const confirmed = await dialog.confirm({
                                             ...DIALOG_SIZE.confirm,
                                             message: [
                                                 {
-                                                    text: commit.changeId.slice(
-                                                        0,
-                                                        8,
-                                                    ),
+                                                    text: target.label,
                                                     style: "target",
                                                 },
-                                                " is immutable. ",
+                                                target.multi
+                                                    ? " include immutable revisions. "
+                                                    : " is immutable. ",
                                                 {
                                                     text: "Squash",
                                                     style: "action",
@@ -1727,12 +1728,12 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                                     try {
                                         const result =
                                             await app.jjSquashInteractive(
-                                                revId,
+                                                revset,
                                                 {
                                                     cwd: getRepoPath(),
                                                     into:
-                                                        target !== revId
-                                                            ? target
+                                                        destination !== revset
+                                                            ? destination
                                                             : undefined,
                                                     useDestinationMessage:
                                                         options.useDestinationMessage,
@@ -1742,13 +1743,14 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                                                 },
                                             )
                                         if (result.success) {
+                                            clearActionSelection(target)
                                             await refresh({
                                                 selectIndex: (commitList) =>
                                                     findCommitIndexById(
                                                         commitList,
                                                         options.keepEmptied
-                                                            ? commit.changeId
-                                                            : target,
+                                                            ? anchorChangeId
+                                                            : destination,
                                                     ),
                                             })
                                             loadOpLog()
@@ -1758,9 +1760,9 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                                     }
                                 } else {
                                     // Non-interactive squash
-                                    const result = await app.jjSquash(revId, {
+                                    const result = await app.jjSquash(revset, {
                                         cwd: getRepoPath(),
-                                        into: target,
+                                        into: destination,
                                         useDestinationMessage:
                                             options.useDestinationMessage,
                                         keepEmptied: options.keepEmptied,
@@ -1771,7 +1773,10 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                                             message: [
                                                 "Target ",
                                                 {
-                                                    text: target.slice(0, 8),
+                                                    text: destination.slice(
+                                                        0,
+                                                        8,
+                                                    ),
                                                     style: "target",
                                                 },
                                                 " is immutable. ",
@@ -1783,12 +1788,12 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                                             ],
                                         })
                                         if (confirmed) {
-                                            await runAppOperation(
+                                            const retry = await runAppOperation(
                                                 "Squashing...",
                                                 (observer) =>
-                                                    app.jjSquash(revId, {
+                                                    app.jjSquash(revset, {
                                                         cwd: getRepoPath(),
-                                                        into: target,
+                                                        into: destination,
                                                         useDestinationMessage:
                                                             options.useDestinationMessage,
                                                         keepEmptied:
@@ -1800,21 +1805,24 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                                                     findCommitIndexById(
                                                         commitList,
                                                         options.keepEmptied
-                                                            ? commit.changeId
-                                                            : target,
+                                                            ? anchorChangeId
+                                                            : destination,
                                                     ),
                                             )
+                                            if (retry.success)
+                                                clearActionSelection(target)
                                         }
                                     } else {
                                         commandLog.addEntry(result)
                                         if (result.success) {
+                                            clearActionSelection(target)
                                             await refresh({
                                                 selectIndex: (commitList) =>
                                                     findCommitIndexById(
                                                         commitList,
                                                         options.keepEmptied
-                                                            ? commit.changeId
-                                                            : target,
+                                                            ? anchorChangeId
+                                                            : destination,
                                                     ),
                                             })
                                             loadOpLog()
@@ -1829,10 +1837,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                         title: [
                             { text: "Squash", style: "action" },
                             " ",
-                            {
-                                text: commit.changeId.slice(0, 8),
-                                style: "target",
-                            },
+                            { text: target.label, style: "target" },
                             " into",
                         ],
                         ...DIALOG_SIZE.picker,
@@ -1848,25 +1853,24 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
 
             panel: "log",
             visibleIn: ["palette", "statusBar"] as const,
-            unavailable: singleRevisionOnly("rebase"),
             execute: () => {
-                const commit = selectedLogCommit()
-                if (!commit) return
+                const target = revisionActionTarget()
+                if (!target) return
                 const commitList = commits()
-                const revId = getRevisionId(commit)
-                const parentRevisionId = getFirstParentRevisionId(
-                    commit,
-                    commitList,
-                )
+                const revset = target.revset
+                const anchorChangeId = target.commits[0]?.changeId
+                const oldest = target.commits[target.commits.length - 1]
+                const parentRevisionId = oldest
+                    ? getFirstParentRevisionId(oldest, commitList)
+                    : undefined
                 dialog.open(
                     () => (
                         <RebaseModal
-                            source={commit}
                             commits={commitList}
                             defaultTarget={parentRevisionId}
                             onRebase={async (destination, options) => {
                                 const result = await app.jjRebase(
-                                    revId,
+                                    revset,
                                     destination,
                                     {
                                         cwd: getRepoPath(),
@@ -1881,23 +1885,22 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                                         message: [
                                             "Source ",
                                             {
-                                                text: commit.changeId.slice(
-                                                    0,
-                                                    8,
-                                                ),
+                                                text: target.label,
                                                 style: "target",
                                             },
-                                            " is immutable. ",
+                                            target.multi
+                                                ? " include immutable revisions. "
+                                                : " is immutable. ",
                                             { text: "Rebase", style: "action" },
                                             " anyway?",
                                         ],
                                     })
                                     if (confirmed) {
-                                        await runAppOperation(
+                                        const retry = await runAppOperation(
                                             "Rebasing...",
                                             (observer) =>
                                                 app.jjRebase(
-                                                    revId,
+                                                    revset,
                                                     destination,
                                                     {
                                                         cwd: getRepoPath(),
@@ -1913,18 +1916,21 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                                             (_result, commitList) =>
                                                 findCommitIndexById(
                                                     commitList,
-                                                    commit.changeId,
+                                                    anchorChangeId,
                                                 ),
                                         )
+                                        if (retry.success)
+                                            clearActionSelection(target)
                                     }
                                 } else {
                                     commandLog.addEntry(result)
                                     if (result.success) {
+                                        clearActionSelection(target)
                                         await refresh({
                                             selectIndex: (commitList) =>
                                                 findCommitIndexById(
                                                     commitList,
-                                                    commit.changeId,
+                                                    anchorChangeId,
                                                 ),
                                         })
                                         loadOpLog()
@@ -1938,10 +1944,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                         title: [
                             { text: "Rebase", style: "action" },
                             " ",
-                            {
-                                text: commit.changeId.slice(0, 8),
-                                style: "target",
-                            },
+                            { text: target.label, style: "target" },
                             " onto",
                         ],
                         ...DIALOG_SIZE.picker,
