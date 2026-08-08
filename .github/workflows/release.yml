@@ -23,10 +23,6 @@ on:
         description: "pi model id (provider/model[:thinking]). Default: opencode/gpt-5.6-terra."
         required: false
         default: "opencode/gpt-5.6-terra"
-      pi_version:
-        description: "pi version. Default: latest."
-        required: false
-        default: "latest"
   pull_request:
     types: [closed]
   push:
@@ -60,11 +56,7 @@ jobs:
 
       - name: Install pi
         run: |
-          if [[ "${{ inputs.pi_version }}" == "latest" ]]; then
-            npm install -g @mariozechner/pi-coding-agent
-          else
-            npm install -g @mariozechner/pi-coding-agent@${{ inputs.pi_version }}
-          fi
+          npm install -g @earendil-works/pi-coding-agent
           pi --version
 
       - name: Capture pre-state

@@ -7,11 +7,11 @@ workflow_dispatch  ──►  draft-release-pr  ──►  PR opened  ──► 
                                                                          │
                                                   ┌──────────────────────┘
                                                   ▼
-                                          tag-on-merge  ──►  push tag vX.Y.Z
+                                          prepare-release  ──►  build (×4 platforms)
                                                                          │
                                                   ┌──────────────────────┘
                                                   ▼
-                                          build (×4 platforms)  ──►  publish (npm + GH release)
+                                      publish npm  ──►  tag vX.Y.Z  ──►  GH release
 ```
 
 ## Cutting a release
@@ -21,7 +21,6 @@ workflow_dispatch  ──►  draft-release-pr  ──►  PR opened  ──► 
    - **mode**: leave as `draft-release-pr` for a normal release.
    - **bump**: `patch`, `minor`, `major`, an explicit `x.y.z`, or **leave empty** to let the agent decide based on commits since the last tag.
    - **model**: pi model id. Default is `opencode/gpt-5.6-terra`. Any pi-supported model works as long as the matching API key is in repo secrets.
-   - **pi_version**: pin a specific `@mariozechner/pi-coding-agent` version, or leave as `latest`.
 3. Wait ~1–2 minutes. The `draft-release-pr` job runs `pi` against [`.github/workflows/release-notes-prompt.md`](../.github/workflows/release-notes-prompt.md), which:
    - reads commits since the last tag (with progressive context-gathering via `git show` / `gh pr view`)
    - decides the bump (if not specified)
@@ -30,10 +29,9 @@ workflow_dispatch  ──►  draft-release-pr  ──►  PR opened  ──► 
 4. The job opens a PR titled `release: vX.Y.Z` with the `release` label and posts the generated notes in the PR body.
 5. **Review the PR.** Edit `CHANGELOG.md` directly on the branch if the agent's wording, categorisation, or version bump is off. The PR is pretty printable.
 6. **Merge the PR** (squash or merge — both work). The `release` label is what triggers the rest.
-7. The `tag-on-merge` job creates and pushes `vX.Y.Z` from the merge commit.
-8. The tag push triggers:
-   - `build` matrix on native runners (darwin-arm64, darwin-x64, linux-x64, linux-arm64) — no cross-compile flakiness
-   - `publish` job downloads all artifacts, runs `scripts/publish.ts --skip-build` to push 5 packages (`kajji-{platform}` × 4 + `kajji` wrapper) to npm, then creates the GitHub release with archives and notes from `CHANGELOG.md`
+7. The `prepare-release` job validates the version, then the `build` matrix runs on native runners (darwin-arm64, darwin-x64, linux-x64, linux-arm64).
+8. After every build succeeds, the `publish` job downloads the artifacts and runs `scripts/publish.ts --skip-build` to push 5 packages (`kajji-{platform}` × 4 + `kajji` wrapper) to npm.
+9. Only after publishing succeeds does the workflow tag the merge commit as `vX.Y.Z`, create the GitHub release with archives and notes from `CHANGELOG.md`, and update Homebrew.
 
 ## Manually publishing an existing tag
 
