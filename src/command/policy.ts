@@ -1,3 +1,4 @@
+import type { StyledSegment } from "../context/dialog"
 import type { Context, Panel } from "../context/types"
 import type { KeybindConfigKey } from "../keybind"
 
@@ -77,6 +78,20 @@ export function commandUnavailableReason(
     command: CommandDefinition,
 ): string | null {
     return command.unavailable?.() ?? null
+}
+
+// Reasons are written as predicates that read after the command title
+// ("only works for a single revision"), so surfaces can lead with the
+// highlighted title.
+export function commandUnavailableMessage(
+    command: CommandDefinition,
+    reason: string,
+): StyledSegment[] {
+    const title =
+        command.title.length > 0
+            ? command.title.charAt(0).toUpperCase() + command.title.slice(1)
+            : command.title
+    return [{ text: title, style: "action" }, ` ${reason}`]
 }
 
 export function isCommandVisible(

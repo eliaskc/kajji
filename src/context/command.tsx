@@ -11,6 +11,7 @@ import {
     type CommandDefinition,
     type CommandSurface,
     canDispatchCommand,
+    commandUnavailableMessage,
     commandUnavailableReason,
     commandsForSurface,
     isCommandApplicable,
@@ -93,7 +94,12 @@ export const { use: useCommand, provider: CommandProvider } =
                     evt.stopPropagation()
                     const reason = commandUnavailableReason(mostSpecificMatch)
                     if (reason) {
-                        status.show(reason)
+                        status.show(
+                            commandUnavailableMessage(
+                                mostSpecificMatch,
+                                reason,
+                            ),
+                        )
                     } else {
                         mostSpecificMatch.execute()
                     }
@@ -117,7 +123,7 @@ export const { use: useCommand, provider: CommandProvider } =
                         return false
                     const reason = commandUnavailableReason(cmd)
                     if (reason) {
-                        status.show(reason)
+                        status.show(commandUnavailableMessage(cmd, reason))
                         return false
                     }
                     cmd.execute()

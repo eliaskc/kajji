@@ -1,11 +1,12 @@
 import { createSignal, onCleanup } from "solid-js"
+import type { StyledSegment } from "./dialog"
 import { createSimpleContext } from "./helper"
 
 export type StatusMessageKind = "info" | "success" | "error"
 
 export interface StatusMessage {
     id: string
-    text: string
+    text: string | StyledSegment[]
     kind: StatusMessageKind
 }
 
@@ -36,7 +37,7 @@ export const { use: useStatus, provider: StatusProvider } = createSimpleContext(
             }
 
             const show = (
-                text: string,
+                text: string | StyledSegment[],
                 options: ShowStatusMessageOptions = {},
             ) => {
                 clearTimeoutIfNeeded()

@@ -1290,9 +1290,9 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
         return selectedCommit()
     }
 
-    const singleRevisionOnly = (action: string) => () =>
+    const singleRevisionOnly = () =>
         multiSelectedCommits().length >= 2
-            ? `${action} only works for a single revision`
+            ? "only works for a single revision"
             : null
 
     // Target for actions that accept either the cursor revision or the
@@ -1594,7 +1594,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
             visibleIn: selectedLogCommit()?.conflict
                 ? (["palette", "statusBar"] as const)
                 : (["palette"] as const),
-            unavailable: singleRevisionOnly("resolve"),
+            unavailable: singleRevisionOnly,
             execute: async () => {
                 const commit = selectedLogCommit()
                 if (!commit) return
@@ -1625,7 +1625,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
 
             panel: "log",
             visibleIn: ["palette"] as const,
-            unavailable: singleRevisionOnly("edit"),
+            unavailable: singleRevisionOnly,
             execute: async () => {
                 const commit = selectedLogCommit()
                 if (!commit) return
@@ -1960,7 +1960,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
 
             panel: "log",
             visibleIn: ["palette"] as const,
-            unavailable: singleRevisionOnly("split"),
+            unavailable: singleRevisionOnly,
             execute: async () => {
                 const commit = selectedLogCommit()
                 if (!commit) return
@@ -2017,7 +2017,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
 
             panel: "log",
             visibleIn: ["palette", "statusBar"] as const,
-            unavailable: singleRevisionOnly("describe"),
+            unavailable: singleRevisionOnly,
             execute: async () => {
                 const commit = selectedLogCommit()
                 if (!commit) return
@@ -2086,7 +2086,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
 
             panel: "log",
             visibleIn: ["palette", "statusBar"] as const,
-            unavailable: singleRevisionOnly("open"),
+            unavailable: singleRevisionOnly,
             execute: openForCommit,
         },
         {
@@ -2097,7 +2097,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
 
             panel: "log",
             visibleIn: ["palette"] as const,
-            unavailable: singleRevisionOnly("open"),
+            unavailable: singleRevisionOnly,
             execute: () => {
                 void openForCommit({ direct: true })
             },
@@ -2168,7 +2168,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
 
             panel: "log",
             visibleIn: ["palette"] as const,
-            unavailable: singleRevisionOnly("set bookmark"),
+            unavailable: singleRevisionOnly,
             execute: async () => {
                 const commit = selectedLogCommit()
                 if (!commit) return
@@ -2293,10 +2293,10 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
             panel: "log",
             visibleIn: ["palette", "statusBar"] as const,
             unavailable: () =>
-                singleRevisionOnly("compare to origin")() ??
+                singleRevisionOnly() ??
                 (selectedOriginDiffBookmark()
                     ? null
-                    : "No changes compared to origin."),
+                    : "has no changes to show"),
             execute: openBookmarkOriginDiff,
         },
         {

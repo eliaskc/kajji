@@ -3,6 +3,7 @@ import {
     type CommandDefinition,
     canDispatchCommand,
     commandGroup,
+    commandUnavailableMessage,
     commandUnavailableReason,
     commandsForSurface,
     isCommandApplicable,
@@ -110,6 +111,18 @@ describe("command availability", () => {
                 command({ unavailable: () => "needs a single revision" }),
             ),
         ).toBe("needs a single revision")
+    })
+
+    test("unavailable message leads with the highlighted title", () => {
+        expect(
+            commandUnavailableMessage(
+                command({ title: "set bookmark" }),
+                "only works for a single revision",
+            ),
+        ).toEqual([
+            { text: "Set bookmark", style: "action" },
+            " only works for a single revision",
+        ])
     })
 
     test("unavailable commands still claim their keybind", () => {

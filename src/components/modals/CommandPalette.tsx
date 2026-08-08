@@ -113,8 +113,18 @@ export function CommandPalette() {
 
     const isActive = (cmd: CommandOption) => command.isActive(cmd.id)
 
-    const rowDescription = (cmd: CommandOption) =>
-        commandUnavailableReason(cmd) ?? cmd.description
+    const rowDescription = (cmd: CommandOption) => {
+        const description = commandUnavailableReason(cmd) ?? cmd.description
+        if (!description) return undefined
+        const keybindLength = cmd.keybind
+            ? command.keyLabel(cmd.id).length + 1
+            : 0
+        const available =
+            COMMAND_PALETTE_CONTENT_WIDTH - cmd.title.length - 1 - keybindLength
+        if (description.length <= available) return description
+        if (available < 2) return undefined
+        return `${description.slice(0, available - 1).trimEnd()}…`
+    }
 
     createEffect(() => {
         filter()

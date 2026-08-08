@@ -1,5 +1,7 @@
+import { TextAttributes } from "@opentui/core"
 import { For, Show, createMemo, createSignal, onCleanup } from "solid-js"
 import { useCommand } from "../context/command"
+import type { StyledSegment } from "../context/dialog"
 import { useStatus } from "../context/status"
 import { useSync } from "../context/sync"
 import { useTheme } from "../context/theme"
@@ -103,6 +105,25 @@ export function StatusBar() {
         if (message.kind === "success") return colors().statusBarKey
         if (message.kind === "error") return colors().error
         return colors().textMuted
+    }
+
+    const statusMessageSegments = (): StyledSegment[] => {
+        const message = status.message()
+        if (!message) return []
+        return typeof message.text === "string" ? [message.text] : message.text
+    }
+
+    const segmentColor = (segment: Exclude<StyledSegment, string>) => {
+        switch (segment.style) {
+            case "action":
+                return colors().warning
+            case "target":
+                return colors().primary
+            case "muted":
+                return colors().textMuted
+            default:
+                return statusMessageColor()
+        }
     }
 
     return (
@@ -227,7 +248,33 @@ export function StatusBar() {
                 >
                     <box flexGrow={1} overflow="hidden">
                         <text fg={statusMessageColor()} wrapMode="none">
-                            {status.message()?.text}
+                            <For each={statusMessageSegments()}>
+                                {(segment) =>
+                                    typeof segment === "string" ? (
+                                        <span
+                                            style={{
+                                                fg: statusMessageColor(),
+                                            }}
+                                        >
+                                            {segment}
+                                        </span>
+                                    ) : (
+                                        <span
+                                            style={{
+                                                fg: segmentColor(segment),
+                                                attributes:
+                                                    segment.style ===
+                                                        "action" ||
+                                                    segment.style === "target"
+                                                        ? TextAttributes.BOLD
+                                                        : undefined,
+                                            }}
+                                        >
+                                            {segment.text}
+                                        </span>
+                                    )
+                                }
+                            </For>
                         </text>
                     </box>
                 </Show>
