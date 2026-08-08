@@ -1436,25 +1436,25 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
         },
         {
             id: "log.revisions.new",
-            title: "new",
+            title: multiSelectedCommits().length >= 2 ? "new merge" : "new",
             keybind: "jj_new",
             context: "log.revisions",
 
             panel: "log",
             visibleIn: ["palette", "statusBar"] as const,
-            unavailable: singleRevisionOnly("new"),
-            execute: () => {
-                const commit = selectedLogCommit()
-                if (commit)
-                    runAppOperation(
-                        "Creating...",
-                        (observer) =>
-                            app.jjNew(getRevisionId(commit), {
-                                cwd: getRepoPath(),
-                                observer,
-                            }),
-                        selectWorkingCopyCommitAfterRefresh,
-                    )
+            execute: async () => {
+                const target = revisionActionTarget()
+                if (!target) return
+                const result = await runAppOperation(
+                    "Creating...",
+                    (observer) =>
+                        app.jjNew(target.revisions, {
+                            cwd: getRepoPath(),
+                            observer,
+                        }),
+                    selectWorkingCopyCommitAfterRefresh,
+                )
+                if (result.success) clearActionSelection(target)
             },
         },
         {
@@ -1465,22 +1465,32 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
 
             panel: "log",
             visibleIn: ["palette"] as const,
-            unavailable: singleRevisionOnly("new"),
             execute: async () => {
-                const commit = selectedLogCommit()
-                if (!commit) return
-                const revision = getRevisionId(commit)
+                const target = revisionActionTarget()
+                if (!target) return
                 const cwd = getRepoPath()
                 const hasPreHook = await app
                     .hasPreHooks(HookOperation.JjNew, { cwd })
                     .catch(() => false)
-                const currentCommit = selectedLogCommit()
                 if (
                     getRepoPath() !== cwd ||
-                    !currentCommit ||
-                    getRevisionId(currentCommit) !== revision
+                    revisionActionTarget()?.revset !== target.revset
                 )
                     return
+                const runNew =
+                    (
+                        op: (
+                            observer: ReturnType<typeof commandLog.observer>,
+                        ) => Promise<OperationResult>,
+                    ) =>
+                    async () => {
+                        const result = await runAppOperation(
+                            "Creating...",
+                            op,
+                            selectWorkingCopyCommitAfterRefresh,
+                        )
+                        if (result.success) clearActionSelection(target)
+                    }
                 dialog.open(
                     () => (
                         <ActionMenuModal
@@ -1489,16 +1499,12 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                                     key: "n",
                                     mutedPrefix: "jj new",
                                     label: "",
-                                    onSelect: () =>
-                                        runAppOperation(
-                                            "Creating...",
-                                            (observer) =>
-                                                app.jjNew(revision, {
-                                                    cwd,
-                                                    observer,
-                                                }),
-                                            selectWorkingCopyCommitAfterRefresh,
-                                        ),
+                                    onSelect: runNew((observer) =>
+                                        app.jjNew(target.revisions, {
+                                            cwd,
+                                            observer,
+                                        }),
+                                    ),
                                 },
                                 ...(hasPreHook
                                     ? [
@@ -1507,17 +1513,13 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                                               mutedPrefix: "jj new",
                                               label: " --no-verify",
                                               detail: "skip hooks",
-                                              onSelect: () =>
-                                                  runAppOperation(
-                                                      "Creating...",
-                                                      (observer) =>
-                                                          app.jjNew(revision, {
-                                                              cwd,
-                                                              observer,
-                                                              verify: false,
-                                                          }),
-                                                      selectWorkingCopyCommitAfterRefresh,
-                                                  ),
+                                              onSelect: runNew((observer) =>
+                                                  app.jjNew(target.revisions, {
+                                                      cwd,
+                                                      observer,
+                                                      verify: false,
+                                                  }),
+                                              ),
                                           },
                                       ]
                                     : []),
@@ -1525,31 +1527,23 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                                     key: "a",
                                     mutedPrefix: "jj new",
                                     label: " --after",
-                                    onSelect: () =>
-                                        runAppOperation(
-                                            "Creating...",
-                                            (observer) =>
-                                                app.jjNewAfter(revision, {
-                                                    cwd,
-                                                    observer,
-                                                }),
-                                            selectWorkingCopyCommitAfterRefresh,
-                                        ),
+                                    onSelect: runNew((observer) =>
+                                        app.jjNewAfter(target.revisions, {
+                                            cwd,
+                                            observer,
+                                        }),
+                                    ),
                                 },
                                 {
                                     key: "b",
                                     mutedPrefix: "jj new",
                                     label: " --before",
-                                    onSelect: () =>
-                                        runAppOperation(
-                                            "Creating...",
-                                            (observer) =>
-                                                app.jjNewBefore(revision, {
-                                                    cwd,
-                                                    observer,
-                                                }),
-                                            selectWorkingCopyCommitAfterRefresh,
-                                        ),
+                                    onSelect: runNew((observer) =>
+                                        app.jjNewBefore(target.revisions, {
+                                            cwd,
+                                            observer,
+                                        }),
+                                    ),
                                 },
                             ]}
                         />
@@ -1559,10 +1553,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                         title: [
                             { text: "New", style: "action" },
                             " options at ",
-                            {
-                                text: commit.changeId.slice(0, 8),
-                                style: "target",
-                            },
+                            { text: target.label, style: "target" },
                         ],
                         ...DIALOG_SIZE.confirm,
                         hints: [{ key: "enter", label: "run" }],

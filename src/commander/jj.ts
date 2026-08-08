@@ -303,7 +303,7 @@ export interface JjService {
         options: JjOperationOptions,
     ) => Effect.Effect<JjOperationResult, JjCommandError | ProcessError>
     readonly new: (
-        revision: string,
+        revisions: string | readonly string[],
         options: JjNewOptions,
     ) => Effect.Effect<JjOperationResult, JjCommandError | ProcessError>
     readonly duplicate: (
@@ -908,7 +908,7 @@ export const JjLayer: Layer.Layer<Jj, never, AppProcess | Hooks> = Layer.effect(
                     run(["bookmark", "forget", name], options),
             ),
             new: Effect.fn("Jj.new")(function* (
-                revision: string,
+                revisions: string | readonly string[],
                 options: JjNewOptions,
             ) {
                 const hookResult = yield* hooks.runApplicablePreHooks(
@@ -927,10 +927,16 @@ export const JjLayer: Layer.Layer<Jj, never, AppProcess | Hooks> = Layer.effect(
                     }
                 }
 
+                const list =
+                    typeof revisions === "string" ? [revisions] : revisions
                 const args = ["new"]
-                if (options.position === "before") args.push("-B")
-                else if (options.position === "after") args.push("-A")
-                args.push(revision)
+                if (options.position === "before") {
+                    for (const revision of list) args.push("-B", revision)
+                } else if (options.position === "after") {
+                    for (const revision of list) args.push("-A", revision)
+                } else {
+                    args.push(...list)
+                }
                 return yield* run(args, options)
             }),
             duplicate: Effect.fn("Jj.duplicate")(

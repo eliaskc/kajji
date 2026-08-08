@@ -268,15 +268,15 @@ export interface ApplicationClient {
         options: ApplicationOperationOptions,
     ) => Promise<OperationResult>
     readonly jjNew: (
-        revision: string,
+        revisions: string | readonly string[],
         options: ApplicationNewOptions,
     ) => Promise<OperationResult>
     readonly jjNewBefore: (
-        revision: string,
+        revisions: string | readonly string[],
         options: ApplicationNewOptions,
     ) => Promise<OperationResult>
     readonly jjNewAfter: (
-        revision: string,
+        revisions: string | readonly string[],
         options: ApplicationNewOptions,
     ) => Promise<OperationResult>
     readonly hasPreHooks: (
@@ -794,17 +794,17 @@ export function makeApplicationClient(
             runOperation({ ...options, observer, signal }, (jj, sink) =>
                 jj.bookmarkForget(name, { ...options, sink }),
             ),
-        jjNew: (revision, { observer, signal, ...options }) =>
+        jjNew: (revisions, { observer, signal, ...options }) =>
             runOperation({ ...options, observer, signal }, (jj, sink) =>
-                jj.new(revision, { ...options, sink }),
+                jj.new(revisions, { ...options, sink }),
             ),
-        jjNewBefore: (revision, { observer, signal, ...options }) =>
+        jjNewBefore: (revisions, { observer, signal, ...options }) =>
             runOperation({ ...options, observer, signal }, (jj, sink) =>
-                jj.new(revision, { ...options, position: "before", sink }),
+                jj.new(revisions, { ...options, position: "before", sink }),
             ),
-        jjNewAfter: (revision, { observer, signal, ...options }) =>
+        jjNewAfter: (revisions, { observer, signal, ...options }) =>
             runOperation({ ...options, observer, signal }, (jj, sink) =>
-                jj.new(revision, { ...options, position: "after", sink }),
+                jj.new(revisions, { ...options, position: "after", sink }),
             ),
         hasPreHooks: (operationId, options) =>
             runHookRead(options, (hooks) =>
