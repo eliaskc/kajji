@@ -107,13 +107,10 @@ export function VirtualizedUnifiedView(props: VirtualizedUnifiedViewProps) {
         return Math.max(1, width - prefixWidth - RIGHT_PADDING)
     })
 
+    // Keep horizontal offset out of the full row layout. Only the visible rows
+    // need to be cropped again when scrolling sideways.
     const wrappedRows = createMemo(() =>
-        buildWrappedRows(
-            rows(),
-            wrapWidth(),
-            props.wrapEnabled,
-            props.scrollLeft,
-        ),
+        buildWrappedRows(rows(), wrapWidth(), props.wrapEnabled),
     )
 
     createEffect(() => {
@@ -212,6 +209,7 @@ export function VirtualizedUnifiedView(props: VirtualizedUnifiedViewProps) {
                             lineNumWidth={lineNumWidth()}
                             fileStats={fileStats()}
                             highlighterReady={highlighterReady}
+                            scrollLeft={props.scrollLeft}
                             maxHeaderWidth={Math.max(
                                 1,
                                 props.viewportWidth - 2,
@@ -242,6 +240,7 @@ interface VirtualizedRowProps {
         }
     >
     highlighterReady: () => boolean
+    scrollLeft: number
     maxHeaderWidth: number
 }
 
@@ -397,7 +396,9 @@ function VirtualizedRow(props: VirtualizedRowProps) {
     return (
         <DiffLineRow
             row={contentRow.row}
-            lineStart={contentRow.lineStart}
+            lineStart={
+                contentRow.isWrapped ? contentRow.lineStart : props.scrollLeft
+            }
             lineLength={contentRow.lineLength}
             lineNumWidth={props.lineNumWidth}
             highlighterReady={props.highlighterReady}
@@ -549,7 +550,6 @@ function buildWrappedRows(
     rows: DiffRow[],
     wrapWidth: number,
     wrapEnabled: boolean,
-    scrollLeft: number,
 ): WrappedRow[] {
     const result: WrappedRow[] = []
     const width = Math.max(1, wrapWidth)
@@ -569,15 +569,11 @@ function buildWrappedRows(
         const content = row.content.replace(/\n$/, "")
         const contentLength = content.length
         if (!wrapEnabled) {
-            const start = scrollLeft
             result.push({
                 type: "content",
                 row,
-                lineStart: start,
-                lineLength: Math.min(
-                    width - 1,
-                    Math.max(0, contentLength - start),
-                ),
+                lineStart: 0,
+                lineLength: Math.min(width - 1, contentLength),
                 isWrapped: false,
             })
             continue

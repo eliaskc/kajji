@@ -380,13 +380,14 @@ export function VirtualizedSplitView(props: VirtualizedSplitViewProps) {
         return Math.max(1, Math.floor((width - 1) / 2))
     })
 
+    // Keep horizontal offset out of the full row layout. Only the visible rows
+    // need to be cropped again when scrolling sideways.
     const wrappedRows = createMemo(() =>
         buildWrappedSplitRows(
             rows(),
             wrapWidth(),
             unifiedWrapWidth(),
             props.wrapEnabled,
-            props.scrollLeft,
         ),
     )
 
@@ -486,6 +487,7 @@ export function VirtualizedSplitView(props: VirtualizedSplitViewProps) {
                             lineNumWidth={lineNumWidth()}
                             fileStats={fileStats()}
                             highlighterReady={highlighterReady}
+                            scrollLeft={props.scrollLeft}
                             columnWidth={columnWidth()}
                             maxHeaderWidth={Math.max(
                                 1,
@@ -517,6 +519,7 @@ interface VirtualizedSplitRowProps {
         }
     >
     highlighterReady: () => boolean
+    scrollLeft: number
     columnWidth: number
     maxHeaderWidth: number
 }
@@ -693,6 +696,7 @@ function VirtualizedSplitRow(props: VirtualizedSplitRowProps) {
                 row={props.row}
                 lineNumWidth={props.lineNumWidth}
                 highlighterReady={props.highlighterReady}
+                scrollLeft={props.scrollLeft}
             />
         )
     }
@@ -702,6 +706,7 @@ function VirtualizedSplitRow(props: VirtualizedSplitRowProps) {
             row={props.row}
             lineNumWidth={props.lineNumWidth}
             highlighterReady={props.highlighterReady}
+            scrollLeft={props.scrollLeft}
             columnWidth={props.columnWidth}
         />
     )
@@ -711,6 +716,7 @@ interface SplitContentRowProps {
     row: Extract<WrappedSplitRow, { type: "content"; layout: "split" }>
     lineNumWidth: number
     highlighterReady: () => boolean
+    scrollLeft: number
     columnWidth: number
 }
 
@@ -903,7 +909,9 @@ function SplitContentRow(props: SplitContentRowProps) {
                         <For
                             each={sliceTokens(
                                 leftTokens(),
-                                props.row.leftStart ?? 0,
+                                props.row.leftWrapped
+                                    ? (props.row.leftStart ?? 0)
+                                    : props.scrollLeft,
                                 props.row.leftLength,
                             )}
                         >
@@ -954,7 +962,9 @@ function SplitContentRow(props: SplitContentRowProps) {
                         <For
                             each={sliceTokens(
                                 rightTokens(),
-                                props.row.rightStart ?? 0,
+                                props.row.rightWrapped
+                                    ? (props.row.rightStart ?? 0)
+                                    : props.scrollLeft,
                                 props.row.rightLength,
                             )}
                         >
@@ -983,6 +993,7 @@ interface UnifiedContentRowProps {
     row: Extract<WrappedSplitRow, { type: "content"; layout: "unified" }>
     lineNumWidth: number
     highlighterReady: () => boolean
+    scrollLeft: number
 }
 
 function UnifiedContentRow(props: UnifiedContentRowProps) {
@@ -1059,7 +1070,9 @@ function UnifiedContentRow(props: UnifiedContentRowProps) {
                 <For
                     each={sliceTokens(
                         tokens(),
-                        props.row.lineStart,
+                        props.row.isWrapped
+                            ? props.row.lineStart
+                            : props.scrollLeft,
                         props.row.lineLength,
                     )}
                 >
@@ -1077,7 +1090,6 @@ function buildWrappedSplitRows(
     wrapWidth: number,
     unifiedWrapWidth: number,
     wrapEnabled: boolean,
-    scrollLeft: number,
 ): WrappedSplitRow[] {
     const result: WrappedSplitRow[] = []
     const width = Math.max(1, wrapWidth)
@@ -1103,17 +1115,13 @@ function buildWrappedSplitRows(
             const contentLength = content.length
 
             if (!wrapEnabled) {
-                const start = scrollLeft
                 result.push({
                     type: "content",
                     layout: "unified",
                     row,
                     line,
-                    lineStart: start,
-                    lineLength: Math.min(
-                        fullWidth - 1,
-                        Math.max(0, contentLength - start),
-                    ),
+                    lineStart: 0,
+                    lineLength: Math.min(fullWidth - 1, contentLength),
                     isWrapped: false,
                 })
                 continue
@@ -1144,8 +1152,8 @@ function buildWrappedSplitRows(
         const rightLength = rightContent.length
 
         if (!wrapEnabled) {
-            const leftStart = row.left ? scrollLeft : null
-            const rightStart = row.right ? scrollLeft : null
+            const leftStart = row.left ? 0 : null
+            const rightStart = row.right ? 0 : null
             result.push({
                 type: "content",
                 layout: "split",
