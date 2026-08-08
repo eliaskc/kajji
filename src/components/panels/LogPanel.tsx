@@ -1290,6 +1290,11 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
         return selectedCommit()
     }
 
+    const singleRevisionOnly = (action: string) => () =>
+        multiSelectedCommits().length >= 2
+            ? `${action} only works for a single revision`
+            : null
+
     const selectedOriginDiffBookmark = createMemo(() =>
         findCommitBookmarkWithOriginDiff(
             selectedLogCommit(),
@@ -1300,10 +1305,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
 
     const openBookmarkOriginDiff = () => {
         const bookmark = selectedOriginDiffBookmark()
-        if (!bookmark) {
-            status.show("No changes compared to origin.")
-            return
-        }
+        if (!bookmark) return
         const activeDiff = activeBookmarkDiff()
         if (activeDiff?.bookmark === bookmark) return
         void enterBookmarkDiffView(bookmark)
@@ -1407,6 +1409,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
 
             panel: "log",
             visibleIn: ["palette", "statusBar"] as const,
+            unavailable: singleRevisionOnly("new"),
             execute: () => {
                 const commit = selectedLogCommit()
                 if (commit)
@@ -1429,6 +1432,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
 
             panel: "log",
             visibleIn: ["palette"] as const,
+            unavailable: singleRevisionOnly("new"),
             execute: async () => {
                 const commit = selectedLogCommit()
                 if (!commit) return
@@ -1541,6 +1545,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
 
             panel: "log",
             visibleIn: ["palette"] as const,
+            unavailable: singleRevisionOnly("duplicate"),
             execute: () => {
                 const commit = selectedLogCommit()
                 if (!commit) return
@@ -1565,6 +1570,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
             visibleIn: selectedLogCommit()?.conflict
                 ? (["palette", "statusBar"] as const)
                 : (["palette"] as const),
+            unavailable: singleRevisionOnly("resolve"),
             execute: async () => {
                 const commit = selectedLogCommit()
                 if (!commit) return
@@ -1595,6 +1601,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
 
             panel: "log",
             visibleIn: ["palette"] as const,
+            unavailable: singleRevisionOnly("edit"),
             execute: async () => {
                 const commit = selectedLogCommit()
                 if (!commit) return
@@ -1646,6 +1653,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
 
             panel: "log",
             visibleIn: ["palette", "statusBar"] as const,
+            unavailable: singleRevisionOnly("squash"),
             execute: () => {
                 const commit = selectedLogCommit()
                 if (!commit) return
@@ -1816,6 +1824,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
 
             panel: "log",
             visibleIn: ["palette", "statusBar"] as const,
+            unavailable: singleRevisionOnly("rebase"),
             execute: () => {
                 const commit = selectedLogCommit()
                 if (!commit) return
@@ -1924,6 +1933,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
 
             panel: "log",
             visibleIn: ["palette"] as const,
+            unavailable: singleRevisionOnly("split"),
             execute: async () => {
                 const commit = selectedLogCommit()
                 if (!commit) return
@@ -1980,6 +1990,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
 
             panel: "log",
             visibleIn: ["palette", "statusBar"] as const,
+            unavailable: singleRevisionOnly("describe"),
             execute: async () => {
                 const commit = selectedLogCommit()
                 if (!commit) return
@@ -2048,6 +2059,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
 
             panel: "log",
             visibleIn: ["palette", "statusBar"] as const,
+            unavailable: singleRevisionOnly("open"),
             execute: openForCommit,
         },
         {
@@ -2058,6 +2070,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
 
             panel: "log",
             visibleIn: ["palette"] as const,
+            unavailable: singleRevisionOnly("open"),
             execute: () => {
                 void openForCommit({ direct: true })
             },
@@ -2070,6 +2083,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
 
             panel: "log",
             visibleIn: ["palette"] as const,
+            unavailable: singleRevisionOnly("abandon"),
             execute: async () => {
                 const commit = selectedLogCommit()
                 if (!commit) return
@@ -2126,6 +2140,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
 
             panel: "log",
             visibleIn: ["palette"] as const,
+            unavailable: singleRevisionOnly("set bookmark"),
             execute: async () => {
                 const commit = selectedLogCommit()
                 if (!commit) return
@@ -2248,9 +2263,12 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
             context: "log.revisions",
 
             panel: "log",
-            visibleIn: selectedOriginDiffBookmark()
-                ? (["palette", "statusBar"] as const)
-                : (["palette"] as const),
+            visibleIn: ["palette", "statusBar"] as const,
+            unavailable: () =>
+                singleRevisionOnly("compare to origin")() ??
+                (selectedOriginDiffBookmark()
+                    ? null
+                    : "No changes compared to origin."),
             execute: openBookmarkOriginDiff,
         },
         {
