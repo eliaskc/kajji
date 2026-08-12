@@ -13,6 +13,7 @@ import {
     flattenToRows,
     getCurrentDiffPosition,
     getCurrentDiffScrollAnchor,
+    getCurrentFileId,
     getFileRowOffsets,
     getFileScrollTailHeight,
     getHunkRowOffsets,
@@ -136,7 +137,9 @@ export function VirtualizedUnifiedView(props: VirtualizedUnifiedViewProps) {
             getOldLineNumber,
             focusRow,
         )
-        props.onCurrentFileChange?.(position?.fileId ?? null)
+        props.onCurrentFileChange?.(
+            getCurrentFileId(currentRows, props.scrollTop),
+        )
         props.onCurrentPositionChange?.(position)
         props.onCurrentScrollAnchorChange?.(
             getCurrentDiffScrollAnchor(

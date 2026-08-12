@@ -16,6 +16,7 @@ import {
     findDiffScrollAnchorRowIndex,
     getCurrentDiffPosition,
     getCurrentDiffScrollAnchor,
+    getCurrentFileId,
     getFileRowOffsets,
     getFileScrollTailHeight,
     getHunkRowOffsets,
@@ -414,7 +415,9 @@ export function VirtualizedSplitView(props: VirtualizedSplitViewProps) {
             getOldLineNumber,
             focusRow,
         )
-        props.onCurrentFileChange?.(position?.fileId ?? null)
+        props.onCurrentFileChange?.(
+            getCurrentFileId(currentRows, props.scrollTop),
+        )
         props.onCurrentPositionChange?.(position)
         props.onCurrentScrollAnchorChange?.(
             getCurrentDiffScrollAnchor(
