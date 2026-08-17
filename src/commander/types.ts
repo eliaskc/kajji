@@ -31,7 +31,6 @@ export interface Commit {
     divergent: boolean
     conflict: boolean
     bookmarks: string[]
-    gitHead: boolean
     workingCopies: string[]
 }
 

@@ -603,8 +603,8 @@ describe("ApplicationClient", () => {
 
     test("propagates streaming consumer failures", async () => {
         const output =
-            "@  __LJ__one__LJ__commit-one__LJ__false__LJ__false__LJ__false__LJ__false__LJ__one__LJ__A__LJ__a@example.com__LJ__2025-01-01 12:00:00__LJ____LJ__false__LJ____LJ__one\n" +
-            "○  __LJ__two__LJ__commit-two__LJ__false__LJ__false__LJ__false__LJ__false__LJ__two__LJ__A__LJ__a@example.com__LJ__2025-01-01 11:00:00__LJ____LJ__false__LJ____LJ__two\n"
+            "@  __LJ__one__LJ__commit-one__LJ____LJ__false__LJ__false__LJ__false__LJ__false__LJ__false__LJ__one__LJ__A__LJ__a@example.com__LJ__2025-01-01 12:00:00__LJ__2025-01-01 12:00:00__LJ____LJ____LJ__one\n" +
+            "○  __LJ__two__LJ__commit-two__LJ____LJ__false__LJ__false__LJ__false__LJ__false__LJ__false__LJ__two__LJ__A__LJ__a@example.com__LJ__2025-01-01 11:00:00__LJ__2025-01-01 11:00:00__LJ____LJ____LJ__two\n"
         const layer = makeAppProcessFake(
             () => Effect.succeed({ ...success, stdout: output }),
             () =>

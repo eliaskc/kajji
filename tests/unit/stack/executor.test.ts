@@ -304,7 +304,6 @@ function commit(
         divergent: false,
         conflict: false,
         bookmarks: [],
-        gitHead: false,
         workingCopies: [],
     }
 }

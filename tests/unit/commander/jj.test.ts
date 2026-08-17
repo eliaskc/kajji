@@ -796,9 +796,9 @@ describe("Jj", () => {
 
     test("incrementally parses log stream events", async () => {
         const lines = [
-            "@  __LJ__one__LJ__commit-one__LJ__false__LJ__false__LJ__false__LJ__false__LJ__one__LJ__A__LJ__a@example.com__LJ__2025-01-01 12:00:00__LJ____LJ__false__LJ____LJ__one",
-            "○  __LJ__two__LJ__commit-two__LJ__false__LJ__false__LJ__false__LJ__false__LJ__two__LJ__A__LJ__a@example.com__LJ__2025-01-01 11:00:00__LJ____LJ__false__LJ____LJ__two",
-            "◆  __LJ__three__LJ__commit-three__LJ__true__LJ__true__LJ__false__LJ__false__LJ__three__LJ__A__LJ__a@example.com__LJ__2025-01-01 10:00:00__LJ____LJ__false__LJ____LJ__three",
+            "@  __LJ__one__LJ__commit-one__LJ____LJ__false__LJ__false__LJ__false__LJ__false__LJ__false__LJ__one__LJ__A__LJ__a@example.com__LJ__2025-01-01 12:00:00__LJ__2025-01-01 12:00:00__LJ____LJ____LJ__one",
+            "○  __LJ__two__LJ__commit-two__LJ____LJ__false__LJ__false__LJ__false__LJ__false__LJ__false__LJ__two__LJ__A__LJ__a@example.com__LJ__2025-01-01 11:00:00__LJ__2025-01-01 11:00:00__LJ____LJ____LJ__two",
+            "◆  __LJ__three__LJ__commit-three__LJ____LJ__true__LJ__true__LJ__false__LJ__false__LJ__false__LJ__three__LJ__A__LJ__a@example.com__LJ__2025-01-01 10:00:00__LJ__2025-01-01 10:00:00__LJ____LJ____LJ__three",
         ]
         const stdout = `${lines.join("\n")}\n`
         const processLayer = makeAppProcessFake(

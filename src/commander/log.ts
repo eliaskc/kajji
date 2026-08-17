@@ -71,8 +71,6 @@ export function buildLogTemplate(): string {
         `"${MARKER}"`,
         'bookmarks.map(|b| b.name()).join(",")',
         `"${MARKER}"`,
-        "git_head",
-        `"${MARKER}"`,
         'working_copies.map(|wc| wc.name()).join(",")',
         `"${MARKER}"`,
     ].join(" ++ ")
@@ -101,61 +99,46 @@ export interface LogStreamState {
     current: Commit | null
 }
 
+// The template produces 17 marker-separated parts per commit line:
+// gutter, changeId, commitId, parentCommitIds, immutable, inTrunk, empty,
+// divergent, conflict, description, author, email, authorTimestamp,
+// committerTimestamp, bookmarks, workingCopies, refLine.
+const TEMPLATE_PART_COUNT = 17
+
 function parseLogLine(line: string, state: LogStreamState): Commit | null {
     if (line.includes(MARKER)) {
         const parts = line.split(MARKER)
-        if (parts.length >= 15) {
+        if (parts.length >= TEMPLATE_PART_COUNT) {
             const completed = state.current
             const gutter = parts[0] ?? ""
-            // Older template variants (kept for test fixtures) lack some
-            // fields; the full current template produces 18 parts.
-            const hasCommitterTimestamp = parts.length >= 18
-            const hasConflict = parts.length >= 17
-            const hasParentIds = parts.length >= 16
-            const parentCommitIdsRaw = hasParentIds
-                ? stripAnsi(parts[3] ?? "")
-                : ""
-            const metadataOffset =
-                (hasParentIds ? 1 : 0) + (hasConflict ? 1 : 0)
-            // Fields after the committer timestamp shift by one more slot.
-            const tailOffset = metadataOffset + (hasCommitterTimestamp ? 1 : 0)
-            const bookmarksRaw = stripAnsi(parts[11 + tailOffset] ?? "")
-            const workingCopiesRaw = stripAnsi(parts[13 + tailOffset] ?? "")
+            const parentCommitIdsRaw = stripAnsi(parts[3] ?? "")
+            const bookmarksRaw = stripAnsi(parts[14] ?? "")
+            const workingCopiesRaw = stripAnsi(parts[15] ?? "")
+            const refLine = parts[16] ?? ""
             state.current = {
                 changeId: stripAnsi(parts[1] ?? ""),
                 commitId: stripAnsi(parts[2] ?? ""),
                 parentCommitIds: parentCommitIdsRaw
                     ? parentCommitIdsRaw.split(",")
                     : [],
-                immutable:
-                    stripAnsi(parts[hasParentIds ? 4 : 3] ?? "") === "true",
-                inTrunk:
-                    stripAnsi(parts[hasParentIds ? 5 : 4] ?? "") === "true",
-                empty: stripAnsi(parts[hasParentIds ? 6 : 5] ?? "") === "true",
-                divergent:
-                    stripAnsi(parts[hasParentIds ? 7 : 6] ?? "") === "true",
-                conflict: hasConflict && stripAnsi(parts[8] ?? "") === "true",
-                description: stripAnsi(parts[7 + metadataOffset] ?? ""),
-                author: stripAnsi(parts[8 + metadataOffset] ?? ""),
-                authorEmail: stripAnsi(parts[9 + metadataOffset] ?? ""),
-                timestamp: stripAnsi(parts[10 + metadataOffset] ?? ""),
-                committerTimestamp: hasCommitterTimestamp
-                    ? stripAnsi(parts[11 + metadataOffset] ?? "")
-                    : undefined,
+                immutable: stripAnsi(parts[4] ?? "") === "true",
+                inTrunk: stripAnsi(parts[5] ?? "") === "true",
+                empty: stripAnsi(parts[6] ?? "") === "true",
+                divergent: stripAnsi(parts[7] ?? "") === "true",
+                conflict: stripAnsi(parts[8] ?? "") === "true",
+                description: stripAnsi(parts[9] ?? ""),
+                author: stripAnsi(parts[10] ?? ""),
+                authorEmail: stripAnsi(parts[11] ?? ""),
+                timestamp: stripAnsi(parts[12] ?? ""),
+                committerTimestamp: stripAnsi(parts[13] ?? ""),
                 bookmarks: bookmarksRaw ? bookmarksRaw.split(",") : [],
-                gitHead: stripAnsi(parts[12 + tailOffset] ?? "") === "true",
                 workingCopies: workingCopiesRaw
                     ? workingCopiesRaw.split(",")
                     : [],
                 isWorkingCopy: gutter.includes("@"),
-                refLine: parts[14 + tailOffset] ?? "",
-                lines: [gutter + (parts[14 + tailOffset] ?? "")],
-                displayLines: [
-                    createCommitDisplayLine(
-                        gutter,
-                        parts[14 + tailOffset] ?? "",
-                    ),
-                ],
+                refLine,
+                lines: [gutter + refLine],
+                displayLines: [createCommitDisplayLine(gutter, refLine)],
             }
             return completed
         }
