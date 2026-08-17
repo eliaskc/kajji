@@ -33,11 +33,5 @@ export function BinaryPreview(props: BinaryPreviewProps) {
         ]
     })
 
-    return (
-        <BinaryRainCard
-            width={props.width}
-            height={props.height}
-            lines={lines()}
-        />
-    )
+    return <BinaryRainCard width={props.width} height={props.height} lines={lines()} />
 }

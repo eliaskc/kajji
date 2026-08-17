@@ -27,14 +27,7 @@ function createRepository(root: string) {
     mkdirSync(repository)
     runJj(repository, "git", "init")
     runJj(repository, "config", "set", "--repo", "user.name", "Kajji E2E")
-    runJj(
-        repository,
-        "config",
-        "set",
-        "--repo",
-        "user.email",
-        "kajji-e2e@example.com",
-    )
+    runJj(repository, "config", "set", "--repo", "user.email", "kajji-e2e@example.com")
 
     writeFileSync(join(repository, "base.txt"), "base\n")
     runJj(repository, "commit", "-m", "fixture: base")
@@ -61,9 +54,7 @@ function createRepository(root: string) {
     return repository
 }
 
-async function withKajji(
-    run: (session: Session, repository: string) => Promise<void>,
-) {
+async function withKajji(run: (session: Session, repository: string) => Promise<void>) {
     const root = mkdtempSync(join(tmpdir(), "kajji-e2e-"))
     const home = join(root, "home")
     mkdirSync(home)
@@ -112,12 +103,9 @@ async function withKajji(
 }
 
 async function waitForInput(session: Session) {
-    await session.screen.waitUntil(
-        (snapshot) => snapshot.frame.cursor !== null,
-        {
-            timeoutMs: 5_000,
-        },
-    )
+    await session.screen.waitUntil((snapshot) => snapshot.frame.cursor !== null, {
+        timeoutMs: 5_000,
+    })
 }
 
 test("browses revisions and keeps the detail panel in sync", async () => {
@@ -140,8 +128,7 @@ test("browses revisions and keeps the detail panel in sync", async () => {
         await session.keyboard.type("k")
         await session.screen.waitUntil(
             (snapshot) =>
-                snapshot.text.includes("fixture: UI change") &&
-                snapshot.text.includes("ui.txt"),
+                snapshot.text.includes("fixture: UI change") && snapshot.text.includes("ui.txt"),
             { timeoutMs: 10_000 },
         )
     })
@@ -227,84 +214,51 @@ test("updates a revision description from the Describe modal", async () => {
     await withKajji(async (session, repository) => {
         await session.keyboard.type("d")
         await session.screen.waitUntil(
-            (snapshot) =>
-                snapshot.text.includes("Describe") &&
-                snapshot.text.includes("Body"),
+            (snapshot) => snapshot.text.includes("Describe") && snapshot.text.includes("Body"),
             { timeoutMs: 10_000 },
         )
 
         await session.keyboard.press("End")
         await session.keyboard.type(" updated through modal")
-        await session.screen.waitForText(
-            "fixture: UI change updated through modal",
-            {
-                timeoutMs: 5_000,
-            },
-        )
+        await session.screen.waitForText("fixture: UI change updated through modal", {
+            timeoutMs: 5_000,
+        })
         await session.keyboard.press("Enter")
 
         await session.screen.waitUntil(
             (snapshot) =>
                 !snapshot.text.includes("Body") &&
-                snapshot.text.includes(
-                    "fixture: UI change updated through modal",
-                ),
+                snapshot.text.includes("fixture: UI change updated through modal"),
             { timeoutMs: 10_000 },
         )
-        expect(
-            runJj(
-                repository,
-                "log",
-                "-r",
-                "@",
-                "--no-graph",
-                "-T",
-                "description",
-            ),
-        ).toBe("fixture: UI change updated through modal\n")
+        expect(runJj(repository, "log", "-r", "@", "--no-graph", "-T", "description")).toBe(
+            "fixture: UI change updated through modal\n",
+        )
     })
 }, 45_000)
 
 test("cancels Describe edits without changing the revision", async () => {
     await withKajji(async (session, repository) => {
-        const original = runJj(
-            repository,
-            "log",
-            "-r",
-            "@",
-            "--no-graph",
-            "-T",
-            "description",
-        )
+        const original = runJj(repository, "log", "-r", "@", "--no-graph", "-T", "description")
 
         await session.keyboard.type("d")
         await session.screen.waitForText("Body", { timeoutMs: 10_000 })
         await waitForInput(session)
         await session.keyboard.press("End")
         await session.keyboard.type(" should be discarded")
-        await session.screen.waitForText(
-            "fixture: UI change should be discarded",
-            { timeoutMs: 5_000 },
-        )
+        await session.screen.waitForText("fixture: UI change should be discarded", {
+            timeoutMs: 5_000,
+        })
         await session.keyboard.press("Escape")
 
         await session.screen.waitUntil(
             (snapshot) =>
-                !snapshot.text.includes("Body") &&
-                !snapshot.text.includes("should be discarded"),
+                !snapshot.text.includes("Body") && !snapshot.text.includes("should be discarded"),
             { timeoutMs: 5_000 },
         )
-        expect(
-            runJj(
-                repository,
-                "log",
-                "-r",
-                "@",
-                "--no-graph",
-                "-T",
-                "description",
-            ),
-        ).toBe(original)
+        expect(runJj(repository, "log", "-r", "@", "--no-graph", "-T", "description")).toBe(
+            original,
+        )
     })
 }, 45_000)
 
@@ -321,25 +275,13 @@ test("creates and deletes a bookmark", async () => {
 
         await session.screen.waitUntil(
             () =>
-                runJj(
-                    repository,
-                    "bookmark",
-                    "list",
-                    "--template",
-                    'name ++ "\\n"',
-                )
+                runJj(repository, "bookmark", "list", "--template", 'name ++ "\\n"')
                     .split("\n")
                     .includes("e2e-bookmark"),
             { timeoutMs: 20_000 },
         )
         expect(
-            runJj(
-                repository,
-                "bookmark",
-                "list",
-                "--template",
-                'name ++ "\\n"',
-            ).split("\n"),
+            runJj(repository, "bookmark", "list", "--template", 'name ++ "\\n"').split("\n"),
         ).toContain("e2e-bookmark")
 
         await session.keyboard.press("Control+R")
@@ -352,44 +294,26 @@ test("creates and deletes a bookmark", async () => {
         await session.keyboard.type("y")
         await session.screen.waitUntil(
             () =>
-                !runJj(
-                    repository,
-                    "bookmark",
-                    "list",
-                    "--template",
-                    'name ++ "\\n"',
-                )
+                !runJj(repository, "bookmark", "list", "--template", 'name ++ "\\n"')
                     .split("\n")
                     .includes("e2e-bookmark"),
             { timeoutMs: 10_000 },
         )
         expect(
-            runJj(
-                repository,
-                "bookmark",
-                "list",
-                "--template",
-                'name ++ "\\n"',
-            ).split("\n"),
+            runJj(repository, "bookmark", "list", "--template", 'name ++ "\\n"').split("\n"),
         ).not.toContain("e2e-bookmark")
     })
 }, 45_000)
 
 test("navigates between files in diff mode", async () => {
     await withKajji(async (session) => {
-        const waitForNavigation = async (
-            label: string,
-            predicate: (text: string) => boolean,
-        ) => {
+        const waitForNavigation = async (label: string, predicate: (text: string) => boolean) => {
             try {
-                await session.screen.waitUntil(
-                    (snapshot) => predicate(snapshot.text),
-                    { timeoutMs: 10_000 },
-                )
+                await session.screen.waitUntil((snapshot) => predicate(snapshot.text), {
+                    timeoutMs: 10_000,
+                })
             } catch {
-                throw new Error(
-                    `${label} timed out\n${await session.screen.text()}`,
-                )
+                throw new Error(`${label} timed out\n${await session.screen.text()}`)
             }
         }
 
@@ -413,10 +337,9 @@ test("navigates between files in diff mode", async () => {
         )
 
         await session.resize({ cols: 200, rows: 36 })
-        await session.screen.waitUntil(
-            (snapshot) => snapshot.frame.cols === 200,
-            { timeoutMs: 5_000 },
-        )
+        await session.screen.waitUntil((snapshot) => snapshot.frame.cols === 200, {
+            timeoutMs: 5_000,
+        })
         await session.keyboard.type("3")
         await session.screen.waitForText("wrap", { timeoutMs: 5_000 })
         await executePaletteCommand("next file", "Next file")
@@ -431,8 +354,7 @@ test("navigates between files in diff mode", async () => {
         await executePaletteCommand("previous file", "Previous file")
         await waitForNavigation(
             "navigating to the previous file",
-            (text) =>
-                !text.includes("Commands") && text.includes("ui detail marker"),
+            (text) => !text.includes("Commands") && text.includes("ui detail marker"),
         )
     })
 }, 45_000)
@@ -467,17 +389,9 @@ test("undoes a description update", async () => {
             quietForMs: 250,
             timeoutMs: 5_000,
         })
-        expect(
-            runJj(
-                repository,
-                "log",
-                "-r",
-                "@",
-                "--no-graph",
-                "-T",
-                "description",
-            ),
-        ).toBe("fixture: UI change\n")
+        expect(runJj(repository, "log", "-r", "@", "--no-graph", "-T", "description")).toBe(
+            "fixture: UI change\n",
+        )
     })
 }, 45_000)
 
@@ -494,14 +408,12 @@ test("reports a failed operation in the command log", async () => {
         await session.keyboard.press("Enter")
 
         await session.resize({ cols: 200, rows: 36 })
-        await session.screen.waitUntil(
-            (snapshot) => snapshot.frame.cols === 200,
-            { timeoutMs: 5_000 },
-        )
+        await session.screen.waitUntil((snapshot) => snapshot.frame.cols === 200, {
+            timeoutMs: 5_000,
+        })
         await session.screen.waitUntil(
             (snapshot) =>
-                snapshot.text.includes("invalid:name") &&
-                snapshot.text.includes("expected <EOI>"),
+                snapshot.text.includes("invalid:name") && snapshot.text.includes("expected <EOI>"),
             { timeoutMs: 20_000 },
         )
         expect(
@@ -568,8 +480,7 @@ test("selects multiple revisions and shows a combined diff", async () => {
         await session.keyboard.press("Escape")
         await session.screen.waitUntil(
             (snapshot) =>
-                !snapshot.text.includes("2 revisions") &&
-                snapshot.text.includes("Author:"),
+                !snapshot.text.includes("2 revisions") && snapshot.text.includes("Author:"),
             { timeoutMs: 10_000 },
         )
 
@@ -587,8 +498,7 @@ test("selects multiple revisions and shows a combined diff", async () => {
         await session.keyboard.type("v")
         await session.screen.waitUntil(
             (snapshot) =>
-                !snapshot.text.includes("VISUAL") &&
-                snapshot.text.includes("2 revisions"),
+                !snapshot.text.includes("VISUAL") && snapshot.text.includes("2 revisions"),
             { timeoutMs: 5_000 },
         )
 
@@ -606,15 +516,13 @@ test("selects multiple revisions and shows a combined diff", async () => {
         await session.keyboard.press("Escape")
         await session.screen.waitUntil(
             (snapshot) =>
-                snapshot.text.includes("1 Revisions") &&
-                snapshot.text.includes("2 Bookmarks"),
+                snapshot.text.includes("1 Revisions") && snapshot.text.includes("2 Bookmarks"),
             { timeoutMs: 5_000 },
         )
         await session.keyboard.press("Escape")
         await session.screen.waitUntil(
             (snapshot) =>
-                !snapshot.text.includes("2 revisions") &&
-                snapshot.text.includes("Author:"),
+                !snapshot.text.includes("2 revisions") && snapshot.text.includes("Author:"),
             { timeoutMs: 10_000 },
         )
     })

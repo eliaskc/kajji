@@ -14,9 +14,7 @@ import type { DifftChange, DifftSide, StructuralFileResult } from "./difft-json"
 const CONTEXT_ROWS = 3
 
 /** Files that can meaningfully go through the structural engine. */
-export function structuralCandidate(
-    file: Pick<FlattenedFile, "isBinary" | "type">,
-): boolean {
+export function structuralCandidate(file: Pick<FlattenedFile, "isBinary" | "type">): boolean {
     return !file.isBinary && file.type !== "new" && file.type !== "deleted"
 }
 
@@ -76,9 +74,7 @@ function partialStructuralSegments(
     type: "added" | "removed",
 ): WordDiffSegment[] | undefined {
     const segments = structuralSegments(content, changes, type)
-    return segments.some(
-        (segment) => segment.type === "unchanged" && /\S/.test(segment.text),
-    )
+    return segments.some((segment) => segment.type === "unchanged" && /\S/.test(segment.text))
         ? segments
         : undefined
 }
@@ -220,12 +216,8 @@ export function flattenStructuralFile(
     const fid = file.fileId
     const hunks: FlattenedHunk[] = mergedRanges.map((range) => {
         const pairs = aligned.slice(range.start, range.end + 1)
-        const presentOld = pairs.flatMap(([line]) =>
-            line === null ? [] : [line],
-        )
-        const presentNew = pairs.flatMap(([, line]) =>
-            line === null ? [] : [line],
-        )
+        const presentOld = pairs.flatMap(([line]) => (line === null ? [] : [line]))
+        const presentNew = pairs.flatMap(([, line]) => (line === null ? [] : [line]))
         const oldStart = (presentOld[0] ?? 0) + 1
         const newStart = (presentNew[0] ?? 0) + 1
         const hunkId =
@@ -237,10 +229,8 @@ export function flattenStructuralFile(
         for (const [oldLine, newLine] of pairs) {
             const rawOld = oldLine === null ? null : (oldLines[oldLine] ?? "")
             const rawNew = newLine === null ? null : (newLines[newLine] ?? "")
-            const oldChange =
-                oldLine === null ? undefined : changedOld.get(oldLine)
-            const newChange =
-                newLine === null ? undefined : changedNew.get(newLine)
+            const oldChange = oldLine === null ? undefined : changedOld.get(oldLine)
+            const newChange = newLine === null ? undefined : changedNew.get(newLine)
 
             // Demote structurally unchanged pairs — and identical pairs even
             // when Difftastic reports changes for them. Multiline string

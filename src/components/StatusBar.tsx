@@ -18,11 +18,7 @@ export function StatusBar() {
     const [animationTick, setAnimationTick] = createSignal(0)
     const timer = setInterval(() => {
         const status = update.state().status
-        if (
-            status === "checking" ||
-            status === "updating" ||
-            status === "success"
-        ) {
+        if (status === "checking" || status === "updating" || status === "success") {
             setAnimationTick((index) => index + 1)
         }
     }, 200)
@@ -31,12 +27,8 @@ export function StatusBar() {
     const relevantCommands = createMemo(() => {
         const all = command.activeForSurface("statusBar")
 
-        const contextCmds = all.filter(
-            (cmd) => cmd.keybind && cmd.context !== "global",
-        )
-        const globalCmds = all.filter(
-            (cmd) => cmd.keybind && cmd.context === "global",
-        )
+        const contextCmds = all.filter((cmd) => cmd.keybind && cmd.context !== "global")
+        const globalCmds = all.filter((cmd) => cmd.keybind && cmd.context === "global")
 
         const seen = new Set<string>()
         return [...contextCmds, ...globalCmds].filter((cmd) => {
@@ -60,8 +52,7 @@ export function StatusBar() {
 
     const versionText = () => {
         const state = update.state()
-        if (state.status === "success" && state.version)
-            return `v${state.version}*`
+        if (state.status === "success" && state.version) return `v${state.version}*`
         return `v${getCurrentVersion()}`
     }
 
@@ -70,17 +61,11 @@ export function StatusBar() {
         if (state.status === "failure") return colors().error
         if (state.status === "success") {
             animationTick()
-            const age = state.completedAt
-                ? Date.now() - state.completedAt.getTime()
-                : 0
+            const age = state.completedAt ? Date.now() - state.completedAt.getTime() : 0
             if (age < 1500) return colors().statusBarKey
             const fadeProgress = Math.min(1, (age - 1500) / 300)
             const easedProgress = 1 - (1 - fadeProgress) ** 3
-            return blendColors(
-                colors().statusBarKey,
-                colors().textMuted,
-                1 - easedProgress,
-            )
+            return blendColors(colors().statusBarKey, colors().textMuted, 1 - easedProgress)
         }
         return colors().textMuted
     }
@@ -164,8 +149,7 @@ export function StatusBar() {
                                             <>
                                                 <span
                                                     style={{
-                                                        fg: colors()
-                                                            .statusBarKey,
+                                                        fg: colors().statusBarKey,
                                                     }}
                                                 >
                                                     {command.keyLabel(cmd.id)}
@@ -177,19 +161,11 @@ export function StatusBar() {
                                                 >
                                                     {cmd.title}
                                                 </span>
-                                                <Show
-                                                    when={
-                                                        index() <
-                                                        contextCommands()
-                                                            .length -
-                                                            1
-                                                    }
-                                                >
+                                                <Show when={index() < contextCommands().length - 1}>
                                                     <span
                                                         style={{
                                                             fg: separator()
-                                                                ? colors()
-                                                                      .textMuted
+                                                                ? colors().textMuted
                                                                 : undefined,
                                                         }}
                                                     >
@@ -211,8 +187,7 @@ export function StatusBar() {
                                                         <span
                                                             style={{
                                                                 fg: separator()
-                                                                    ? colors()
-                                                                          .textMuted
+                                                                    ? colors().textMuted
                                                                     : undefined,
                                                             }}
                                                         >
@@ -221,18 +196,14 @@ export function StatusBar() {
                                                     </Show>
                                                     <span
                                                         style={{
-                                                            fg: colors()
-                                                                .statusBarKey,
+                                                            fg: colors().statusBarKey,
                                                         }}
                                                     >
-                                                        {command.keyLabel(
-                                                            cmd.id,
-                                                        )}
+                                                        {command.keyLabel(cmd.id)}
                                                     </span>{" "}
                                                     <span
                                                         style={{
-                                                            fg: colors()
-                                                                .textMuted,
+                                                            fg: colors().textMuted,
                                                         }}
                                                     >
                                                         {cmd.title}
@@ -263,8 +234,7 @@ export function StatusBar() {
                                             style={{
                                                 fg: segmentColor(segment),
                                                 attributes:
-                                                    segment.style ===
-                                                        "action" ||
+                                                    segment.style === "action" ||
                                                     segment.style === "target"
                                                         ? TextAttributes.BOLD
                                                         : undefined,
@@ -280,18 +250,12 @@ export function StatusBar() {
                 </Show>
                 <box flexShrink={0} marginLeft={2}>
                     <text fg={versionColor()} wrapMode="none">
-                        <Show
-                            when={shouldPulseVersion()}
-                            fallback={versionText()}
-                        >
+                        <Show when={shouldPulseVersion()} fallback={versionText()}>
                             <For each={[...versionText()]}>
                                 {(char, index) => (
                                     <span
                                         style={{
-                                            fg: waveColor(
-                                                index(),
-                                                versionText().length,
-                                            ),
+                                            fg: waveColor(index(), versionText().length),
                                         }}
                                     >
                                         {char}

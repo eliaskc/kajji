@@ -3,9 +3,7 @@ import type { ApplicationClient } from "../application/client"
 
 const ApplicationContext = createContext<ApplicationClient>()
 
-export function ApplicationProvider(
-    props: ParentProps<{ app: ApplicationClient }>,
-) {
+export function ApplicationProvider(props: ParentProps<{ app: ApplicationClient }>) {
     return (
         <ApplicationContext.Provider value={props.app}>
             {props.children}
@@ -16,9 +14,7 @@ export function ApplicationProvider(
 export function useApplication(): ApplicationClient {
     const app = useContext(ApplicationContext)
     if (!app) {
-        throw new Error(
-            "useApplication must be used within ApplicationProvider",
-        )
+        throw new Error("useApplication must be used within ApplicationProvider")
     }
     return app
 }

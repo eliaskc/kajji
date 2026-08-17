@@ -4,11 +4,7 @@ import { GitHub } from "../commander/github-service"
 import { Jj } from "../commander/jj"
 import type { OperationSink } from "../process/operation-sink"
 import { buildBookmarkStackModel } from "./discovery"
-import type {
-    BookmarkStackModel,
-    StackPlan,
-    StackPullRequestInput,
-} from "./model"
+import type { BookmarkStackModel, StackPlan, StackPullRequestInput } from "./model"
 import { buildSyncPlanSync } from "./planner"
 import type { PersistedStackEntry } from "./state"
 import { type StackJournal, type StackJournalEntry, StackStore } from "./store"
@@ -57,16 +53,11 @@ export class StackPlanStaleError extends Schema.TaggedErrorClass<StackPlanStaleE
     }
 }
 
-export class StackApplyError extends Schema.TaggedErrorClass<StackApplyError>()(
-    "StackApplyError",
-    {
-        message: Schema.String,
-        cause: Schema.Defect(),
-        completedEntries: Schema.Array(
-            Schema.Record(Schema.String, Schema.Unknown),
-        ),
-    },
-) {}
+export class StackApplyError extends Schema.TaggedErrorClass<StackApplyError>()("StackApplyError", {
+    message: Schema.String,
+    cause: Schema.Defect(),
+    completedEntries: Schema.Array(Schema.Record(Schema.String, Schema.Unknown)),
+}) {}
 
 export interface StackService {
     readonly persistedParent: (
@@ -82,9 +73,7 @@ export interface StackService {
     ) => Effect.Effect<void, StackPlanStaleError | StackApplyError>
 }
 
-export class Stack extends Context.Service<Stack, StackService>()(
-    "kajji/Stack",
-) {}
+export class Stack extends Context.Service<Stack, StackService>()("kajji/Stack") {}
 
 interface FreshStackState {
     readonly stackModel: BookmarkStackModel<FreshBookmark>
@@ -110,12 +99,8 @@ export const StackLive = Layer.effect(
                 ],
                 { concurrency: "unbounded" },
             )
-            const localBookmarks = allBookmarks.filter(
-                (bookmark) => bookmark.isLocal,
-            )
-            const remoteBookmarks = allBookmarks.filter(
-                (bookmark) => !bookmark.isLocal,
-            )
+            const localBookmarks = allBookmarks.filter((bookmark) => bookmark.isLocal)
+            const remoteBookmarks = allBookmarks.filter((bookmark) => !bookmark.isLocal)
             const commitInputs = commits.map((commit) => ({
                 commitId: commit.commitId,
                 parentCommitIds: commit.parentCommitIds ?? [],
@@ -165,18 +150,12 @@ export const StackLive = Layer.effect(
                 ...stackModel.rows.map((row) => row.bookmark.name),
                 ...persistedState.entries.map((entry) => entry.bookmark),
             ])
-            const pullRequestsByHead = yield* gitHub.listPullRequestsByHead(
-                heads,
-                {
-                    cwd: options.cwd,
-                    includeClosed: options.includeClosedPulls,
-                },
-            )
+            const pullRequestsByHead = yield* gitHub.listPullRequestsByHead(heads, {
+                cwd: options.cwd,
+                includeClosed: options.includeClosedPulls,
+            })
             const remoteBookmarksByName = new Map(
-                freshState.remoteBookmarks.map((bookmark) => [
-                    bookmark.name,
-                    bookmark,
-                ]),
+                freshState.remoteBookmarks.map((bookmark) => [bookmark.name, bookmark]),
             )
             return {
                 stackModel,
@@ -185,9 +164,7 @@ export const StackLive = Layer.effect(
             } satisfies FreshStackState
         })
 
-        const detectLandedParentRanges = Effect.fn(
-            "Stack.detectLandedParentRanges",
-        )(function* (
+        const detectLandedParentRanges = Effect.fn("Stack.detectLandedParentRanges")(function* (
             stackModel: BookmarkStackModel<FreshBookmark>,
             pullRequestsByHead: ReadonlyMap<string, StackPullRequestInput>,
             options: ApplyStackPlanOptions,
@@ -204,21 +181,12 @@ export const StackLive = Layer.effect(
                 if (!entry) continue
                 const previousParent = persistedByBookmark.get(entry.parent)
                 if (!previousParent) continue
-                const parentPull = pullRequestsByHead.get(
-                    previousParent.bookmark,
-                )
-                if (
-                    parentPull?.merged !== true &&
-                    parentPull?.state !== "MERGED"
-                )
-                    continue
+                const parentPull = pullRequestsByHead.get(previousParent.bookmark)
+                if (parentPull?.merged !== true && parentPull?.state !== "MERGED") continue
                 const currentBase =
-                    parentPull.baseRefName ??
-                    stackModel.parentByName.get(bookmark.name)
-                const oldBase =
-                    previousParent.parentChangeId ?? previousParent.parent
-                const oldHead =
-                    previousParent.headChangeId ?? previousParent.bookmark
+                    parentPull.baseRefName ?? stackModel.parentByName.get(bookmark.name)
+                const oldBase = previousParent.parentChangeId ?? previousParent.parent
+                const oldHead = previousParent.headChangeId ?? previousParent.bookmark
                 if (!currentBase) continue
                 const range = `(${oldBase}..${oldHead}) & ancestors(${bookmark.changeId ?? bookmark.name}) ~ ancestors(${currentBase})`
                 if (yield* jj.revsetHasMatches(range, { cwd: options.cwd })) {
@@ -277,11 +245,7 @@ export const StackLive = Layer.effect(
             )
 
             for (const effect of plan.effects) {
-                if (
-                    effect.type !== "abandon" &&
-                    effect.type !== "abandon-landed-range"
-                )
-                    continue
+                if (effect.type !== "abandon" && effect.type !== "abandon-landed-range") continue
                 yield* jj.abandon(
                     effect.range ?? effect.revision ?? effect.bookmark,
                     operationOptions,
@@ -298,8 +262,7 @@ export const StackLive = Layer.effect(
 
             const pushedBookmarks = new Set<string>()
             for (const row of plan.rows) {
-                if (!row.effects.some((effect) => effect.type === "create-pr"))
-                    continue
+                if (!row.effects.some((effect) => effect.type === "create-pr")) continue
                 for (const effect of row.effects) {
                     if (effect.type !== "push") continue
                     yield* jj.gitPush({
@@ -316,9 +279,7 @@ export const StackLive = Layer.effect(
 
             for (const row of plan.rows) {
                 const bookmark = row.row.bookmark
-                const createEffect = row.effects.find(
-                    (effect) => effect.type === "create-pr",
-                )
+                const createEffect = row.effects.find((effect) => effect.type === "create-pr")
                 if (!createEffect) continue
                 yield* gitHub.prCreate(
                     {
@@ -327,10 +288,9 @@ export const StackLive = Layer.effect(
                     },
                     operationOptions,
                 )
-                const fresh = yield* gitHub.listPullRequestsByHead(
-                    [bookmark.name],
-                    { cwd: options.cwd },
-                )
+                const fresh = yield* gitHub.listPullRequestsByHead([bookmark.name], {
+                    cwd: options.cwd,
+                })
                 const pull = fresh.get(bookmark.name)
                 if (pull) {
                     prByBookmark.set(bookmark.name, pull.number)
@@ -367,16 +327,8 @@ export const StackLive = Layer.effect(
                         bookmark: effect.bookmark,
                     })
                 }
-                if (
-                    effect.type === "update-pr" &&
-                    effect.prNumber &&
-                    effect.to
-                ) {
-                    yield* gitHub.prEditBase(
-                        effect.prNumber,
-                        effect.to,
-                        operationOptions,
-                    )
+                if (effect.type === "update-pr" && effect.prNumber && effect.to) {
+                    yield* gitHub.prEditBase(effect.prNumber, effect.to, operationOptions)
                     yield* record(options, journal, {
                         type: "PrBaseChanged",
                         prNumber: effect.prNumber,
@@ -394,16 +346,10 @@ export const StackLive = Layer.effect(
             }
 
             const stackPrNumbers = plan.rows
-                .map(
-                    (row) =>
-                        prByBookmark.get(row.row.bookmark.name) ?? row.prNumber,
-                )
-                .filter(
-                    (number): number is number => typeof number === "number",
-                )
+                .map((row) => prByBookmark.get(row.row.bookmark.name) ?? row.prNumber)
+                .filter((number): number is number => typeof number === "number")
             for (const row of plan.rows) {
-                const prNumber =
-                    prByBookmark.get(row.row.bookmark.name) ?? row.prNumber
+                const prNumber = prByBookmark.get(row.row.bookmark.name) ?? row.prNumber
                 if (!prNumber) continue
                 yield* gitHub.upsertStackComment(
                     prNumber,
@@ -418,70 +364,53 @@ export const StackLive = Layer.effect(
             return prByBookmark
         })
 
-        const persistStackStateFromPlan = Effect.fn("Stack.persistState")(
-            function* (
-                plan: StackPlan<FreshBookmark>,
-                prByBookmark: ReadonlyMap<string, number>,
-                options: ApplyStackPlanOptions,
-            ) {
-                const previous = yield* store.readState(options.cwd)
-                const nextByBookmark = new Map(
-                    previous.entries.map((entry) => [entry.bookmark, entry]),
+        const persistStackStateFromPlan = Effect.fn("Stack.persistState")(function* (
+            plan: StackPlan<FreshBookmark>,
+            prByBookmark: ReadonlyMap<string, number>,
+            options: ApplyStackPlanOptions,
+        ) {
+            const previous = yield* store.readState(options.cwd)
+            const nextByBookmark = new Map(previous.entries.map((entry) => [entry.bookmark, entry]))
+            const syncedAt = new Date().toISOString()
+
+            for (const row of plan.rows) {
+                const bookmark = row.row.bookmark
+                const parent = row.desiredBase
+                if (!parent || parent === bookmark.name) continue
+                const isTrunk = row.row.depth === 0 && plan.stackRootName !== bookmark.name
+                if (isTrunk) continue
+                const prNumber = prByBookmark.get(bookmark.name) ?? row.prNumber
+                if (!prNumber && row.effects.some((effect) => effect.type === "create-pr")) continue
+                const parentRow = plan.rows.find(
+                    (candidate) => candidate.row.bookmark.name === parent,
                 )
-                const syncedAt = new Date().toISOString()
-
-                for (const row of plan.rows) {
-                    const bookmark = row.row.bookmark
-                    const parent = row.desiredBase
-                    if (!parent || parent === bookmark.name) continue
-                    const isTrunk =
-                        row.row.depth === 0 &&
-                        plan.stackRootName !== bookmark.name
-                    if (isTrunk) continue
-                    const prNumber =
-                        prByBookmark.get(bookmark.name) ?? row.prNumber
-                    if (
-                        !prNumber &&
-                        row.effects.some(
-                            (effect) => effect.type === "create-pr",
-                        )
-                    )
-                        continue
-                    const parentRow = plan.rows.find(
-                        (candidate) => candidate.row.bookmark.name === parent,
-                    )
-                    const entry: PersistedStackEntry = {
-                        bookmark: bookmark.name,
-                        parent,
-                        ...(prNumber ? { prNumber } : {}),
-                        ...(bookmark.changeId
-                            ? { headChangeId: bookmark.changeId }
-                            : {}),
-                        headCommitId: bookmark.commitId,
-                        ...(parentRow?.row.bookmark.changeId
-                            ? {
-                                  parentChangeId:
-                                      parentRow.row.bookmark.changeId,
-                              }
-                            : {}),
-                        ...(parentRow?.row.bookmark.commitId
-                            ? {
-                                  parentCommitId:
-                                      parentRow.row.bookmark.commitId,
-                              }
-                            : {}),
-                        baseRefName: parent,
-                        syncedAt,
-                    }
-                    nextByBookmark.set(bookmark.name, entry)
+                const entry: PersistedStackEntry = {
+                    bookmark: bookmark.name,
+                    parent,
+                    ...(prNumber ? { prNumber } : {}),
+                    ...(bookmark.changeId ? { headChangeId: bookmark.changeId } : {}),
+                    headCommitId: bookmark.commitId,
+                    ...(parentRow?.row.bookmark.changeId
+                        ? {
+                              parentChangeId: parentRow.row.bookmark.changeId,
+                          }
+                        : {}),
+                    ...(parentRow?.row.bookmark.commitId
+                        ? {
+                              parentCommitId: parentRow.row.bookmark.commitId,
+                          }
+                        : {}),
+                    baseRefName: parent,
+                    syncedAt,
                 }
+                nextByBookmark.set(bookmark.name, entry)
+            }
 
-                yield* store.writeState(options.cwd, {
-                    version: 1,
-                    entries: [...nextByBookmark.values()],
-                })
-            },
-        )
+            yield* store.writeState(options.cwd, {
+                version: 1,
+                entries: [...nextByBookmark.values()],
+            })
+        })
 
         const apply = Effect.fn("Stack.applyStackPlan")(function* (
             plan: StackPlan<FreshBookmark>,
@@ -513,19 +442,17 @@ export const StackLive = Layer.effect(
                 })
             }
 
-            const beforeOperationId = yield* jj
-                .operationId({ cwd: options.cwd })
-                .pipe(
-                    Effect.catch((cause) =>
-                        Effect.fail(
-                            new StackApplyError({
-                                message: errorMessage(cause),
-                                cause,
-                                completedEntries: [],
-                            }),
-                        ),
+            const beforeOperationId = yield* jj.operationId({ cwd: options.cwd }).pipe(
+                Effect.catch((cause) =>
+                    Effect.fail(
+                        new StackApplyError({
+                            message: errorMessage(cause),
+                            cause,
+                            completedEntries: [],
+                        }),
                     ),
-                )
+                ),
+            )
             const journal = makeStackJournal(plan, beforeOperationId)
             const mutation = Effect.gen(function* () {
                 yield* store.writeJournal(options.cwd, journal)
@@ -554,9 +481,7 @@ export const StackLive = Layer.effect(
                 store.readState(cwd).pipe(
                     Effect.map(
                         (state) =>
-                            state.entries.find(
-                                (entry) => entry.bookmark === bookmark,
-                            )?.parent,
+                            state.entries.find((entry) => entry.bookmark === bookmark)?.parent,
                     ),
                     Effect.catch((cause) =>
                         Effect.fail(
@@ -615,9 +540,7 @@ function restorePersistedLocalBookmarks(
             } satisfies FreshBookmark,
         ]
     })
-    return restored.length > 0
-        ? [...localBookmarks, ...restored]
-        : localBookmarks
+    return restored.length > 0 ? [...localBookmarks, ...restored] : localBookmarks
 }
 
 function reconcileFetchedLocalBookmarks(
@@ -626,8 +549,7 @@ function reconcileFetchedLocalBookmarks(
     stackRootName: string,
 ): readonly FreshBookmark[] {
     if (!preFetchStackModel) return localBookmarks
-    if (localBookmarks.some((bookmark) => bookmark.name === stackRootName))
-        return localBookmarks
+    if (localBookmarks.some((bookmark) => bookmark.name === stackRootName)) return localBookmarks
     const preFetchRows = preFetchStackModel.rows.filter((row) =>
         row.stackKeys.includes(stackRootName),
     )
@@ -645,28 +567,21 @@ function uniqueStrings(values: readonly string[]): readonly string[] {
     return [...new Set(values)]
 }
 
-function renderStackComment(
-    currentPr: number,
-    stackPrNumbers: readonly number[],
-) {
+function renderStackComment(currentPr: number, stackPrNumbers: readonly number[]) {
     return [
         `<!-- kajji-stack pr=${currentPr} -->`,
         "",
         "### Stack",
         "",
         ...stackPrNumbers.map(
-            (number, index) =>
-                `${index + 1}. #${number}${number === currentPr ? " 👈" : ""}`,
+            (number, index) => `${index + 1}. #${number}${number === currentPr ? " 👈" : ""}`,
         ),
         "",
         "This stack is managed by [kajji](https://github.com/eliaskc/kajji).",
     ].join("\n")
 }
 
-function makeStackJournal(
-    plan: StackPlan<FreshBookmark>,
-    beforeOperationId: string,
-): StackJournal {
+function makeStackJournal(plan: StackPlan<FreshBookmark>, beforeOperationId: string): StackJournal {
     return {
         version: 1,
         id: crypto.randomUUID(),

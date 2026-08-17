@@ -6,10 +6,7 @@ import { type ThemeModeConfig, resolveThemeMode } from "../theme/mode"
 import { kajjiTheme } from "../theme/presets/kajji"
 import type { SyntaxThemeName } from "../theme/syntax"
 import type { Theme, ThemeColors, ThemeMode, ThemeStyle } from "../theme/types"
-import {
-    cacheTerminalBackground,
-    getCachedTerminalBackground,
-} from "../utils/state"
+import { cacheTerminalBackground, getCachedTerminalBackground } from "../utils/state"
 import { createSimpleContext } from "./helper"
 
 const themes = {
@@ -18,9 +15,7 @@ const themes = {
 
 type ThemeName = keyof typeof themes
 
-function parseHexColor(
-    hex: string,
-): { r: number; g: number; b: number } | null {
+function parseHexColor(hex: string): { r: number; g: number; b: number } | null {
     if (!hex || !hex.startsWith("#") || hex.length !== 7) return null
     const r = Number.parseInt(hex.slice(1, 3), 16)
     const g = Number.parseInt(hex.slice(3, 5), 16)
@@ -51,22 +46,16 @@ export const { use: useTheme, provider: ThemeProvider } = createSimpleContext({
     init: () => {
         const renderer = useRenderer()
         const config = readConfig().ui
-        const [theme, setTheme] = createSignal<Theme>(
-            themes[normalizeThemeName(config.theme)],
+        const [theme, setTheme] = createSignal<Theme>(themes[normalizeThemeName(config.theme)])
+        const [themeModeConfig, setThemeModeConfig] = createSignal<ThemeModeConfig>(
+            config.themeMode,
         )
-        const [themeModeConfig, setThemeModeConfig] =
-            createSignal<ThemeModeConfig>(config.themeMode)
-        const [systemMode, setSystemMode] = createSignal<ThemeMode | null>(
-            renderer.themeMode,
-        )
-        const [syntaxThemeConfig, setSyntaxThemeConfig] = createSignal(
-            config.syntaxTheme,
-        )
+        const [systemMode, setSystemMode] = createSignal<ThemeMode | null>(renderer.themeMode)
+        const [syntaxThemeConfig, setSyntaxThemeConfig] = createSignal(config.syntaxTheme)
         const [terminalBg, setTerminalBg] = createSignal<string | null>(
             getCachedTerminalBackground(),
         )
-        const [hasDetectedTerminalBg, setHasDetectedTerminalBg] =
-            createSignal(false)
+        const [hasDetectedTerminalBg, setHasDetectedTerminalBg] = createSignal(false)
 
         const terminalBgIsDark = (): boolean => {
             const bg = terminalBg()
@@ -84,8 +73,7 @@ export const { use: useTheme, provider: ThemeProvider } = createSimpleContext({
             })
 
         createEffect(() => {
-            if (!theme().style.adaptToTerminal || hasDetectedTerminalBg())
-                return
+            if (!theme().style.adaptToTerminal || hasDetectedTerminalBg()) return
 
             void (async () => {
                 try {

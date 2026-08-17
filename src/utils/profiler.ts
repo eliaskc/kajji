@@ -3,11 +3,8 @@ import { join } from "node:path"
 
 export const PROFILE_ENABLED = process.env.KAJJI_PROFILE === "1"
 
-const MEMORY_PROFILE_ENABLED =
-    PROFILE_ENABLED && process.env.KAJJI_PROFILE_MEMORY !== "0"
-const MEMORY_PROFILE_INTERVAL_MS = Number(
-    process.env.KAJJI_PROFILE_MEMORY_INTERVAL_MS ?? 10_000,
-)
+const MEMORY_PROFILE_ENABLED = PROFILE_ENABLED && process.env.KAJJI_PROFILE_MEMORY !== "0"
+const MEMORY_PROFILE_INTERVAL_MS = Number(process.env.KAJJI_PROFILE_MEMORY_INTERVAL_MS ?? 10_000)
 
 const PROFILE_NAME = process.env.KAJJI_PROFILE_NAME || "default"
 const PROFILE_MESSAGE = process.env.KAJJI_PROFILE_MESSAGE || ""
@@ -100,10 +97,7 @@ export function profileMemory(label = "memory") {
 
 if (MEMORY_PROFILE_ENABLED && MEMORY_PROFILE_INTERVAL_MS > 0) {
     profileMemory("memory-start")
-    const memoryTimer = setInterval(
-        () => profileMemory(),
-        MEMORY_PROFILE_INTERVAL_MS,
-    )
+    const memoryTimer = setInterval(() => profileMemory(), MEMORY_PROFILE_INTERVAL_MS)
     ;(memoryTimer as unknown as { unref?: () => void }).unref?.()
 }
 

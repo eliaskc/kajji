@@ -16,8 +16,7 @@ afterEach(() => {
     if (originalEditor === undefined) process.env.EDITOR = undefined
     else process.env.EDITOR = originalEditor
 
-    if (originalSuspend === undefined)
-        process.env.KAJJI_EDITOR_SUSPEND = undefined
+    if (originalSuspend === undefined) process.env.KAJJI_EDITOR_SUSPEND = undefined
     else process.env.KAJJI_EDITOR_SUSPEND = originalSuspend
 })
 
@@ -46,10 +45,7 @@ describe("getPreferredEditor", () => {
 
 describe("getEditorArguments", () => {
     it("uses +line for Vim-style editors", () => {
-        expect(getEditorArguments(["src/app.ts"], "nvim", 42)).toEqual([
-            "+42",
-            "src/app.ts",
-        ])
+        expect(getEditorArguments(["src/app.ts"], "nvim", 42)).toEqual(["+42", "src/app.ts"])
     })
 
     it("uses --goto for VS Code-style editors", () => {
@@ -60,10 +56,7 @@ describe("getEditorArguments", () => {
     })
 
     it("does not apply one position to multiple files", () => {
-        expect(getEditorArguments(["one.ts", "two.ts"], "nvim", 42)).toEqual([
-            "one.ts",
-            "two.ts",
-        ])
+        expect(getEditorArguments(["one.ts", "two.ts"], "nvim", 42)).toEqual(["one.ts", "two.ts"])
     })
 })
 

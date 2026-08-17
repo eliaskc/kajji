@@ -3,18 +3,10 @@ import { getUpdateCommand } from "../../../src/utils/update"
 
 describe("getUpdateCommand", () => {
     test("returns versioned commands for JS package managers", () => {
-        expect(getUpdateCommand("npm", "1.2.3")).toBe(
-            "npm install -g kajji@1.2.3",
-        )
-        expect(getUpdateCommand("bun", "1.2.3")).toBe(
-            "bun install -g kajji@1.2.3",
-        )
-        expect(getUpdateCommand("pnpm", "1.2.3")).toBe(
-            "pnpm install -g kajji@1.2.3",
-        )
-        expect(getUpdateCommand("yarn", "1.2.3")).toBe(
-            "yarn global add kajji@1.2.3",
-        )
+        expect(getUpdateCommand("npm", "1.2.3")).toBe("npm install -g kajji@1.2.3")
+        expect(getUpdateCommand("bun", "1.2.3")).toBe("bun install -g kajji@1.2.3")
+        expect(getUpdateCommand("pnpm", "1.2.3")).toBe("pnpm install -g kajji@1.2.3")
+        expect(getUpdateCommand("yarn", "1.2.3")).toBe("yarn global add kajji@1.2.3")
     })
 
     test("brew ignores the version arg (tap pins it)", () => {

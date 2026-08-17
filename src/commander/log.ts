@@ -2,7 +2,7 @@ import type { Commit } from "./types"
 
 const MARKER = "__LJ__"
 
-// biome-ignore lint/suspicious/noControlCharactersInRegex: intentional ANSI escape sequence
+// oxlint-disable-next-line no-control-regex -- intentional ANSI escape sequence
 const stripAnsi = (str: string) => str.replace(/\x1b\[[0-9;]*m/g, "")
 
 function splitAnsiAtVisibleWidth(line: string, visibleWidth: number) {
@@ -118,9 +118,7 @@ function parseLogLine(line: string, state: LogStreamState): Commit | null {
             state.current = {
                 changeId: stripAnsi(parts[1] ?? ""),
                 commitId: stripAnsi(parts[2] ?? ""),
-                parentCommitIds: parentCommitIdsRaw
-                    ? parentCommitIdsRaw.split(",")
-                    : [],
+                parentCommitIds: parentCommitIdsRaw ? parentCommitIdsRaw.split(",") : [],
                 immutable: stripAnsi(parts[4] ?? "") === "true",
                 inTrunk: stripAnsi(parts[5] ?? "") === "true",
                 empty: stripAnsi(parts[6] ?? "") === "true",
@@ -132,9 +130,7 @@ function parseLogLine(line: string, state: LogStreamState): Commit | null {
                 timestamp: stripAnsi(parts[12] ?? ""),
                 committerTimestamp: stripAnsi(parts[13] ?? ""),
                 bookmarks: bookmarksRaw ? bookmarksRaw.split(",") : [],
-                workingCopies: workingCopiesRaw
-                    ? workingCopiesRaw.split(",")
-                    : [],
+                workingCopies: workingCopiesRaw ? workingCopiesRaw.split(",") : [],
                 isWorkingCopy: gutter.includes("@"),
                 refLine,
                 lines: [gutter + refLine],
@@ -146,21 +142,14 @@ function parseLogLine(line: string, state: LogStreamState): Commit | null {
 
     if (state.current && line.trim() !== "") {
         state.current.lines.push(line)
-        const gutterWidth = getVisibleWidth(
-            state.current.displayLines[0]?.gutter ?? "",
-        )
-        state.current.displayLines.push(
-            splitAnsiAtVisibleWidth(line, gutterWidth),
-        )
+        const gutterWidth = getVisibleWidth(state.current.displayLines[0]?.gutter ?? "")
+        state.current.displayLines.push(splitAnsiAtVisibleWidth(line, gutterWidth))
     }
 
     return null
 }
 
-export function consumeLogChunk(
-    chunk: string,
-    state: LogStreamState,
-): Commit[] {
+export function consumeLogChunk(chunk: string, state: LogStreamState): Commit[] {
     state.buffer += chunk
     const lines = state.buffer.split("\n")
     state.buffer = lines.pop() ?? ""

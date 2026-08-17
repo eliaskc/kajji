@@ -1,13 +1,5 @@
 import type { ScrollBoxRenderable } from "@opentui/core"
-import {
-    For,
-    Show,
-    createEffect,
-    createMemo,
-    createSignal,
-    onCleanup,
-    onMount,
-} from "solid-js"
+import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js"
 import { type Commit, getRevisionId } from "../commander/types"
 import { useDialogCommands } from "../context/command"
 import { useDialog } from "../context/dialog"
@@ -32,9 +24,7 @@ export function RevisionPicker(props: RevisionPickerProps) {
     const findDefaultIndex = () => {
         if (props.defaultRevision) {
             const idx = props.commits.findIndex(
-                (c) =>
-                    c.changeId === props.defaultRevision ||
-                    c.commitId === props.defaultRevision,
+                (c) => c.changeId === props.defaultRevision || c.commitId === props.defaultRevision,
             )
             return idx >= 0 ? idx : 0
         }
@@ -55,8 +45,7 @@ export function RevisionPicker(props: RevisionPickerProps) {
     }
 
     const itemSize = (index: number) =>
-        props.commits[Math.min(index, props.commits.length - 1)]?.lines
-            .length ?? 1
+        props.commits[Math.min(index, props.commits.length - 1)]?.lines.length ?? 1
 
     const list = createSelectableList({
         count: () => props.commits.length,
@@ -71,12 +60,7 @@ export function RevisionPicker(props: RevisionPickerProps) {
     const maxContentWidth = createMemo(() =>
         props.commits.reduce(
             (max, commit) =>
-                Math.max(
-                    max,
-                    ...commit.displayLines.map((line) =>
-                        getVisibleWidth(line.content),
-                    ),
-                ),
+                Math.max(max, ...commit.displayLines.map((line) => getVisibleWidth(line.content))),
             0,
         ),
     )
@@ -84,12 +68,7 @@ export function RevisionPicker(props: RevisionPickerProps) {
     const maxGutterWidth = createMemo(() =>
         props.commits.reduce(
             (max, commit) =>
-                Math.max(
-                    max,
-                    ...commit.displayLines.map((line) =>
-                        getVisibleWidth(line.gutter),
-                    ),
-                ),
+                Math.max(max, ...commit.displayLines.map((line) => getVisibleWidth(line.gutter))),
             0,
         ),
     )
@@ -97,8 +76,7 @@ export function RevisionPicker(props: RevisionPickerProps) {
     const horizontal = createHorizontalCropScroll({
         scrollRef: () => scrollRef,
         maxContentWidth: maxContentWidth,
-        viewportContentWidth: () =>
-            Math.max(1, horizontal.viewportWidth() - maxGutterWidth()),
+        viewportContentWidth: () => Math.max(1, horizontal.viewportWidth() - maxGutterWidth()),
     })
 
     const scrollToIndex = (index: number, force = false) => {
@@ -185,41 +163,30 @@ export function RevisionPicker(props: RevisionPickerProps) {
                 <For each={props.commits}>
                     {(commit, index) => {
                         const isSelected = () => list.isSelected(index())
-                        const handleMouseDown = () =>
-                            list.selectByMouse(index())
+                        const handleMouseDown = () => list.selectByMouse(index())
                         return (
                             <For each={commit.displayLines}>
                                 {(line) => {
-                                    const gutterWidth = () =>
-                                        getVisibleWidth(line.gutter)
+                                    const gutterWidth = () => getVisibleWidth(line.gutter)
                                     const contentWidth = () =>
-                                        Math.max(
-                                            1,
-                                            horizontal.viewportWidth() -
-                                                gutterWidth(),
-                                        )
+                                        Math.max(1, horizontal.viewportWidth() - gutterWidth())
                                     return (
                                         <box
                                             backgroundColor={
                                                 isSelected()
-                                                    ? colors()
-                                                          .selectionBackground
+                                                    ? colors().selectionBackground
                                                     : undefined
                                             }
                                             overflow="hidden"
                                             flexDirection="row"
                                             onMouseDown={handleMouseDown}
                                         >
-                                            <box
-                                                flexShrink={0}
-                                                overflow="hidden"
-                                            >
+                                            <box flexShrink={0} overflow="hidden">
                                                 <AnsiText
                                                     content={line.gutter}
                                                     defaultFg={
                                                         isSelected()
-                                                            ? colors()
-                                                                  .selectionText
+                                                            ? colors().selectionText
                                                             : undefined
                                                     }
                                                     bold={commit.isWorkingCopy}
@@ -231,8 +198,7 @@ export function RevisionPicker(props: RevisionPickerProps) {
                                                     content={line.content}
                                                     defaultFg={
                                                         isSelected()
-                                                            ? colors()
-                                                                  .selectionText
+                                                            ? colors().selectionText
                                                             : undefined
                                                     }
                                                     bold={commit.isWorkingCopy}

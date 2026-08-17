@@ -16,9 +16,7 @@ function describeTerminal() {
 export function DebugInfoModal() {
     const { colors } = useTheme()
     const renderer = useRenderer()
-    const [copyState, setCopyState] = createSignal<
-        "idle" | "copied" | "failed"
-    >("idle")
+    const [copyState, setCopyState] = createSignal<"idle" | "copied" | "failed">("idle")
     let resetTimer: ReturnType<typeof setTimeout> | undefined
     const info = getDebugInfo()
     const entries = [
@@ -34,9 +32,7 @@ export function DebugInfoModal() {
     ]
 
     const copy = () => {
-        const text = entries
-            .map((entry) => `${entry.label}: ${entry.value}`)
-            .join("\n")
+        const text = entries.map((entry) => `${entry.label}: ${entry.value}`).join("\n")
         const copied = renderer.copyToClipboardOSC52(text)
         setCopyState(copied ? "copied" : "failed")
         clearTimeout(resetTimer)
@@ -70,14 +66,8 @@ export function DebugInfoModal() {
                     </box>
                 )}
             </For>
-            <box
-                flexDirection="row"
-                justifyContent="space-between"
-                marginTop={1}
-            >
-                <text fg={colors().textMuted}>
-                    Share this when reporting an issue.
-                </text>
+            <box flexDirection="row" justifyContent="space-between" marginTop={1}>
+                <text fg={colors().textMuted}>Share this when reporting an issue.</text>
                 <text>
                     <span
                         style={{

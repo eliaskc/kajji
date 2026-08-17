@@ -19,10 +19,7 @@ const bookmarks = [
     { name: "feature-b", commitId: "b", changeId: "b" },
 ]
 
-const threeBookmarks = [
-    ...bookmarks,
-    { name: "feature-c", commitId: "c", changeId: "c" },
-]
+const threeBookmarks = [...bookmarks, { name: "feature-c", commitId: "c", changeId: "c" }]
 
 const model = async () => buildBookmarkStackModel({ commits, bookmarks })
 
@@ -52,9 +49,7 @@ describe("stack planners", () => {
             ]),
         })
 
-        expect(
-            plan.rows.map((row) => [row.row.bookmark.name, row.note]),
-        ).toEqual([
+        expect(plan.rows.map((row) => [row.row.bookmark.name, row.note])).toEqual([
             ["main", ""],
             ["feature-a", "would push and retarget PR onto main"],
             ["feature-b", "would push and create PR onto feature-a"],
@@ -91,16 +86,12 @@ describe("stack planners", () => {
             ]),
         })
 
-        expect(
-            plan.rows.map((row) => [row.row.bookmark.name, row.status]),
-        ).toEqual([
+        expect(plan.rows.map((row) => [row.row.bookmark.name, row.status])).toEqual([
             ["main", "current"],
             ["feature-a", "blocked"],
             ["feature-b", "close-pr"],
         ])
-        expect(plan.rows[2]?.note).toBe(
-            "would close PR: parent #10 was closed without merging",
-        )
+        expect(plan.rows[2]?.note).toBe("would close PR: parent #10 was closed without merging")
         expect(plan.closePrNumbers).toEqual([11])
     })
 
@@ -162,16 +153,12 @@ describe("stack planners", () => {
         })
 
         expect(plan.rows[1]?.note).toBe("would abandon merged local change")
-        expect(plan.rows[2]?.note).toBe(
-            "would rebase, push, and retarget onto main",
-        )
+        expect(plan.rows[2]?.note).toBe("would rebase, push, and retarget onto main")
         expect(plan.abandonBookmarks).toEqual(["feature-a"])
         expect(plan.rebaseBookmarks).toEqual(["feature-b"])
         expect(plan.pushBookmarks).toEqual(["feature-b"])
         expect(plan.updatePrNumbers).toEqual([11])
-        expect(
-            plan.effects.find((effect) => effect.type === "abandon")?.revision,
-        ).toBe("main..a")
+        expect(plan.effects.find((effect) => effect.type === "abandon")?.revision).toBe("main..a")
     })
 
     test("sync pushes descendants after a branch rebase", async () => {
@@ -220,9 +207,7 @@ describe("stack planners", () => {
             "push",
             "update-pr",
         ])
-        expect(plan.rows[3]?.effects.map((effect) => effect.type)).toEqual([
-            "push",
-        ])
+        expect(plan.rows[3]?.effects.map((effect) => effect.type)).toEqual(["push"])
     })
 
     test("sync keeps a merged local bookmark while remote bookmark still exists", async () => {
@@ -296,9 +281,7 @@ describe("stack planners", () => {
             ]),
         })
 
-        expect(
-            plan.effects.some((effect) => effect.type === "update-comment"),
-        ).toBe(false)
+        expect(plan.effects.some((effect) => effect.type === "update-comment")).toBe(false)
     })
 
     test("sync does not also plan landed range repair for an already-merged PR", async () => {
@@ -322,9 +305,7 @@ describe("stack planners", () => {
             ]),
         })
 
-        expect(plan.rows[2]?.effects.map((effect) => effect.type)).toEqual([
-            "abandon",
-        ])
+        expect(plan.rows[2]?.effects.map((effect) => effect.type)).toEqual(["abandon"])
     })
 
     test("sync does not plan child landed range when parent is being abandoned", async () => {
@@ -357,10 +338,7 @@ describe("stack planners", () => {
             ]),
         })
 
-        expect(plan.rows[2]?.effects.map((effect) => effect.type)).toEqual([
-            "rebase",
-            "push",
-        ])
+        expect(plan.rows[2]?.effects.map((effect) => effect.type)).toEqual(["rebase", "push"])
     })
 
     test("sync plans landed parent range repair from persisted state", async () => {
@@ -404,9 +382,7 @@ describe("stack planners", () => {
             ]),
         })
 
-        expect(
-            plan.rows.map((row) => [row.row.bookmark.name, row.note]),
-        ).toEqual([
+        expect(plan.rows.map((row) => [row.row.bookmark.name, row.note])).toEqual([
             ["main", ""],
             ["feature-a", "would push and create PR onto main"],
             ["feature-b", "would push and retarget PR onto feature-a"],

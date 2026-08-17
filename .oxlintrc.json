@@ -1,0 +1,29 @@
+{
+    "$schema": "./node_modules/oxlint/configuration_schema.json",
+    "plugins": ["typescript", "unicorn", "oxc", "jsx-a11y"],
+    "categories": {
+        "correctness": "error"
+    },
+    "rules": {
+        // Solid uses unassigned `let ref` variables that JSX assigns at runtime
+        "no-unassigned-vars": "off",
+        // Not part of the ported Biome 1.9 recommended set; ~35 pre-existing
+        // findings. Revisit separately.
+        "no-unused-vars": "off",
+        "typescript/no-explicit-any": "error",
+        "no-control-regex": "error",
+        "jsx-a11y/mouse-events-have-key-events": "error"
+    },
+    "env": {
+        "es2024": true
+    },
+    "ignorePatterns": [
+        "node_modules",
+        "dist",
+        ".zed",
+        "bun.lock",
+        "bench-results.json",
+        "bench-diff-results.json",
+        "bench-syntax-results.json"
+    ]
+}

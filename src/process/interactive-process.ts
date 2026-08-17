@@ -66,9 +66,7 @@ function terminateChild(child: InteractiveChildHandle): Effect.Effect<void> {
     })
 }
 
-const runLive = Effect.fn("InteractiveProcess.run")(function* (
-    command: InteractiveProcessCommand,
-) {
+const runLive = Effect.fn("InteractiveProcess.run")(function* (command: InteractiveProcessCommand) {
     const startedAt = performance.now()
     const child = yield* Effect.acquireRelease(
         Effect.try({
@@ -80,8 +78,7 @@ const runLive = Effect.fn("InteractiveProcess.run")(function* (
                     stdout: "inherit",
                     stderr: "inherit",
                 }) as unknown as InteractiveChildHandle,
-            catch: (cause) =>
-                new InteractiveProcessSpawnError({ command, cause }),
+            catch: (cause) => new InteractiveProcessSpawnError({ command, cause }),
         }),
         terminateChild,
     )
@@ -92,13 +89,12 @@ const runLive = Effect.fn("InteractiveProcess.run")(function* (
     }
 })
 
-export const InteractiveProcessLive: Layer.Layer<InteractiveProcess> =
-    Layer.succeed(
-        InteractiveProcess,
-        InteractiveProcess.of({
-            run: (command) => Effect.scoped(runLive(command)),
-        }),
-    )
+export const InteractiveProcessLive: Layer.Layer<InteractiveProcess> = Layer.succeed(
+    InteractiveProcess,
+    InteractiveProcess.of({
+        run: (command) => Effect.scoped(runLive(command)),
+    }),
+)
 
 export function makeInteractiveProcessFake(
     run: InteractiveProcessService["run"],

@@ -29,11 +29,7 @@ import {
     tokenizeLineSync,
 } from "../../diff"
 import { splitDisplayPath, truncatePathMiddle } from "../../utils/path-truncate"
-import {
-    type DiffFileStatus,
-    getDiffStatusKey,
-    getStatusColor,
-} from "../../utils/status-colors"
+import { type DiffFileStatus, getDiffStatusKey, getStatusColor } from "../../utils/status-colors"
 import { BinaryPreview } from "../BinaryPreview"
 
 const SEPARATOR_COLOR = "#30363d"
@@ -93,10 +89,7 @@ function flattenToSplitRows(files: FlattenedFile[]): SplitRow[] {
         if (file.isBinary) {
             for (let row = 0; row < BINARY_PREVIEW_HEIGHT; row += 1) {
                 rows.push({
-                    type:
-                        row === 0
-                            ? "binary-preview"
-                            : "binary-preview-reserved-row",
+                    type: row === 0 ? "binary-preview" : "binary-preview-reserved-row",
                     fileId: file.fileId,
                     hunkId: null,
                     fileName: file.name,
@@ -272,10 +265,7 @@ function buildAlignedRows(lines: DiffLine[]): AlignedRow[] {
                 }
 
                 if (del && add) {
-                    const { old: oldSegs, new: newSegs } = computeWordDiff(
-                        del.content,
-                        add.content,
-                    )
+                    const { old: oldSegs, new: newSegs } = computeWordDiff(del.content, add.content)
                     row.leftWordDiff = oldSegs
                     row.rightWordDiff = newSegs
                 }
@@ -348,9 +338,7 @@ export function VirtualizedSplitView(props: VirtualizedSplitViewProps) {
 
     const filesToRender = createMemo(() => {
         if (props.activeFileId) {
-            const file = props.files.find(
-                (f) => f.fileId === props.activeFileId,
-            )
+            const file = props.files.find((f) => f.fileId === props.activeFileId)
             return file ? [file] : []
         }
         return props.files
@@ -384,12 +372,7 @@ export function VirtualizedSplitView(props: VirtualizedSplitViewProps) {
     // Keep horizontal offset out of the full row layout. Only the visible rows
     // need to be cropped again when scrolling sideways.
     const wrappedRows = createMemo(() =>
-        buildWrappedSplitRows(
-            rows(),
-            wrapWidth(),
-            unifiedWrapWidth(),
-            props.wrapEnabled,
-        ),
+        buildWrappedSplitRows(rows(), wrapWidth(), unifiedWrapWidth(), props.wrapEnabled),
     )
 
     createEffect(() => {
@@ -415,9 +398,7 @@ export function VirtualizedSplitView(props: VirtualizedSplitViewProps) {
             getOldLineNumber,
             focusRow,
         )
-        props.onCurrentFileChange?.(
-            getCurrentFileId(currentRows, props.scrollTop),
-        )
+        props.onCurrentFileChange?.(getCurrentFileId(currentRows, props.scrollTop))
         props.onCurrentPositionChange?.(position)
         props.onCurrentScrollAnchorChange?.(
             getCurrentDiffScrollAnchor(
@@ -492,17 +473,11 @@ export function VirtualizedSplitView(props: VirtualizedSplitViewProps) {
                             highlighterReady={highlighterReady}
                             scrollLeft={props.scrollLeft}
                             columnWidth={columnWidth()}
-                            maxHeaderWidth={Math.max(
-                                1,
-                                props.viewportWidth - 2,
-                            )}
+                            maxHeaderWidth={Math.max(1, props.viewportWidth - 2)}
                         />
                     )}
                 </For>
-                <box
-                    height={wrappedRows().length - visibleRange().end}
-                    flexShrink={0}
-                />
+                <box height={wrappedRows().length - visibleRange().end} flexShrink={0} />
             </Show>
         </box>
     )
@@ -529,16 +504,12 @@ interface VirtualizedSplitRowProps {
 
 function VirtualizedSplitRow(props: VirtualizedSplitRowProps) {
     const { colors, mode } = useTheme()
-    const gapPatternColor = () =>
-        mode() === "light" ? colors().border : GAP_PATTERN_COLOR
+    const gapPatternColor = () => (mode() === "light" ? colors().border : GAP_PATTERN_COLOR)
 
     if (props.row.type === "file-header") {
         const stats = props.fileStats.get(props.row.row.fileId)
         const statusColor = stats
-            ? getStatusColor(
-                  getDiffStatusKey(stats.type as DiffFileStatus),
-                  colors(),
-              )
+            ? getStatusColor(getDiffStatusKey(stats.type as DiffFileStatus), colors())
             : colors().primary
         const statsWidth = stats?.isBinary
             ? 6
@@ -550,10 +521,7 @@ function VirtualizedSplitRow(props: VirtualizedSplitRowProps) {
             1,
             props.maxHeaderWidth - statsWidth - FILE_HEADER_PREFIX.length - 1,
         )
-        const headerText = truncatePathMiddle(
-            `${props.row.row.fileName}${prevName}`,
-            headerMax,
-        )
+        const headerText = truncatePathMiddle(`${props.row.row.fileName}${prevName}`, headerMax)
         const headerSegments = splitDisplayPath(headerText)
         return (
             <box
@@ -565,41 +533,23 @@ function VirtualizedSplitRow(props: VirtualizedSplitRowProps) {
                 <text fg={statusColor} flexShrink={0}>
                     {FILE_HEADER_PREFIX}
                 </text>
-                <box
-                    flexDirection="row"
-                    justifyContent="space-between"
-                    flexGrow={1}
-                >
+                <box flexDirection="row" justifyContent="space-between" flexGrow={1}>
                     <text wrapMode="none" flexShrink={0}>
-                        <span style={{ fg: colors().textMuted }}>
-                            {headerSegments.directory}
-                        </span>
-                        <span style={{ fg: colors().text }}>
-                            {headerSegments.fileName}
-                        </span>
-                        <span style={{ fg: colors().textMuted }}>
-                            {headerSegments.suffix}
-                        </span>
+                        <span style={{ fg: colors().textMuted }}>{headerSegments.directory}</span>
+                        <span style={{ fg: colors().text }}>{headerSegments.fileName}</span>
+                        <span style={{ fg: colors().textMuted }}>{headerSegments.suffix}</span>
                     </text>
-                    <text
-                        wrapMode="none"
-                        flexGrow={1}
-                        fg={colors().backgroundElement}
-                    >
+                    <text wrapMode="none" flexGrow={1} fg={colors().backgroundElement}>
                         {"─".repeat(props.maxHeaderWidth)}
                     </text>
                     <Show when={stats?.isBinary}>
                         <text wrapMode="none" flexShrink={0}>
-                            <span style={{ fg: colors().textMuted }}>
-                                binary
-                            </span>
+                            <span style={{ fg: colors().textMuted }}>binary</span>
                         </text>
                     </Show>
                     <Show
                         when={
-                            stats &&
-                            !stats.isBinary &&
-                            (stats.additions > 0 || stats.deletions > 0)
+                            stats && !stats.isBinary && (stats.additions > 0 || stats.deletions > 0)
                         }
                     >
                         <text wrapMode="none" flexShrink={0}>
@@ -608,13 +558,7 @@ function VirtualizedSplitRow(props: VirtualizedSplitRowProps) {
                                     +{stats?.additions}
                                 </span>
                             </Show>
-                            <Show
-                                when={
-                                    stats &&
-                                    stats.additions > 0 &&
-                                    stats.deletions > 0
-                                }
-                            >
+                            <Show when={stats && stats.additions > 0 && stats.deletions > 0}>
                                 <span> </span>
                             </Show>
                             <Show when={stats && stats.deletions > 0}>
@@ -646,13 +590,9 @@ function VirtualizedSplitRow(props: VirtualizedSplitRowProps) {
     if (props.row.type === "gap") {
         const gutterWidth = props.lineNumWidth + 2
         const ellipsis = "···"
-        const gutterPattern = GAP_PATTERN_CHAR.repeat(
-            Math.max(0, gutterWidth - ellipsis.length),
-        )
+        const gutterPattern = GAP_PATTERN_CHAR.repeat(Math.max(0, gutterWidth - ellipsis.length))
         const totalWidth = props.maxHeaderWidth + 4
-        const pattern = GAP_PATTERN_CHAR.repeat(
-            Math.max(0, totalWidth - gutterWidth),
-        )
+        const pattern = GAP_PATTERN_CHAR.repeat(Math.max(0, totalWidth - gutterWidth))
         const leftPattern = GAP_PATTERN_CHAR.repeat(
             Math.max(0, props.columnWidth - gutterWidth + 2),
         )
@@ -670,9 +610,7 @@ function VirtualizedSplitRow(props: VirtualizedSplitRowProps) {
                 <text wrapMode="none">
                     {gapMarker()}
                     <Show when={!props.row.row.fullWidth}>
-                        <span style={{ fg: gapPatternColor() }}>
-                            {leftPattern}
-                        </span>
+                        <span style={{ fg: gapPatternColor() }}>{leftPattern}</span>
                         {gapMarker()}
                     </Show>
                     <span style={{ fg: gapPatternColor() }}>
@@ -735,12 +673,8 @@ function SplitContentRow(props: SplitContentRowProps) {
     const formatLineNum = (num: number | undefined) =>
         (num?.toString() ?? "").padStart(props.lineNumWidth, " ")
 
-    const hasLeftLine = createMemo(
-        () => props.row.leftStart !== null && props.row.row.left,
-    )
-    const hasRightLine = createMemo(
-        () => props.row.rightStart !== null && props.row.row.right,
-    )
+    const hasLeftLine = createMemo(() => props.row.leftStart !== null && props.row.row.left)
+    const hasRightLine = createMemo(() => props.row.rightStart !== null && props.row.row.right)
 
     const leftBg = createMemo(() => {
         if (!hasLeftLine()) return undefined
@@ -788,11 +722,7 @@ function SplitContentRow(props: SplitContentRowProps) {
         // Tokenize each word diff segment
         const result: TokenWithEmphasis[] = []
         for (const segment of wordDiff) {
-            const segmentTokens = tokenizeLineSync(
-                segment.text,
-                lang,
-                syntaxTheme(),
-            )
+            const segmentTokens = tokenizeLineSync(segment.text, lang, syntaxTheme())
             const isEmphasis = segment.type === emphasisType
             for (const token of segmentTokens) {
                 result.push({
@@ -810,16 +740,9 @@ function SplitContentRow(props: SplitContentRowProps) {
         tokenVersion()
 
         // Strip trailing newline - shiki does this internally, but plain text fallback doesn't
-        const leftContent = (props.row.row.left?.content ?? "").replace(
-            /\n$/,
-            "",
-        )
+        const leftContent = (props.row.row.left?.content ?? "").replace(/\n$/, "")
         if (!leftContent) return []
-        return tokenizeWithWordDiff(
-            leftContent,
-            props.row.row.leftWordDiff,
-            "removed",
-        )
+        return tokenizeWithWordDiff(leftContent, props.row.row.leftWordDiff, "removed")
     })
 
     const rightTokens = createMemo((): TokenWithEmphasis[] => {
@@ -827,16 +750,9 @@ function SplitContentRow(props: SplitContentRowProps) {
         tokenVersion()
 
         // Strip trailing newline - shiki does this internally, but plain text fallback doesn't
-        const rightContent = (props.row.row.right?.content ?? "").replace(
-            /\n$/,
-            "",
-        )
+        const rightContent = (props.row.row.right?.content ?? "").replace(/\n$/, "")
         if (!rightContent) return []
-        return tokenizeWithWordDiff(
-            rightContent,
-            props.row.row.rightWordDiff,
-            "added",
-        )
+        return tokenizeWithWordDiff(rightContent, props.row.row.rightWordDiff, "added")
     })
 
     const leftLineNumColor = createMemo(() => {
@@ -875,34 +791,22 @@ function SplitContentRow(props: SplitContentRowProps) {
         props.row.rightWrapped ? undefined : props.row.row.right?.newLineNumber,
     )
 
-    const emptyFill = createMemo(() =>
-        EMPTY_STRIPE_CHAR.repeat(props.columnWidth),
-    )
-    const emptyStripeColor = () =>
-        mode() === "light" ? colors().border : EMPTY_STRIPE_COLOR
+    const emptyFill = createMemo(() => EMPTY_STRIPE_CHAR.repeat(props.columnWidth))
+    const emptyStripeColor = () => (mode() === "light" ? colors().border : EMPTY_STRIPE_COLOR)
 
     return (
         <box flexDirection="row">
-            <box
-                backgroundColor={leftBg()}
-                flexGrow={1}
-                flexBasis={0}
-                overflow="hidden"
-            >
+            <box backgroundColor={leftBg()} flexGrow={1} flexBasis={0} overflow="hidden">
                 <Show
                     when={hasLeftLine()}
                     fallback={
                         <text wrapMode="none">
-                            <span style={{ fg: emptyStripeColor() }}>
-                                {emptyFill()}
-                            </span>
+                            <span style={{ fg: emptyStripeColor() }}>{emptyFill()}</span>
                         </text>
                     }
                 >
                     <text wrapMode="none">
-                        <span style={{ fg: leftBar()?.color }}>
-                            {leftBar()?.char}
-                        </span>
+                        <span style={{ fg: leftBar()?.color }}>{leftBar()?.char}</span>
                         <span style={{ fg: leftLineNumColor() }}>
                             {" "}
                             {formatLineNum(leftLineNum())}{" "}
@@ -923,8 +827,7 @@ function SplitContentRow(props: SplitContentRowProps) {
                                     style={{
                                         fg: token.color,
                                         bg: token.emphasis
-                                            ? colors().diff
-                                                  .deletionEmphasisBackground
+                                            ? colors().diff.deletionEmphasisBackground
                                             : undefined,
                                     }}
                                 >
@@ -936,26 +839,17 @@ function SplitContentRow(props: SplitContentRowProps) {
                 </Show>
             </box>
             <box width={1} />
-            <box
-                backgroundColor={rightBg()}
-                flexGrow={1}
-                flexBasis={0}
-                overflow="hidden"
-            >
+            <box backgroundColor={rightBg()} flexGrow={1} flexBasis={0} overflow="hidden">
                 <Show
                     when={hasRightLine()}
                     fallback={
                         <text wrapMode="none">
-                            <span style={{ fg: emptyStripeColor() }}>
-                                {emptyFill()}
-                            </span>
+                            <span style={{ fg: emptyStripeColor() }}>{emptyFill()}</span>
                         </text>
                     }
                 >
                     <text wrapMode="none">
-                        <span style={{ fg: rightBar()?.color }}>
-                            {rightBar()?.char}
-                        </span>
+                        <span style={{ fg: rightBar()?.color }}>{rightBar()?.char}</span>
                         <span style={{ fg: rightLineNumColor() }}>
                             {" "}
                             {formatLineNum(rightLineNum())}{" "}
@@ -976,8 +870,7 @@ function SplitContentRow(props: SplitContentRowProps) {
                                     style={{
                                         fg: token.color,
                                         bg: token.emphasis
-                                            ? colors().diff
-                                                  .additionEmphasisBackground
+                                            ? colors().diff.additionEmphasisBackground
                                             : undefined,
                                     }}
                                 >
@@ -1073,15 +966,11 @@ function UnifiedContentRow(props: UnifiedContentRowProps) {
                 <For
                     each={sliceTokens(
                         tokens(),
-                        props.row.isWrapped
-                            ? props.row.lineStart
-                            : props.scrollLeft,
+                        props.row.isWrapped ? props.row.lineStart : props.scrollLeft,
                         props.row.lineLength,
                     )}
                 >
-                    {(token) => (
-                        <span style={{ fg: token.color }}>{token.content}</span>
-                    )}
+                    {(token) => <span style={{ fg: token.color }}>{token.content}</span>}
                 </For>
             </text>
         </box>
@@ -1139,10 +1028,7 @@ function buildWrappedSplitRows(
                     row,
                     line,
                     lineStart: start,
-                    lineLength: Math.min(
-                        fullWidth,
-                        Math.max(0, contentLength - start),
-                    ),
+                    lineLength: Math.min(fullWidth, Math.max(0, contentLength - start)),
                     isWrapped: i > 0,
                 })
             }
@@ -1165,42 +1051,28 @@ function buildWrappedSplitRows(
                 leftLength:
                     leftStart === null
                         ? 0
-                        : Math.min(
-                              width - 1,
-                              Math.max(0, leftLength - leftStart),
-                          ),
+                        : Math.min(width - 1, Math.max(0, leftLength - leftStart)),
                 rightStart,
                 rightLength:
                     rightStart === null
                         ? 0
-                        : Math.min(
-                              width - 1,
-                              Math.max(0, rightLength - rightStart),
-                          ),
+                        : Math.min(width - 1, Math.max(0, rightLength - rightStart)),
                 leftWrapped: false,
                 rightWrapped: false,
             })
             continue
         }
-        const leftLines = row.left
-            ? Math.max(1, Math.ceil(leftLength / width))
-            : 1
-        const rightLines = row.right
-            ? Math.max(1, Math.ceil(rightLength / width))
-            : 1
+        const leftLines = row.left ? Math.max(1, Math.ceil(leftLength / width)) : 1
+        const rightLines = row.right ? Math.max(1, Math.ceil(rightLength / width)) : 1
         const totalLines = Math.max(leftLines, rightLines)
 
         for (let i = 0; i < totalLines; i += 1) {
             const leftStart = row.left && i < leftLines ? i * width : null
             const leftSegmentLength =
-                leftStart === null
-                    ? 0
-                    : Math.min(width, Math.max(0, leftLength - leftStart))
+                leftStart === null ? 0 : Math.min(width, Math.max(0, leftLength - leftStart))
             const rightStart = row.right && i < rightLines ? i * width : null
             const rightSegmentLength =
-                rightStart === null
-                    ? 0
-                    : Math.min(width, Math.max(0, rightLength - rightStart))
+                rightStart === null ? 0 : Math.min(width, Math.max(0, rightLength - rightStart))
 
             result.push({
                 type: "content",

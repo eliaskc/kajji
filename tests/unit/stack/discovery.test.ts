@@ -21,15 +21,13 @@ describe("buildBookmarkStackModel", () => {
     test("renders only actual multi-bookmark stacks under trunk", () => {
         const model = buildBookmarkStackModel({ commits, bookmarks })
 
-        expect(model.rows.map((row) => [row.bookmark.name, row.depth])).toEqual(
-            [
-                ["main", 0],
-                ["feature-a", 1],
-                ["feature-b", 2],
-                ["feature-c", 3],
-                ["standalone", 0],
-            ],
-        )
+        expect(model.rows.map((row) => [row.bookmark.name, row.depth])).toEqual([
+            ["main", 0],
+            ["feature-a", 1],
+            ["feature-b", 2],
+            ["feature-c", 3],
+            ["standalone", 0],
+        ])
         expect(model.parentByName.get("feature-a")).toBe("main")
         expect(model.parentByName.get("feature-b")).toBe("feature-a")
         expect(model.parentByName.get("feature-c")).toBe("feature-b")
@@ -38,9 +36,7 @@ describe("buildBookmarkStackModel", () => {
 
     test("marks all stack members with the stack root key for highlighting", () => {
         const model = buildBookmarkStackModel({ commits, bookmarks })
-        const stackKeysByName = new Map(
-            model.rows.map((row) => [row.bookmark.name, row.stackKeys]),
-        )
+        const stackKeysByName = new Map(model.rows.map((row) => [row.bookmark.name, row.stackKeys]))
 
         expect(stackKeysByName.get("main")).toEqual(["feature-a"])
         expect(stackKeysByName.get("feature-a")).toEqual(["feature-a"])
@@ -59,12 +55,10 @@ describe("buildBookmarkStackModel", () => {
             ],
         })
 
-        expect(model.rows.map((row) => [row.bookmark.name, row.depth])).toEqual(
-            [
-                ["main", 0],
-                ["one", 0],
-                ["two", 0],
-            ],
-        )
+        expect(model.rows.map((row) => [row.bookmark.name, row.depth])).toEqual([
+            ["main", 0],
+            ["one", 0],
+            ["two", 0],
+        ])
     })
 })

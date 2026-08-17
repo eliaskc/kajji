@@ -1,13 +1,6 @@
 import type { ScrollBoxRenderable } from "@opentui/core"
 import { useKeyboard, useRenderer } from "@opentui/solid"
-import {
-    For,
-    Show,
-    createEffect,
-    createSignal,
-    onCleanup,
-    onMount,
-} from "solid-js"
+import { For, Show, createEffect, createSignal, onCleanup, onMount } from "solid-js"
 import { useTheme } from "../context/theme"
 import { createDoubleClickDetector } from "../utils/double-click"
 import type { RecentRepo } from "../utils/state"
@@ -83,16 +76,15 @@ function GitRepoScreen(props: GitRepoScreenProps) {
                 <box flexDirection="column">
                     <text fg={colors().warning}>Git repository detected</text>
                     <text fg={colors().textMuted}>
-                        This directory has git, but has not been initialized for
-                        jj
+                        This directory has git, but has not been initialized for jj
                     </text>
                 </box>
                 <box flexDirection="column">
                     <For each={options}>
                         {(option, index) => {
                             const isSelected = () => index() === selectedIndex()
-                            const handleDoubleClick = createDoubleClickDetector(
-                                () => props.onInit(option.colocate),
+                            const handleDoubleClick = createDoubleClickDetector(() =>
+                                props.onInit(option.colocate),
                             )
                             return (
                                 <box
@@ -101,21 +93,15 @@ function GitRepoScreen(props: GitRepoScreenProps) {
                                     paddingLeft={1}
                                     paddingRight={1}
                                     backgroundColor={
-                                        isSelected()
-                                            ? colors().selectionBackground
-                                            : undefined
+                                        isSelected() ? colors().selectionBackground : undefined
                                     }
                                     onMouseDown={() => {
                                         setSelectedIndex(index())
                                         handleDoubleClick()
                                     }}
                                 >
-                                    <text fg={colors().text}>
-                                        {option.label}
-                                    </text>
-                                    <text fg={colors().primary}>
-                                        {option.key}
-                                    </text>
+                                    <text fg={colors().text}>{option.label}</text>
+                                    <text fg={colors().primary}>{option.key}</text>
                                 </box>
                             )
                         }}
@@ -188,10 +174,7 @@ function NoVcsScreen(props: NoVcsScreenProps) {
     // Trigger re-render of timestamps every 30 seconds
     const [timestampTick, setTimestampTick] = createSignal(0)
     onMount(() => {
-        const interval = setInterval(
-            () => setTimestampTick((t) => t + 1),
-            30000,
-        )
+        const interval = setInterval(() => setTimestampTick((t) => t + 1), 30000)
         onCleanup(() => clearInterval(interval))
     })
 
@@ -236,9 +219,7 @@ function NoVcsScreen(props: NoVcsScreenProps) {
         }
     })
 
-    const handleInitDoubleClick = createDoubleClickDetector(() =>
-        props.onInit(),
-    )
+    const handleInitDoubleClick = createDoubleClickDetector(() => props.onInit())
 
     return (
         <box
@@ -275,9 +256,7 @@ function NoVcsScreen(props: NoVcsScreenProps) {
                     paddingLeft={1}
                     paddingRight={1}
                     backgroundColor={
-                        selectedIndex() === 0
-                            ? colors().selectionBackground
-                            : undefined
+                        selectedIndex() === 0 ? colors().selectionBackground : undefined
                     }
                     onMouseDown={() => {
                         setSelectedIndex(0)
@@ -289,16 +268,10 @@ function NoVcsScreen(props: NoVcsScreenProps) {
                 </box>
                 <Show
                     when={props.recentRepos.length > 0}
-                    fallback={
-                        <text fg={colors().textMuted}>
-                            No recent repositories
-                        </text>
-                    }
+                    fallback={<text fg={colors().textMuted}>No recent repositories</text>}
                 >
                     <box flexDirection="column">
-                        <text fg={colors().textMuted}>
-                            Recent repositories:
-                        </text>
+                        <text fg={colors().textMuted}>Recent repositories:</text>
                         <box height={Math.min(props.recentRepos.length, 10)}>
                             <scrollbox
                                 ref={scrollRef}
@@ -308,17 +281,15 @@ function NoVcsScreen(props: NoVcsScreenProps) {
                                 <For each={props.recentRepos}>
                                     {(repo, index) => {
                                         const isSelected = () =>
-                                            repoIndex(index()) ===
-                                            selectedIndex()
+                                            repoIndex(index()) === selectedIndex()
                                         const num = index() + 1
                                         const displayPath = repo.path.replace(
                                             new RegExp(`^${process.env.HOME}`),
                                             "~",
                                         )
-                                        const handleDoubleClick =
-                                            createDoubleClickDetector(() =>
-                                                props.onSelectRepo(repo.path),
-                                            )
+                                        const handleDoubleClick = createDoubleClickDetector(() =>
+                                            props.onSelectRepo(repo.path),
+                                        )
                                         return (
                                             <box
                                                 flexDirection="row"
@@ -327,37 +298,23 @@ function NoVcsScreen(props: NoVcsScreenProps) {
                                                 paddingRight={1}
                                                 backgroundColor={
                                                     isSelected()
-                                                        ? colors()
-                                                              .selectionBackground
+                                                        ? colors().selectionBackground
                                                         : undefined
                                                 }
                                                 onMouseDown={() => {
-                                                    setSelectedIndex(
-                                                        repoIndex(index()),
-                                                    )
+                                                    setSelectedIndex(repoIndex(index()))
                                                     handleDoubleClick()
                                                 }}
                                             >
-                                                <text
-                                                    fg={colors().primary}
-                                                    wrapMode="none"
-                                                >
+                                                <text fg={colors().primary} wrapMode="none">
                                                     {num}.{" "}
                                                 </text>
-                                                <text
-                                                    wrapMode="none"
-                                                    fg={colors().text}
-                                                >
+                                                <text wrapMode="none" fg={colors().text}>
                                                     {displayPath}
                                                 </text>
                                                 <box flexGrow={1} />
-                                                <text
-                                                    fg={colors().textMuted}
-                                                    wrapMode="none"
-                                                >
-                                                    {getTimestamp(
-                                                        repo.lastOpened,
-                                                    )}
+                                                <text fg={colors().textMuted} wrapMode="none">
+                                                    {getTimestamp(repo.lastOpened)}
                                                 </text>
                                             </box>
                                         )
@@ -404,10 +361,7 @@ export function StartupScreen(props: StartupScreenProps) {
                     />
                 }
             >
-                <GitRepoScreen
-                    onInit={props.onInitRepository}
-                    onQuit={props.onQuit}
-                />
+                <GitRepoScreen onInit={props.onInitRepository} onQuit={props.onQuit} />
             </Show>
         </box>
     )

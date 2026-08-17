@@ -16,16 +16,10 @@ export function splitDisplayPath(text: string): DisplayPathSegments {
     }
 }
 
-function hardTruncate(
-    text: string,
-    maxLength: number,
-    keepEnd: boolean,
-): string {
+function hardTruncate(text: string, maxLength: number, keepEnd: boolean): string {
     if (text.length <= maxLength) return text
     if (maxLength <= 0) return ""
-    return keepEnd
-        ? text.slice(text.length - maxLength)
-        : text.slice(0, maxLength)
+    return keepEnd ? text.slice(text.length - maxLength) : text.slice(0, maxLength)
 }
 
 export function truncatePathMiddle(path: string, maxLength: number): string {
@@ -42,10 +36,7 @@ export function truncatePathMiddle(path: string, maxLength: number): string {
 
     if (available <= 0) return "..."
 
-    const minEnd = Math.min(
-        last.length,
-        Math.max(1, Math.ceil(available * 0.6)),
-    )
+    const minEnd = Math.min(last.length, Math.max(1, Math.ceil(available * 0.6)))
     const minStart = Math.max(1, available - minEnd)
     const start = hardTruncate(first, minStart, false)
     const end = hardTruncate(last, available - start.length, true)

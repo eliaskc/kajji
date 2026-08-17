@@ -34,11 +34,7 @@ import zig from "@shikijs/langs/zig"
 import ayuDark from "@shikijs/themes/ayu-dark"
 import githubLight from "@shikijs/themes/github-light"
 import type { BundledLanguage } from "shiki"
-import {
-    type Highlighter,
-    createHighlighter,
-    createJavaScriptRegexEngine,
-} from "shiki"
+import { type Highlighter, createHighlighter, createJavaScriptRegexEngine } from "shiki"
 import type { SyntaxThemeName } from "../theme/syntax"
 
 // Message types

@@ -1,10 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { Effect, Layer } from "effect"
 import type { Bookmark } from "../../../src/commander/bookmarks"
-import {
-    GitHub,
-    type GitHubService,
-} from "../../../src/commander/github-service"
+import { GitHub, type GitHubService } from "../../../src/commander/github-service"
 import { Jj, type JjService } from "../../../src/commander/jj"
 import type { Commit } from "../../../src/commander/types"
 import {
@@ -15,11 +12,7 @@ import {
     type StackService,
 } from "../../../src/stack/executor"
 import type { PersistedStackState } from "../../../src/stack/state"
-import {
-    type StackJournal,
-    StackStore,
-    type StackStoreService,
-} from "../../../src/stack/store"
+import { type StackJournal, StackStore, type StackStoreService } from "../../../src/stack/store"
 
 const mainCommit = commit("main", [], true)
 const parentCommit = commit("a", ["main"])
@@ -63,12 +56,7 @@ function makeServices(options: FakeOptions = {}) {
         },
     ]
     const allBookmarks = () =>
-        options.bookmarks?.() ?? [
-            mainBookmark,
-            parentBookmark,
-            childBookmark,
-            remoteParent,
-        ]
+        options.bookmarks?.() ?? [mainBookmark, parentBookmark, childBookmark, remoteParent]
     const pullRequests = new Map([
         [
             "feature-a",
@@ -178,10 +166,7 @@ function runStack<A, E>(
         Layer.succeed(StackStore, StackStore.of(services.store)),
     )
     return Effect.runPromise(
-        Stack.use(operation).pipe(
-            Effect.provide(StackLive),
-            Effect.provide(dependencies),
-        ),
+        Stack.use(operation).pipe(Effect.provide(StackLive), Effect.provide(dependencies)),
     )
 }
 
@@ -207,9 +192,7 @@ describe("Stack", () => {
         const plan = await runStack(services, prepare)
         services.calls.length = 0
 
-        await runStack(services, (stack) =>
-            stack.applyStackPlan(plan, { cwd: "/tmp/repository" }),
-        )
+        await runStack(services, (stack) => stack.applyStackPlan(plan, { cwd: "/tmp/repository" }))
 
         expect(services.calls[0]).toBe("journal:0")
         expect(services.calls).toContain("push:feature-b")
@@ -218,9 +201,7 @@ describe("Stack", () => {
         expect(services.calls).toContain("state")
         expect(services.journals.at(-1)?.afterOperationId).toBe("operation-id")
         for (let index = 1; index < services.journals.length; index++) {
-            expect(
-                services.journals[index]?.entries.length,
-            ).toBeGreaterThanOrEqual(
+            expect(services.journals[index]?.entries.length).toBeGreaterThanOrEqual(
                 services.journals[index - 1]?.entries.length ?? 0,
             )
         }
@@ -234,9 +215,7 @@ describe("Stack", () => {
         changedCommitId = "changed-main"
 
         await expect(
-            runStack(services, (stack) =>
-                stack.applyStackPlan(plan, { cwd: "/tmp/repository" }),
-            ),
+            runStack(services, (stack) => stack.applyStackPlan(plan, { cwd: "/tmp/repository" })),
         ).rejects.toBeInstanceOf(StackPlanStaleError)
         expect(services.calls).toEqual([])
         expect(services.journals).toEqual([])
@@ -275,17 +254,11 @@ describe("Stack", () => {
             expect(error).toBeInstanceOf(StackApplyError)
             expect((error as StackApplyError).completedEntries).toEqual([])
         }
-        expect(
-            services.journals.map((journal) => journal.entries.length),
-        ).toEqual([0])
+        expect(services.journals.map((journal) => journal.entries.length)).toEqual([0])
     })
 })
 
-function commit(
-    commitId: string,
-    parentCommitIds: readonly string[],
-    immutable = false,
-): Commit {
+function commit(commitId: string, parentCommitIds: readonly string[], immutable = false): Commit {
     return {
         changeId: `${commitId}-change`,
         commitId,

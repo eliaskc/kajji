@@ -34,13 +34,9 @@ function change(before: number, after: number): string {
 
 const baseline = readReport(baselinePath)
 const candidate = readReport(candidatePath)
-const metricNames = Object.keys(baseline.aggregate).filter(
-    (name) => candidate.aggregate[name],
-)
+const metricNames = Object.keys(baseline.aggregate).filter((name) => candidate.aggregate[name])
 
-console.log(
-    `Baseline ${baseline.metadata.revision} -> candidate ${candidate.metadata.revision}\n`,
-)
+console.log(`Baseline ${baseline.metadata.revision} -> candidate ${candidate.metadata.revision}\n`)
 console.log(
     `${"Metric".padEnd(24)} ${"Baseline".padStart(12)} ${"Candidate".padStart(12)} ${"Change".padStart(10)}`,
 )
@@ -54,6 +50,4 @@ for (const name of metricNames) {
     )
 }
 
-console.log(
-    "\nPositive changes mean slower or more memory; interpret noise locally.",
-)
+console.log("\nPositive changes mean slower or more memory; interpret noise locally.")

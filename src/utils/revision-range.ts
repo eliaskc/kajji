@@ -79,9 +79,7 @@ export function connectedRevisionRange(
     if (ancestors.has(bottom.commitId)) {
         return {
             chain: slice.filter(
-                (commit) =>
-                    ancestors.has(commit.commitId) &&
-                    descendants.has(commit.commitId),
+                (commit) => ancestors.has(commit.commitId) && descendants.has(commit.commitId),
             ),
             connected: true,
         }
@@ -91,9 +89,7 @@ export function connectedRevisionRange(
     // off each endpoint so rows highlight immediately while jj resolves.
     return {
         chain: slice.filter(
-            (commit) =>
-                ancestors.has(commit.commitId) ||
-                descendants.has(commit.commitId),
+            (commit) => ancestors.has(commit.commitId) || descendants.has(commit.commitId),
         ),
         connected: false,
     }

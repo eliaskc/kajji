@@ -38,26 +38,19 @@ export function migrateLegacyHooks(raw: unknown): unknown {
     if (!hooks || typeof hooks !== "object" || Array.isArray(hooks)) return raw
 
     const repos =
-        config.repos &&
-        typeof config.repos === "object" &&
-        !Array.isArray(config.repos)
+        config.repos && typeof config.repos === "object" && !Array.isArray(config.repos)
             ? { ...(config.repos as Record<string, unknown>) }
             : {}
 
-    for (const [operationId, hook] of Object.entries(
-        hooks as Record<string, unknown>,
-    )) {
+    for (const [operationId, hook] of Object.entries(hooks as Record<string, unknown>)) {
         if (!hook || typeof hook !== "object" || Array.isArray(hook)) continue
         const hookRecord = hook as Record<string, unknown>
         const onlyIn = hookRecord.onlyIn
-        const repoPath =
-            typeof onlyIn === "string" && onlyIn.length > 0 ? onlyIn : "/"
+        const repoPath = typeof onlyIn === "string" && onlyIn.length > 0 ? onlyIn : "/"
 
         const existingRepo = repos[repoPath]
         const repoConfig =
-            existingRepo &&
-            typeof existingRepo === "object" &&
-            !Array.isArray(existingRepo)
+            existingRepo && typeof existingRepo === "object" && !Array.isArray(existingRepo)
                 ? { ...(existingRepo as Record<string, unknown>) }
                 : {}
         const repoHooks =
@@ -94,10 +87,7 @@ export function migrateLegacyDiffEngine(raw: unknown): unknown {
     if (!("useJjFormatter" in diffRecord)) return raw
 
     const migratedDiff = { ...diffRecord }
-    if (
-        migratedDiff.useJjFormatter === true &&
-        migratedDiff.engine === undefined
-    ) {
+    if (migratedDiff.useJjFormatter === true && migratedDiff.engine === undefined) {
         migratedDiff.engine = "jj-formatter"
     }
     delete migratedDiff.useJjFormatter
@@ -132,9 +122,7 @@ export function readConfig(): AppConfig {
     try {
         const content = readFileSync(configPath, "utf-8")
         const raw = parseJsonc(content)
-        const migratedRaw = migrateLegacyDiffEngine(
-            migrateLegacyHooks(raw ?? {}),
-        )
+        const migratedRaw = migrateLegacyDiffEngine(migrateLegacyHooks(raw ?? {}))
         const result = ConfigSchema.safeParse(migratedRaw)
         if (result.success) {
             cachedConfig = result.data
@@ -145,9 +133,7 @@ export function readConfig(): AppConfig {
             // Log validation issues but don't crash — use defaults
             for (const issue of result.error.issues) {
                 const path = issue.path.join(".")
-                console.error(
-                    `[config] Invalid field "${path}": ${issue.message}`,
-                )
+                console.error(`[config] Invalid field "${path}": ${issue.message}`)
             }
             cachedConfig = ConfigSchema.parse({})
         }

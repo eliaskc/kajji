@@ -9,9 +9,7 @@ const lightArgs = {
 
 describe("resolveAnsiForeground", () => {
     test("uses theme text for missing/default foreground", () => {
-        expect(resolveAnsiForeground({ ...lightArgs, fg: null })).toBe(
-            "#4f4f4f",
-        )
+        expect(resolveAnsiForeground({ ...lightArgs, fg: null })).toBe("#4f4f4f")
         expect(
             resolveAnsiForeground({
                 ...lightArgs,

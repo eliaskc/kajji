@@ -78,31 +78,20 @@ describe("structural flattener", () => {
         const file = fakeTextualFile("client.ts", "change", 2, 2)
 
         const flattened = structuralFileOf(
-            flattenStructuralFile(
-                file,
-                oldLines.join("\n"),
-                newLines.join("\n"),
-                result,
-            ),
+            flattenStructuralFile(file, oldLines.join("\n"), newLines.join("\n"), result),
         )
         expect(flattened.structural).toBe(true)
         const lines = flattened.hunks[0]?.lines ?? []
         const diagnostics = lines.filter(
             (line) => line.oldLineNumber === 1 || line.newLineNumber === 1,
         )
-        const command = lines.filter(
-            (line) => line.oldLineNumber === 2 || line.newLineNumber === 2,
-        )
+        const command = lines.filter((line) => line.oldLineNumber === 2 || line.newLineNumber === 2)
 
         // Structurally unchanged but reindented: unified shows the new side
         // once as context.
         expect(diagnostics.map((line) => line.type)).toEqual(["context"])
-        expect(diagnostics.map((line) => line.content)).toEqual([
-            newLines[0] ?? "",
-        ])
-        expect(diagnostics.every((line) => line.wordDiff === undefined)).toBe(
-            true,
-        )
+        expect(diagnostics.map((line) => line.content)).toEqual([newLines[0] ?? ""])
+        expect(diagnostics.every((line) => line.wordDiff === undefined)).toBe(true)
         expect(
             command
                 .flatMap((line) => line.wordDiff ?? [])
@@ -155,65 +144,57 @@ describe("structural flattener", () => {
 
     test("does not emphasize fully novel aligned lines", () => {
         const oldLines = ["", "// old comment"]
-        const newLines = [
-            "const wordDiff = props.row.wordDiff",
-            "const emphasisType = added",
-        ]
+        const newLines = ["const wordDiff = props.row.wordDiff", "const emphasisType = added"]
         const file = fakeTextualFile("filled-alignment.ts", "change", 2, 2)
 
         const flattened = structuralFileOf(
-            flattenStructuralFile(
-                file,
-                oldLines.join("\n"),
-                newLines.join("\n"),
-                {
-                    language: "TypeScript",
-                    status: "changed",
-                    aligned_lines: [
-                        [0, 0],
-                        [1, 1],
-                    ],
-                    chunks: [
-                        [
-                            {
-                                lhs: { line_number: 0, changes: [] },
-                                rhs: {
-                                    line_number: 0,
-                                    changes: [
-                                        {
-                                            start: 0,
-                                            end: newLines[0]?.length ?? 0,
-                                            content: newLines[0] ?? "",
-                                        },
-                                    ],
-                                },
+            flattenStructuralFile(file, oldLines.join("\n"), newLines.join("\n"), {
+                language: "TypeScript",
+                status: "changed",
+                aligned_lines: [
+                    [0, 0],
+                    [1, 1],
+                ],
+                chunks: [
+                    [
+                        {
+                            lhs: { line_number: 0, changes: [] },
+                            rhs: {
+                                line_number: 0,
+                                changes: [
+                                    {
+                                        start: 0,
+                                        end: newLines[0]?.length ?? 0,
+                                        content: newLines[0] ?? "",
+                                    },
+                                ],
                             },
-                            {
-                                lhs: {
-                                    line_number: 1,
-                                    changes: [
-                                        {
-                                            start: 0,
-                                            end: oldLines[1]?.length ?? 0,
-                                            content: oldLines[1] ?? "",
-                                        },
-                                    ],
-                                },
-                                rhs: {
-                                    line_number: 1,
-                                    changes: [
-                                        {
-                                            start: 0,
-                                            end: newLines[1]?.length ?? 0,
-                                            content: newLines[1] ?? "",
-                                        },
-                                    ],
-                                },
+                        },
+                        {
+                            lhs: {
+                                line_number: 1,
+                                changes: [
+                                    {
+                                        start: 0,
+                                        end: oldLines[1]?.length ?? 0,
+                                        content: oldLines[1] ?? "",
+                                    },
+                                ],
                             },
-                        ],
+                            rhs: {
+                                line_number: 1,
+                                changes: [
+                                    {
+                                        start: 0,
+                                        end: newLines[1]?.length ?? 0,
+                                        content: newLines[1] ?? "",
+                                    },
+                                ],
+                            },
+                        },
                     ],
-                },
-            ),
+                ],
+            }),
         )
 
         expect(
@@ -227,46 +208,34 @@ describe("structural flattener", () => {
         // A one-line edit inside a multiline template literal makes Difftastic
         // mark every line of the string as changed on both sides (the string
         // is one lexical atom). Identical aligned pairs must render as context.
-        const oldLines = [
-            "const sql = `",
-            "  id TEXT,",
-            "  channel TEXT CHECK,",
-            "`",
-        ]
+        const oldLines = ["const sql = `", "  id TEXT,", "  channel TEXT CHECK,", "`"]
         const newLines = ["const sql = `", "  id TEXT,", "  channel TEXT,", "`"]
         const file = fakeTextualFile("atom.ts", "change", 1, 1)
 
-        const changesFor = (text: string) => [
-            { start: 0, end: text.length, content: text },
-        ]
+        const changesFor = (text: string) => [{ start: 0, end: text.length, content: text }]
         const flattened = structuralFileOf(
-            flattenStructuralFile(
-                file,
-                oldLines.join("\n"),
-                newLines.join("\n"),
-                {
-                    language: "TypeScript",
-                    status: "changed",
-                    aligned_lines: [
-                        [0, 0],
-                        [1, 1],
-                        [2, 2],
-                        [3, 3],
-                    ],
-                    chunks: [
-                        oldLines.map((oldText, index) => ({
-                            lhs: {
-                                line_number: index,
-                                changes: changesFor(oldText),
-                            },
-                            rhs: {
-                                line_number: index,
-                                changes: changesFor(newLines[index] ?? ""),
-                            },
-                        })),
-                    ],
-                },
-            ),
+            flattenStructuralFile(file, oldLines.join("\n"), newLines.join("\n"), {
+                language: "TypeScript",
+                status: "changed",
+                aligned_lines: [
+                    [0, 0],
+                    [1, 1],
+                    [2, 2],
+                    [3, 3],
+                ],
+                chunks: [
+                    oldLines.map((oldText, index) => ({
+                        lhs: {
+                            line_number: index,
+                            changes: changesFor(oldText),
+                        },
+                        rhs: {
+                            line_number: index,
+                            changes: changesFor(newLines[index] ?? ""),
+                        },
+                    })),
+                ],
+            }),
         )
 
         const lines = flattened.hunks.flatMap((hunk) => hunk.lines)
@@ -278,11 +247,9 @@ describe("structural flattener", () => {
             ["deletion", "  channel TEXT CHECK,"],
             ["addition", "  channel TEXT,"],
         ])
-        expect(
-            lines
-                .filter((line) => line.type === "context")
-                .map((line) => line.content),
-        ).toEqual(["const sql = `", "  id TEXT,", "`"])
+        expect(lines.filter((line) => line.type === "context").map((line) => line.content)).toEqual(
+            ["const sql = `", "  id TEXT,", "`"],
+        )
     })
 
     test("reports formatting-only files instead of hiding them", () => {
@@ -353,8 +320,6 @@ describe("structural flattener", () => {
 
         const line = flattened.hunks[0]?.lines[0]
         expect(line?.content).toBe("    const a = old")
-        expect(line?.wordDiff?.map((segment) => segment.text).join("")).toBe(
-            line?.content,
-        )
+        expect(line?.wordDiff?.map((segment) => segment.text).join("")).toBe(line?.content)
     })
 })

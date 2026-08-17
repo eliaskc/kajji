@@ -1,4 +1,4 @@
-// biome-ignore lint/suspicious/noExplicitAny: startup profiling
+// oxlint-disable-next-line typescript/no-explicit-any -- startup profiling
 const g = globalThis as any
 const _t0 = Bun.nanoseconds()
 g.__STARTUP_T0 = _t0
@@ -22,10 +22,7 @@ const CLI_FLAGS = ["--help", "-h", "--version", "-V"]
 const args = process.argv.slice(2)
 const firstArg = args[0]
 
-if (
-    firstArg &&
-    (CLI_COMMANDS.includes(firstArg) || CLI_FLAGS.includes(firstArg))
-) {
+if (firstArg && (CLI_COMMANDS.includes(firstArg) || CLI_FLAGS.includes(firstArg))) {
     const { runCli } = await import("./cli/index.js")
     const normalizedArgs = firstArg === "-V" ? ["--version"] : args
     await runCli(normalizedArgs)

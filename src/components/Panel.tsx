@@ -35,11 +35,8 @@ export function Panel(props: PanelProps) {
 
     const cycleTab = (direction: 1 | -1) => {
         if (!props.tabs || props.tabs.length <= 1 || !props.onTabChange) return
-        const currentIndex = props.tabs.findIndex(
-            (t) => t.id === props.activeTab,
-        )
-        const nextIndex =
-            (currentIndex + direction + props.tabs.length) % props.tabs.length
+        const currentIndex = props.tabs.findIndex((t) => t.id === props.activeTab)
+        const nextIndex = (currentIndex + direction + props.tabs.length) % props.tabs.length
         const nextTab = props.tabs[nextIndex]
         if (nextTab) props.onTabChange(nextTab.id)
     }
@@ -75,32 +72,19 @@ export function Panel(props: PanelProps) {
         typeof content === "function" ? content() : content
 
     const renderTitle = () => {
-        const titleBg = () =>
-            props.focused ? colors().titleBarFocused : undefined
-        const titleColor = () =>
-            props.focused ? colors().titleTextFocused : colors().textMuted
+        const titleBg = () => (props.focused ? colors().titleBarFocused : undefined)
+        const titleColor = () => (props.focused ? colors().titleTextFocused : colors().textMuted)
 
         if (hasTabs()) {
             return (
-                <box
-                    flexDirection="row"
-                    height={1}
-                    flexShrink={0}
-                    backgroundColor={titleBg()}
-                >
+                <box flexDirection="row" height={1} flexShrink={0} backgroundColor={titleBg()}>
                     <text>
-                        <span style={{ fg: titleColor() }}>
-                            {props.hotkey}{" "}
-                        </span>
+                        <span style={{ fg: titleColor() }}>{props.hotkey} </span>
                         <For each={props.tabs}>
                             {(tab, i) => (
                                 <>
                                     <Show when={i() > 0}>
-                                        <span
-                                            style={{ fg: colors().textMuted }}
-                                        >
-                                            {" "}
-                                        </span>
+                                        <span style={{ fg: colors().textMuted }}> </span>
                                     </Show>
                                     <span
                                         style={{
@@ -120,27 +104,18 @@ export function Panel(props: PanelProps) {
                         </For>
                     </text>
                     <box flexGrow={1} />
-                    <Show when={props.topRight}>
-                        {resolveCorner(props.topRight)}
-                    </Show>
+                    <Show when={props.topRight}>{resolveCorner(props.topRight)}</Show>
                 </box>
             )
         }
 
         return (
-            <box
-                flexDirection="row"
-                height={1}
-                flexShrink={0}
-                backgroundColor={titleBg()}
-            >
+            <box flexDirection="row" height={1} flexShrink={0} backgroundColor={titleBg()}>
                 <text fg={titleColor()}>
                     {props.hotkey} {props.title}
                 </text>
                 <box flexGrow={1} />
-                <Show when={props.topRight}>
-                    {resolveCorner(props.topRight)}
-                </Show>
+                <Show when={props.topRight}>{resolveCorner(props.topRight)}</Show>
             </box>
         )
     }

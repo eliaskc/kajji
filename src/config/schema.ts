@@ -21,10 +21,7 @@ export const UiSchema = z.object({
         })
         .default({})
         .describe("Override syntax highlighting themes for dark/light modes"),
-    showFileTree: z
-        .boolean()
-        .default(true)
-        .describe("Show files as tree (false for flat list)"),
+    showFileTree: z.boolean().default(true).describe("Show files as tree (false for flat list)"),
 })
 
 export const DiffSchema = z.object({
@@ -69,9 +66,7 @@ export const HookSchema = z
         onlyIn: z
             .string()
             .optional()
-            .describe(
-                "Only run this hook when the current repository is under this path",
-            ),
+            .describe("Only run this hook when the current repository is under this path"),
         pre: z
             .array(HookCommandSchema)
             .default([])
@@ -96,10 +91,7 @@ export const RepoConfigSchema = z
 
 export const ConfigSchema = z
     .object({
-        $schema: z
-            .string()
-            .optional()
-            .describe("JSON Schema reference for editor autocomplete"),
+        $schema: z.string().optional().describe("JSON Schema reference for editor autocomplete"),
 
         ui: UiSchema.optional()
             .default({
@@ -129,9 +121,7 @@ export const ConfigSchema = z
         repos: z
             .record(z.string(), RepoConfigSchema)
             .default({})
-            .describe(
-                "Repository-specific configuration keyed by repository path",
-            ),
+            .describe("Repository-specific configuration keyed by repository path"),
 
         whatsNewDisabled: z
             .boolean()

@@ -4,8 +4,7 @@ export const FUZZY_THRESHOLD = -500
 
 export type SelectionSource = "keyboard" | "mouse" | "programmatic"
 
-export const shouldAutoScrollSelection = (source: SelectionSource) =>
-    source !== "mouse"
+export const shouldAutoScrollSelection = (source: SelectionSource) => source !== "mouse"
 
 export interface ScrollIntoViewOptions {
     ref: ScrollBoxRenderable | undefined
@@ -17,17 +16,8 @@ export interface ScrollIntoViewOptions {
     selectionSource?: SelectionSource
 }
 
-export function calculateScrollPosition(
-    options: ScrollIntoViewOptions,
-): number | null {
-    const {
-        ref,
-        index,
-        currentScrollTop,
-        listLength,
-        margin = 2,
-        itemSize = 1,
-    } = options
+export function calculateScrollPosition(options: ScrollIntoViewOptions): number | null {
+    const { ref, index, currentScrollTop, listLength, margin = 2, itemSize = 1 } = options
 
     if (!ref || listLength === 0) return null
     if (options.selectionSource === "mouse") return null

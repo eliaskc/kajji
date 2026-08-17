@@ -1,9 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { Effect } from "effect"
-import {
-    InteractiveJj,
-    InteractiveJjLive,
-} from "../../../src/commander/interactive-jj"
+import { InteractiveJj, InteractiveJjLive } from "../../../src/commander/interactive-jj"
 import {
     type InteractiveProcessCommand,
     makeInteractiveProcessFake,
@@ -55,15 +52,7 @@ describe("InteractiveJj", () => {
             },
             {
                 executable: "jj",
-                args: [
-                    "resolve",
-                    "-r",
-                    "resolve",
-                    "--tool",
-                    "meld",
-                    "one",
-                    "two",
-                ],
+                args: ["resolve", "-r", "resolve", "--tool", "meld", "one", "two"],
                 cwd: "/tmp/repository",
             },
             {
@@ -89,8 +78,7 @@ describe("InteractiveJj", () => {
                 exitCode: 0,
             },
             {
-                command:
-                    "jj squash -i --from squash --into target -u -k --ignore-immutable",
+                command: "jj squash -i --from squash --into target -u -k --ignore-immutable",
                 exitCode: 0,
             },
         ])

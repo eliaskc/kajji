@@ -68,15 +68,9 @@ function sortTree(node: FileTreeNode): void {
 }
 
 function compressNode(node: FileTreeNode): void {
-    while (
-        node.isDirectory &&
-        node.children.length === 1 &&
-        node.children[0]?.isDirectory
-    ) {
+    while (node.isDirectory && node.children.length === 1 && node.children[0]?.isDirectory) {
         const onlyChild = node.children[0]
-        node.name = node.name
-            ? `${node.name}/${onlyChild.name}`
-            : onlyChild.name
+        node.name = node.name ? `${node.name}/${onlyChild.name}` : onlyChild.name
         node.path = onlyChild.path
         node.children = onlyChild.children
     }
@@ -116,10 +110,7 @@ export function buildFileTree(files: FileChange[]): FileTreeNode {
     return root
 }
 
-export function flattenTree(
-    root: FileTreeNode,
-    collapsedPaths: Set<string>,
-): FlatFileNode[] {
+export function flattenTree(root: FileTreeNode, collapsedPaths: Set<string>): FlatFileNode[] {
     const result: FlatFileNode[] = []
 
     function traverse(node: FileTreeNode, visualDepth: number): void {
@@ -154,13 +145,9 @@ export function flattenFlat(root: FileTreeNode): FlatFileNode[] {
 }
 
 export function orderFilePaths(paths: string[], showTree: boolean): string[] {
-    const tree = buildFileTree(
-        paths.map((path) => ({ path, status: "modified" as const })),
-    )
+    const tree = buildFileTree(paths.map((path) => ({ path, status: "modified" as const })))
     const nodes = showTree ? flattenTree(tree, new Set()) : flattenFlat(tree)
-    return nodes
-        .filter(({ node }) => !node.isDirectory)
-        .map(({ node }) => node.path)
+    return nodes.filter(({ node }) => !node.isDirectory).map(({ node }) => node.path)
 }
 
 export function orderFilesByPath<T>(
@@ -177,10 +164,7 @@ export function orderFilesByPath<T>(
     )
 }
 
-export function countVisibleNodes(
-    root: FileTreeNode,
-    collapsedPaths: Set<string>,
-): number {
+export function countVisibleNodes(root: FileTreeNode, collapsedPaths: Set<string>): number {
     return flattenTree(root, collapsedPaths).length
 }
 

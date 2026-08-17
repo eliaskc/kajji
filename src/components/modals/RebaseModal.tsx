@@ -24,8 +24,7 @@ export function RebaseModal(props: RebaseModalProps) {
     const dialog = useDialog()
 
     const [selectedRevision, setSelectedRevision] = createSignal(
-        props.defaultTarget ??
-            (props.commits[0] ? getRevisionId(props.commits[0]) : ""),
+        props.defaultTarget ?? (props.commits[0] ? getRevisionId(props.commits[0]) : ""),
     )
 
     let executing = false

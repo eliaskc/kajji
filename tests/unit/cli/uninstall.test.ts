@@ -10,35 +10,11 @@ import {
 
 describe("getUninstallCommand", () => {
     test("returns the right command per package manager", () => {
-        expect(getUninstallCommand("brew")).toEqual([
-            "brew",
-            "uninstall",
-            "kajji",
-        ])
-        expect(getUninstallCommand("npm")).toEqual([
-            "npm",
-            "uninstall",
-            "-g",
-            "kajji",
-        ])
-        expect(getUninstallCommand("bun")).toEqual([
-            "bun",
-            "remove",
-            "-g",
-            "kajji",
-        ])
-        expect(getUninstallCommand("pnpm")).toEqual([
-            "pnpm",
-            "uninstall",
-            "-g",
-            "kajji",
-        ])
-        expect(getUninstallCommand("yarn")).toEqual([
-            "yarn",
-            "global",
-            "remove",
-            "kajji",
-        ])
+        expect(getUninstallCommand("brew")).toEqual(["brew", "uninstall", "kajji"])
+        expect(getUninstallCommand("npm")).toEqual(["npm", "uninstall", "-g", "kajji"])
+        expect(getUninstallCommand("bun")).toEqual(["bun", "remove", "-g", "kajji"])
+        expect(getUninstallCommand("pnpm")).toEqual(["pnpm", "uninstall", "-g", "kajji"])
+        expect(getUninstallCommand("yarn")).toEqual(["yarn", "global", "remove", "kajji"])
     })
 
     test("returns null for curl/unknown", () => {
@@ -64,12 +40,7 @@ describe("cleanShellConfigContent", () => {
     })
 
     test("removes a fish_add_path line after the marker", () => {
-        const input = [
-            "set -x EDITOR vim",
-            "",
-            "# kajji",
-            `fish_add_path ${binDir}`,
-        ].join("\n")
+        const input = ["set -x EDITOR vim", "", "# kajji", `fish_add_path ${binDir}`].join("\n")
         const expected = ["set -x EDITOR vim"].join("\n")
         expect(cleanShellConfigContent(input, binDir)).toBe(expected)
     })
@@ -77,12 +48,8 @@ describe("cleanShellConfigContent", () => {
     test("preserves trailing newline state", () => {
         const withNewline = `export FOO=1\n# kajji\nexport PATH=${binDir}:$PATH\n`
         const withoutNewline = `export FOO=1\n# kajji\nexport PATH=${binDir}:$PATH`
-        expect(
-            cleanShellConfigContent(withNewline, binDir).endsWith("\n"),
-        ).toBe(true)
-        expect(
-            cleanShellConfigContent(withoutNewline, binDir).endsWith("\n"),
-        ).toBe(false)
+        expect(cleanShellConfigContent(withNewline, binDir).endsWith("\n")).toBe(true)
+        expect(cleanShellConfigContent(withoutNewline, binDir).endsWith("\n")).toBe(false)
     })
 
     test("does not touch unrelated lines that mention the bin dir", () => {
@@ -95,10 +62,7 @@ describe("cleanShellConfigContent", () => {
             "# kajji",
             `export PATH=${binDir}:$PATH`,
         ].join("\n")
-        const expected = [
-            "# my custom setup",
-            `alias kajji-bin='ls ${binDir}'`,
-        ].join("\n")
+        const expected = ["# my custom setup", `alias kajji-bin='ls ${binDir}'`].join("\n")
         expect(cleanShellConfigContent(input, binDir)).toBe(expected)
     })
 
@@ -125,10 +89,7 @@ describe("findShellConfig", () => {
         const zshenv = join(tmpHome, ".zshenv")
         const zshrc = join(tmpHome, ".zshrc")
         writeFileSync(zshenv, "export FOO=1\n")
-        writeFileSync(
-            zshrc,
-            `export FOO=2\n\n# kajji\nexport PATH=${tmpHome}/.kajji/bin:$PATH\n`,
-        )
+        writeFileSync(zshrc, `export FOO=2\n\n# kajji\nexport PATH=${tmpHome}/.kajji/bin:$PATH\n`)
 
         const found = findShellConfig({ SHELL: "/bin/zsh" }, tmpHome)
         expect(found).toBe(zshrc)
@@ -136,10 +97,7 @@ describe("findShellConfig", () => {
 
     test("finds .zprofile when zshrc/zshenv aren't touched", () => {
         const zprofile = join(tmpHome, ".zprofile")
-        writeFileSync(
-            zprofile,
-            `# kajji\nexport PATH=${tmpHome}/.kajji/bin:$PATH\n`,
-        )
+        writeFileSync(zprofile, `# kajji\nexport PATH=${tmpHome}/.kajji/bin:$PATH\n`)
 
         const found = findShellConfig({ SHELL: "/bin/zsh" }, tmpHome)
         expect(found).toBe(zprofile)
@@ -149,10 +107,7 @@ describe("findShellConfig", () => {
         const xdg = join(tmpHome, "xdg")
         const fishConfig = join(xdg, "fish", "config.fish")
         mkdirSync(dirname(fishConfig), { recursive: true })
-        writeFileSync(
-            fishConfig,
-            `# kajji\nfish_add_path ${tmpHome}/.kajji/bin\n`,
-        )
+        writeFileSync(fishConfig, `# kajji\nfish_add_path ${tmpHome}/.kajji/bin\n`)
 
         const found = findShellConfig(
             { SHELL: "/usr/local/bin/fish", XDG_CONFIG_HOME: xdg },
@@ -163,10 +118,7 @@ describe("findShellConfig", () => {
 
     test("falls through to bash candidates for unknown shells", () => {
         const profile = join(tmpHome, ".profile")
-        writeFileSync(
-            profile,
-            `# kajji\nexport PATH=${tmpHome}/.kajji/bin:$PATH\n`,
-        )
+        writeFileSync(profile, `# kajji\nexport PATH=${tmpHome}/.kajji/bin:$PATH\n`)
 
         const found = findShellConfig({ SHELL: "/bin/dash" }, tmpHome)
         expect(found).toBe(profile)

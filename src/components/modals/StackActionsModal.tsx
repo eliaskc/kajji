@@ -38,9 +38,7 @@ export function StackActionsModal(props: StackActionsModalProps) {
 
     const selectNext = () => {
         if (props.actions.length === 0) return
-        setSelectedIndex((index) =>
-            Math.min(props.actions.length - 1, index + 1),
-        )
+        setSelectedIndex((index) => Math.min(props.actions.length - 1, index + 1))
     }
 
     const selectPrev = () => {
@@ -75,9 +73,7 @@ export function StackActionsModal(props: StackActionsModalProps) {
     useKeyboard((evt) => {
         if (evt.name && evt.name.length === 1) {
             const key = evt.shift ? evt.name.toUpperCase() : evt.name
-            const index = props.actions.findIndex(
-                (action) => action.key === key,
-            )
+            const index = props.actions.findIndex((action) => action.key === key)
             if (index >= 0) {
                 evt.preventDefault()
                 evt.stopPropagation()
@@ -94,9 +90,7 @@ export function StackActionsModal(props: StackActionsModalProps) {
                         <box flexDirection="row" overflow="hidden">
                             <BookmarkStackRowView
                                 row={row}
-                                prNumber={props.prNumbers.get(
-                                    row.bookmark.name,
-                                )}
+                                prNumber={props.prNumbers.get(row.bookmark.name)}
                                 hideDescription
                             />
                         </box>
@@ -123,9 +117,7 @@ export function StackActionsModal(props: StackActionsModalProps) {
                                         {action.mutedPrefix}
                                     </span>
                                 </Show>
-                                <span style={{ fg: colors().text }}>
-                                    {action.label}
-                                </span>
+                                <span style={{ fg: colors().text }}>{action.label}</span>
                             </text>
                             <text wrapMode="none" fg={colors().primary}>
                                 {action.key}

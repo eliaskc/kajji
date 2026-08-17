@@ -60,10 +60,7 @@ export function lineAnchorKey(anchor: LineAnchor): string {
 /**
  * Find a file by its stable ID.
  */
-export function findFileById(
-    files: FileDiffMetadata[],
-    id: FileId,
-): FileDiffMetadata | undefined {
+export function findFileById(files: FileDiffMetadata[], id: FileId): FileDiffMetadata | undefined {
     return files.find((f) => fileId(f) === id)
 }
 

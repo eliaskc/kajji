@@ -50,9 +50,7 @@ export function AnsiText(props: AnsiTextProps) {
             cols: props.cols ?? 9999,
             rows: 1,
         })
-        endParse(
-            `${result.lines.length} lines from ${props.content.length} chars`,
-        )
+        endParse(`${result.lines.length} lines from ${props.content.length} chars`)
         return result.lines
     })
 
@@ -100,10 +98,7 @@ export function AnsiText(props: AnsiTextProps) {
     const renderSpans = (line: AnsiLine) => {
         const start = props.cropStart ?? 0
         const width = props.cropWidth
-        const spans =
-            width === undefined
-                ? line.spans
-                : sliceSpans(line.spans, start, width)
+        const spans = width === undefined ? line.spans : sliceSpans(line.spans, start, width)
 
         return (
             <For each={spans}>
@@ -124,10 +119,7 @@ export function AnsiText(props: AnsiTextProps) {
     return (
         <For each={visibleLines()}>
             {(line) => (
-                <text
-                    wrapMode={props.wrapMode ?? "word"}
-                    onMouseScroll={props.onMouseScroll}
-                >
+                <text wrapMode={props.wrapMode ?? "word"} onMouseScroll={props.onMouseScroll}>
                     <Show when={props.bold} fallback={renderSpans(line)}>
                         <b>{renderSpans(line)}</b>
                     </Show>

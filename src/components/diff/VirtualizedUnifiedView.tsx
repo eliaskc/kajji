@@ -26,11 +26,7 @@ import {
     tokenizeLineSync,
 } from "../../diff"
 import { splitDisplayPath, truncatePathMiddle } from "../../utils/path-truncate"
-import {
-    type DiffFileStatus,
-    getDiffStatusKey,
-    getStatusColor,
-} from "../../utils/status-colors"
+import { type DiffFileStatus, getDiffStatusKey, getStatusColor } from "../../utils/status-colors"
 import { BinaryPreview } from "../BinaryPreview"
 
 const BAR_CHAR = "▌"
@@ -87,9 +83,7 @@ export function VirtualizedUnifiedView(props: VirtualizedUnifiedViewProps) {
 
     const filesToRender = createMemo(() => {
         if (props.activeFileId) {
-            const file = props.files.find(
-                (f) => f.fileId === props.activeFileId,
-            )
+            const file = props.files.find((f) => f.fileId === props.activeFileId)
             return file ? [file] : []
         }
         return props.files
@@ -110,9 +104,7 @@ export function VirtualizedUnifiedView(props: VirtualizedUnifiedViewProps) {
 
     // Keep horizontal offset out of the full row layout. Only the visible rows
     // need to be cropped again when scrolling sideways.
-    const wrappedRows = createMemo(() =>
-        buildWrappedRows(rows(), wrapWidth(), props.wrapEnabled),
-    )
+    const wrappedRows = createMemo(() => buildWrappedRows(rows(), wrapWidth(), props.wrapEnabled))
 
     createEffect(() => {
         props.onHunkRowOffsets?.(getHunkRowOffsets(wrappedRows()))
@@ -125,10 +117,8 @@ export function VirtualizedUnifiedView(props: VirtualizedUnifiedViewProps) {
             ),
         )
         const currentRows = wrappedRows()
-        const getNewLineNumber = (wrapped: WrappedRow) =>
-            wrapped.row.newLineNumber
-        const getOldLineNumber = (wrapped: WrappedRow) =>
-            wrapped.row.oldLineNumber
+        const getNewLineNumber = (wrapped: WrappedRow) => wrapped.row.newLineNumber
+        const getOldLineNumber = (wrapped: WrappedRow) => wrapped.row.oldLineNumber
         const focusRow = props.scrollTop + props.viewportHeight / 2
         const position = getCurrentDiffPosition(
             currentRows,
@@ -137,9 +127,7 @@ export function VirtualizedUnifiedView(props: VirtualizedUnifiedViewProps) {
             getOldLineNumber,
             focusRow,
         )
-        props.onCurrentFileChange?.(
-            getCurrentFileId(currentRows, props.scrollTop),
-        )
+        props.onCurrentFileChange?.(getCurrentFileId(currentRows, props.scrollTop))
         props.onCurrentPositionChange?.(position)
         props.onCurrentScrollAnchorChange?.(
             getCurrentDiffScrollAnchor(
@@ -213,17 +201,11 @@ export function VirtualizedUnifiedView(props: VirtualizedUnifiedViewProps) {
                             fileStats={fileStats()}
                             highlighterReady={highlighterReady}
                             scrollLeft={props.scrollLeft}
-                            maxHeaderWidth={Math.max(
-                                1,
-                                props.viewportWidth - 2,
-                            )}
+                            maxHeaderWidth={Math.max(1, props.viewportWidth - 2)}
                         />
                     )}
                 </For>
-                <box
-                    height={wrappedRows().length - visibleRange().end}
-                    flexShrink={0}
-                />
+                <box height={wrappedRows().length - visibleRange().end} flexShrink={0} />
             </Show>
         </box>
     )
@@ -249,16 +231,12 @@ interface VirtualizedRowProps {
 
 function VirtualizedRow(props: VirtualizedRowProps) {
     const { colors, mode } = useTheme()
-    const gapPatternColor = () =>
-        mode() === "light" ? colors().border : GAP_PATTERN_COLOR
+    const gapPatternColor = () => (mode() === "light" ? colors().border : GAP_PATTERN_COLOR)
 
     if (props.row.type === "file-header") {
         const stats = props.fileStats.get(props.row.row.fileId)
         const statusColor = stats
-            ? getStatusColor(
-                  getDiffStatusKey(stats.type as DiffFileStatus),
-                  colors(),
-              )
+            ? getStatusColor(getDiffStatusKey(stats.type as DiffFileStatus), colors())
             : colors().primary
         const statsWidth = stats?.isBinary
             ? 6
@@ -270,10 +248,7 @@ function VirtualizedRow(props: VirtualizedRowProps) {
             1,
             props.maxHeaderWidth - statsWidth - FILE_HEADER_PREFIX.length - 1,
         )
-        const headerText = truncatePathMiddle(
-            `${props.row.row.content}${prevName}`,
-            headerMax,
-        )
+        const headerText = truncatePathMiddle(`${props.row.row.content}${prevName}`, headerMax)
         const headerSegments = splitDisplayPath(headerText)
         return (
             <box
@@ -285,41 +260,23 @@ function VirtualizedRow(props: VirtualizedRowProps) {
                 <text fg={statusColor} flexShrink={0}>
                     {FILE_HEADER_PREFIX}
                 </text>
-                <box
-                    flexDirection="row"
-                    justifyContent="space-between"
-                    flexGrow={1}
-                >
+                <box flexDirection="row" justifyContent="space-between" flexGrow={1}>
                     <text wrapMode="none" flexShrink={0}>
-                        <span style={{ fg: colors().textMuted }}>
-                            {headerSegments.directory}
-                        </span>
-                        <span style={{ fg: colors().text }}>
-                            {headerSegments.fileName}
-                        </span>
-                        <span style={{ fg: colors().textMuted }}>
-                            {headerSegments.suffix}
-                        </span>
+                        <span style={{ fg: colors().textMuted }}>{headerSegments.directory}</span>
+                        <span style={{ fg: colors().text }}>{headerSegments.fileName}</span>
+                        <span style={{ fg: colors().textMuted }}>{headerSegments.suffix}</span>
                     </text>
-                    <text
-                        wrapMode="none"
-                        flexGrow={1}
-                        fg={colors().backgroundElement}
-                    >
+                    <text wrapMode="none" flexGrow={1} fg={colors().backgroundElement}>
                         {"─".repeat(props.maxHeaderWidth)}
                     </text>
                     <Show when={stats?.isBinary}>
                         <text wrapMode="none" flexShrink={0}>
-                            <span style={{ fg: colors().textMuted }}>
-                                binary
-                            </span>
+                            <span style={{ fg: colors().textMuted }}>binary</span>
                         </text>
                     </Show>
                     <Show
                         when={
-                            stats &&
-                            !stats.isBinary &&
-                            (stats.additions > 0 || stats.deletions > 0)
+                            stats && !stats.isBinary && (stats.additions > 0 || stats.deletions > 0)
                         }
                     >
                         <text wrapMode="none" flexShrink={0}>
@@ -328,13 +285,7 @@ function VirtualizedRow(props: VirtualizedRowProps) {
                                     +{stats?.additions}
                                 </span>
                             </Show>
-                            <Show
-                                when={
-                                    stats &&
-                                    stats.additions > 0 &&
-                                    stats.deletions > 0
-                                }
-                            >
+                            <Show when={stats && stats.additions > 0 && stats.deletions > 0}>
                                 <span> </span>
                             </Show>
                             <Show when={stats && stats.deletions > 0}>
@@ -366,18 +317,12 @@ function VirtualizedRow(props: VirtualizedRowProps) {
     if (props.row.type === "gap") {
         const gutterWidth = props.lineNumWidth + 2
         const ellipsis = "···"
-        const gutterPattern = GAP_PATTERN_CHAR.repeat(
-            Math.max(0, gutterWidth - ellipsis.length),
-        )
-        const pattern = GAP_PATTERN_CHAR.repeat(
-            Math.max(0, props.maxHeaderWidth + 4 - gutterWidth),
-        )
+        const gutterPattern = GAP_PATTERN_CHAR.repeat(Math.max(0, gutterWidth - ellipsis.length))
+        const pattern = GAP_PATTERN_CHAR.repeat(Math.max(0, props.maxHeaderWidth + 4 - gutterWidth))
         return (
             <box overflow="hidden">
                 <text wrapMode="none">
-                    <span style={{ fg: gapPatternColor() }}>
-                        {gutterPattern}
-                    </span>
+                    <span style={{ fg: gapPatternColor() }}>{gutterPattern}</span>
                     <span style={{ fg: colors().textMuted }}>{ellipsis}</span>
                     <span style={{ fg: gapPatternColor() }}>{pattern}</span>
                 </text>
@@ -399,9 +344,7 @@ function VirtualizedRow(props: VirtualizedRowProps) {
     return (
         <DiffLineRow
             row={contentRow.row}
-            lineStart={
-                contentRow.isWrapped ? contentRow.lineStart : props.scrollLeft
-            }
+            lineStart={contentRow.isWrapped ? contentRow.lineStart : props.scrollLeft}
             lineLength={contentRow.lineLength}
             lineNumWidth={props.lineNumWidth}
             highlighterReady={props.highlighterReady}
@@ -485,9 +428,7 @@ function DiffLineRow(props: DiffLineRowProps) {
     const lineNum = createMemo(() => {
         if (props.isWrapped) return " ".repeat(props.lineNumWidth)
         const num =
-            props.row.type === "deletion"
-                ? props.row.oldLineNumber
-                : props.row.newLineNumber
+            props.row.type === "deletion" ? props.row.oldLineNumber : props.row.newLineNumber
         return (num?.toString() ?? "").padStart(props.lineNumWidth, " ")
     })
 
@@ -520,23 +461,15 @@ function DiffLineRow(props: DiffLineRowProps) {
                 <span style={{ fg: lineNumColor() }}> {lineNum()} </span>
                 <span style={{ fg: SEPARATOR_COLOR }}>│</span>
                 <span> </span>
-                <For
-                    each={sliceTokens(
-                        tokens(),
-                        props.lineStart,
-                        props.lineLength,
-                    )}
-                >
+                <For each={sliceTokens(tokens(), props.lineStart, props.lineLength)}>
                     {(token) => (
                         <span
                             style={{
                                 fg: token.color,
                                 bg: token.emphasis
                                     ? props.row.type === "deletion"
-                                        ? colors().diff
-                                              .deletionEmphasisBackground
-                                        : colors().diff
-                                              .additionEmphasisBackground
+                                        ? colors().diff.deletionEmphasisBackground
+                                        : colors().diff.additionEmphasisBackground
                                     : undefined,
                             }}
                         >
@@ -549,11 +482,7 @@ function DiffLineRow(props: DiffLineRowProps) {
     )
 }
 
-function buildWrappedRows(
-    rows: DiffRow[],
-    wrapWidth: number,
-    wrapEnabled: boolean,
-): WrappedRow[] {
+function buildWrappedRows(rows: DiffRow[], wrapWidth: number, wrapEnabled: boolean): WrappedRow[] {
     const result: WrappedRow[] = []
     const width = Math.max(1, wrapWidth)
 
@@ -586,10 +515,7 @@ function buildWrappedRows(
 
         for (let i = 0; i < totalLines; i += 1) {
             const start = i * width
-            const lineLength = Math.min(
-                width,
-                Math.max(0, contentLength - start),
-            )
+            const lineLength = Math.min(width, Math.max(0, contentLength - start))
             result.push({
                 type: "content",
                 row,

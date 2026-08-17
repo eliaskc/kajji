@@ -1,4 +1,4 @@
-// biome-ignore lint/suspicious/noExplicitAny: startup profiling
+// oxlint-disable-next-line typescript/no-explicit-any -- startup profiling
 const g = globalThis as any
 function _trace(label: string) {
     if (!g.__STARTUP_TRACE) return
@@ -105,8 +105,7 @@ export async function runTui(args: string[]): Promise<void> {
     _trace("before repositoryStatus()")
     const initialStatus = mockMode
         ? {
-              isJjRepo:
-                  mockMode !== "startup-no-vcs" && mockMode !== "startup-git",
+              isJjRepo: mockMode !== "startup-no-vcs" && mockMode !== "startup-git",
               hasGitRepo: mockMode === "startup-git",
               startupError: null,
               repoPath: getRepoPath(),
@@ -122,9 +121,7 @@ export async function runTui(args: string[]): Promise<void> {
         const renderer = useRenderer()
         destroyRenderer = () => renderer.destroy()
         const [isJjRepo, setIsJjRepo] = createSignal(initialStatus.isJjRepo)
-        const [hasGitRepo, setHasGitRepo] = createSignal(
-            initialStatus.hasGitRepo,
-        )
+        const [hasGitRepo, setHasGitRepo] = createSignal(initialStatus.hasGitRepo)
         const [startupError, setStartupError] = createSignal<string | null>(
             initialStatus.startupError,
         )
@@ -141,10 +138,7 @@ export async function runTui(args: string[]): Promise<void> {
         }
 
         const handleInitRepository = async (colocate: boolean) => {
-            const result = await application.initializeRepository(
-                getRepoPath(),
-                { colocate },
-            )
+            const result = await application.initializeRepository(getRepoPath(), { colocate })
             if (result.success) setIsJjRepo(true)
         }
 
@@ -164,17 +158,12 @@ export async function runTui(args: string[]): Promise<void> {
         // Mock what's new screen
         if (mockMode === "whats-new") {
             const allBlocks = parseChangelog(changelogContent)
-            const lastSeenVersion =
-                mockWhatsNewVersion ?? allBlocks[1]?.version ?? "0.0.0"
+            const lastSeenVersion = mockWhatsNewVersion ?? allBlocks[1]?.version ?? "0.0.0"
             const newChanges = getChangesSince(allBlocks, lastSeenVersion)
             return (
                 <ThemeProvider>
                     <WhatsNewScreen
-                        changes={
-                            newChanges.length > 0
-                                ? newChanges
-                                : allBlocks.slice(0, 1)
-                        }
+                        changes={newChanges.length > 0 ? newChanges : allBlocks.slice(0, 1)}
                         onClose={handleQuit}
                         onDisable={handleQuit}
                         onDisableAutoUpdates={handleQuit}
@@ -241,9 +230,7 @@ export async function runTui(args: string[]): Promise<void> {
                             <ThemeProvider>
                                 <StartupScreen
                                     hasGitRepo={hasGitRepo()}
-                                    recentRepos={
-                                        mockMode ? [] : getRecentRepos()
-                                    }
+                                    recentRepos={mockMode ? [] : getRecentRepos()}
                                     onSelectRepo={handleSelectRepo}
                                     onInitRepository={handleInitRepository}
                                     onQuit={handleQuit}

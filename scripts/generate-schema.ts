@@ -35,8 +35,8 @@ const outPath = resolve(import.meta.dir, "../schema.json")
 const siteOutPath = resolve(import.meta.dir, "../site/public/schema.json")
 writeFileSync(outPath, `${output}\n`)
 writeFileSync(siteOutPath, `${output}\n`)
-// Keep the generated files aligned with the Biome formatter config so
+// Keep the generated files aligned with the oxfmt config so
 // `bun generate:schema` and `bun lint:fix` do not fight each other.
-Bun.spawnSync(["bunx", "biome", "format", "--write", outPath, siteOutPath])
+Bun.spawnSync(["bunx", "oxfmt", outPath, siteOutPath])
 console.log(`Generated ${outPath}`)
 console.log(`Generated ${siteOutPath}`)

@@ -43,12 +43,7 @@ export function parse(key: string): KeybindInfo[] {
 }
 
 export function match(a: KeybindInfo, b: KeybindInfo): boolean {
-    return (
-        a.name === b.name &&
-        a.ctrl === b.ctrl &&
-        a.meta === b.meta &&
-        a.shift === b.shift
-    )
+    return a.name === b.name && a.ctrl === b.ctrl && a.meta === b.meta && a.shift === b.shift
 }
 
 export function keybindToString(info: KeybindInfo): string {
@@ -63,8 +58,7 @@ export function keybindToString(info: KeybindInfo): string {
     if (info.name) {
         if (info.name === "delete") parts.push("del")
         else if (info.name === "escape") parts.push("esc")
-        else if (info.shift && isSingleLetter)
-            parts.push(info.name.toUpperCase())
+        else if (info.shift && isSingleLetter) parts.push(info.name.toUpperCase())
         else parts.push(info.name)
     }
 

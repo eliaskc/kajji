@@ -33,50 +33,31 @@ export function CommandLogPanel() {
     }, 80)
     onCleanup(() => clearInterval(spinnerTimer))
 
-    const entryColor = (
-        entry: ReturnType<typeof commandLog.entries>[number],
-    ) => {
+    const entryColor = (entry: ReturnType<typeof commandLog.entries>[number]) => {
         if (entry.status === "failure") return colors().error
         if (entry.status === "success") return successColor(entry)
-        if (entry.status === "skipped" || entry.status === "info")
-            return colors().textMuted
+        if (entry.status === "skipped" || entry.status === "info") return colors().textMuted
         return colors().textMuted
     }
 
-    const entryText = (
-        entry: ReturnType<typeof commandLog.entries>[number],
-    ) => {
-        const body = entry.command
-            ? `$ ${entry.command}`
-            : (entry.message ?? "")
+    const entryText = (entry: ReturnType<typeof commandLog.entries>[number]) => {
+        const body = entry.command ? `$ ${entry.command}` : (entry.message ?? "")
         const suffix =
-            entry.command && entry.status === "failure"
-                ? `  [exit ${entry.exitCode ?? 1}]`
-                : ""
+            entry.command && entry.status === "failure" ? `  [exit ${entry.exitCode ?? 1}]` : ""
         return `${body}${suffix}`
     }
 
-    const shouldShowNoOutput = (
-        entry: ReturnType<typeof commandLog.entries>[number],
-    ) =>
-        entry.kind === "hook" &&
-        entry.status === "success" &&
-        entry.output.length === 0
+    const shouldShowNoOutput = (entry: ReturnType<typeof commandLog.entries>[number]) =>
+        entry.kind === "hook" && entry.status === "success" && entry.output.length === 0
 
-    const commandAgeMs = (
-        entry: ReturnType<typeof commandLog.entries>[number],
-    ) => {
+    const commandAgeMs = (entry: ReturnType<typeof commandLog.entries>[number]) => {
         animationTick()
         return Date.now() - entry.timestamp.getTime()
     }
 
-    const completionAgeMs = (
-        entry: ReturnType<typeof commandLog.entries>[number],
-    ) => {
+    const completionAgeMs = (entry: ReturnType<typeof commandLog.entries>[number]) => {
         animationTick()
-        return entry.completedAt
-            ? Date.now() - entry.completedAt.getTime()
-            : null
+        return entry.completedAt ? Date.now() - entry.completedAt.getTime() : null
     }
 
     const waveColor = (
@@ -91,19 +72,13 @@ export function CommandLogPanel() {
         return blendColors(colors().statusBarKey, colors().textMuted, opacity)
     }
 
-    const successColor = (
-        entry: ReturnType<typeof commandLog.entries>[number],
-    ) => {
+    const successColor = (entry: ReturnType<typeof commandLog.entries>[number]) => {
         const age = completionAgeMs(entry)
         if (age === null) return colors().textMuted
         if (age < 1500) return colors().statusBarKey
         const fadeProgress = Math.min(1, (age - 1500) / 300)
         const easedProgress = 1 - (1 - fadeProgress) ** 3
-        return blendColors(
-            colors().statusBarKey,
-            colors().textMuted,
-            1 - easedProgress,
-        )
+        return blendColors(colors().statusBarKey, colors().textMuted, 1 - easedProgress)
     }
 
     command.register(() => [
@@ -154,12 +129,7 @@ export function CommandLogPanel() {
 
     return (
         <box height={10} overflow="hidden">
-            <Panel
-                title="Command log"
-                hotkey="4"
-                focused={isFocused()}
-                panelId="commandlog"
-            >
+            <Panel title="Command log" hotkey="4" focused={isFocused()} panelId="commandlog">
                 <scrollbox
                     ref={scrollRef}
                     flexGrow={1}
@@ -176,11 +146,7 @@ export function CommandLogPanel() {
                     <box flexDirection="column">
                         <Show
                             when={commandLog.entries().length > 0}
-                            fallback={
-                                <text fg={colors().textMuted}>
-                                    No commands executed yet
-                                </text>
-                            }
+                            fallback={<text fg={colors().textMuted}>No commands executed yet</text>}
                         >
                             <For each={commandLog.entries()}>
                                 {(entry) => {
@@ -190,10 +156,7 @@ export function CommandLogPanel() {
                                         <box flexDirection="column">
                                             <text fg={entryColor(entry)}>
                                                 <Show
-                                                    when={
-                                                        entry.status ===
-                                                        "running"
-                                                    }
+                                                    when={entry.status === "running"}
                                                     fallback={text()}
                                                 >
                                                     <For each={chars()}>
@@ -203,8 +166,7 @@ export function CommandLogPanel() {
                                                                     fg: waveColor(
                                                                         entry,
                                                                         index(),
-                                                                        chars()
-                                                                            .length,
+                                                                        chars().length,
                                                                     ),
                                                                 }}
                                                             >
@@ -221,8 +183,7 @@ export function CommandLogPanel() {
                                                 }
                                             >
                                                 <text fg={colors().text}>
-                                                    {entry.output ||
-                                                        "[no output]"}
+                                                    {entry.output || "[no output]"}
                                                 </text>
                                             </Show>
                                         </box>

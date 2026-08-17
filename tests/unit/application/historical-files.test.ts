@@ -37,11 +37,7 @@ describe("HistoricalFileStore", () => {
         const writeReleased = new Promise<void>((resolve) => {
             releaseWrite = resolve
         })
-        const writeFile = async (
-            _revision: string,
-            _path: string,
-            outputPath: string,
-        ) => {
+        const writeFile = async (_revision: string, _path: string, outputPath: string) => {
             writes++
             await writeReleased
             await Bun.write(outputPath, "contents")
@@ -101,8 +97,8 @@ describe("HistoricalFileStore", () => {
         const store = makeHistoricalFileStore()
         stores.push(store)
 
-        await expect(
-            store.materialize("revision", ["../file"], async () => {}),
-        ).rejects.toThrow("Invalid repository path")
+        await expect(store.materialize("revision", ["../file"], async () => {})).rejects.toThrow(
+            "Invalid repository path",
+        )
     })
 })

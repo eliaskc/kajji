@@ -7,22 +7,12 @@ import {
     type ProcessOutputStream,
     ProcessResult,
 } from "../process/app-process"
-import {
-    OperationInterruptedError,
-    type OperationSink,
-} from "../process/operation-sink"
-export type {
-    OperationFailure,
-    OperationSink,
-} from "../process/operation-sink"
+import { OperationInterruptedError, type OperationSink } from "../process/operation-sink"
+export type { OperationFailure, OperationSink } from "../process/operation-sink"
 import { findBinaryFiles } from "../utils/diff-binary"
 import { isStaleWorkingCopyFailure } from "../utils/error-parser"
 import { toFilesetArgs } from "../utils/jj-fileset"
-import {
-    BOOKMARK_TEMPLATE,
-    type Bookmark,
-    parseBookmarkOutput,
-} from "./bookmarks"
+import { BOOKMARK_TEMPLATE, type Bookmark, parseBookmarkOutput } from "./bookmarks"
 import { parseFileSummary } from "./files"
 import {
     type LogPageResult,
@@ -162,13 +152,10 @@ export class JjStaleWorkingCopyError extends Schema.TaggedErrorClass<JjStaleWork
     }
 }
 
-export class JjCommandError extends Schema.TaggedErrorClass<JjCommandError>()(
-    "JjCommandError",
-    {
-        command: Schema.String,
-        result: ProcessResult,
-    },
-) {
+export class JjCommandError extends Schema.TaggedErrorClass<JjCommandError>()("JjCommandError", {
+    command: Schema.String,
+    result: ProcessResult,
+}) {
     override get message() {
         return (
             this.result.stderr ||
@@ -191,14 +178,11 @@ const JjReadFailureKind = Schema.Literals([
 
 export type JjReadFailureKind = typeof JjReadFailureKind.Type
 
-export class JjReadError extends Schema.TaggedErrorClass<JjReadError>()(
-    "JjReadError",
-    {
-        kind: JjReadFailureKind,
-        command: Schema.String,
-        result: ProcessResult,
-    },
-) {
+export class JjReadError extends Schema.TaggedErrorClass<JjReadError>()("JjReadError", {
+    kind: JjReadFailureKind,
+    command: Schema.String,
+    result: ProcessResult,
+}) {
     override get message() {
         if (this.kind === "repository-root") {
             if (this.result.exitCode === 0) return "Unable to resolve jj root"
@@ -349,10 +333,7 @@ export interface JjService {
     readonly files: (
         target: JjDiffTarget,
         options: JjOperationOptions,
-    ) => Effect.Effect<
-        FileChange[],
-        JjReadError | JjStaleWorkingCopyError | ProcessError
-    >
+    ) => Effect.Effect<FileChange[], JjReadError | JjStaleWorkingCopyError | ProcessError>
     readonly commitDetails: (
         revision: string,
         options: JjOperationOptions,
@@ -360,20 +341,14 @@ export interface JjService {
     readonly opLog: (
         limit: number | undefined,
         options: JjOperationOptions,
-    ) => Effect.Effect<
-        string[],
-        JjReadError | JjStaleWorkingCopyError | ProcessError
-    >
+    ) => Effect.Effect<string[], JjReadError | JjStaleWorkingCopyError | ProcessError>
     readonly diff: (
         target: JjDiffTarget,
         options: JjDiffOptions,
     ) => Effect.Effect<string, JjReadError | ProcessError>
     readonly bookmarks: (
         options: JjBookmarkReadOptions,
-    ) => Effect.Effect<
-        Bookmark[],
-        JjReadError | JjStaleWorkingCopyError | ProcessError
-    >
+    ) => Effect.Effect<Bookmark[], JjReadError | JjStaleWorkingCopyError | ProcessError>
     readonly streamBookmarks: (
         options: JjBookmarkReadOptions,
     ) => Stream.Stream<
@@ -382,10 +357,7 @@ export interface JjService {
     >
     readonly logPage: (
         options: JjLogReadOptions,
-    ) => Effect.Effect<
-        LogPageResult,
-        JjReadError | JjStaleWorkingCopyError | ProcessError
-    >
+    ) => Effect.Effect<LogPageResult, JjReadError | JjStaleWorkingCopyError | ProcessError>
     readonly streamLogPage: (
         options: JjLogReadOptions,
     ) => Stream.Stream<
@@ -488,9 +460,7 @@ export const JjLayer: Layer.Layer<Jj, never, AppProcess | Hooks> = Layer.effect(
                 Effect.onInterrupt(() =>
                     Effect.sync(() =>
                         notify(() =>
-                            options.sink?.fail(
-                                new OperationInterruptedError({ command }),
-                            ),
+                            options.sink?.fail(new OperationInterruptedError({ command })),
                         ),
                     ),
                 ),
@@ -500,10 +470,7 @@ export const JjLayer: Layer.Layer<Jj, never, AppProcess | Hooks> = Layer.effect(
             return { ...result, command }
         })
 
-        const streamRaw = (
-            args: readonly string[],
-            options: JjOperationOptions,
-        ) => {
+        const streamRaw = (args: readonly string[], options: JjOperationOptions) => {
             const command = `jj ${args.join(" ")}`
             let settled = false
             const processCommand = {
@@ -518,16 +485,12 @@ export const JjLayer: Layer.Layer<Jj, never, AppProcess | Hooks> = Layer.effect(
                 timeoutMs: options.timeoutMs,
             }
             const start = Stream.fromEffect(
-                Effect.sync(() =>
-                    notify(() => options.sink?.start(command, "jj")),
-                ),
+                Effect.sync(() => notify(() => options.sink?.start(command, "jj"))),
             ).pipe(Stream.drain)
             const events = appProcess.stream(processCommand).pipe(
                 Stream.map((event) => {
                     if (event._tag === "Output") {
-                        notify(() =>
-                            options.sink?.output(event.stream, event.chunk),
-                        )
+                        notify(() => options.sink?.output(event.stream, event.chunk))
                     } else {
                         settled = true
                         notify(() => options.sink?.finish(event.result))
@@ -543,11 +506,7 @@ export const JjLayer: Layer.Layer<Jj, never, AppProcess | Hooks> = Layer.effect(
                 Stream.ensuring(
                     Effect.sync(() => {
                         if (settled) return
-                        notify(() =>
-                            options.sink?.fail(
-                                new OperationInterruptedError({ command }),
-                            ),
-                        )
+                        notify(() => options.sink?.fail(new OperationInterruptedError({ command })))
                     }),
                 ),
             )
@@ -591,9 +550,7 @@ export const JjLayer: Layer.Layer<Jj, never, AppProcess | Hooks> = Layer.effect(
             }
         })
 
-        const readOpLogId = Effect.fn("Jj.opLogId")(function* (
-            options: JjOperationOptions,
-        ) {
+        const readOpLogId = Effect.fn("Jj.opLogId")(function* (options: JjOperationOptions) {
             const result = yield* runRaw(
                 [
                     "op",
@@ -611,45 +568,31 @@ export const JjLayer: Layer.Layer<Jj, never, AppProcess | Hooks> = Layer.effect(
             return result.exitCode === 0 ? result.stdout.trim() : ""
         })
 
-        const readWorkingCopyCommitId = Effect.fn("Jj.workingCopyCommitId")(
-            function* (options: JjOperationOptions) {
-                const result = yield* runRaw(
-                    [
-                        "log",
-                        "--limit",
-                        "1",
-                        "--no-graph",
-                        "-r",
-                        "@",
-                        "-T",
-                        "commit_id",
-                    ],
-                    options,
-                )
-                yield* throwIfStale(result)
-                return result.exitCode === 0
-                    ? result.stdout
-                          .replace(
-                              // biome-ignore lint/suspicious/noControlCharactersInRegex: ANSI escape sequence
-                              /\x1b\[[0-9;]*m/g,
-                              "",
-                          )
-                          .trim()
-                    : ""
-            },
-        )
-
-        const readDiff = Effect.fn("Jj.diff")(function* (
-            args: string[],
-            options: JjDiffOptions,
+        const readWorkingCopyCommitId = Effect.fn("Jj.workingCopyCommitId")(function* (
+            options: JjOperationOptions,
         ) {
+            const result = yield* runRaw(
+                ["log", "--limit", "1", "--no-graph", "-r", "@", "-T", "commit_id"],
+                options,
+            )
+            yield* throwIfStale(result)
+            return result.exitCode === 0
+                ? result.stdout
+                      .replace(
+                          // oxlint-disable-next-line no-control-regex -- ANSI escape sequence
+                          /\x1b\[[0-9;]*m/g,
+                          "",
+                      )
+                      .trim()
+                : ""
+        })
+
+        const readDiff = Effect.fn("Jj.diff")(function* (args: string[], options: JjDiffOptions) {
             if (options.paths?.length) {
                 args.push(...toFilesetArgs([...options.paths]))
             }
             const result = yield* runRaw(args, options, {
-                env: options.columns
-                    ? { COLUMNS: String(options.columns) }
-                    : undefined,
+                env: options.columns ? { COLUMNS: String(options.columns) } : undefined,
             })
             if (result.exitCode !== 0) {
                 return yield* new JjReadError({
@@ -691,9 +634,7 @@ export const JjLayer: Layer.Layer<Jj, never, AppProcess | Hooks> = Layer.effect(
         })
 
         return Jj.of({
-            repositoryRoot: Effect.fn("Jj.repositoryRoot")(function* (
-                options: JjOperationOptions,
-            ) {
+            repositoryRoot: Effect.fn("Jj.repositoryRoot")(function* (options: JjOperationOptions) {
                 const result = yield* runRaw(["root"], options)
                 const root = result.stdout.trim()
                 if (result.exitCode !== 0 || root.length === 0) {
@@ -730,9 +671,7 @@ export const JjLayer: Layer.Layer<Jj, never, AppProcess | Hooks> = Layer.effect(
                         return {
                             changeId: parts[0] ?? "",
                             commitId: parts[1] ?? "",
-                            description:
-                                parts.slice(2).join("\t") ||
-                                "(no description set)",
+                            description: parts.slice(2).join("\t") || "(no description set)",
                         }
                     })
             }),
@@ -741,10 +680,7 @@ export const JjLayer: Layer.Layer<Jj, never, AppProcess | Hooks> = Layer.effect(
                 path: string,
                 options: JjOperationOptions,
             ) {
-                const result = yield* runRaw(
-                    ["file", "show", "-r", revision, path],
-                    options,
-                )
+                const result = yield* runRaw(["file", "show", "-r", revision, path], options)
                 if (result.exitCode !== 0) {
                     return yield* new JjReadError({
                         kind: "file-show",
@@ -760,15 +696,7 @@ export const JjLayer: Layer.Layer<Jj, never, AppProcess | Hooks> = Layer.effect(
                     options: JjOperationOptions & {
                         readonly colocate?: boolean
                     },
-                ) =>
-                    run(
-                        [
-                            "git",
-                            "init",
-                            ...(options.colocate ? ["--colocate"] : []),
-                        ],
-                        options,
-                    ),
+                ) => run(["git", "init", ...(options.colocate ? ["--colocate"] : [])], options),
             ),
             gitFetch: Effect.fn("Jj.gitFetch")((options: JjGitFetchOptions) =>
                 run(makeGitFetchArgs(options), options),
@@ -776,32 +704,20 @@ export const JjLayer: Layer.Layer<Jj, never, AppProcess | Hooks> = Layer.effect(
             gitPush: Effect.fn("Jj.gitPush")((options: JjGitPushOptions) =>
                 run(makeGitPushArgs(options), options),
             ),
-            undo: Effect.fn("Jj.undo")((options: JjOperationOptions) =>
-                run(["undo"], options),
-            ),
-            redo: Effect.fn("Jj.redo")((options: JjOperationOptions) =>
-                run(["redo"], options),
-            ),
+            undo: Effect.fn("Jj.undo")((options: JjOperationOptions) => run(["undo"], options)),
+            redo: Effect.fn("Jj.redo")((options: JjOperationOptions) => run(["redo"], options)),
             opRestore: Effect.fn("Jj.opRestore")(
                 (operationId: string, options: JjOperationOptions) =>
                     run(["op", "restore", operationId], options),
             ),
             workspaceUpdateStale: Effect.fn("Jj.workspaceUpdateStale")(
-                (options: JjOperationOptions) =>
-                    run(["workspace", "update-stale"], options),
+                (options: JjOperationOptions) => run(["workspace", "update-stale"], options),
             ),
-            edit: Effect.fn("Jj.edit")(
-                (revision: string, options: JjEditOptions) =>
-                    run(
-                        [
-                            "edit",
-                            revision,
-                            ...(options.ignoreImmutable
-                                ? ["--ignore-immutable"]
-                                : []),
-                        ],
-                        options,
-                    ),
+            edit: Effect.fn("Jj.edit")((revision: string, options: JjEditOptions) =>
+                run(
+                    ["edit", revision, ...(options.ignoreImmutable ? ["--ignore-immutable"] : [])],
+                    options,
+                ),
             ),
             describe: Effect.fn("Jj.describe")(
                 (revision: string, message: string, options: JjEditOptions) =>
@@ -811,9 +727,7 @@ export const JjLayer: Layer.Layer<Jj, never, AppProcess | Hooks> = Layer.effect(
                             revision,
                             "-m",
                             message,
-                            ...(options.ignoreImmutable
-                                ? ["--ignore-immutable"]
-                                : []),
+                            ...(options.ignoreImmutable ? ["--ignore-immutable"] : []),
                         ],
                         options,
                         `jj describe ${revision} -m "..."`,
@@ -835,22 +749,14 @@ export const JjLayer: Layer.Layer<Jj, never, AppProcess | Hooks> = Layer.effect(
                 },
             ),
             rebase: Effect.fn("Jj.rebase")(
-                (
-                    revision: string,
-                    destination: string,
-                    options: JjRebaseOptions,
-                ) => {
+                (revision: string, destination: string, options: JjRebaseOptions) => {
                     const args = ["rebase"]
-                    if (options.mode === "descendants")
-                        args.push("-s", revision)
-                    else if (options.mode === "branch")
-                        args.push("-b", revision)
+                    if (options.mode === "descendants") args.push("-s", revision)
+                    else if (options.mode === "branch") args.push("-b", revision)
                     else args.push("-r", revision)
 
-                    if (options.targetMode === "insertAfter")
-                        args.push("-A", destination)
-                    else if (options.targetMode === "insertBefore")
-                        args.push("-B", destination)
+                    if (options.targetMode === "insertAfter") args.push("-A", destination)
+                    else if (options.targetMode === "insertBefore") args.push("-B", destination)
                     else args.push("-d", destination)
 
                     if (options.skipEmptied) args.push("--skip-emptied")
@@ -865,19 +771,13 @@ export const JjLayer: Layer.Layer<Jj, never, AppProcess | Hooks> = Layer.effect(
                             "bookmark",
                             "create",
                             name,
-                            ...(options.revision
-                                ? ["-r", options.revision]
-                                : []),
+                            ...(options.revision ? ["-r", options.revision] : []),
                         ],
                         options,
                     ),
             ),
             bookmarkSet: Effect.fn("Jj.bookmarkSet")(
-                (
-                    name: string,
-                    revision: string,
-                    options: JjBookmarkSetOptions,
-                ) =>
+                (name: string, revision: string, options: JjBookmarkSetOptions) =>
                     run(
                         [
                             "bookmark",
@@ -885,9 +785,7 @@ export const JjLayer: Layer.Layer<Jj, never, AppProcess | Hooks> = Layer.effect(
                             name,
                             "-r",
                             revision,
-                            ...(options.allowBackwards
-                                ? ["--allow-backwards"]
-                                : []),
+                            ...(options.allowBackwards ? ["--allow-backwards"] : []),
                         ],
                         options,
                     ),
@@ -897,11 +795,8 @@ export const JjLayer: Layer.Layer<Jj, never, AppProcess | Hooks> = Layer.effect(
                     run(["bookmark", "delete", name], options),
             ),
             bookmarkRename: Effect.fn("Jj.bookmarkRename")(
-                (
-                    oldName: string,
-                    newName: string,
-                    options: JjOperationOptions,
-                ) => run(["bookmark", "rename", oldName, newName], options),
+                (oldName: string, newName: string, options: JjOperationOptions) =>
+                    run(["bookmark", "rename", oldName, newName], options),
             ),
             bookmarkForget: Effect.fn("Jj.bookmarkForget")(
                 (name: string, options: JjOperationOptions) =>
@@ -911,24 +806,16 @@ export const JjLayer: Layer.Layer<Jj, never, AppProcess | Hooks> = Layer.effect(
                 revisions: string | readonly string[],
                 options: JjNewOptions,
             ) {
-                const hookResult = yield* hooks.runApplicablePreHooks(
-                    HookOperation.JjNew,
-                    options,
-                )
+                const hookResult = yield* hooks.runApplicablePreHooks(HookOperation.JjNew, options)
                 if (!hookResult.success) {
-                    notify(() =>
-                        options.sink?.skip(
-                            "jj new skipped because pre-hook failed",
-                        ),
-                    )
+                    notify(() => options.sink?.skip("jj new skipped because pre-hook failed"))
                     return {
                         ...hookResult.result,
                         command: `hook jj.new: ${hookResult.command}`,
                     }
                 }
 
-                const list =
-                    typeof revisions === "string" ? [revisions] : revisions
+                const list = typeof revisions === "string" ? [revisions] : revisions
                 const args = ["new"]
                 if (options.position === "before") {
                     for (const revision of list) args.push("-B", revision)
@@ -939,22 +826,18 @@ export const JjLayer: Layer.Layer<Jj, never, AppProcess | Hooks> = Layer.effect(
                 }
                 return yield* run(args, options)
             }),
-            duplicate: Effect.fn("Jj.duplicate")(
-                (revision: string, options: JjOperationOptions) =>
-                    run(["duplicate", revision], options),
+            duplicate: Effect.fn("Jj.duplicate")((revision: string, options: JjOperationOptions) =>
+                run(["duplicate", revision], options),
             ),
-            abandon: Effect.fn("Jj.abandon")(
-                (revision: string, options: JjEditOptions) =>
-                    run(
-                        [
-                            "abandon",
-                            revision,
-                            ...(options.ignoreImmutable
-                                ? ["--ignore-immutable"]
-                                : []),
-                        ],
-                        options,
-                    ),
+            abandon: Effect.fn("Jj.abandon")((revision: string, options: JjEditOptions) =>
+                run(
+                    [
+                        "abandon",
+                        revision,
+                        ...(options.ignoreImmutable ? ["--ignore-immutable"] : []),
+                    ],
+                    options,
+                ),
             ),
             restore: Effect.fn("Jj.restore")(
                 (paths: readonly string[], options: JjRestoreOptions) =>
@@ -974,11 +857,9 @@ export const JjLayer: Layer.Layer<Jj, never, AppProcess | Hooks> = Layer.effect(
                 outputPath: string,
                 options: JjOperationOptions,
             ) {
-                const result = yield* runRaw(
-                    ["file", "show", "-r", revision, path],
-                    options,
-                    { stdoutFile: outputPath },
-                )
+                const result = yield* runRaw(["file", "show", "-r", revision, path], options, {
+                    stdoutFile: outputPath,
+                })
                 if (result.exitCode !== 0) {
                     return yield* new JjReadError({
                         kind: "file-show",
@@ -992,14 +873,7 @@ export const JjLayer: Layer.Layer<Jj, never, AppProcess | Hooks> = Layer.effect(
                 options: JjOperationOptions,
             ) {
                 const result = yield* runRaw(
-                    [
-                        "log",
-                        "-r",
-                        `${revision} & ::trunk()`,
-                        "--no-graph",
-                        "-T",
-                        "change_id",
-                    ],
+                    ["log", "-r", `${revision} & ::trunk()`, "--no-graph", "-T", "change_id"],
                     options,
                 )
                 return result.exitCode === 0 && result.stdout.trim().length > 0
@@ -1025,33 +899,18 @@ export const JjLayer: Layer.Layer<Jj, never, AppProcess | Hooks> = Layer.effect(
                 options: JjOperationOptions,
             ) {
                 const result = yield* runRaw(
-                    [
-                        "log",
-                        "-r",
-                        revset,
-                        "--limit",
-                        "1",
-                        "--no-graph",
-                        "-T",
-                        "commit_id",
-                    ],
+                    ["log", "-r", revset, "--limit", "1", "--no-graph", "-T", "commit_id"],
                     options,
                 )
                 return result.exitCode === 0 && result.stdout.trim().length > 0
             }),
-            nearestAncestorBookmarkNames: Effect.fn(
-                "Jj.nearestAncestorBookmarkNames",
-            )(function* (revision: string, options: JjOperationOptions) {
+            nearestAncestorBookmarkNames: Effect.fn("Jj.nearestAncestorBookmarkNames")(function* (
+                revision: string,
+                options: JjOperationOptions,
+            ) {
                 const revset = `heads(::${revision} & bookmarks())`
                 const result = yield* run(
-                    [
-                        "bookmark",
-                        "list",
-                        "-r",
-                        revset,
-                        "--template",
-                        'name ++ "\\n"',
-                    ],
+                    ["bookmark", "list", "-r", revset, "--template", 'name ++ "\\n"'],
                     options,
                 )
                 return result.stdout
@@ -1059,9 +918,7 @@ export const JjLayer: Layer.Layer<Jj, never, AppProcess | Hooks> = Layer.effect(
                     .map((line) => line.trim())
                     .filter((line) => line.length > 0)
             }),
-            refreshState: Effect.fn("Jj.refreshState")(function* (
-                options: JjOperationOptions,
-            ) {
+            refreshState: Effect.fn("Jj.refreshState")(function* (options: JjOperationOptions) {
                 yield* checkWorkingCopy(options)
                 const [operationId, workingCopyCommitId] = yield* Effect.all(
                     [readOpLogId(options), readWorkingCopyCommitId(options)],
@@ -1069,16 +926,14 @@ export const JjLayer: Layer.Layer<Jj, never, AppProcess | Hooks> = Layer.effect(
                 )
                 return { operationId, workingCopyCommitId }
             }),
-            files: Effect.fn("Jj.files")(
-                (target: JjDiffTarget, options: JjOperationOptions) => {
-                    const targetArgs = makeDiffTargetArgs(target)
-                    return readFiles(
-                        ["diff", "--summary", ...targetArgs],
-                        ["diff", "--git", ...targetArgs],
-                        options,
-                    )
-                },
-            ),
+            files: Effect.fn("Jj.files")((target: JjDiffTarget, options: JjOperationOptions) => {
+                const targetArgs = makeDiffTargetArgs(target)
+                return readFiles(
+                    ["diff", "--summary", ...targetArgs],
+                    ["diff", "--git", ...targetArgs],
+                    options,
+                )
+            }),
             commitDetails: Effect.fn("Jj.commitDetails")(function* (
                 revision: string,
                 options: JjOperationOptions,
@@ -1110,13 +965,7 @@ export const JjLayer: Layer.Layer<Jj, never, AppProcess | Hooks> = Layer.effect(
                 limit: number | undefined,
                 options: JjOperationOptions,
             ) {
-                const args = [
-                    "op",
-                    "log",
-                    "--color",
-                    "always",
-                    "--ignore-working-copy",
-                ]
+                const args = ["op", "log", "--color", "always", "--ignore-working-copy"]
                 if (limit) args.push("--limit", String(limit))
                 const result = yield* runRaw(args, options)
                 yield* throwIfStale(result)
@@ -1129,22 +978,17 @@ export const JjLayer: Layer.Layer<Jj, never, AppProcess | Hooks> = Layer.effect(
                 }
                 return result.stdout.split("\n")
             }),
-            diff: Effect.fn("Jj.diff")(
-                (target: JjDiffTarget, options: JjDiffOptions) =>
-                    readDiff(
-                        [
-                            "diff",
-                            ...makeDiffTargetArgs(target),
-                            ...(options.color
-                                ? ["--color", "always"]
-                                : ["--git"]),
-                        ],
-                        options,
-                    ),
+            diff: Effect.fn("Jj.diff")((target: JjDiffTarget, options: JjDiffOptions) =>
+                readDiff(
+                    [
+                        "diff",
+                        ...makeDiffTargetArgs(target),
+                        ...(options.color ? ["--color", "always"] : ["--git"]),
+                    ],
+                    options,
+                ),
             ),
-            bookmarks: Effect.fn("Jj.bookmarks")(function* (
-                options: JjBookmarkReadOptions,
-            ) {
+            bookmarks: Effect.fn("Jj.bookmarks")(function* (options: JjBookmarkReadOptions) {
                 const args = [
                     "--color",
                     "always",
@@ -1187,20 +1031,16 @@ export const JjLayer: Layer.Layer<Jj, never, AppProcess | Hooks> = Layer.effect(
                     return events.pipe(
                         Stream.flatMap((event) => {
                             if (event._tag === "Output") {
-                                if (event.stream !== "stdout")
-                                    return Stream.empty
+                                if (event.stream !== "stdout") return Stream.empty
                                 output += event.chunk
                                 const completeEnd = output.lastIndexOf("\n")
                                 if (completeEnd < 0) return Stream.empty
                                 const bookmarks = parseBookmarkOutput(
                                     output.slice(0, completeEnd + 1),
                                 )
-                                if (bookmarks.length <= lastCount)
-                                    return Stream.empty
+                                if (bookmarks.length <= lastCount) return Stream.empty
                                 lastCount = bookmarks.length
-                                return Stream.succeed<
-                                    JjStreamEvent<Bookmark, Bookmark[]>
-                                >({
+                                return Stream.succeed<JjStreamEvent<Bookmark, Bookmark[]>>({
                                     _tag: "Batch",
                                     items: bookmarks,
                                 })
@@ -1222,9 +1062,7 @@ export const JjLayer: Layer.Layer<Jj, never, AppProcess | Hooks> = Layer.effect(
                                     }
                                     return {
                                         _tag: "Complete" as const,
-                                        result: parseBookmarkOutput(
-                                            result.stdout,
-                                        ),
+                                        result: parseBookmarkOutput(result.stdout),
                                     }
                                 }),
                             )
@@ -1232,12 +1070,8 @@ export const JjLayer: Layer.Layer<Jj, never, AppProcess | Hooks> = Layer.effect(
                         Stream.withSpan("Jj.streamBookmarks"),
                     )
                 }),
-            logPage: Effect.fn("Jj.logPage")(function* (
-                options: JjLogReadOptions,
-            ) {
-                const commandLimit = options.limit
-                    ? options.limit + 1
-                    : undefined
+            logPage: Effect.fn("Jj.logPage")(function* (options: JjLogReadOptions) {
+                const commandLimit = options.limit ? options.limit + 1 : undefined
                 const result = yield* runRaw(
                     buildLogArgs(options, buildLogTemplate(), commandLimit),
                     options,
@@ -1261,9 +1095,7 @@ export const JjLayer: Layer.Layer<Jj, never, AppProcess | Hooks> = Layer.effect(
             }),
             streamLogPage: (options: JjLogReadOptions) =>
                 Stream.suspend(() => {
-                    const commandLimit = options.limit
-                        ? options.limit + 1
-                        : undefined
+                    const commandLimit = options.limit ? options.limit + 1 : undefined
                     const maxCommits = commandLimit ?? Number.POSITIVE_INFINITY
                     const state: LogStreamState = {
                         buffer: "",
@@ -1279,9 +1111,7 @@ export const JjLayer: Layer.Layer<Jj, never, AppProcess | Hooks> = Layer.effect(
                         }
                     }
                     const visible = () =>
-                        options.limit
-                            ? commits.slice(0, options.limit)
-                            : commits.slice()
+                        options.limit ? commits.slice(0, options.limit) : commits.slice()
                     const { command, events } = streamRaw(
                         buildLogArgs(options, buildLogTemplate(), commandLimit),
                         options,
@@ -1290,20 +1120,16 @@ export const JjLayer: Layer.Layer<Jj, never, AppProcess | Hooks> = Layer.effect(
                     return events.pipe(
                         Stream.flatMap((event) => {
                             if (event._tag === "Output") {
-                                if (event.stream !== "stdout")
-                                    return Stream.empty
+                                if (event.stream !== "stdout") return Stream.empty
                                 const previousLength = commits.length
                                 append(consumeLogChunk(event.chunk, state))
                                 const now = performance.now()
                                 if (
                                     commits.length > previousLength &&
-                                    (lastBatchAt === 0 ||
-                                        now - lastBatchAt >= 25)
+                                    (lastBatchAt === 0 || now - lastBatchAt >= 25)
                                 ) {
                                     lastBatchAt = now
-                                    return Stream.succeed<
-                                        JjStreamEvent<Commit, LogPageResult>
-                                    >({
+                                    return Stream.succeed<JjStreamEvent<Commit, LogPageResult>>({
                                         _tag: "Batch",
                                         items: visible(),
                                     })

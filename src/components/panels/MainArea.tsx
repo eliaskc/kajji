@@ -1,9 +1,5 @@
 import { basename, resolve } from "node:path"
-import type {
-    BoxRenderable,
-    MouseEvent,
-    ScrollBoxRenderable,
-} from "@opentui/core"
+import type { BoxRenderable, MouseEvent, ScrollBoxRenderable } from "@opentui/core"
 import { useRenderer } from "@opentui/solid"
 import {
     For,
@@ -54,6 +50,8 @@ import { orderFilesByPath } from "../../utils/file-tree"
 import { getFilesLayoutWeights } from "../../utils/layout"
 import { truncatePathMiddle } from "../../utils/path-truncate"
 import { AnsiText } from "../AnsiText"
+import { VirtualizedSplitView, VirtualizedUnifiedView } from "../diff"
+import { DiffFileHeader } from "../diff/DiffFileHeader"
 import { EmptyDiffState } from "../EmptyDiffState"
 import { Panel } from "../Panel"
 import {
@@ -62,8 +60,6 @@ import {
     RevisionRangeHeader,
     stripEmail,
 } from "../RevisionHeader"
-import { VirtualizedSplitView, VirtualizedUnifiedView } from "../diff"
-import { DiffFileHeader } from "../diff/DiffFileHeader"
 
 type DiffViewStyle = "unified" | "split"
 
@@ -156,15 +152,10 @@ function FileStats(props: { stats: DiffStats; maxWidth: number }) {
     const availableBarWidth = () => fileRows().availableBarWidth
 
     // Scale +/- counts to fit within available width while preserving ratio
-    const scaleBar = (
-        insertions: number,
-        deletions: number,
-        availableWidth: number,
-    ) => {
+    const scaleBar = (insertions: number, deletions: number, availableWidth: number) => {
         const total = insertions + deletions
         if (total === 0) return { plus: 0, minus: 0 }
-        if (total <= availableWidth)
-            return { plus: insertions, minus: deletions }
+        if (total <= availableWidth) return { plus: insertions, minus: deletions }
 
         // Scale down proportionally
         const scale = availableWidth / total
@@ -200,24 +191,16 @@ function FileStats(props: { stats: DiffStats; maxWidth: number }) {
                             <span style={{ fg: colors().text }}>
                                 {row.pathText.slice(fileNameStart)}
                             </span>
-                            <span style={{ fg: colors().textMuted }}>
-                                {pathPadding}
-                            </span>
+                            <span style={{ fg: colors().textMuted }}>{pathPadding}</span>
                             {" | "}
-                            <span style={{ fg: colors().success }}>
-                                {"+".repeat(bar.plus)}
-                            </span>
-                            <span style={{ fg: colors().error }}>
-                                {"-".repeat(bar.minus)}
-                            </span>
+                            <span style={{ fg: colors().success }}>{"+".repeat(bar.plus)}</span>
+                            <span style={{ fg: colors().error }}>{"-".repeat(bar.minus)}</span>
                         </text>
                     )
                 }}
             </For>
             <DiffStatsSummary stats={s()} />
-            <text fg={colors().textMuted}>
-                {"─".repeat(props.maxWidth + 2)}
-            </text>
+            <text fg={colors().textMuted}>{"─".repeat(props.maxWidth + 2)}</text>
         </>
     )
 }
@@ -237,8 +220,7 @@ function CommitHeader(props: {
         return b ? b.split("\n") : null
     })
 
-    const cleanRefLine = () =>
-        stripEmail(props.commit.refLine, props.commit.authorEmail)
+    const cleanRefLine = () => stripEmail(props.commit.refLine, props.commit.authorEmail)
 
     return (
         <box flexDirection="column" flexShrink={0}>
@@ -269,13 +251,7 @@ function CommitHeader(props: {
                     </box>
                 )}
             </Show>
-            <Show
-                when={
-                    props.stats && props.stats.totalFiles > 0
-                        ? props.stats
-                        : undefined
-                }
-            >
+            <Show when={props.stats && props.stats.totalFiles > 0 ? props.stats : undefined}>
                 {(stats: () => DiffStats) => (
                     <box flexDirection="column">
                         <FileStats stats={stats()} maxWidth={props.maxWidth} />
@@ -337,14 +313,10 @@ export function MainArea() {
     const [viewportHeight, setViewportHeight] = createSignal(30)
     const [viewportWidth, setViewportWidth] = createSignal(80)
     const [metricsMode, setMetricsMode] = createSignal<ViewMode | null>(null)
-    const [metricsSourceKey, setMetricsSourceKey] = createSignal<string | null>(
-        null,
-    )
+    const [metricsSourceKey, setMetricsSourceKey] = createSignal<string | null>(null)
     const [scrollLeft, setScrollLeft] = createSignal(0)
     const [headerHeight, setHeaderHeight] = createSignal(0)
-    const [currentCommitId, setCurrentCommitId] = createSignal<string | null>(
-        null,
-    )
+    const [currentCommitId, setCurrentCommitId] = createSignal<string | null>(null)
 
     const [viewStyle, setViewStyle] = createSignal<DiffViewStyle>("unified")
     const [wrapEnabled, setWrapEnabled] = createSignal(true)
@@ -355,29 +327,20 @@ export function MainArea() {
     const [diffWrap, setDiffWrap] = createSignal(readConfig().diff.wrap)
     // Diff engine (textual / structural / jj-formatter): config default with
     // a session override cycled by the diff-engine command.
-    const [configuredEngine, setConfiguredEngine] = createSignal(
-        readConfig().diff.engine,
+    const [configuredEngine, setConfiguredEngine] = createSignal(readConfig().diff.engine)
+    const [engineOverride, setEngineOverride] = createSignal<AppConfig["diff"]["engine"] | null>(
+        null,
     )
-    const [engineOverride, setEngineOverride] = createSignal<
-        AppConfig["diff"]["engine"] | null
-    >(null)
-    const diffEngineMode = createMemo(
-        () => engineOverride() ?? configuredEngine(),
-    )
+    const diffEngineMode = createMemo(() => engineOverride() ?? configuredEngine())
     const useJjFormatter = createMemo(() => diffEngineMode() === "jj-formatter")
-    const structuralEnabled = createMemo(
-        () => diffEngineMode() === "structural",
-    )
-    const [viewStyleOverride, setViewStyleOverride] =
-        createSignal<DiffViewStyle | null>(null)
+    const structuralEnabled = createMemo(() => diffEngineMode() === "structural")
+    const [viewStyleOverride, setViewStyleOverride] = createSignal<DiffViewStyle | null>(null)
     const [wrapOverride, setWrapOverride] = createSignal<boolean | null>(null)
 
     const configuredViewStyle = createMemo<DiffViewStyle>(() => {
         const layout = diffLayout()
         if (layout === "unified" || layout === "split") return layout
-        return effectiveMainAreaWidth() >= diffAutoSwitchWidth()
-            ? "split"
-            : "unified"
+        return effectiveMainAreaWidth() >= diffAutoSwitchWidth() ? "split" : "unified"
     })
 
     createEffect(() => {
@@ -400,32 +363,26 @@ export function MainArea() {
 
     createEffect(() => {
         if (!focus.isPanel("detail")) return
-        focus.setActiveContext(
-            useJjFormatter()
-                ? "detail.diff_jj_formatter"
-                : "detail.diff_custom",
-        )
+        focus.setActiveContext(useJjFormatter() ? "detail.diff_jj_formatter" : "detail.diff_custom")
     })
     const [parsedFiles, setParsedFiles] = createSignal<FlattenedFile[]>([])
     const [rawDiffOutput, setRawDiffOutput] = createSignal("")
     const [displayedCommit, setDisplayedCommit] = createSignal<Commit>()
-    const [displayedBookmarkDiff, setDisplayedBookmarkDiff] =
-        createSignal<BookmarkDiffView | null>(null)
-    const [displayedMultiDiff, setDisplayedMultiDiff] =
-        createSignal<MultiDiffView | null>(null)
-    const [displayedCommitDetails, setDisplayedCommitDetails] =
-        createSignal<CommitDetails | null>(null)
-    const [displayedResolved, setDisplayedResolved] = createSignal(false)
-    const [parsedDiffError, setParsedDiffError] = createSignal<string | null>(
+    const [displayedBookmarkDiff, setDisplayedBookmarkDiff] = createSignal<BookmarkDiffView | null>(
         null,
     )
+    const [displayedMultiDiff, setDisplayedMultiDiff] = createSignal<MultiDiffView | null>(null)
+    const [displayedCommitDetails, setDisplayedCommitDetails] = createSignal<CommitDetails | null>(
+        null,
+    )
+    const [displayedResolved, setDisplayedResolved] = createSignal(false)
+    const [parsedDiffError, setParsedDiffError] = createSignal<string | null>(null)
     const [currentFileId, setCurrentFileId] = createSignal<FileId | null>(null)
-    const [currentDiffPosition, setCurrentDiffPosition] =
-        createSignal<DiffPosition | null>(null)
-    const [currentScrollAnchor, setCurrentScrollAnchor] =
-        createSignal<DiffScrollAnchor | null>(null)
-    const [modeScrollAnchor, setModeScrollAnchor] =
-        createSignal<DiffScrollAnchor | null>(null)
+    const [currentDiffPosition, setCurrentDiffPosition] = createSignal<DiffPosition | null>(null)
+    const [currentScrollAnchor, setCurrentScrollAnchor] = createSignal<DiffScrollAnchor | null>(
+        null,
+    )
+    const [modeScrollAnchor, setModeScrollAnchor] = createSignal<DiffScrollAnchor | null>(null)
 
     const updateDisplayedSource = (
         commit: Commit | undefined,
@@ -439,9 +396,7 @@ export function MainArea() {
         setDisplayedResolved(resolved)
         const details = commitDetails()
         setDisplayedCommitDetails(
-            details && commit && details.changeId === commit.changeId
-                ? details
-                : null,
+            details && commit && details.changeId === commit.changeId ? details : null,
         )
     }
 
@@ -468,17 +423,14 @@ export function MainArea() {
 
     // Dev-only indicator for the experimental structural diff engine.
     // Remove when (if) difftastic is promoted to the default engine.
-    const showStructuralIndicator = () =>
-        Bun.env.NODE_ENV === "development" && structuralEnabled()
+    const showStructuralIndicator = () => Bun.env.NODE_ENV === "development" && structuralEnabled()
 
     const renderRepoInfo = () => (
         <text fg={isFocused() ? colors().titleTextFocused : colors().textMuted}>
             <Show when={showStructuralIndicator()}>
                 <span
                     style={{
-                        fg: isFocused()
-                            ? colors().titleTextMuted
-                            : colors().textMuted,
+                        fg: isFocused() ? colors().titleTextMuted : colors().textMuted,
                     }}
                 >
                     DIFFTASTIC{" "}
@@ -488,8 +440,7 @@ export function MainArea() {
         </text>
     )
 
-    const [fileNavigationTarget, setFileNavigationTarget] =
-        createSignal<FileId | null>(null)
+    const [fileNavigationTarget, setFileNavigationTarget] = createSignal<FileId | null>(null)
 
     // A navigation target can differ from the top visible file when the full diff
     // fits in the viewport and the scrollbox cannot move.
@@ -498,12 +449,8 @@ export function MainArea() {
         return orderedFiles().find((file) => file.fileId === fileId)
     })
 
-    const [hunkRowOffsets, setHunkRowOffsets] = createSignal(
-        new Map<HunkId, number>(),
-    )
-    const [fileRowOffsets, setFileRowOffsets] = createSignal(
-        new Map<FileId, number>(),
-    )
+    const [hunkRowOffsets, setHunkRowOffsets] = createSignal(new Map<HunkId, number>())
+    const [fileRowOffsets, setFileRowOffsets] = createSignal(new Map<FileId, number>())
     const [scrollTailHeight, setScrollTailHeight] = createSignal(0)
     let hunkNavigationTarget: HunkId | null = null
 
@@ -534,10 +481,7 @@ export function MainArea() {
     })
 
     createEffect(() => {
-        const stats = new Map<
-            string,
-            { additions: number; deletions: number }
-        >()
+        const stats = new Map<string, { additions: number; deletions: number }>()
         for (const file of orderedFiles()) {
             stats.set(file.name, {
                 additions: file.additions,
@@ -614,10 +558,7 @@ export function MainArea() {
 
     const diffContentWidth = createMemo(() => {
         const width = Math.max(1, viewportWidth())
-        const rightPadding =
-            viewStyle() === "split"
-                ? SPLIT_RIGHT_PADDING
-                : UNIFIED_RIGHT_PADDING
+        const rightPadding = viewStyle() === "split" ? SPLIT_RIGHT_PADDING : UNIFIED_RIGHT_PADDING
         const prefixWidth = lineNumWidth() + 5 + rightPadding
         if (viewStyle() === "split") {
             const columnWidth = Math.max(1, Math.floor((width - 1) / 2))
@@ -689,8 +630,7 @@ export function MainArea() {
 
         const baseDelta = event.scroll.delta || 1
         const scrollAmount = baseDelta * horizontalScrollAccel.tick()
-        horizontalScrollAccumulator +=
-            direction === "left" ? -scrollAmount : scrollAmount
+        horizontalScrollAccumulator += direction === "left" ? -scrollAmount : scrollAmount
         const integerScroll = Math.trunc(horizontalScrollAccumulator)
         if (integerScroll !== 0) {
             setScrollLeftClamped(scrollLeft() + integerScroll)
@@ -709,10 +649,7 @@ export function MainArea() {
             0,
             files.findIndex((file) => file.fileId === currentFile()?.fileId),
         )
-        const newIdx = Math.max(
-            0,
-            Math.min(files.length - 1, currentIndex + direction),
-        )
+        const newIdx = Math.max(0, Math.min(files.length - 1, currentIndex + direction))
         const targetFile = files[newIdx]
         if (!targetFile) return
         const rowOffset = fileRowOffsets().get(targetFile.fileId)
@@ -727,15 +664,9 @@ export function MainArea() {
         setFileNavigationTarget(null)
         const files = orderedFiles()
         const visibleRow =
-            (hunkNavigationTarget
-                ? hunkRowOffsets().get(hunkNavigationTarget)
-                : undefined) ?? adjustedScrollTop()
-        const target = getAdjacentHunkFromRow(
-            files,
-            hunkRowOffsets(),
-            visibleRow,
-            direction,
-        )
+            (hunkNavigationTarget ? hunkRowOffsets().get(hunkNavigationTarget) : undefined) ??
+            adjustedScrollTop()
+        const target = getAdjacentHunkFromRow(files, hunkRowOffsets(), visibleRow, direction)
         if (!target) return
 
         const rowOffset = hunkRowOffsets().get(target.hunkId)
@@ -794,10 +725,7 @@ export function MainArea() {
         structuralAbort = controller
         const cwd = getRepoPath()
         const startedAt = performance.now()
-        app.structuralDiff(
-            { target, cwd, files },
-            { cwd, signal: controller.signal },
-        )
+        app.structuralDiff({ target, cwd, files }, { cwd, signal: controller.signal })
             .then((outcome) => {
                 if (structuralAbort !== controller) return
                 if (currentFetchKey !== fetchKey) return
@@ -825,8 +753,7 @@ export function MainArea() {
                 profileLog("structural-diff-complete", {
                     ms: Math.round(performance.now() - startedAt),
                     files: outcome.files.length,
-                    structural: outcome.files.filter((file) => file.structural)
-                        .length,
+                    structural: outcome.files.filter((file) => file.structural).length,
                 })
                 onStructural(outcome.files)
             })
@@ -878,11 +805,7 @@ export function MainArea() {
             })
         }
 
-        if (
-            !displayedCommit() &&
-            !displayedBookmarkDiff() &&
-            !displayedMultiDiff()
-        ) {
+        if (!displayedCommit() && !displayedBookmarkDiff() && !displayedMultiDiff()) {
             updateDisplayedSource(commit, bookmarkDiff, multi, false)
         }
         setParsedDiffError(null)
@@ -895,10 +818,7 @@ export function MainArea() {
             columns: showJjFormatter ? Math.max(1, viewportWidth()) : undefined,
         }
         const rawDiff = bookmarkDiff
-            ? app.jjDiff(
-                  { from: bookmarkDiff.from, to: bookmarkDiff.to },
-                  diffOptions,
-              )
+            ? app.jjDiff({ from: bookmarkDiff.from, to: bookmarkDiff.to }, diffOptions)
             : multi
               ? app.jjDiff({ revision: multi.revset }, diffOptions)
               : commit
@@ -946,8 +866,7 @@ export function MainArea() {
                         const totalRenderMs = performance.now() - renderStart
                         profileLog("diff-render-complete", {
                             signalMs: Math.round(signalMs * 100) / 100,
-                            totalRenderMs:
-                                Math.round(totalRenderMs * 100) / 100,
+                            totalRenderMs: Math.round(totalRenderMs * 100) / 100,
                         })
                         profileMemory("memory:diff-render-complete")
                     })
@@ -960,8 +879,7 @@ export function MainArea() {
                 const flattenMs = performance.now() - flattenStart
 
                 const lineCount = flattened.reduce(
-                    (sum, f) =>
-                        sum + f.hunks.reduce((s, h) => s + h.lines.length, 0),
+                    (sum, f) => sum + f.hunks.reduce((s, h) => s + h.lines.length, 0),
                     0,
                 )
 
@@ -986,11 +904,7 @@ export function MainArea() {
                     releaseScrollAnchorSoon()
                 }
 
-                if (
-                    showStructural &&
-                    structuralTarget &&
-                    flattened.some(structuralCandidate)
-                ) {
+                if (showStructural && structuralTarget && flattened.some(structuralCandidate)) {
                     // On an explicit engine switch, hold the loading state
                     // until structural rows are ready; during revision
                     // navigation, paint the textual diff immediately and
@@ -1007,12 +921,7 @@ export function MainArea() {
                                 setParsedFiles(structuralFiles)
                                 setParsedDiffError(null)
                                 setDiffLoading(false)
-                                updateDisplayedSource(
-                                    commit,
-                                    bookmarkDiff,
-                                    multi,
-                                    true,
-                                )
+                                updateDisplayedSource(commit, bookmarkDiff, multi, true)
                             })
                             displayedContentMode = mode
                             releaseScrollAnchorSoon()
@@ -1043,12 +952,7 @@ export function MainArea() {
                     batch(() => {
                         setParsedFiles([])
                         setRawDiffOutput("")
-                        updateDisplayedSource(
-                            commit,
-                            bookmarkDiff,
-                            multi,
-                            false,
-                        )
+                        updateDisplayedSource(commit, bookmarkDiff, multi, false)
                     })
                 }
             })
@@ -1060,9 +964,7 @@ export function MainArea() {
         const request = fileNavigationRequest()
         if (!request || request.id === handledFileNavigationRequest) return
         const file = orderedFiles().find(
-            (candidate) =>
-                candidate.name === request.path ||
-                candidate.prevName === request.path,
+            (candidate) => candidate.name === request.path || candidate.prevName === request.path,
         )
         if (!file) return
         const rowOffset = fileRowOffsets().get(file.fileId)
@@ -1152,15 +1054,11 @@ export function MainArea() {
         const currentScroll = scrollRef.scrollTop ?? 0
         const currentViewport = scrollRef.viewport?.height ?? 30
         const currentHeaderHeight = headerRef?.height ?? 0
-        const currentViewportWidth =
-            scrollRef.viewport?.width ?? effectiveMainAreaWidth()
+        const currentViewportWidth = scrollRef.viewport?.width ?? effectiveMainAreaWidth()
         const widthAdjustment = scrollRef.verticalScrollBar.visible
             ? SCROLLBAR_GUTTER
             : SCROLLBAR_GUTTER + 1
-        const measuredWidth = Math.max(
-            1,
-            currentViewportWidth - widthAdjustment,
-        )
+        const measuredWidth = Math.max(1, currentViewportWidth - widthAdjustment)
         if (viewMode() !== "files" && currentHeaderHeight > 0) {
             normalHeaderHeight = currentHeaderHeight
         }
@@ -1188,9 +1086,7 @@ export function MainArea() {
         const anchor = modeScrollAnchor()
         if (!anchor || rowIndex === null) return
         const targetScrollTop =
-            (headerRef?.height ?? modeExpectedHeaderHeight) +
-            rowIndex -
-            anchor.viewportOffset
+            (headerRef?.height ?? modeExpectedHeaderHeight) + rowIndex - anchor.viewportOffset
         modeSemanticScrollTop = targetScrollTop
         setScrollTop(targetScrollTop)
         scrollRef?.scrollTo(targetScrollTop)
@@ -1202,12 +1098,10 @@ export function MainArea() {
 
         previousViewMode = nextViewMode
         modeScrollRestorePending = true
-        modeExpectedHeaderHeight =
-            nextViewMode === "files" ? 0 : normalHeaderHeight
+        modeExpectedHeaderHeight = nextViewMode === "files" ? 0 : normalHeaderHeight
         modeSemanticScrollTop = null
         setModeScrollAnchor(useJjFormatter() ? null : currentScrollAnchor())
-        const fallbackScrollTop =
-            modeExpectedHeaderHeight + preservedContentScrollTop
+        const fallbackScrollTop = modeExpectedHeaderHeight + preservedContentScrollTop
         setHeaderHeight(modeExpectedHeaderHeight)
         setScrollTop(fallbackScrollTop)
         scrollRef?.scrollTo(fallbackScrollTop)
@@ -1216,8 +1110,7 @@ export function MainArea() {
         modeScrollRestoreTimer = setTimeout(() => {
             const correctedScrollTop =
                 modeSemanticScrollTop ??
-                (headerRef?.height ?? modeExpectedHeaderHeight) +
-                    preservedContentScrollTop
+                (headerRef?.height ?? modeExpectedHeaderHeight) + preservedContentScrollTop
             scrollRef?.scrollTo(correctedScrollTop)
             syncScrollMetrics()
             modeScrollRestorePending = false
@@ -1246,9 +1139,7 @@ export function MainArea() {
     const cycleDiffEngine = () => {
         const current = diffEngineMode()
         const next =
-            ENGINE_CYCLE[
-                (ENGINE_CYCLE.indexOf(current) + 1) % ENGINE_CYCLE.length
-            ] ?? "textual"
+            ENGINE_CYCLE[(ENGINE_CYCLE.indexOf(current) + 1) % ENGINE_CYCLE.length] ?? "textual"
         // Land back on config-following when the cycle reaches the default.
         setEngineOverride(next === configuredEngine() ? null : next)
     }
@@ -1283,9 +1174,7 @@ export function MainArea() {
 
     // Adjust scrollTop for virtualization: subtract header height so virtualization
     // calculates visible rows relative to diff content, not entire scrollbox
-    const adjustedScrollTop = createMemo(() =>
-        Math.max(0, scrollTop() - headerHeight()),
-    )
+    const adjustedScrollTop = createMemo(() => Math.max(0, scrollTop() - headerHeight()))
 
     const openPathsInEditor = async (paths: string[], line?: number) => {
         const uniquePaths = [...new Set(paths)]
@@ -1306,17 +1195,11 @@ export function MainArea() {
         try {
             editorPaths =
                 commit && !commit.isWorkingCopy
-                    ? await app.jjMaterializeFiles(
-                          commit.commitId,
-                          uniquePaths,
-                          { cwd: repoPath },
-                      )
+                    ? await app.jjMaterializeFiles(commit.commitId, uniquePaths, { cwd: repoPath })
                     : uniquePaths.map((path) => resolve(repoPath, path))
         } catch (error) {
             const message =
-                error instanceof Error
-                    ? error.message
-                    : "Failed to read file at revision"
+                error instanceof Error ? error.message : "Failed to read file at revision"
             status.show(message)
             commandLog.addEntry({
                 command: "open historical file",
@@ -1338,9 +1221,7 @@ export function MainArea() {
             commandLog.addEntry({
                 ...result,
                 stdout: "",
-                stderr: result.success
-                    ? ""
-                    : `Editor exited with code ${result.exitCode}`,
+                stderr: result.success ? "" : `Editor exited with code ${result.exitCode}`,
             })
         } finally {
             if (shouldSuspend) renderer.resume?.()
@@ -1377,9 +1258,7 @@ export function MainArea() {
                 return
             }
             const line =
-                currentFile()?.name === node.path
-                    ? currentDiffPosition()?.lineNumber
-                    : undefined
+                currentFile()?.name === node.path ? currentDiffPosition()?.lineNumber : undefined
             await openPathsInEditor([node.path], line)
             return
         }
@@ -1426,9 +1305,7 @@ export function MainArea() {
                       )
                       .map((file) => file.node.path)
                 : orderedFiles()
-                      .filter(
-                          (file) => !file.isBinary && file.type !== "deleted",
-                      )
+                      .filter((file) => !file.isBinary && file.type !== "deleted")
                       .map((file) => file.name),
         )
 
@@ -1677,20 +1554,11 @@ export function MainArea() {
     ])
 
     const hasContent = () =>
-        useJjFormatter()
-            ? stripAnsi(rawDiffOutput()).trim().length > 0
-            : parsedFiles().length > 0
+        useJjFormatter() ? stripAnsi(rawDiffOutput()).trim().length > 0 : parsedFiles().length > 0
     const hasDisplayedSource = () =>
-        Boolean(
-            displayedCommit() ||
-                displayedBookmarkDiff() ||
-                displayedMultiDiff(),
-        )
+        Boolean(displayedCommit() || displayedBookmarkDiff() || displayedMultiDiff())
     const showEmptyState = () =>
-        hasDisplayedSource() &&
-        displayedResolved() &&
-        !hasContent() &&
-        !diffLoading()
+        hasDisplayedSource() && displayedResolved() && !hasContent() && !diffLoading()
     return (
         <Panel
             title="Detail"
@@ -1722,42 +1590,25 @@ export function MainArea() {
                         onMouseScroll={handleScroll}
                     >
                         <box flexDirection="column">
-                            <box
-                                ref={headerRef}
-                                flexDirection="column"
-                                flexShrink={0}
-                            >
+                            <box ref={headerRef} flexDirection="column" flexShrink={0}>
                                 <Show when={displayedBookmarkDiff()}>
                                     <BookmarkDiffHeader
-                                        bookmark={
-                                            displayedBookmarkDiff()?.bookmark ??
-                                            ""
-                                        }
-                                        from={
-                                            displayedBookmarkDiff()?.from ?? ""
-                                        }
+                                        bookmark={displayedBookmarkDiff()?.bookmark ?? ""}
+                                        from={displayedBookmarkDiff()?.from ?? ""}
                                         to={displayedBookmarkDiff()?.to ?? ""}
                                     />
                                 </Show>
                                 <Show
-                                    when={
-                                        viewMode() !== "files"
-                                            ? displayedMultiDiff()
-                                            : undefined
-                                    }
+                                    when={viewMode() !== "files" ? displayedMultiDiff() : undefined}
                                 >
                                     {(multi: () => MultiDiffView) => (
                                         <RevisionRangeHeader
                                             commits={multi().commits}
                                             elidedCount={
-                                                multi().totalCount -
-                                                multi().commits.length
+                                                multi().totalCount - multi().commits.length
                                             }
                                             stats={diffStats()}
-                                            maxWidth={Math.max(
-                                                1,
-                                                viewportWidth(),
-                                            )}
+                                            maxWidth={Math.max(1, viewportWidth())}
                                         />
                                     )}
                                 </Show>
@@ -1774,49 +1625,32 @@ export function MainArea() {
                                             commit={commit()}
                                             details={displayedCommitDetails()}
                                             stats={diffStats()}
-                                            maxWidth={Math.max(
-                                                1,
-                                                viewportWidth(),
-                                            )}
+                                            maxWidth={Math.max(1, viewportWidth())}
                                         />
                                     )}
                                 </Show>
                             </box>
                             <Show when={parsedDiffError()}>
-                                <text fg={colors().error}>
-                                    Error: {parsedDiffError()}
-                                </text>
+                                <text fg={colors().error}>Error: {parsedDiffError()}</text>
                             </Show>
                             <Show when={diffLoading() && !hasContent()}>
                                 <text fg={colors().textMuted}>Loading…</text>
                             </Show>
-                            <Show
-                                when={
-                                    !parsedDiffError() ||
-                                    hasContent() ||
-                                    showEmptyState()
-                                }
-                            >
+                            <Show when={!parsedDiffError() || hasContent() || showEmptyState()}>
                                 <Show
                                     when={
                                         showEmptyState() &&
                                         metricsMode() === viewMode() &&
-                                        metricsSourceKey() ===
-                                            displayedDiffSourceKey()
+                                        metricsSourceKey() === displayedDiffSourceKey()
                                     }
                                 >
                                     <EmptyDiffState
                                         width={Math.max(1, viewportWidth())}
-                                        height={Math.max(
-                                            1,
-                                            viewportHeight() - headerHeight(),
-                                        )}
+                                        height={Math.max(1, viewportHeight() - headerHeight())}
                                         normalMode={viewMode() !== "files"}
                                     />
                                 </Show>
-                                <Show
-                                    when={useJjFormatter() && !showEmptyState()}
-                                >
+                                <Show when={useJjFormatter() && !showEmptyState()}>
                                     <AnsiText
                                         content={rawDiffOutput()}
                                         wrapMode="none"
@@ -1824,12 +1658,7 @@ export function MainArea() {
                                         cropWidth={Math.max(1, viewportWidth())}
                                     />
                                 </Show>
-                                <Show
-                                    when={
-                                        !useJjFormatter() &&
-                                        parsedFiles().length > 0
-                                    }
-                                >
+                                <Show when={!useJjFormatter() && parsedFiles().length > 0}>
                                     <box flexDirection="column">
                                         <Show
                                             when={
@@ -1840,28 +1669,16 @@ export function MainArea() {
                                             <VirtualizedUnifiedView
                                                 files={orderedFiles()}
                                                 activeFileId={null}
-                                                onHunkRowOffsets={
-                                                    setHunkRowOffsets
-                                                }
-                                                onFileRowOffsets={
-                                                    setFileRowOffsets
-                                                }
-                                                onCurrentFileChange={
-                                                    setCurrentFileId
-                                                }
-                                                onCurrentPositionChange={
-                                                    setCurrentDiffPosition
-                                                }
-                                                onCurrentScrollAnchorChange={
-                                                    setCurrentScrollAnchor
-                                                }
+                                                onHunkRowOffsets={setHunkRowOffsets}
+                                                onFileRowOffsets={setFileRowOffsets}
+                                                onCurrentFileChange={setCurrentFileId}
+                                                onCurrentPositionChange={setCurrentDiffPosition}
+                                                onCurrentScrollAnchorChange={setCurrentScrollAnchor}
                                                 scrollAnchor={modeScrollAnchor()}
                                                 onScrollAnchorRowChange={
                                                     handleScrollAnchorRowChange
                                                 }
-                                                onScrollTailHeight={
-                                                    setScrollTailHeight
-                                                }
+                                                onScrollTailHeight={setScrollTailHeight}
                                                 scrollTop={adjustedScrollTop()}
                                                 viewportHeight={viewportHeight()}
                                                 leadingContentHeight={headerHeight()}
@@ -1872,35 +1689,22 @@ export function MainArea() {
                                         </Show>
                                         <Show
                                             when={
-                                                viewStyle() === "split" &&
-                                                orderedFiles().length > 0
+                                                viewStyle() === "split" && orderedFiles().length > 0
                                             }
                                         >
                                             <VirtualizedSplitView
                                                 files={orderedFiles()}
                                                 activeFileId={null}
-                                                onHunkRowOffsets={
-                                                    setHunkRowOffsets
-                                                }
-                                                onFileRowOffsets={
-                                                    setFileRowOffsets
-                                                }
-                                                onCurrentFileChange={
-                                                    setCurrentFileId
-                                                }
-                                                onCurrentPositionChange={
-                                                    setCurrentDiffPosition
-                                                }
-                                                onCurrentScrollAnchorChange={
-                                                    setCurrentScrollAnchor
-                                                }
+                                                onHunkRowOffsets={setHunkRowOffsets}
+                                                onFileRowOffsets={setFileRowOffsets}
+                                                onCurrentFileChange={setCurrentFileId}
+                                                onCurrentPositionChange={setCurrentDiffPosition}
+                                                onCurrentScrollAnchorChange={setCurrentScrollAnchor}
                                                 scrollAnchor={modeScrollAnchor()}
                                                 onScrollAnchorRowChange={
                                                     handleScrollAnchorRowChange
                                                 }
-                                                onScrollTailHeight={
-                                                    setScrollTailHeight
-                                                }
+                                                onScrollTailHeight={setScrollTailHeight}
                                                 scrollTop={adjustedScrollTop()}
                                                 viewportHeight={viewportHeight()}
                                                 leadingContentHeight={headerHeight()}
@@ -1910,10 +1714,7 @@ export function MainArea() {
                                             />
                                         </Show>
                                         <Show when={orderedFiles().length > 0}>
-                                            <box
-                                                height={scrollTailHeight()}
-                                                flexShrink={0}
-                                            />
+                                            <box height={scrollTailHeight()} flexShrink={0} />
                                         </Show>
                                     </box>
                                 </Show>
@@ -1923,10 +1724,7 @@ export function MainArea() {
                     <Show
                         when={
                             !useJjFormatter() &&
-                            shouldShowStickyFileHeader(
-                                scrollTop(),
-                                headerHeight(),
-                            )
+                            shouldShowStickyFileHeader(scrollTop(), headerHeight())
                                 ? currentFile()
                                 : undefined
                         }

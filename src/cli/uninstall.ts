@@ -1,11 +1,4 @@
-import {
-    existsSync,
-    readFileSync,
-    readdirSync,
-    rmSync,
-    rmdirSync,
-    writeFileSync,
-} from "node:fs"
+import { existsSync, readFileSync, readdirSync, rmSync, rmdirSync, writeFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { basename, dirname, join } from "node:path"
 import { stdin as input, stdout as output } from "node:process"
@@ -107,9 +100,7 @@ export const uninstallCommand = defineCommand({
         } else if (pm === "curl") {
             removeStandaloneBinary()
         } else {
-            console.log(
-                "\nCould not detect package manager. Remove the binary manually if needed:",
-            )
+            console.log("\nCould not detect package manager. Remove the binary manually if needed:")
             console.log(`  ${process.execPath}`)
         }
 
@@ -128,15 +119,11 @@ function printSummary(
         if (!existsSync(target.path)) continue
         const prefix = target.keep ? "○" : "✓"
         const suffix = target.keep ? " (keeping)" : ""
-        console.log(
-            `  ${prefix} ${target.label}: ${shorten(target.path)}${suffix}`,
-        )
+        console.log(`  ${prefix} ${target.label}: ${shorten(target.path)}${suffix}`)
     }
-    if (shellConfig)
-        console.log(`  ✓ Shell PATH entry: ${shorten(shellConfig)}`)
+    if (shellConfig) console.log(`  ✓ Shell PATH entry: ${shorten(shellConfig)}`)
     if (packageCommand) console.log(`  ✓ Package: ${packageCommand.join(" ")}`)
-    if (pm === "brew")
-        console.log(`  ✓ Homebrew tap: ${HOMEBREW_TAP} (if unused)`)
+    if (pm === "brew") console.log(`  ✓ Homebrew tap: ${HOMEBREW_TAP} (if unused)`)
     if (pm === "curl") console.log(`  ✓ Binary: ${shorten(process.execPath)}`)
 }
 
@@ -157,19 +144,11 @@ export function getUninstallCommand(pm: PackageManager): string[] | null {
     }
 }
 
-async function runPackageManagerUninstall(
-    pm: PackageManager,
-    command: string[],
-): Promise<void> {
+async function runPackageManagerUninstall(pm: PackageManager, command: string[]): Promise<void> {
     console.log(`Running ${command.join(" ")}...`)
     const result = await $`${command}`.quiet().nothrow()
     if (result.exitCode !== 0) {
-        const stderr = result.stderr
-            .toString()
-            .trim()
-            .split("\n")
-            .slice(-3)
-            .join("\n")
+        const stderr = result.stderr.toString().trim().split("\n").slice(-3).join("\n")
         console.warn(
             `Package manager uninstall failed (exit ${result.exitCode}). Run manually: ${command.join(" ")}`,
         )
@@ -200,9 +179,7 @@ function removeStandaloneBinary(): void {
         rmSync(binaryPath, { force: true })
         console.log(`Removed binary: ${shorten(binaryPath)}`)
     } catch (err) {
-        console.warn(
-            `Failed to remove binary at ${shorten(binaryPath)}: ${(err as Error).message}`,
-        )
+        console.warn(`Failed to remove binary at ${shorten(binaryPath)}: ${(err as Error).message}`)
         console.warn(`Run manually: rm "${binaryPath}"`)
         return
     }
@@ -238,16 +215,8 @@ export function findShellConfig(
     const xdgConfig = env.XDG_CONFIG_HOME || join(home, ".config")
     const candidates: Record<string, string[]> = {
         fish: [join(xdgConfig, "fish", "config.fish")],
-        zsh: [
-            join(home, ".zshrc"),
-            join(home, ".zshenv"),
-            join(home, ".zprofile"),
-        ],
-        bash: [
-            join(home, ".bashrc"),
-            join(home, ".bash_profile"),
-            join(home, ".profile"),
-        ],
+        zsh: [join(home, ".zshrc"), join(home, ".zshenv"), join(home, ".zprofile")],
+        bash: [join(home, ".bashrc"), join(home, ".bash_profile"), join(home, ".profile")],
     }
     const homeBinDir = join(home, ".kajji", "bin")
     for (const file of candidates[shell] ?? candidates.bash ?? []) {
@@ -266,10 +235,7 @@ export function findShellConfig(
  * adjacent to a marker, even if they happen to mention `~/.kajji/bin`.
  * Preserves the file's original trailing-newline state.
  */
-export function cleanShellConfigContent(
-    content: string,
-    binDir: string = nativeBinDir,
-): string {
+export function cleanShellConfigContent(content: string, binDir: string = nativeBinDir): string {
     const hadTrailingNewline = content.endsWith("\n")
     const lines = content.split("\n")
     if (hadTrailingNewline) lines.pop() // drop the empty element from split
@@ -281,8 +247,7 @@ export function cleanShellConfigContent(
         if (line.trim() === "# kajji") {
             const next = lines[i + 1]
             const nextIsKajjiPath =
-                next != null &&
-                (next.includes(binDir) || next.includes("fish_add_path"))
+                next != null && (next.includes(binDir) || next.includes("fish_add_path"))
             if (nextIsKajjiPath) {
                 // Also drop the blank separator line the installer prepends.
                 if (filtered.at(-1)?.trim() === "") filtered.pop()

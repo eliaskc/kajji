@@ -9,10 +9,7 @@ import {
     type ProcessOutputStream,
     type ProcessResult,
 } from "../process/app-process"
-import {
-    OperationInterruptedError,
-    type OperationSink,
-} from "../process/operation-sink"
+import { OperationInterruptedError, type OperationSink } from "../process/operation-sink"
 import { HookOperation, type HookOperationId } from "./types"
 
 export interface HookRunOptions {
@@ -40,9 +37,7 @@ export interface HooksService {
     ) => Effect.Effect<HookRunResult, ProcessError>
 }
 
-export class Hooks extends Context.Service<Hooks, HooksService>()(
-    "kajji/Hooks",
-) {}
+export class Hooks extends Context.Service<Hooks, HooksService>()("kajji/Hooks") {}
 
 function expandHome(path: string): string {
     if (path === "~") return homedir()
@@ -76,11 +71,7 @@ function isExecutable(path: string): boolean {
     }
 }
 
-function configuredHookCommands(
-    operationId: HookOperationId,
-    cwd: string,
-    config: AppConfig,
-) {
+function configuredHookCommands(operationId: HookOperationId, cwd: string, config: AppConfig) {
     const hook = applyRepoConfig(config, cwd).hooks[operationId]
     if (!hook) return []
     if (hook.onlyIn) {
@@ -115,34 +106,29 @@ export function makeHooksLayer(
         Effect.gen(function* () {
             const appProcess = yield* AppProcess
 
-            const resolveGitHooksPath = Effect.fn("Hooks.resolveGitHooksPath")(
-                function* (cwd: string) {
-                    const configuredPath = applyRepoConfig(
-                        getConfig(),
-                        cwd,
-                    ).gitHooksPath
-                    if (configuredPath === false) return undefined
-                    if (configuredPath) return resolvePath(configuredPath, cwd)
+            const resolveGitHooksPath = Effect.fn("Hooks.resolveGitHooksPath")(function* (
+                cwd: string,
+            ) {
+                const configuredPath = applyRepoConfig(getConfig(), cwd).gitHooksPath
+                if (configuredPath === false) return undefined
+                if (configuredPath) return resolvePath(configuredPath, cwd)
 
-                    const result = yield* appProcess.run({
-                        executable: "git",
-                        args: ["config", "--path", "--get", "core.hooksPath"],
-                        cwd,
-                    })
-                    if (result.exitCode !== 0) return undefined
-                    const path = result.stdout.trim()
-                    return path ? resolvePath(path, cwd) : undefined
-                },
-            )
+                const result = yield* appProcess.run({
+                    executable: "git",
+                    args: ["config", "--path", "--get", "core.hooksPath"],
+                    cwd,
+                })
+                if (result.exitCode !== 0) return undefined
+                const path = result.stdout.trim()
+                return path ? resolvePath(path, cwd) : undefined
+            })
 
-            const gitPreCommitHook = Effect.fn("Hooks.gitPreCommitHook")(
-                function* (cwd: string) {
-                    const hooksPath = yield* resolveGitHooksPath(cwd)
-                    if (!hooksPath) return undefined
-                    const hookPath = join(hooksPath, "pre-commit")
-                    return existsSync(hookPath) ? hookPath : undefined
-                },
-            )
+            const gitPreCommitHook = Effect.fn("Hooks.gitPreCommitHook")(function* (cwd: string) {
+                const hooksPath = yield* resolveGitHooksPath(cwd)
+                if (!hooksPath) return undefined
+                const hookPath = join(hooksPath, "pre-commit")
+                return existsSync(hookPath) ? hookPath : undefined
+            })
 
             interface ResolvedHook {
                 readonly command: string
@@ -151,47 +137,43 @@ export function makeHooksLayer(
                 readonly env?: Readonly<Record<string, string>>
             }
 
-            const resolvePreHooks = Effect.fn("Hooks.resolvePreHooks")(
-                function* (operationId: HookOperationId, cwd: string) {
-                    const policy = hookOperationPolicies[operationId]
-                    const hooks: ResolvedHook[] = configuredHookCommands(
-                        operationId,
-                        cwd,
-                        getConfig(),
-                    ).map((hookCommand) => {
-                        const command = commandText(hookCommand)
-                        return {
-                            command,
-                            executable: "sh",
-                            args: ["-lc", command],
-                            env:
-                                typeof hookCommand === "string"
-                                    ? undefined
-                                    : hookCommand.env,
-                        }
-                    })
-                    const skipped: string[] = []
+            const resolvePreHooks = Effect.fn("Hooks.resolvePreHooks")(function* (
+                operationId: HookOperationId,
+                cwd: string,
+            ) {
+                const policy = hookOperationPolicies[operationId]
+                const hooks: ResolvedHook[] = configuredHookCommands(
+                    operationId,
+                    cwd,
+                    getConfig(),
+                ).map((hookCommand) => {
+                    const command = commandText(hookCommand)
+                    return {
+                        command,
+                        executable: "sh",
+                        args: ["-lc", command],
+                        env: typeof hookCommand === "string" ? undefined : hookCommand.env,
+                    }
+                })
+                const skipped: string[] = []
 
-                    if (policy.gitPreCommit) {
-                        const hookPath = yield* gitPreCommitHook(cwd)
-                        if (hookPath) {
-                            if (isExecutable(hookPath)) {
-                                hooks.push({
-                                    command: hookPath,
-                                    executable: hookPath,
-                                    args: [],
-                                })
-                            } else {
-                                skipped.push(
-                                    `${hookPath} skipped because it is not executable`,
-                                )
-                            }
+                if (policy.gitPreCommit) {
+                    const hookPath = yield* gitPreCommitHook(cwd)
+                    if (hookPath) {
+                        if (isExecutable(hookPath)) {
+                            hooks.push({
+                                command: hookPath,
+                                executable: hookPath,
+                                args: [],
+                            })
+                        } else {
+                            skipped.push(`${hookPath} skipped because it is not executable`)
                         }
                     }
+                }
 
-                    return { hooks, skipped }
-                },
-            )
+                return { hooks, skipped }
+            })
 
             const runHook = Effect.fn("Hooks.runHook")(function* (
                 hook: ResolvedHook,
@@ -203,16 +185,12 @@ export function makeHooksLayer(
                     .run({
                         ...process,
                         cwd: options.cwd,
-                        onOutput: (
-                            stream: ProcessOutputStream,
-                            chunk: string,
-                        ) => notify(() => options.sink?.output(stream, chunk)),
+                        onOutput: (stream: ProcessOutputStream, chunk: string) =>
+                            notify(() => options.sink?.output(stream, chunk)),
                     })
                     .pipe(
                         Effect.tapError((error) =>
-                            Effect.sync(() =>
-                                notify(() => options.sink?.fail(error)),
-                            ),
+                            Effect.sync(() => notify(() => options.sink?.fail(error))),
                         ),
                         Effect.onInterrupt(() =>
                             Effect.sync(() =>
@@ -238,41 +216,36 @@ export function makeHooksLayer(
                     const resolved = yield* resolvePreHooks(operationId, cwd)
                     return resolved.hooks.length > 0
                 }),
-                runApplicablePreHooks: Effect.fn("Hooks.runApplicablePreHooks")(
-                    function* (
-                        operationId: HookOperationId,
-                        options: HookRunOptions,
-                    ) {
-                        if (options.verify === false) {
-                            notify(() =>
-                                options.sink?.skip(
-                                    `pre-hooks for ${operationId} skipped (--no-verify)`,
-                                ),
-                            )
-                            return { success: true } as const
-                        }
-
-                        const resolved = yield* resolvePreHooks(
-                            operationId,
-                            options.cwd,
+                runApplicablePreHooks: Effect.fn("Hooks.runApplicablePreHooks")(function* (
+                    operationId: HookOperationId,
+                    options: HookRunOptions,
+                ) {
+                    if (options.verify === false) {
+                        notify(() =>
+                            options.sink?.skip(
+                                `pre-hooks for ${operationId} skipped (--no-verify)`,
+                            ),
                         )
-                        for (const message of resolved.skipped) {
-                            notify(() => options.sink?.skip(message))
-                        }
-                        for (const hook of resolved.hooks) {
-                            const result = yield* runHook(hook, options)
-                            if (result.exitCode !== 0) {
-                                return {
-                                    success: false,
-                                    command: hook.command,
-                                    result,
-                                } as const
-                            }
-                        }
-
                         return { success: true } as const
-                    },
-                ),
+                    }
+
+                    const resolved = yield* resolvePreHooks(operationId, options.cwd)
+                    for (const message of resolved.skipped) {
+                        notify(() => options.sink?.skip(message))
+                    }
+                    for (const hook of resolved.hooks) {
+                        const result = yield* runHook(hook, options)
+                        if (result.exitCode !== 0) {
+                            return {
+                                success: false,
+                                command: hook.command,
+                                result,
+                            } as const
+                        }
+                    }
+
+                    return { success: true } as const
+                }),
             })
         }),
     )

@@ -1,0 +1,24 @@
+{
+    "tabWidth": 4,
+    "useTabs": false,
+    "semi": false,
+    "sortImports": {
+        "partitionByNewline": true,
+        "newlinesBetween": false
+    },
+    "sortPackageJson": false,
+    "ignorePatterns": [
+        "node_modules",
+        "dist",
+        ".zed",
+        "bun.lock",
+        "bench-results.json",
+        "bench-diff-results.json",
+        "bench-syntax-results.json",
+        "**/*.md",
+        "**/*.yml",
+        "**/*.yaml",
+        "**/*.css",
+        "**/*.html"
+    ]
+}

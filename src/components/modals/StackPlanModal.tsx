@@ -81,9 +81,7 @@ export function StackPlanModal(props: StackPlanModalProps) {
                     <For each={actionLines()}>
                         {(line) => (
                             <text wrapMode="none" fg={colors().text}>
-                                <span style={{ fg: colors().textMuted }}>
-                                    →{" "}
-                                </span>
+                                <span style={{ fg: colors().textMuted }}>→ </span>
                                 <For each={line}>
                                     {(segment) => (
                                         <span
@@ -91,8 +89,7 @@ export function StackPlanModal(props: StackPlanModalProps) {
                                                 fg:
                                                     segment.kind === "action"
                                                         ? colors().warning
-                                                        : segment.kind ===
-                                                            "identifier"
+                                                        : segment.kind === "identifier"
                                                           ? colors().primary
                                                           : colors().text,
                                             }}
@@ -115,9 +112,7 @@ type ActionLineSegment = {
     readonly kind?: "action" | "identifier"
 }
 
-function stackActionLines(
-    plan: StackPlan<Bookmark>,
-): readonly ActionLineSegment[][] {
+function stackActionLines(plan: StackPlan<Bookmark>): readonly ActionLineSegment[][] {
     const lines: ActionLineSegment[][] = []
 
     for (const effect of plan.effects) {

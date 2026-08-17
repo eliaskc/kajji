@@ -35,12 +35,7 @@ export type Context =
 export function panelFromContext(context: Context): Panel | null {
     if (context === "global" || context === "commandPalette") return null
     const panel = context.split(".")[0]
-    if (
-        panel === "log" ||
-        panel === "refs" ||
-        panel === "detail" ||
-        panel === "commandlog"
-    ) {
+    if (panel === "log" || panel === "refs" || panel === "detail" || panel === "commandlog") {
         return panel as Panel
     }
     return null

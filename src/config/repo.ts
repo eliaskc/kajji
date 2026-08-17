@@ -27,10 +27,7 @@ function findRepoConfig(
     for (const [configuredPath, config] of Object.entries(repos)) {
         const resolvedConfiguredPath = resolveConfigPath(configuredPath)
         if (!isPathWithin(resolvedRepoPath, resolvedConfiguredPath)) continue
-        if (
-            !bestMatch ||
-            resolvedConfiguredPath.length > bestMatch.path.length
-        ) {
+        if (!bestMatch || resolvedConfiguredPath.length > bestMatch.path.length) {
             bestMatch = { path: resolvedConfiguredPath, config }
         }
     }
@@ -38,18 +35,13 @@ function findRepoConfig(
     return bestMatch?.config
 }
 
-export function applyRepoConfig(
-    config: AppConfig,
-    repoPath: string,
-): EffectiveConfig {
+export function applyRepoConfig(config: AppConfig, repoPath: string): EffectiveConfig {
     const repoConfig = findRepoConfig(config.repos, repoPath)
 
     return {
         ...config,
         gitHooksPath:
-            repoConfig?.gitHooksPath !== undefined
-                ? repoConfig.gitHooksPath
-                : config.gitHooksPath,
+            repoConfig?.gitHooksPath !== undefined ? repoConfig.gitHooksPath : config.gitHooksPath,
         hooks: repoConfig?.hooks ?? {},
     }
 }

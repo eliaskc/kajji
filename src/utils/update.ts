@@ -3,18 +3,10 @@ import { $ } from "bun"
 import { readConfig } from "../config"
 import { readState, writeState } from "./state"
 
-const GITHUB_RELEASES_URL =
-    "https://api.github.com/repos/eliaskc/kajji/releases/latest"
+const GITHUB_RELEASES_URL = "https://api.github.com/repos/eliaskc/kajji/releases/latest"
 const UPDATE_CHECK_INTERVAL_MS = 30 * 60 * 1000
 
-export type PackageManager =
-    | "npm"
-    | "bun"
-    | "pnpm"
-    | "yarn"
-    | "brew"
-    | "curl"
-    | "unknown"
+export type PackageManager = "npm" | "bun" | "pnpm" | "yarn" | "brew" | "curl" | "unknown"
 
 export function getCurrentVersion(): string {
     return process.env.KAJJI_VERSION ?? "0.0.0"
@@ -23,10 +15,7 @@ export function getCurrentVersion(): string {
 export async function detectPackageManager(): Promise<PackageManager> {
     const execPath = process.execPath.toLowerCase()
 
-    if (
-        execPath.includes(join(".kajji", "bin")) ||
-        execPath.includes(join(".local", "bin"))
-    ) {
+    if (execPath.includes(join(".kajji", "bin")) || execPath.includes(join(".local", "bin"))) {
         return "curl"
     }
 
@@ -35,11 +24,7 @@ export async function detectPackageManager(): Promise<PackageManager> {
             // Scoped to a single formula so we don't list every brew package on
             // the system (slow, plus avoids substring false-positives).
             name: "brew",
-            command: () =>
-                $`brew list --formula --versions kajji`
-                    .quiet()
-                    .nothrow()
-                    .text(),
+            command: () => $`brew list --formula --versions kajji`.quiet().nothrow().text(),
         },
         {
             name: "bun",
@@ -77,10 +62,7 @@ export async function detectPackageManager(): Promise<PackageManager> {
     return "unknown"
 }
 
-export function getUpdateCommand(
-    pm: PackageManager,
-    version: string,
-): string | null {
+export function getUpdateCommand(pm: PackageManager, version: string): string | null {
     switch (pm) {
         case "npm":
             return `npm install -g kajji@${version}`
@@ -103,10 +85,7 @@ export function getUpdateCommand(
 
 export interface UpdateCallbacks {
     onChecking?: () => void
-    onUpdateAvailable?: (info: {
-        currentVersion: string
-        latestVersion: string
-    }) => void
+    onUpdateAvailable?: (info: { currentVersion: string; latestVersion: string }) => void
     onUpdateStarted?: (info: {
         version: string
         packageManager: PackageManager
@@ -216,10 +195,7 @@ async function runUpdate(
     }
 }
 
-async function simulateUpdate(
-    callbacks: UpdateCallbacks,
-    success: boolean,
-): Promise<void> {
+async function simulateUpdate(callbacks: UpdateCallbacks, success: boolean): Promise<void> {
     const currentVersion = getCurrentVersion()
     const latestVersion = "99.99.99"
     const packageManager: PackageManager = "bun"

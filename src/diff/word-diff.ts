@@ -74,20 +74,8 @@ export function computeWordDiff(
             pushChangedSegment(oldSegments, change.value, "removed")
         } else {
             const isLastItem = change === lastChange
-            pushOrJoinSegment(
-                oldSegments,
-                change.value,
-                "unchanged",
-                true,
-                isLastItem,
-            )
-            pushOrJoinSegment(
-                newSegments,
-                change.value,
-                "unchanged",
-                true,
-                isLastItem,
-            )
+            pushOrJoinSegment(oldSegments, change.value, "unchanged", true, isLastItem)
+            pushOrJoinSegment(newSegments, change.value, "unchanged", true, isLastItem)
         }
     }
 
@@ -98,10 +86,7 @@ export function computeWordDiff(
  * Check if word diff should be computed for a pair of lines.
  * Only compute for adjacent deletion/addition pairs.
  */
-export function shouldComputeWordDiff(
-    deletions: string[],
-    additions: string[],
-): boolean {
+export function shouldComputeWordDiff(deletions: string[], additions: string[]): boolean {
     // Only compute word diff if there's exactly one deletion and one addition
     // More complex cases would require alignment algorithms
     return deletions.length === 1 && additions.length === 1

@@ -58,11 +58,7 @@ function toHex(r: number, g: number, b: number) {
 function lerpColor(from: string, to: string, t: number) {
     const f = parseHex(from)
     const c = parseHex(to)
-    return toHex(
-        f.r + (c.r - f.r) * t,
-        f.g + (c.g - f.g) * t,
-        f.b + (c.b - f.b) * t,
-    )
+    return toHex(f.r + (c.r - f.r) * t, f.g + (c.g - f.g) * t, f.b + (c.b - f.b) * t)
 }
 
 export function StackPreparingModal(props: StackPreparingModalProps) {
@@ -96,8 +92,7 @@ export function StackPreparingModal(props: StackPreparingModalProps) {
                 const upperLight = Math.max(0, 1 - Math.abs(ny + 0.34) * 2.2)
                 const lowerFade = Math.max(0, 1 - Math.abs(ny - 0.42) * 3.2)
                 const band = Math.sin(x * 0.34 - y * 0.7 + t * 0.38) * 0.5 + 0.5
-                const shimmer =
-                    Math.sin(x * 0.72 + y * 0.28 - t * 0.75) * 0.5 + 0.5
+                const shimmer = Math.sin(x * 0.72 + y * 0.28 - t * 0.75) * 0.5 + 0.5
                 const edgeFade = Math.max(0, Math.min(1, (1.08 - r) / 0.28))
                 const intensity = Math.max(
                     0,
@@ -111,10 +106,7 @@ export function StackPreparingModal(props: StackPreparingModalProps) {
                             edgeFade,
                     ),
                 )
-                const glyphIndex = Math.max(
-                    1,
-                    Math.min(4, Math.floor(intensity * 4.5)),
-                )
+                const glyphIndex = Math.max(1, Math.min(4, Math.floor(intensity * 4.5)))
                 return {
                     char: glyphs[glyphIndex] ?? "░",
                     color: lerpColor(bg, primary, 0.25 + intensity * 0.75),
@@ -137,11 +129,7 @@ export function StackPreparingModal(props: StackPreparingModalProps) {
                     {(row) => (
                         <text wrapMode="none">
                             <For each={row}>
-                                {(cell) => (
-                                    <span style={{ fg: cell.color }}>
-                                        {cell.char}
-                                    </span>
-                                )}
+                                {(cell) => <span style={{ fg: cell.color }}>{cell.char}</span>}
                             </For>
                         </text>
                     )}

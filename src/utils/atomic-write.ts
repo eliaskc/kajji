@@ -25,10 +25,7 @@ export function writeFileAtomic(filePath: string, content: string): void {
     renameSync(tempPath, filePath)
 }
 
-export async function writeFileAtomicDurable(
-    filePath: string,
-    content: string,
-): Promise<void> {
+export async function writeFileAtomicDurable(filePath: string, content: string): Promise<void> {
     const directory = dirname(filePath)
     await mkdir(directory, { recursive: true })
     const temporaryPath = `${filePath}.${crypto.randomUUID()}.tmp`

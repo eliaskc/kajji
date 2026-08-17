@@ -1,14 +1,7 @@
-import {
-    RGBA,
-    type ScrollBoxRenderable,
-    type TextareaRenderable,
-} from "@opentui/core"
+import { RGBA, type ScrollBoxRenderable, type TextareaRenderable } from "@opentui/core"
 import fuzzysort from "fuzzysort"
 import { For, Show, createEffect, createMemo, createSignal } from "solid-js"
-import {
-    type Bookmark,
-    isBookmarkBackwardsError,
-} from "../../commander/bookmarks"
+import { type Bookmark, isBookmarkBackwardsError } from "../../commander/bookmarks"
 import { useCommandInputGuard, useDialogCommands } from "../../context/command"
 import { DIALOG_SIZE, useDialog } from "../../context/dialog"
 import { useTheme } from "../../context/theme"
@@ -25,10 +18,7 @@ interface SetBookmarkModalProps {
     bookmarks: Bookmark[]
     currentRevisionBookmarks?: Bookmark[]
     changeId: string
-    onMove: (
-        bookmark: Bookmark,
-        options?: { allowBackwards?: boolean },
-    ) => Promise<OperationResult>
+    onMove: (bookmark: Bookmark, options?: { allowBackwards?: boolean }) => Promise<OperationResult>
     onCreate: (name: string) => void
 }
 
@@ -61,9 +51,7 @@ export function SetBookmarkModal(props: SetBookmarkModalProps) {
         return results.map((r) => r.obj)
     })
 
-    const defaultCreateName = createMemo(
-        () => `push-${props.changeId.slice(0, 8)}`,
-    )
+    const defaultCreateName = createMemo(() => `push-${props.changeId.slice(0, 8)}`)
 
     const showCreateOption = createMemo(() => {
         const q = query().trim()
@@ -72,12 +60,10 @@ export function SetBookmarkModal(props: SetBookmarkModalProps) {
     })
 
     const listItems = createMemo((): ListItem[] => {
-        const items: ListItem[] = (props.currentRevisionBookmarks ?? []).map(
-            (b) => ({
-                type: "current" as const,
-                bookmark: b,
-            }),
-        )
+        const items: ListItem[] = (props.currentRevisionBookmarks ?? []).map((b) => ({
+            type: "current" as const,
+            bookmark: b,
+        }))
 
         items.push(
             ...filteredBookmarks().map((b) => ({
@@ -259,8 +245,7 @@ export function SetBookmarkModal(props: SetBookmarkModalProps) {
     ])
 
     const hasBookmarks = () => props.bookmarks.length > 0
-    const showPlaceholderText = () =>
-        !query().trim() && !hasBookmarks() && totalItems() === 0
+    const showPlaceholderText = () => !query().trim() && !hasBookmarks() && totalItems() === 0
 
     const LIST_HEIGHT = 10
 
@@ -300,9 +285,7 @@ export function SetBookmarkModal(props: SetBookmarkModalProps) {
                 when={!showPlaceholderText()}
                 fallback={
                     <box height={LIST_HEIGHT}>
-                        <text fg={colors().textMuted}>
-                            Type to create a bookmark
-                        </text>
+                        <text fg={colors().textMuted}>Type to create a bookmark</text>
                     </box>
                 }
             >
@@ -317,10 +300,7 @@ export function SetBookmarkModal(props: SetBookmarkModalProps) {
                             if (item.type === "current") {
                                 return (
                                     <box>
-                                        <text
-                                            fg={colors().textMuted}
-                                            wrapMode="none"
-                                        >
+                                        <text fg={colors().textMuted} wrapMode="none">
                                             {item.bookmark.name}{" "}
                                             {item.bookmark.changeId.slice(0, 8)}
                                         </text>
@@ -333,18 +313,12 @@ export function SetBookmarkModal(props: SetBookmarkModalProps) {
                                 return (
                                     <box
                                         backgroundColor={
-                                            isSelected()
-                                                ? colors().selectionBackground
-                                                : undefined
+                                            isSelected() ? colors().selectionBackground : undefined
                                         }
-                                        onMouseDown={() =>
-                                            list.selectByMouse(index())
-                                        }
+                                        onMouseDown={() => list.selectByMouse(index())}
                                     >
                                         <text wrapMode="none">
-                                            <span
-                                                style={{ fg: colors().primary }}
-                                            >
+                                            <span style={{ fg: colors().primary }}>
                                                 {bookmark.name}
                                             </span>
                                             <span
@@ -373,18 +347,11 @@ export function SetBookmarkModal(props: SetBookmarkModalProps) {
                             return (
                                 <box
                                     backgroundColor={
-                                        isSelected()
-                                            ? colors().selectionBackground
-                                            : undefined
+                                        isSelected() ? colors().selectionBackground : undefined
                                     }
-                                    onMouseDown={() =>
-                                        list.selectByMouse(index())
-                                    }
+                                    onMouseDown={() => list.selectByMouse(index())}
                                 >
-                                    <text
-                                        fg={colors().textMuted}
-                                        wrapMode="none"
-                                    >
+                                    <text fg={colors().textMuted} wrapMode="none">
                                         + Create "{item.name}"
                                     </text>
                                 </box>

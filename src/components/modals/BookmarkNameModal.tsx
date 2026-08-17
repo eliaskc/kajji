@@ -28,14 +28,11 @@ export function BookmarkNameModal(props: BookmarkNameModalProps) {
     const hasRevisionPicker = () => (props.commits?.length ?? 0) > 0
 
     const [selectedRevision, setSelectedRevision] = createSignal(
-        props.defaultRevision ??
-            (props.commits?.[0] ? getRevisionId(props.commits[0]) : ""),
+        props.defaultRevision ?? (props.commits?.[0] ? getRevisionId(props.commits[0]) : ""),
     )
     const [name, setName] = createSignal(props.initialValue ?? "")
     const [error, setError] = createSignal<string | null>(null)
-    const [focusedField, setFocusedField] = createSignal<"name" | "picker">(
-        "name",
-    )
+    const [focusedField, setFocusedField] = createSignal<"name" | "picker">("name")
 
     let inputRef: TextareaRenderable | undefined
 

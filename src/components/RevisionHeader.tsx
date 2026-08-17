@@ -8,19 +8,12 @@ export function stripEmail(refLine: string, email: string): string {
     if (!email) return refLine
     const escaped = email.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
     return refLine.replace(
-        new RegExp(
-            `(?:\\x1b\\[[0-9;]*m)*${escaped}(?:\\x1b\\[[0-9;]*m)*\\s*`,
-            "g",
-        ),
+        new RegExp(`(?:\\x1b\\[[0-9;]*m)*${escaped}(?:\\x1b\\[[0-9;]*m)*\\s*`, "g"),
         "",
     )
 }
 
-export function BookmarkDiffHeader(props: {
-    bookmark: string
-    from: string
-    to: string
-}) {
+export function BookmarkDiffHeader(props: { bookmark: string; from: string; to: string }) {
     const { colors } = useTheme()
     return (
         <box flexDirection="column" flexShrink={0}>
@@ -30,9 +23,7 @@ export function BookmarkDiffHeader(props: {
                 <span style={{ fg: colors().textMuted }}>{" → "}</span>
                 <span style={{ fg: colors().primary }}>{props.to}</span>
             </text>
-            <text fg={colors().textMuted}>
-                local vs origin for {props.bookmark}
-            </text>
+            <text fg={colors().textMuted}>local vs origin for {props.bookmark}</text>
         </box>
     )
 }
@@ -84,9 +75,7 @@ export function RevisionRangeHeader(props: {
             if (!unique.has(key)) {
                 unique.set(
                     key,
-                    commit.authorEmail
-                        ? `${commit.author} <${commit.authorEmail}>`
-                        : commit.author,
+                    commit.authorEmail ? `${commit.author} <${commit.authorEmail}>` : commit.author,
                 )
             }
         }
@@ -111,9 +100,7 @@ export function RevisionRangeHeader(props: {
     return (
         <box flexDirection="column" flexShrink={0}>
             <text>
-                <span style={{ fg: colors().secondary }}>
-                    {`${totalCount()} revisions`}
-                </span>
+                <span style={{ fg: colors().secondary }}>{`${totalCount()} revisions`}</span>
                 <Show when={props.elidedCount > 0}>
                     <span style={{ fg: colors().textMuted }}>
                         {` (${props.elidedCount} elided)`}
@@ -124,29 +111,19 @@ export function RevisionRangeHeader(props: {
                 </span>
             </text>
             <text>
-                <span style={{ fg: colors().textMuted }}>
-                    {authors().label}
-                </span>
+                <span style={{ fg: colors().textMuted }}>{authors().label}</span>
                 <span style={{ fg: colors().secondary }}>{authors().text}</span>
             </text>
             <text>
                 <span style={{ fg: colors().textMuted }}>{"Committed: "}</span>
                 <span style={{ fg: colors().secondary }}>{committed()}</span>
             </text>
-            <Show
-                when={
-                    props.stats && props.stats.totalFiles > 0
-                        ? props.stats
-                        : undefined
-                }
-            >
+            <Show when={props.stats && props.stats.totalFiles > 0 ? props.stats : undefined}>
                 {(stats: () => DiffStats) => (
                     <box flexDirection="column">
                         <text> </text>
                         <DiffStatsSummary stats={stats()} />
-                        <text fg={colors().textMuted}>
-                            {"─".repeat(props.maxWidth + 2)}
-                        </text>
+                        <text fg={colors().textMuted}>{"─".repeat(props.maxWidth + 2)}</text>
                     </box>
                 )}
             </Show>

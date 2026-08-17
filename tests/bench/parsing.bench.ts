@@ -18,10 +18,7 @@ const ANSI = {
     magenta: "\x1b[38;5;5m",
 }
 
-function generateDiffLine(
-    lineNum: number,
-    type: "add" | "del" | "ctx",
-): string {
+function generateDiffLine(lineNum: number, type: "add" | "del" | "ctx"): string {
     const num = String(lineNum).padStart(4)
     const content = `const variable${lineNum} = "value ${lineNum}"`
     if (type === "add") {
@@ -86,11 +83,7 @@ interface BenchResults {
     results: BenchResult[]
 }
 
-function benchmark(
-    name: string,
-    fn: () => void,
-    iterations = 100,
-): BenchResult {
+function benchmark(name: string, fn: () => void, iterations = 100): BenchResult {
     const times: number[] = []
 
     for (let i = 0; i < 5; i++) fn()

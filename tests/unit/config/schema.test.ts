@@ -144,9 +144,7 @@ describe("ConfigSchema", () => {
         })
 
         expect(config.repos["~/code/my-repo"]?.gitHooksPath).toBe(".githooks")
-        expect(config.repos["~/code/my-repo"]?.hooks?.["jj.new"]?.pre).toEqual([
-            "bun test",
-        ])
+        expect(config.repos["~/code/my-repo"]?.hooks?.["jj.new"]?.pre).toEqual(["bun test"])
         expect(config.repos["~/work/other-repo"]?.gitHooksPath).toBe(false)
     })
 })

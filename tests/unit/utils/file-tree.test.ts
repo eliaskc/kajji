@@ -39,9 +39,7 @@ describe("file ordering", () => {
         const files = paths.map((path, index) => ({ path, index }))
 
         expect(
-            orderFilesByPath(files, (file) => file.path, true).map(
-                (file) => file.index,
-            ),
+            orderFilesByPath(files, (file) => file.path, true).map((file) => file.index),
         ).toEqual([2, 3, 1, 0])
     })
 })
@@ -59,9 +57,7 @@ describe("buildFileTree", () => {
     })
 
     it("builds tree from nested file", () => {
-        const files: FileChange[] = [
-            { path: "src/utils/file.ts", status: "modified" },
-        ]
+        const files: FileChange[] = [{ path: "src/utils/file.ts", status: "modified" }]
         const tree = buildFileTree(files)
 
         expect(tree.children).toHaveLength(1)
@@ -147,10 +143,7 @@ describe("aggregateFileLineStats", () => {
 
         expect(aggregateFileLineStats(tree, new Map())).toEqual(new Map())
         expect(
-            aggregateFileLineStats(
-                tree,
-                new Map([["src/a.ts", { additions: 0, deletions: 0 }]]),
-            ),
+            aggregateFileLineStats(tree, new Map([["src/a.ts", { additions: 0, deletions: 0 }]])),
         ).toEqual(new Map())
     })
 })
@@ -236,11 +229,7 @@ describe("flattenFlat", () => {
         const tree = buildFileTree(files)
         const flat = flattenFlat(tree)
 
-        expect(flat.map((f) => f.node.path)).toEqual([
-            "a/a.ts",
-            "a/b.ts",
-            "z.ts",
-        ])
+        expect(flat.map((f) => f.node.path)).toEqual(["a/a.ts", "a/b.ts", "z.ts"])
     })
 
     it("handles empty tree", () => {

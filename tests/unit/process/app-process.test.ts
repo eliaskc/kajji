@@ -92,10 +92,9 @@ describe("AppProcess", () => {
     test("redirects stdout to a file without decoding it", async () => {
         const directory = makeTempDir()
         const output = join(directory, "output.bin")
-        const result = await run(
-            "process.stdout.write(new Uint8Array([0, 255, 1]))",
-            { stdoutFile: output },
-        )
+        const result = await run("process.stdout.write(new Uint8Array([0, 255, 1]))", {
+            stdoutFile: output,
+        })
 
         expect(result.stdout).toBe("")
         expect([...readFileSync(output)]).toEqual([0, 255, 1])
@@ -216,9 +215,7 @@ describe("AppProcess", () => {
                 })
                 .pipe(
                     Stream.runForEach((event) =>
-                        event._tag === "Output"
-                            ? Effect.fail("consumer failed")
-                            : Effect.void,
+                        event._tag === "Output" ? Effect.fail("consumer failed") : Effect.void,
                     ),
                 ),
         ).pipe(Effect.provide(AppProcessLive))
@@ -242,9 +239,7 @@ describe("AppProcess", () => {
             }),
         ).pipe(Effect.provide(AppProcessLive))
 
-        await expect(Effect.runPromise(effect)).rejects.toBeInstanceOf(
-            ProcessSpawnError,
-        )
+        await expect(Effect.runPromise(effect)).rejects.toBeInstanceOf(ProcessSpawnError)
     })
 
     test("honors cwd and environment overrides", async () => {
@@ -254,10 +249,7 @@ describe("AppProcess", () => {
             { cwd, env: { KAJJI_TEST: "present" } },
         )
 
-        expect(result.stdout.trim().split("\n")).toEqual([
-            realpathSync(cwd),
-            "present",
-        ])
+        expect(result.stdout.trim().split("\n")).toEqual([realpathSync(cwd), "present"])
     })
 
     test("timeout terminates and reaps the child", async () => {
@@ -266,9 +258,9 @@ describe("AppProcess", () => {
         const settled = join(directory, "settled")
         const script = `await Bun.write(${JSON.stringify(ready)}, String(process.pid)); process.on("SIGTERM", async () => { await Bun.write(${JSON.stringify(settled)}, "settled"); process.exit(0) }); await new Promise(() => {})`
 
-        await expect(
-            run(script, { cwd: directory, timeoutMs: 100 }),
-        ).rejects.toBeInstanceOf(ProcessTimeoutError)
+        await expect(run(script, { cwd: directory, timeoutMs: 100 })).rejects.toBeInstanceOf(
+            ProcessTimeoutError,
+        )
         expect(await waitForFile(ready)).toMatch(/^\d+$/)
         expect(await waitForFile(settled)).toBe("settled")
     })

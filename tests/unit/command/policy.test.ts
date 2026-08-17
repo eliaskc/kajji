@@ -11,9 +11,7 @@ import {
     resolveCommandKey,
 } from "../../../src/command/policy"
 
-function command(
-    overrides: Partial<CommandDefinition> = {},
-): CommandDefinition {
+function command(overrides: Partial<CommandDefinition> = {}): CommandDefinition {
     return {
         id: "test",
         title: "Test",
@@ -100,16 +98,12 @@ describe("command presentation", () => {
 describe("command availability", () => {
     test("commands are available by default", () => {
         expect(commandUnavailableReason(command())).toBeNull()
-        expect(
-            commandUnavailableReason(command({ unavailable: () => null })),
-        ).toBeNull()
+        expect(commandUnavailableReason(command({ unavailable: () => null }))).toBeNull()
     })
 
     test("unavailable commands report their reason", () => {
         expect(
-            commandUnavailableReason(
-                command({ unavailable: () => "needs a single revision" }),
-            ),
+            commandUnavailableReason(command({ unavailable: () => "needs a single revision" })),
         ).toBe("needs a single revision")
     })
 
@@ -119,10 +113,7 @@ describe("command availability", () => {
                 command({ title: "set bookmark" }),
                 "only works for a single revision",
             ),
-        ).toEqual([
-            { text: "Set bookmark", style: "action" },
-            " only works for a single revision",
-        ])
+        ).toEqual([{ text: "Set bookmark", style: "action" }, " only works for a single revision"])
     })
 
     test("unavailable commands still claim their keybind", () => {
@@ -154,8 +145,7 @@ describe("command availability", () => {
 
 describe("command key resolution", () => {
     const event = { keybind: "enter" }
-    const matches = (keybind: string, value: typeof event) =>
-        keybind === value.keybind
+    const matches = (keybind: string, value: typeof event) => keybind === value.keybind
     const environment = {
         context: "log.revisions" as const,
         panel: "log" as const,
@@ -180,10 +170,7 @@ describe("command key resolution", () => {
 
     test("parent context wins over a global match", () => {
         const result = resolveCommandKey(
-            [
-                command({ id: "global" }),
-                command({ id: "parent", context: "log" }),
-            ],
+            [command({ id: "global" }), command({ id: "parent", context: "log" })],
             event,
             environment,
             matches,
@@ -334,26 +321,15 @@ describe("command dispatch policy", () => {
             dialogId: "picker",
             inputMode: true,
         }
-        const matchesInputNavigation = (
-            keybind: string,
-            value: { keybind: string },
-        ) => keybind === "input_nav_down" && value.keybind === "down"
+        const matchesInputNavigation = (keybind: string, value: { keybind: string }) =>
+            keybind === "input_nav_down" && value.keybind === "down"
 
         expect(
-            resolveCommandKey(
-                [navigation],
-                { keybind: "j" },
-                focused,
-                matchesInputNavigation,
-            ),
+            resolveCommandKey([navigation], { keybind: "j" }, focused, matchesInputNavigation),
         ).toBeUndefined()
         expect(
-            resolveCommandKey(
-                [navigation],
-                { keybind: "down" },
-                focused,
-                matchesInputNavigation,
-            )?.id,
+            resolveCommandKey([navigation], { keybind: "down" }, focused, matchesInputNavigation)
+                ?.id,
         ).toBe("test")
     })
 
@@ -370,11 +346,7 @@ describe("command dispatch policy", () => {
     })
 
     test("groups default from context and allow explicit cross-cutting groups", () => {
-        expect(commandGroup(command({ context: "log.revisions" }))).toBe(
-            "revisions",
-        )
-        expect(commandGroup(command({ group: "repository" }))).toBe(
-            "repository",
-        )
+        expect(commandGroup(command({ context: "log.revisions" }))).toBe("revisions")
+        expect(commandGroup(command({ group: "repository" }))).toBe("repository")
     })
 })

@@ -99,9 +99,7 @@ function formatSpanTree(span: SpanData, indent = 0): string {
 
 function formatTraceOutput(trace: TraceData): string {
     const header = `\n╭─ TRACE: ${trace.name} [${trace.id}] ─ ${formatDuration(trace.duration)}`
-    const meta = trace.metadata
-        ? `\n│ metadata: ${JSON.stringify(trace.metadata)}`
-        : ""
+    const meta = trace.metadata ? `\n│ metadata: ${JSON.stringify(trace.metadata)}` : ""
 
     let spans = ""
     for (const span of trace.spans) {
@@ -193,10 +191,7 @@ function createSpan(
         addMetadata(data: Record<string, unknown>) {
             spanData.metadata = { ...spanData.metadata, ...data }
         },
-        startSpan(
-            childName: string,
-            childMeta?: Record<string, unknown>,
-        ): Span {
+        startSpan(childName: string, childMeta?: Record<string, unknown>): Span {
             return createSpan(childName, spanData, childMeta)
         },
         end(): SpanData {
@@ -355,10 +350,7 @@ export const tracer = {
     /**
      * Get a summary of recent traces grouped by name
      */
-    getSummary(): Record<
-        string,
-        { count: number; avgMs: number; maxMs: number; minMs: number }
-    > {
+    getSummary(): Record<string, { count: number; avgMs: number; maxMs: number; minMs: number }> {
         const summary: Record<
             string,
             { count: number; totalMs: number; maxMs: number; minMs: number }
@@ -402,14 +394,11 @@ export const tracer = {
      */
     formatSummary(): string {
         const summary = this.getSummary()
-        const entries = Object.entries(summary).sort(
-            (a, b) => b[1].avgMs - a[1].avgMs,
-        )
+        const entries = Object.entries(summary).sort((a, b) => b[1].avgMs - a[1].avgMs)
 
         if (entries.length === 0) return "No traces recorded"
 
-        const header =
-            "Trace Name                    │ Count │   Avg   │   Max   │   Min"
+        const header = "Trace Name                    │ Count │   Avg   │   Max   │   Min"
         const separator = `${"─".repeat(30)}┼${"─".repeat(7)}┼${"─".repeat(9)}┼${"─".repeat(9)}┼${"─".repeat(9)}`
 
         const rows = entries.map(([name, data]) => {

@@ -1,45 +1,30 @@
 import { describe, expect, it } from "bun:test"
-import {
-    fromParsedKey,
-    keybindToString,
-    match,
-    parse,
-} from "../../../src/keybind/parser"
+import { fromParsedKey, keybindToString, match, parse } from "../../../src/keybind/parser"
 
 describe("parse", () => {
     it("parses simple key", () => {
         const result = parse("j")
-        expect(result).toEqual([
-            { name: "j", ctrl: false, meta: false, shift: false },
-        ])
+        expect(result).toEqual([{ name: "j", ctrl: false, meta: false, shift: false }])
     })
 
     it("parses ctrl modifier", () => {
         const result = parse("ctrl+d")
-        expect(result).toEqual([
-            { name: "d", ctrl: true, meta: false, shift: false },
-        ])
+        expect(result).toEqual([{ name: "d", ctrl: true, meta: false, shift: false }])
     })
 
     it("parses alt/meta modifier", () => {
         const result = parse("alt+x")
-        expect(result).toEqual([
-            { name: "x", ctrl: false, meta: true, shift: false },
-        ])
+        expect(result).toEqual([{ name: "x", ctrl: false, meta: true, shift: false }])
     })
 
     it("parses shift modifier", () => {
         const result = parse("shift+g")
-        expect(result).toEqual([
-            { name: "g", ctrl: false, meta: false, shift: true },
-        ])
+        expect(result).toEqual([{ name: "g", ctrl: false, meta: false, shift: true }])
     })
 
     it("parses multiple modifiers", () => {
         const result = parse("ctrl+shift+s")
-        expect(result).toEqual([
-            { name: "s", ctrl: true, meta: false, shift: true },
-        ])
+        expect(result).toEqual([{ name: "s", ctrl: true, meta: false, shift: true }])
     })
 
     it("parses comma-separated alternatives", () => {
@@ -52,9 +37,7 @@ describe("parse", () => {
 
     it("parses esc as escape", () => {
         const result = parse("esc")
-        expect(result).toEqual([
-            { name: "escape", ctrl: false, meta: false, shift: false },
-        ])
+        expect(result).toEqual([{ name: "escape", ctrl: false, meta: false, shift: false }])
     })
 
     it("returns empty array for none", () => {

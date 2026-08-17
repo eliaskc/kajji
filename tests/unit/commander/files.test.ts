@@ -11,9 +11,7 @@ describe("parseFileSummary", () => {
     it("parses modified file", () => {
         const output = "M src/existing.ts"
         const result = parseFileSummary(output)
-        expect(result).toEqual([
-            { path: "src/existing.ts", status: "modified" },
-        ])
+        expect(result).toEqual([{ path: "src/existing.ts", status: "modified" }])
     })
 
     it("parses deleted file", () => {
@@ -25,17 +23,13 @@ describe("parseFileSummary", () => {
     it("parses renamed file with simple format", () => {
         const output = "R old.ts => new.ts"
         const result = parseFileSummary(output)
-        expect(result).toEqual([
-            { path: "new.ts", status: "renamed", oldPath: "old.ts" },
-        ])
+        expect(result).toEqual([{ path: "new.ts", status: "renamed", oldPath: "old.ts" }])
     })
 
     it("parses renamed file with braced format", () => {
         const output = "R {old => new}.ts"
         const result = parseFileSummary(output)
-        expect(result).toEqual([
-            { path: "new.ts", status: "renamed", oldPath: "old.ts" },
-        ])
+        expect(result).toEqual([{ path: "new.ts", status: "renamed", oldPath: "old.ts" }])
     })
 
     it("parses renamed file with path and braced format", () => {

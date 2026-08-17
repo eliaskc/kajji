@@ -20,11 +20,7 @@ function toHex(r: number, g: number, b: number) {
 function lerpColor(from: string, to: string, t: number) {
     const f = parseHex(from)
     const c = parseHex(to)
-    return toHex(
-        f.r + (c.r - f.r) * t,
-        f.g + (c.g - f.g) * t,
-        f.b + (c.b - f.b) * t,
-    )
+    return toHex(f.r + (c.r - f.r) * t, f.g + (c.g - f.g) * t, f.b + (c.b - f.b) * t)
 }
 
 interface Stream {
@@ -57,13 +53,10 @@ function makeStream(height: number, tick: number, fresh: boolean): Stream {
             ? -Math.floor(Math.random() * Math.max(1, height))
             : -1 - Math.floor(Math.random() * 3),
         speed: 1 + Math.floor(Math.random() * 4),
-        length:
-            minLen + Math.floor(Math.random() * Math.max(1, maxLen - minLen)),
+        length: minLen + Math.floor(Math.random() * Math.max(1, maxLen - minLen)),
         chars: [pickHead()],
         offsetTick: tick - Math.floor(Math.random() * 4),
-        gapBelow: Math.floor(
-            Math.random() * Math.max(1, Math.floor(height / 3)),
-        ),
+        gapBelow: Math.floor(Math.random() * Math.max(1, Math.floor(height / 3))),
         tone: Math.random() < 0.5 ? "addition" : "deletion",
         active: Math.random() < 0.58,
     }
@@ -145,7 +138,7 @@ export function BinaryRain(props: BinaryRainProps) {
 
         const grid: Array<Array<{ char: string; color: string } | null>> = []
         for (let y = 0; y < height; y += 1) {
-            grid.push(new Array(width).fill(null))
+            grid.push(Array.from({ length: width }, () => null))
         }
 
         for (let x = 0; x < width; x += 1) {
@@ -226,9 +219,7 @@ export function BinaryRain(props: BinaryRainProps) {
                         <For each={row}>
                             {(cell) =>
                                 cell ? (
-                                    <span style={{ fg: cell.color }}>
-                                        {cell.char}
-                                    </span>
+                                    <span style={{ fg: cell.color }}>{cell.char}</span>
                                 ) : (
                                     <span> </span>
                                 )

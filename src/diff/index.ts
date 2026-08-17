@@ -29,13 +29,7 @@ export {
 } from "./parser"
 
 // Re-export @pierre/diffs types
-export type {
-    ChangeContent,
-    ContextContent,
-    FileDiffMetadata,
-    Hunk,
-    ParsedPatch,
-} from "./parser"
+export type { ChangeContent, ContextContent, FileDiffMetadata, Hunk, ParsedPatch } from "./parser"
 
 // State types
 export {

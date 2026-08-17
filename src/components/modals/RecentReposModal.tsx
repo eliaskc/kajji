@@ -1,13 +1,6 @@
 import type { ScrollBoxRenderable } from "@opentui/core"
 import { useKeyboard } from "@opentui/solid"
-import {
-    For,
-    Show,
-    createEffect,
-    createSignal,
-    onCleanup,
-    onMount,
-} from "solid-js"
+import { For, Show, createEffect, createSignal, onCleanup, onMount } from "solid-js"
 import { useDialogCommands } from "../../context/command"
 import { useDialog } from "../../context/dialog"
 import { useTheme } from "../../context/theme"
@@ -66,10 +59,7 @@ export function RecentReposModal(props: RecentReposModalProps) {
 
     const [timestampTick, setTimestampTick] = createSignal(0)
     onMount(() => {
-        const interval = setInterval(
-            () => setTimestampTick((t) => t + 1),
-            30000,
-        )
+        const interval = setInterval(() => setTimestampTick((t) => t + 1), 30000)
         onCleanup(() => clearInterval(interval))
     })
 
@@ -90,8 +80,7 @@ export function RecentReposModal(props: RecentReposModalProps) {
             title: "next",
             keybind: "nav_down",
             visibleIn: [],
-            execute: () =>
-                setSelectedIndex((i) => Math.min(repos.length - 1, i + 1)),
+            execute: () => setSelectedIndex((i) => Math.min(repos.length - 1, i + 1)),
         },
         {
             id: `${dialogId}.previous`,
@@ -127,15 +116,9 @@ export function RecentReposModal(props: RecentReposModalProps) {
         <box flexDirection="column" height={listHeight()}>
             <Show
                 when={repos.length > 0}
-                fallback={
-                    <text fg={colors().textMuted}>No recent repositories</text>
-                }
+                fallback={<text fg={colors().textMuted}>No recent repositories</text>}
             >
-                <scrollbox
-                    ref={scrollRef}
-                    flexGrow={1}
-                    scrollbarOptions={{ visible: false }}
-                >
+                <scrollbox ref={scrollRef} flexGrow={1} scrollbarOptions={{ visible: false }}>
                     <For each={repos}>
                         {(repo, index) => {
                             const isSelected = () => index() === selectedIndex()
@@ -144,16 +127,14 @@ export function RecentReposModal(props: RecentReposModalProps) {
                                 new RegExp(`^${process.env.HOME}`),
                                 "~",
                             )
-                            const handleDoubleClick = createDoubleClickDetector(
-                                () => selectRepo(repo.path),
+                            const handleDoubleClick = createDoubleClickDetector(() =>
+                                selectRepo(repo.path),
                             )
                             return (
                                 <box
                                     flexDirection="row"
                                     backgroundColor={
-                                        isSelected()
-                                            ? colors().selectionBackground
-                                            : undefined
+                                        isSelected() ? colors().selectionBackground : undefined
                                     }
                                     onMouseDown={() => {
                                         setSelectedIndex(index())

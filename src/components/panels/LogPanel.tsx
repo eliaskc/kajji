@@ -1,23 +1,7 @@
-import type {
-    MouseEvent,
-    ScrollBoxRenderable,
-    TextareaRenderable,
-} from "@opentui/core"
+import type { MouseEvent, ScrollBoxRenderable, TextareaRenderable } from "@opentui/core"
 import { useKeyboard, useRenderer } from "@opentui/solid"
-import {
-    For,
-    Show,
-    createEffect,
-    createMemo,
-    createSignal,
-    on,
-    onCleanup,
-    onMount,
-} from "solid-js"
-import {
-    type Bookmark,
-    isBookmarkBackwardsError,
-} from "../../commander/bookmarks"
+import { For, Show, createEffect, createMemo, createSignal, on, onCleanup, onMount } from "solid-js"
+import { type Bookmark, isBookmarkBackwardsError } from "../../commander/bookmarks"
 import { type OpLogEntry, parseOpLog } from "../../commander/op-log"
 import { type Commit, getRevisionId } from "../../commander/types"
 import { useApplication } from "../../context/application"
@@ -33,26 +17,16 @@ import type { Context } from "../../context/types"
 import { HookOperation } from "../../hooks/types"
 import type { OperationResult } from "../../process/operation-result"
 import { getRepoPath } from "../../repo"
-import {
-    findCommitBookmarkWithOriginDiff,
-    hasOriginDiff,
-} from "../../utils/bookmark-origin-diff"
+import { findCommitBookmarkWithOriginDiff, hasOriginDiff } from "../../utils/bookmark-origin-diff"
 import { blendColors } from "../../utils/color"
 import { createDoubleClickDetector } from "../../utils/double-click"
 import { isImmutableError } from "../../utils/error-parser"
 import { getRevisionRestorePlan } from "../../utils/revision-restore"
-import {
-    type SelectionSource,
-    shouldAutoScrollSelection,
-} from "../../utils/scroll"
+import { type SelectionSource, shouldAutoScrollSelection } from "../../utils/scroll"
 import { AnsiText } from "../AnsiText"
 import { EmptyFilesState } from "../EmptyDiffState"
+import { FilterableFileTree, type FilterableFileTreeApi } from "../FilterableFileTree"
 import { FilterInput } from "../FilterInput"
-import {
-    FilterableFileTree,
-    type FilterableFileTreeApi,
-} from "../FilterableFileTree"
-import { Panel } from "../Panel"
 import { ActionMenuModal } from "../modals/ActionMenuModal"
 import { BookmarkNameModal } from "../modals/BookmarkNameModal"
 import { DescribeModal } from "../modals/DescribeModal"
@@ -60,6 +34,7 @@ import { RebaseModal } from "../modals/RebaseModal"
 import { SetBookmarkModal } from "../modals/SetBookmarkModal"
 import { SquashModal } from "../modals/SquashModal"
 import { UndoModal } from "../modals/UndoModal"
+import { Panel } from "../Panel"
 
 type LogTab = "revisions" | "oplog"
 
@@ -84,8 +59,7 @@ const looksLikeExplicitRevset = (query: string) => /[()@|&~,:]/.test(query)
 const buildFilterPreviewRevsets = (query: string) => {
     const trimmed = query.trim()
     if (!trimmed) return []
-    if (looksLikeExplicitRevset(trimmed))
-        return [{ revset: trimmed, exact: true }]
+    if (looksLikeExplicitRevset(trimmed)) return [{ revset: trimmed, exact: true }]
 
     const candidates = [
         { revset: trimmed, exact: false },
@@ -117,19 +91,12 @@ function sortBookmarksByProximity(
     targetChangeId: string,
     nearestHeadBookmarkNames: string[] = [],
 ): Bookmark[] {
-    const nearestHeadRank = new Map(
-        nearestHeadBookmarkNames.map((name, index) => [name, index]),
-    )
+    const nearestHeadRank = new Map(nearestHeadBookmarkNames.map((name, index) => [name, index]))
     const toCanonicalChangeId = (changeId: string) => changeId.trim()
     const commitIndexByChangeId = new Map(
-        orderedCommits.map((commit, index) => [
-            toCanonicalChangeId(commit.changeId),
-            index,
-        ]),
+        orderedCommits.map((commit, index) => [toCanonicalChangeId(commit.changeId), index]),
     )
-    const targetIndex = commitIndexByChangeId.get(
-        toCanonicalChangeId(targetChangeId),
-    )
+    const targetIndex = commitIndexByChangeId.get(toCanonicalChangeId(targetChangeId))
     if (targetIndex === undefined) return bookmarks
 
     return bookmarks
@@ -147,9 +114,7 @@ function sortBookmarksByProximity(
                 .split(",")
                 .map((id) => commitIndexByChangeId.get(toCanonicalChangeId(id)))
                 .filter((index): index is number => index !== undefined)
-            const bookmarkIndex = bookmarkIndices.length
-                ? Math.min(...bookmarkIndices)
-                : undefined
+            const bookmarkIndex = bookmarkIndices.length ? Math.min(...bookmarkIndices) : undefined
             if (bookmarkIndex === undefined) {
                 return {
                     bookmark,
@@ -168,9 +133,7 @@ function sortBookmarksByProximity(
         })
         .sort(
             (a, b) =>
-                a.group - b.group ||
-                a.distance - b.distance ||
-                a.originalIndex - b.originalIndex,
+                a.group - b.group || a.distance - b.distance || a.originalIndex - b.originalIndex,
         )
         .map((entry) => entry.bookmark)
 }
@@ -256,15 +219,9 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
     // Revset filter mode state
     const [filterMode, setFilterModeInternal] = createSignal(false)
     const [filterQuery, setFilterQuery] = createSignal("")
-    const [selectedFilterCommitId, setSelectedFilterCommitId] = createSignal<
-        string | null
-    >(null)
-    const [filterPreviewGroups, setFilterPreviewGroups] = createSignal<
-        FilterPreviewGroup[]
-    >([])
-    const [appliedFilterGroups, setAppliedFilterGroups] = createSignal<
-        FilterPreviewGroup[]
-    >([])
+    const [selectedFilterCommitId, setSelectedFilterCommitId] = createSignal<string | null>(null)
+    const [filterPreviewGroups, setFilterPreviewGroups] = createSignal<FilterPreviewGroup[]>([])
+    const [appliedFilterGroups, setAppliedFilterGroups] = createSignal<FilterPreviewGroup[]>([])
     const [appliedFilterNoMatch, setAppliedFilterNoMatch] = createSignal(false)
     const activeFilterGroups = createMemo(() =>
         filterMode() ? filterPreviewGroups() : appliedFilterGroups(),
@@ -276,9 +233,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
             appliedFilterNoMatch(),
     )
     const groupedFilterCommits = createMemo(() =>
-        activeFilterGroups().flatMap((group) =>
-            group.commits.map((commit) => ({ group, commit })),
-        ),
+        activeFilterGroups().flatMap((group) => group.commits.map((commit) => ({ group, commit }))),
     )
     const [filterPreviewLoading, setFilterPreviewLoading] = createSignal(false)
     let filterPreviewToken = 0
@@ -313,9 +268,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                     const result = await app.jjLogPage({
                         cwd: getRepoPath(),
                         revset: candidate.revset,
-                        limit: candidate.exact
-                            ? undefined
-                            : REVSET_PREVIEW_LIMIT,
+                        limit: candidate.exact ? undefined : REVSET_PREVIEW_LIMIT,
                     })
                     return result.commits.length > 0
                         ? { ...candidate, commits: result.commits }
@@ -350,9 +303,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
         const previousSelectedId = selectedFilterCommitId()
         const previousIndex = Math.max(
             0,
-            previousEntries.findIndex(
-                (entry) => entry.commit.changeId === previousSelectedId,
-            ),
+            previousEntries.findIndex((entry) => entry.commit.changeId === previousSelectedId),
         )
         const nextGroups = await loadFilterGroupsForCandidates(
             groups.map((group) => ({
@@ -374,9 +325,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
         )
         if (selectedStillExists) return
         const nextIndex = Math.min(previousIndex, nextEntries.length - 1)
-        setSelectedFilterCommitId(
-            nextEntries[nextIndex]?.commit.changeId ?? null,
-        )
+        setSelectedFilterCommitId(nextEntries[nextIndex]?.commit.changeId ?? null)
     }
 
     createEffect(
@@ -422,11 +371,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
         const entries = groupedFilterCommits()
         if (!showFilterResults() || entries.length === 0) return
         const selectedId = selectedFilterCommitId()
-        if (
-            selectedId &&
-            entries.some((entry) => entry.commit.changeId === selectedId)
-        )
-            return
+        if (selectedId && entries.some((entry) => entry.commit.changeId === selectedId)) return
         setSelectedFilterCommitId(entries[0]?.commit.changeId ?? null)
     })
 
@@ -463,9 +408,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
             }
         }
         const selectedRevset = groups[0]?.revset ?? null
-        const activeBookmarkRevset = activeBookmarkFilter()
-            ? `::${activeBookmarkFilter()}`
-            : null
+        const activeBookmarkRevset = activeBookmarkFilter() ? `::${activeBookmarkFilter()}` : null
         const shouldClearBookmarkState =
             activeBookmarkRevset && selectedRevset !== activeBookmarkRevset
         if (query && selectedRevset) {
@@ -479,9 +422,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
             // revisions.
             await loadLog()
             const selectedId = selectedFilterCommitId()
-            const index = commits().findIndex(
-                (commit) => commit.changeId === selectedId,
-            )
+            const index = commits().findIndex((commit) => commit.changeId === selectedId)
             if (index >= 0) setSelectedIndex(index)
         } else if (query) {
             setAppliedFilterGroups([])
@@ -520,11 +461,9 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
     }
 
     const isFocused = () =>
-        focus.isPanel("log") &&
-        (!isFilesView() || focus.activeContext() === "log.files")
+        focus.isPanel("log") && (!isFilesView() || focus.activeContext() === "log.files")
     const isRevisionsFocused = () => focus.activeContext() === "log.revisions"
-    const isLogSelectionFocused = () =>
-        isFilesView() ? isRevisionsFocused() : isFocused()
+    const isLogSelectionFocused = () => (isFilesView() ? isRevisionsFocused() : isFocused())
     const inactiveSelectionBackground = () =>
         blendColors(colors().selectionBackground, colors().background, 0.5)
     const isFilesView = () => viewMode() === "files"
@@ -607,9 +546,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
 
     const runAppOperation = async (
         text: string,
-        op: (
-            observer: ReturnType<typeof commandLog.observer>,
-        ) => Promise<OperationResult>,
+        op: (observer: ReturnType<typeof commandLog.observer>) => Promise<OperationResult>,
         selectAfterRefresh?: (
             result: OperationResult,
             commits: Commit[],
@@ -649,33 +586,23 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
         return result
     }
 
-    const findCommitIndexById = (
-        commitList: Commit[],
-        id: string | undefined,
-    ) => {
+    const findCommitIndexById = (commitList: Commit[], id: string | undefined) => {
         if (!id) return null
         const exactIndex = commitList.findIndex(
             (commit) => commit.changeId === id || commit.commitId === id,
         )
         if (exactIndex >= 0) return exactIndex
         const prefixIndex = commitList.findIndex(
-            (commit) =>
-                commit.changeId.startsWith(id) ||
-                commit.commitId.startsWith(id),
+            (commit) => commit.changeId.startsWith(id) || commit.commitId.startsWith(id),
         )
         return prefixIndex >= 0 ? prefixIndex : null
     }
 
-    const getFirstParentRevisionId = (
-        commit: Commit,
-        commitList: Commit[],
-    ): string | undefined => {
+    const getFirstParentRevisionId = (commit: Commit, commitList: Commit[]): string | undefined => {
         const parentCommitId = commit.parentCommitIds?.[0]
         if (!parentCommitId) return undefined
 
-        const parentCommit = commitList.find(
-            (candidate) => candidate.commitId === parentCommitId,
-        )
+        const parentCommit = commitList.find((candidate) => candidate.commitId === parentCommitId)
         return parentCommit ? getRevisionId(parentCommit) : undefined
     }
 
@@ -684,15 +611,10 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
         return index >= 0 ? index : null
     }
 
-    const selectWorkingCopyCommitAfterRefresh = (
-        _result: OperationResult,
-        commitList: Commit[],
-    ) => findWorkingCopyCommitIndex(commitList)
+    const selectWorkingCopyCommitAfterRefresh = (_result: OperationResult, commitList: Commit[]) =>
+        findWorkingCopyCommitIndex(commitList)
 
-    const selectDuplicatedCommit = (
-        result: OperationResult,
-        commitList: Commit[],
-    ) => {
+    const selectDuplicatedCommit = (result: OperationResult, commitList: Commit[]) => {
         const output = `${result.stdout}\n${result.stderr}`
         const duplicatedId = output.match(/\bas\s+([0-9a-f]+|[k-z]+)\b/)?.[1]
         return findCommitIndexById(commitList, duplicatedId)
@@ -707,10 +629,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
             .map((id) => id.trim())
             .includes(changeId.trim())
 
-    const findBookmarkForChange = (
-        changeId: string,
-        options?: { localOnly?: boolean },
-    ) =>
+    const findBookmarkForChange = (changeId: string, options?: { localOnly?: boolean }) =>
         bookmarks().find(
             (bookmark) =>
                 (!options?.localOnly || bookmark.isLocal) &&
@@ -718,13 +637,9 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
         )
 
     const findBookmarkByName = (name: string) =>
-        findLocalBookmark(name) ??
-        bookmarks().find((bookmark) => bookmark.name === name)
+        findLocalBookmark(name) ?? bookmarks().find((bookmark) => bookmark.name === name)
 
-    const createBookmarkPushAndOpen = async (
-        commit: Commit,
-        bookmarkName: string,
-    ) => {
+    const createBookmarkPushAndOpen = async (commit: Commit, bookmarkName: string) => {
         const observer = commandLog.observer()
         const createResult = await app.jjBookmarkCreate(bookmarkName, {
             cwd: getRepoPath(),
@@ -790,13 +705,10 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                 })
             ) {
                 const observer = commandLog.observer()
-                const browseResult = await app.ghBrowseCommit(
-                    bookmark.commitId,
-                    {
-                        cwd: getRepoPath(),
-                        observer,
-                    },
-                )
+                const browseResult = await app.ghBrowseCommit(bookmark.commitId, {
+                    cwd: getRepoPath(),
+                    observer,
+                })
                 commandLog.addEntry(browseResult)
                 return
             }
@@ -970,11 +882,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
         return maxLength
     })
 
-    const clampScrollLeft = (
-        value: number,
-        maxLength: number,
-        width: number,
-    ) => {
+    const clampScrollLeft = (value: number, maxLength: number, width: number) => {
         const contentWidth = Math.max(1, width)
         const maxScroll = Math.max(0, maxLength - contentWidth)
         return Math.max(0, Math.min(value, maxScroll))
@@ -1004,10 +912,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
             }
 
             const delta = event.scroll.delta || 1
-            const next =
-                direction === "left"
-                    ? getScrollLeft() - delta
-                    : getScrollLeft() + delta
+            const next = direction === "left" ? getScrollLeft() - delta : getScrollLeft() + delta
             setScrollLeft(clampScrollLeft(next, maxLength(), viewportWidth()))
             event.preventDefault()
             event.stopPropagation()
@@ -1038,10 +943,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
             if (lineOffset < safeStart) {
                 newScrollTop = Math.max(0, lineOffset - margin)
             } else if (lineOffset > safeEnd) {
-                newScrollTop = Math.max(
-                    0,
-                    lineOffset - viewportHeight + margin + 1,
-                )
+                newScrollTop = Math.max(0, lineOffset - viewportHeight + margin + 1)
             }
 
             if (newScrollTop !== currentScrollTop) {
@@ -1076,10 +978,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
             if (lineOffset < safeStart) {
                 newScrollTop = Math.max(0, lineOffset - margin)
             } else if (lineEnd > safeEnd) {
-                newScrollTop = Math.max(
-                    0,
-                    lineEnd - viewportHeight + margin + 1,
-                )
+                newScrollTop = Math.max(0, lineEnd - viewportHeight + margin + 1)
             }
 
             if (newScrollTop !== currentScrollTop) {
@@ -1124,21 +1023,13 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
 
     createEffect(() => {
         setLogScrollLeft(
-            clampScrollLeft(
-                logScrollLeft(),
-                logMaxLineLength(),
-                logContentViewportWidth(),
-            ),
+            clampScrollLeft(logScrollLeft(), logMaxLineLength(), logContentViewportWidth()),
         )
     })
 
     createEffect(() => {
         setOpLogScrollLeft(
-            clampScrollLeft(
-                opLogScrollLeft(),
-                opLogMaxLineLength(),
-                opLogViewportWidth(),
-            ),
+            clampScrollLeft(opLogScrollLeft(), opLogMaxLineLength(), opLogViewportWidth()),
         )
     })
 
@@ -1202,10 +1093,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
             0,
             entries.findIndex((entry) => entry.commit.changeId === selectedId),
         )
-        const nextIndex = Math.max(
-            0,
-            Math.min(entries.length - 1, currentIndex + offset),
-        )
+        const nextIndex = Math.max(0, Math.min(entries.length - 1, currentIndex + offset))
         const entry = entries[nextIndex]
         if (!entry) return
         selectGroupedCommit(entry.group, entry.commit)
@@ -1225,11 +1113,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
             if (visualMode()) {
                 const previousIndex = selectedIndex()
                 selectNext()
-                if (
-                    selectedIndex() === previousIndex &&
-                    logHasMore() &&
-                    !logLoadingMore()
-                ) {
+                if (selectedIndex() === previousIndex && logHasMore() && !logLoadingMore()) {
                     await loadMoreLog()
                     selectNext()
                 }
@@ -1269,9 +1153,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
     const syncFilteredRevisionCursor = () => {
         if (!showFilterResults()) return true
         const selectedId = selectedFilterCommitId()
-        const index = commits().findIndex(
-            (commit) => commit.changeId === selectedId,
-        )
+        const index = commits().findIndex((commit) => commit.changeId === selectedId)
         if (index < 0) return false
         setSelectedIndex(index)
         return true
@@ -1291,9 +1173,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
     }
 
     const singleRevisionOnly = () =>
-        multiSelectedCommits().length >= 2
-            ? "only works for a single revision"
-            : null
+        multiSelectedCommits().length >= 2 ? "only works for a single revision" : null
 
     // Target for actions that accept either the cursor revision or the
     // multi-selection. Commits are in log order (newest first); the revset
@@ -1329,11 +1209,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
     }
 
     const selectedOriginDiffBookmark = createMemo(() =>
-        findCommitBookmarkWithOriginDiff(
-            selectedLogCommit(),
-            bookmarks(),
-            remoteBookmarks(),
-        ),
+        findCommitBookmarkWithOriginDiff(selectedLogCommit(), bookmarks(), remoteBookmarks()),
     )
 
     const openBookmarkOriginDiff = () => {
@@ -1472,10 +1348,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                 const hasPreHook = await app
                     .hasPreHooks(HookOperation.JjNew, { cwd })
                     .catch(() => false)
-                if (
-                    getRepoPath() !== cwd ||
-                    revisionActionTarget()?.revset !== target.revset
-                )
+                if (getRepoPath() !== cwd || revisionActionTarget()?.revset !== target.revset)
                     return
                 const runNew =
                     (
@@ -1688,9 +1561,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                 const parentRevisionId = oldest
                     ? getFirstParentRevisionId(oldest, commitList)
                     : undefined
-                const hasImmutable = target.commits.some(
-                    (commit) => commit.immutable,
-                )
+                const hasImmutable = target.commits.some((commit) => commit.immutable)
 
                 dialog.open(
                     () => (
@@ -1726,22 +1597,13 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                                     // Interactive mode needs to suspend the TUI
                                     renderer.suspend?.()
                                     try {
-                                        const result =
-                                            await app.jjSquashInteractive(
-                                                revset,
-                                                {
-                                                    cwd: getRepoPath(),
-                                                    into:
-                                                        destination !== revset
-                                                            ? destination
-                                                            : undefined,
-                                                    useDestinationMessage:
-                                                        options.useDestinationMessage,
-                                                    keepEmptied:
-                                                        options.keepEmptied,
-                                                    ignoreImmutable,
-                                                },
-                                            )
+                                        const result = await app.jjSquashInteractive(revset, {
+                                            cwd: getRepoPath(),
+                                            into: destination !== revset ? destination : undefined,
+                                            useDestinationMessage: options.useDestinationMessage,
+                                            keepEmptied: options.keepEmptied,
+                                            ignoreImmutable,
+                                        })
                                         if (result.success) {
                                             clearActionSelection(target)
                                             await refresh({
@@ -1763,8 +1625,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                                     const result = await app.jjSquash(revset, {
                                         cwd: getRepoPath(),
                                         into: destination,
-                                        useDestinationMessage:
-                                            options.useDestinationMessage,
+                                        useDestinationMessage: options.useDestinationMessage,
                                         keepEmptied: options.keepEmptied,
                                     })
                                     if (isImmutableError(result)) {
@@ -1773,10 +1634,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                                             message: [
                                                 "Target ",
                                                 {
-                                                    text: destination.slice(
-                                                        0,
-                                                        8,
-                                                    ),
+                                                    text: destination.slice(0, 8),
                                                     style: "target",
                                                 },
                                                 " is immutable. ",
@@ -1796,8 +1654,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                                                         into: destination,
                                                         useDestinationMessage:
                                                             options.useDestinationMessage,
-                                                        keepEmptied:
-                                                            options.keepEmptied,
+                                                        keepEmptied: options.keepEmptied,
                                                         ignoreImmutable: true,
                                                         observer,
                                                     }),
@@ -1809,8 +1666,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                                                             : destination,
                                                     ),
                                             )
-                                            if (retry.success)
-                                                clearActionSelection(target)
+                                            if (retry.success) clearActionSelection(target)
                                         }
                                     } else {
                                         commandLog.addEntry(result)
@@ -1869,16 +1725,12 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                             commits={commitList}
                             defaultTarget={parentRevisionId}
                             onRebase={async (destination, options) => {
-                                const result = await app.jjRebase(
-                                    revset,
-                                    destination,
-                                    {
-                                        cwd: getRepoPath(),
-                                        mode: options.mode,
-                                        targetMode: options.targetMode,
-                                        skipEmptied: options.skipEmptied,
-                                    },
-                                )
+                                const result = await app.jjRebase(revset, destination, {
+                                    cwd: getRepoPath(),
+                                    mode: options.mode,
+                                    targetMode: options.targetMode,
+                                    skipEmptied: options.skipEmptied,
+                                })
                                 if (isImmutableError(result)) {
                                     const confirmed = await dialog.confirm({
                                         ...DIALOG_SIZE.confirm,
@@ -1899,28 +1751,18 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                                         const retry = await runAppOperation(
                                             "Rebasing...",
                                             (observer) =>
-                                                app.jjRebase(
-                                                    revset,
-                                                    destination,
-                                                    {
-                                                        cwd: getRepoPath(),
-                                                        mode: options.mode,
-                                                        targetMode:
-                                                            options.targetMode,
-                                                        skipEmptied:
-                                                            options.skipEmptied,
-                                                        ignoreImmutable: true,
-                                                        observer,
-                                                    },
-                                                ),
+                                                app.jjRebase(revset, destination, {
+                                                    cwd: getRepoPath(),
+                                                    mode: options.mode,
+                                                    targetMode: options.targetMode,
+                                                    skipEmptied: options.skipEmptied,
+                                                    ignoreImmutable: true,
+                                                    observer,
+                                                }),
                                             (_result, commitList) =>
-                                                findCommitIndexById(
-                                                    commitList,
-                                                    anchorChangeId,
-                                                ),
+                                                findCommitIndexById(commitList, anchorChangeId),
                                         )
-                                        if (retry.success)
-                                            clearActionSelection(target)
+                                        if (retry.success) clearActionSelection(target)
                                     }
                                 } else {
                                     commandLog.addEntry(result)
@@ -1928,10 +1770,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                                         clearActionSelection(target)
                                         await refresh({
                                             selectIndex: (commitList) =>
-                                                findCommitIndexById(
-                                                    commitList,
-                                                    anchorChangeId,
-                                                ),
+                                                findCommitIndexById(commitList, anchorChangeId),
                                         })
                                         loadOpLog()
                                     }
@@ -2050,9 +1889,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                             initialSubject={desc.subject}
                             initialBody={desc.body}
                             onSave={(subject, body) => {
-                                const message = body
-                                    ? `${subject}\n\n${body}`
-                                    : subject
+                                const message = body ? `${subject}\n\n${body}` : subject
                                 runAppOperation("Describing...", (observer) =>
                                     app.jjDescribe(revId, message, {
                                         cwd: getRepoPath(),
@@ -2131,22 +1968,18 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                         ...DIALOG_SIZE.confirm,
                         message: [
                             { text: target.label, style: "target" },
-                            target.multi
-                                ? " include immutable revisions. "
-                                : " is immutable. ",
+                            target.multi ? " include immutable revisions. " : " is immutable. ",
                             { text: "Abandon", style: "action" },
                             " anyway?",
                         ],
                     })
                     if (immutableConfirmed) {
-                        const retry = await runAppOperation(
-                            "Abandoning...",
-                            (observer) =>
-                                app.jjAbandon(target.revset, {
-                                    cwd: getRepoPath(),
-                                    ignoreImmutable: true,
-                                    observer,
-                                }),
+                        const retry = await runAppOperation("Abandoning...", (observer) =>
+                            app.jjAbandon(target.revset, {
+                                cwd: getRepoPath(),
+                                ignoreImmutable: true,
+                                observer,
+                            }),
                         )
                         if (retry.success) clearActionSelection(target)
                     }
@@ -2183,10 +2016,9 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                 )
                 let nearestHeadBookmarkNames: string[] = []
                 try {
-                    nearestHeadBookmarkNames =
-                        await app.jjNearestAncestorBookmarkNames(revId, {
-                            cwd: getRepoPath(),
-                        })
+                    nearestHeadBookmarkNames = await app.jjNearestAncestorBookmarkNames(revId, {
+                        cwd: getRepoPath(),
+                    })
                 } catch {
                     nearestHeadBookmarkNames = []
                 }
@@ -2209,28 +2041,19 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                             currentRevisionBookmarks={currentRevisionBookmarks}
                             changeId={commit.changeId}
                             onMove={async (bookmark, options) => {
-                                const result = await moveBookmark(
-                                    bookmark.name,
-                                    revId,
-                                    options,
-                                )
-                                if (
-                                    !result.success &&
-                                    !isBookmarkBackwardsError(result)
-                                ) {
+                                const result = await moveBookmark(bookmark.name, revId, options)
+                                if (!result.success && !isBookmarkBackwardsError(result)) {
                                     dialog.close()
                                 }
                                 return result
                             }}
                             onCreate={(name) => {
-                                runAppOperation(
-                                    "Creating bookmark...",
-                                    (observer) =>
-                                        app.jjBookmarkCreate(name, {
-                                            cwd: getRepoPath(),
-                                            revision: revId,
-                                            observer,
-                                        }),
+                                runAppOperation("Creating bookmark...", (observer) =>
+                                    app.jjBookmarkCreate(name, {
+                                        cwd: getRepoPath(),
+                                        revision: revId,
+                                        observer,
+                                    }),
                                 )
                             }}
                         />
@@ -2294,9 +2117,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
             visibleIn: ["palette", "statusBar"] as const,
             unavailable: () =>
                 singleRevisionOnly() ??
-                (selectedOriginDiffBookmark()
-                    ? null
-                    : "has no changes to show"),
+                (selectedOriginDiffBookmark() ? null : "has no changes to show"),
             execute: openBookmarkOriginDiff,
         },
         {
@@ -2317,13 +2138,10 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                             operationLines={op.lines}
                             onConfirm={async () => {
                                 dialog.close()
-                                const result = await app.jjOpRestore(
-                                    op.operationId,
-                                    {
-                                        cwd: getRepoPath(),
-                                        observer: commandLog.observer(),
-                                    },
-                                )
+                                const result = await app.jjOpRestore(op.operationId, {
+                                    cwd: getRepoPath(),
+                                    observer: commandLog.observer(),
+                                })
                                 commandLog.addEntry(result)
                                 if (result.success) refresh()
                             }}
@@ -2443,14 +2261,10 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                             from: restorePlan.from,
                             into: restorePlan.into,
                         }),
-                    (_result, commits) =>
-                        findCommitIndexById(commits, commit.changeId),
+                    (_result, commits) => findCommitIndexById(commits, commit.changeId),
                 )
                 if (result?.success) {
-                    const nextIndex = Math.min(
-                        fileIndex,
-                        flatFiles().length - 1,
-                    )
+                    const nextIndex = Math.min(fileIndex, flatFiles().length - 1)
                     setSelectedFileIndex(Math.max(0, nextIndex))
                 }
             },
@@ -2488,20 +2302,14 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
             handleClick()
         }
         const selectionBackground = () =>
-            isLogSelectionFocused()
-                ? colors().selectionBackground
-                : inactiveSelectionBackground()
-        const marked = () =>
-            effectiveMultiSelection().has(props.commit.changeId)
-        const markedBackground = () =>
-            blendColors(selectionBackground(), colors().background, 0.45)
+            isLogSelectionFocused() ? colors().selectionBackground : inactiveSelectionBackground()
+        const marked = () => effectiveMultiSelection().has(props.commit.changeId)
+        const markedBackground = () => blendColors(selectionBackground(), colors().background, 0.45)
         const markedSelectionBackground = () =>
             blendColors(colors().text, selectionBackground(), 0.15)
         const rowBackground = () => {
             if (props.selected())
-                return marked()
-                    ? markedSelectionBackground()
-                    : selectionBackground()
+                return marked() ? markedSelectionBackground() : selectionBackground()
             return marked() ? markedBackground() : undefined
         }
         return (
@@ -2509,8 +2317,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                 <For each={props.commit.displayLines}>
                     {(line) => {
                         const gutterWidth = () => stripAnsi(line.gutter).length
-                        const contentWidth = () =>
-                            Math.max(1, logViewportWidth() - gutterWidth())
+                        const contentWidth = () => Math.max(1, logViewportWidth() - gutterWidth())
                         const defaultFg = () =>
                             props.selected() && isLogSelectionFocused()
                                 ? colors().selectionText
@@ -2583,9 +2390,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                                 when={commits().length > 0}
                                 fallback={
                                     <box>
-                                        <text fg={colors().textMuted}>
-                                            No matching revisions
-                                        </text>
+                                        <text fg={colors().textMuted}>No matching revisions</text>
                                     </box>
                                 }
                             >
@@ -2593,10 +2398,8 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                                     {(commit, index) =>
                                         renderCommitEntry({
                                             commit,
-                                            selected: () =>
-                                                index() === selectedIndex(),
-                                            onSelect: () =>
-                                                setSelectedIndex(index()),
+                                            selected: () => index() === selectedIndex(),
+                                            onSelect: () => setSelectedIndex(index()),
                                             onOpen: () => {
                                                 setSelectedIndex(index())
                                                 enterFilesView()
@@ -2604,9 +2407,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                                             onNearEnd: () => {
                                                 if (
                                                     !logLoadingMore() &&
-                                                    commits().length -
-                                                        index() <=
-                                                        5 &&
+                                                    commits().length - index() <= 5 &&
                                                     logHasMore()
                                                 ) {
                                                     loadMoreLog()
@@ -2633,29 +2434,15 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                             <For each={activeFilterGroups()}>
                                 {(group, groupIndex) => {
                                     const showHeading = () =>
-                                        !(
-                                            activeFilterGroups().length === 1 &&
-                                            group.exact
-                                        )
+                                        !(activeFilterGroups().length === 1 && group.exact)
                                     return (
                                         <box flexDirection="column">
-                                            <Show
-                                                when={
-                                                    showHeading() &&
-                                                    groupIndex() > 0
-                                                }
-                                            >
+                                            <Show when={showHeading() && groupIndex() > 0}>
                                                 <box height={1} />
                                             </Show>
                                             <Show when={showHeading()}>
-                                                <box
-                                                    height={1}
-                                                    overflow="hidden"
-                                                >
-                                                    <text
-                                                        fg={colors().textMuted}
-                                                        wrapMode="none"
-                                                    >
+                                                <box height={1} overflow="hidden">
+                                                    <text fg={colors().textMuted} wrapMode="none">
                                                         -r '{group.revset}'
                                                     </text>
                                                 </box>
@@ -2668,10 +2455,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                                                             selectedFilterCommitId() ===
                                                             commit.changeId,
                                                         onSelect: () =>
-                                                            selectGroupedCommit(
-                                                                group,
-                                                                commit,
-                                                            ),
+                                                            selectGroupedCommit(group, commit),
                                                         onOpen: () =>
                                                             selectGroupedCommit(
                                                                 group,
@@ -2692,11 +2476,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
 
             {/* Revset filter display/input */}
             <Show when={revsetFilter() || filterMode()}>
-                <box
-                    flexDirection="column"
-                    flexShrink={0}
-                    backgroundColor={colors().background}
-                >
+                <box flexDirection="column" flexShrink={0} backgroundColor={colors().background}>
                     {/* Error line */}
                     <Show when={errorContent()}>
                         <box height={1} overflow="hidden">
@@ -2754,8 +2534,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
             >
                 <For each={opLogEntries()}>
                     {(entry, index) => {
-                        const isSelected = () =>
-                            index() === opLogSelectedIndex()
+                        const isSelected = () => index() === opLogSelectedIndex()
                         const showSelection = () => isSelected()
                         const selectionBackground = () =>
                             isFocused()
@@ -2766,9 +2545,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                                 {(line) => (
                                     <box
                                         backgroundColor={
-                                            showSelection()
-                                                ? selectionBackground()
-                                                : undefined
+                                            showSelection() ? selectionBackground() : undefined
                                         }
                                         overflow="hidden"
                                     >
@@ -2788,10 +2565,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                                                 () => opLogScrollRef,
                                             )}
                                             cropStart={opLogScrollLeft()}
-                                            cropWidth={Math.max(
-                                                1,
-                                                opLogViewportWidth(),
-                                            )}
+                                            cropWidth={Math.max(1, opLogViewportWidth())}
                                         />
                                     </box>
                                 )}
@@ -2859,28 +2633,19 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
             focused={isFocused()}
         >
             <Show when={isFilesView()}>{renderFilesContent()}</Show>
-            <Show when={!isFilesView() && activeTab() === "revisions"}>
-                {renderLogContent()}
-            </Show>
-            <Show when={!isFilesView() && activeTab() === "oplog"}>
-                {renderOpLogContent()}
-            </Show>
+            <Show when={!isFilesView() && activeTab() === "revisions"}>{renderLogContent()}</Show>
+            <Show when={!isFilesView() && activeTab() === "oplog"}>{renderOpLogContent()}</Show>
         </Panel>
     )
 
     return (
-        <Show
-            when={isFilesView() && props.filesWithRevisions}
-            fallback={panel()}
-        >
+        <Show when={isFilesView() && props.filesWithRevisions} fallback={panel()}>
             <box flexDirection="column" flexGrow={1} gap={0}>
                 <box flexGrow={3} flexBasis={0}>
                     {panel()}
                 </box>
                 <box height={1} overflow="hidden">
-                    <text fg={colors().backgroundElement}>
-                        {"─".repeat(500)}
-                    </text>
+                    <text fg={colors().backgroundElement}>{"─".repeat(500)}</text>
                 </box>
                 <box flexGrow={1} flexBasis={0}>
                     <Panel

@@ -29,9 +29,7 @@ const difftFileSchema = z.object({
     path: z.string(),
     language: z.string(),
     status: z.enum(["unchanged", "changed", "created", "deleted"]),
-    aligned_lines: z
-        .array(z.tuple([z.number().nullable(), z.number().nullable()]))
-        .optional(),
+    aligned_lines: z.array(z.tuple([z.number().nullable(), z.number().nullable()])).optional(),
     chunks: z.array(z.array(difftLineSchema)).optional(),
 })
 

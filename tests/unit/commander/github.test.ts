@@ -9,30 +9,25 @@ import {
 describe("parseGhRepositoryJson", () => {
     test("parses owner and repo name", () => {
         expect(
-            parseGhRepositoryJson(
-                JSON.stringify({ owner: { login: "eliaskc" }, name: "kajji" }),
-            ),
+            parseGhRepositoryJson(JSON.stringify({ owner: { login: "eliaskc" }, name: "kajji" })),
         ).toEqual({ owner: "eliaskc", name: "kajji" })
     })
 })
 
 describe("parseGitHubRemoteUrl", () => {
     test("parses ssh and https GitHub remotes", () => {
-        expect(
-            parseGitHubRemoteUrl("git@github.com:MDLabs/apnea-sdk-ios"),
-        ).toEqual({
+        expect(parseGitHubRemoteUrl("git@github.com:MDLabs/apnea-sdk-ios")).toEqual({
             owner: "MDLabs",
             name: "apnea-sdk-ios",
         })
-        expect(
-            parseGitHubRemoteUrl("https://github.com/eliaskc/kajji.git"),
-        ).toEqual({ owner: "eliaskc", name: "kajji" })
+        expect(parseGitHubRemoteUrl("https://github.com/eliaskc/kajji.git")).toEqual({
+            owner: "eliaskc",
+            name: "kajji",
+        })
     })
 
     test("ignores non-GitHub remotes", () => {
-        expect(
-            parseGitHubRemoteUrl("git@example.com:owner/repo.git"),
-        ).toBeUndefined()
+        expect(parseGitHubRemoteUrl("git@example.com:owner/repo.git")).toBeUndefined()
     })
 })
 
@@ -56,9 +51,7 @@ describe("parseGhPullRequestsByHeadGraphqlJson", () => {
                         },
                         h1: {
                             associatedPullRequests: {
-                                nodes: [
-                                    { number: 124, headRefName: "feature-b" },
-                                ],
+                                nodes: [{ number: 124, headRefName: "feature-b" }],
                             },
                         },
                     },
@@ -292,8 +285,6 @@ describe("parseGhPullRequestsByHeadGraphqlJson", () => {
             }),
         )
 
-        expect([...pulls.values()]).toEqual([
-            { number: 123, headRefName: "feature-a" },
-        ])
+        expect([...pulls.values()]).toEqual([{ number: 123, headRefName: "feature-a" }])
     })
 })

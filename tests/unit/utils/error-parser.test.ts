@@ -16,14 +16,10 @@ describe("operation errors", () => {
     })
 
     test("recognizes immutable command failures", () => {
-        expect(isImmutableError(result(false, "commit is immutable"))).toBe(
-            true,
-        )
+        expect(isImmutableError(result(false, "commit is immutable"))).toBe(true)
         expect(isImmutableError(result(false, "Immutable commit"))).toBe(true)
         expect(isImmutableError(result(true, "immutable warning"))).toBe(false)
-        expect(isImmutableError(result(false, "revision not found"))).toBe(
-            false,
-        )
+        expect(isImmutableError(result(false, "revision not found"))).toBe(false)
     })
 })
 
@@ -39,9 +35,7 @@ describe("stale working copy errors", () => {
             }),
         ).toBe(true)
         expect(parseJjError(message).errorType).toBe("stale-working-copy")
-        expect(parseJjError(message).fixCommand).toBe(
-            "jj workspace update-stale",
-        )
+        expect(parseJjError(message).fixCommand).toBe("jj workspace update-stale")
     })
 
     test("requires a failed command result", () => {
@@ -50,18 +44,12 @@ describe("stale working copy errors", () => {
             stderr: "",
         }
 
-        expect(isStaleWorkingCopyFailure({ ...output, exitCode: 0 })).toBe(
-            false,
-        )
+        expect(isStaleWorkingCopyFailure({ ...output, exitCode: 0 })).toBe(false)
         expect(isStaleWorkingCopyFailure({ ...output, exitCode: 1 })).toBe(true)
     })
 
     test("shows reconciliation even when repository data is already loaded", () => {
-        expect(shouldShowCriticalError("The working copy is stale", true)).toBe(
-            true,
-        )
-        expect(shouldShowCriticalError("unrecognized failure", true)).toBe(
-            false,
-        )
+        expect(shouldShowCriticalError("The working copy is stale", true)).toBe(true)
+        expect(shouldShowCriticalError("unrecognized failure", true)).toBe(false)
     })
 })

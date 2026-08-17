@@ -15,8 +15,7 @@ export function RevisionPickerModal(props: RevisionPickerModalProps) {
     const dialog = useDialog()
 
     const [selectedRevision, setSelectedRevision] = createSignal(
-        props.defaultRevision ??
-            (props.commits[0] ? getRevisionId(props.commits[0]) : ""),
+        props.defaultRevision ?? (props.commits[0] ? getRevisionId(props.commits[0]) : ""),
     )
 
     const handleConfirm = () => {

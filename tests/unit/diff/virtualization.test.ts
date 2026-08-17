@@ -18,11 +18,7 @@ import {
 
 describe("flattenToRows", () => {
     test("keeps binary previews in file order", () => {
-        const file = (
-            fileId: FileId,
-            name: string,
-            isBinary = false,
-        ): FlattenedFile => ({
+        const file = (fileId: FileId, name: string, isBinary = false): FlattenedFile => ({
             fileId,
             name,
             type: "change",
@@ -47,12 +43,10 @@ describe("flattenToRows", () => {
 
         expect(binaryHeader).toBeGreaterThan(0)
         expect(lastHeader).toBe(binaryHeader + BINARY_PREVIEW_HEIGHT + 2)
-        expect(
-            rows.filter((row) => row.type === "binary-preview"),
-        ).toHaveLength(1)
-        expect(
-            rows.filter((row) => row.type === "binary-preview-reserved-row"),
-        ).toHaveLength(BINARY_PREVIEW_HEIGHT - 1)
+        expect(rows.filter((row) => row.type === "binary-preview")).toHaveLength(1)
+        expect(rows.filter((row) => row.type === "binary-preview-reserved-row")).toHaveLength(
+            BINARY_PREVIEW_HEIGHT - 1,
+        )
     })
 })
 
@@ -212,9 +206,7 @@ describe("semantic diff scroll anchors", () => {
     const getOldLine = ({ row }: (typeof rows)[number]) => row.oldLine
 
     test("records the source line's offset within the viewport", () => {
-        expect(
-            getCurrentDiffScrollAnchor(rows, 1, getNewLine, getOldLine, 2),
-        ).toEqual({
+        expect(getCurrentDiffScrollAnchor(rows, 1, getNewLine, getOldLine, 2)).toEqual({
             fileId: first,
             newLineNumber: 11,
             oldLineNumber: undefined,
@@ -322,29 +314,18 @@ describe("getAdjacentHunkFromRow", () => {
 
     test("navigates relative to the visible row", () => {
         expect(getAdjacentHunkFromRow(files, offsets, 7, 1)?.hunkId).toBe("a:2")
-        expect(getAdjacentHunkFromRow(files, offsets, 7, -1)?.hunkId).toBe(
-            "a:1",
-        )
+        expect(getAdjacentHunkFromRow(files, offsets, 7, -1)?.hunkId).toBe("a:1")
     })
 
     test("crosses files without relying on stale indexes", () => {
-        expect(getAdjacentHunkFromRow(files, offsets, 10, 1)?.hunkId).toBe(
-            "c:1",
-        )
-        expect(getAdjacentHunkFromRow(files, offsets, 20, -1)?.hunkId).toBe(
-            "a:2",
-        )
+        expect(getAdjacentHunkFromRow(files, offsets, 10, 1)?.hunkId).toBe("c:1")
+        expect(getAdjacentHunkFromRow(files, offsets, 20, -1)?.hunkId).toBe("a:2")
     })
 
     test("advances from the last navigation target when scrolling clamps", () => {
         const extendedFiles = [...files, { hunks: [{ hunkId: "d:1" }] }]
         const extendedOffsets = new Map(offsets).set("d:1", 25)
-        const first = getAdjacentHunkFromRow(
-            extendedFiles,
-            extendedOffsets,
-            15,
-            1,
-        )
+        const first = getAdjacentHunkFromRow(extendedFiles, extendedOffsets, 15, 1)
         expect(first?.hunkId).toBe("c:1")
         expect(
             getAdjacentHunkFromRow(

@@ -14,17 +14,13 @@ export interface BuildStackPlanOptions<TBookmark extends StackBookmarkInput> {
     readonly stackRootName: string
     readonly stackModel: BookmarkStackModel<TBookmark>
     readonly pullRequestsByHead: ReadonlyMap<string, StackPullRequestInput>
-    readonly remoteBookmarksByName?: ReadonlyMap<
-        string,
-        StackRemoteBookmarkInput
-    >
+    readonly remoteBookmarksByName?: ReadonlyMap<string, StackRemoteBookmarkInput>
     readonly landedRangesByBookmark?: ReadonlyMap<string, string>
 }
 
 export const buildSyncPlan = Effect.fn("Stack.plan.sync")(
-    <TBookmark extends StackBookmarkInput>(
-        options: BuildStackPlanOptions<TBookmark>,
-    ) => Effect.succeed(buildSyncPlanSync(options)),
+    <TBookmark extends StackBookmarkInput>(options: BuildStackPlanOptions<TBookmark>) =>
+        Effect.succeed(buildSyncPlanSync(options)),
 )
 
 export function buildSyncPlanSync<TBookmark extends StackBookmarkInput>({
@@ -54,9 +50,7 @@ export function buildSyncPlanSync<TBookmark extends StackBookmarkInput>({
         const remote = remoteBookmarksByName.get(bookmark.name)
         const rowEffects: StackPlanEffect[] = []
         const needsPush = Boolean(
-            !isTrunk &&
-                bookmark.commitId &&
-                (!remote || remote.commitId !== bookmark.commitId),
+            !isTrunk && bookmark.commitId && (!remote || remote.commitId !== bookmark.commitId),
         )
 
         if (isTrunk) {
@@ -81,13 +75,7 @@ export function buildSyncPlanSync<TBookmark extends StackBookmarkInput>({
             }
             effects.push(...rowEffects)
             planRows.push(
-                rowPlan(
-                    row,
-                    pull,
-                    desiredBase,
-                    rowEffects,
-                    syncNote(rowEffects, desiredBase),
-                ),
+                rowPlan(row, pull, desiredBase, rowEffects, syncNote(rowEffects, desiredBase)),
             )
             continue
         }
@@ -102,18 +90,14 @@ export function buildSyncPlanSync<TBookmark extends StackBookmarkInput>({
             })
         } else {
             if (!pull) {
-                if (needsPush)
-                    rowEffects.push({ type: "push", bookmark: bookmark.name })
+                if (needsPush) rowEffects.push({ type: "push", bookmark: bookmark.name })
                 rowEffects.push({
                     type: "create-pr",
                     bookmark: bookmark.name,
                     to: desiredBase,
                 })
             } else if (pull.merged === true) {
-                mergedTargetByName.set(
-                    bookmark.name,
-                    pull.baseRefName ?? localBase,
-                )
+                mergedTargetByName.set(bookmark.name, pull.baseRefName ?? localBase)
                 if (!remote) {
                     rowEffects.push({
                         type: "abandon",
@@ -125,11 +109,7 @@ export function buildSyncPlanSync<TBookmark extends StackBookmarkInput>({
                 }
             }
             const landedRange = landedRangesByBookmark.get(bookmark.name)
-            if (
-                landedRange &&
-                pull?.merged !== true &&
-                !mergedTargetByName.has(localBase)
-            ) {
+            if (landedRange && pull?.merged !== true && !mergedTargetByName.has(localBase)) {
                 rowEffects.push({
                     type: "abandon-landed-range",
                     bookmark: bookmark.name,
@@ -196,13 +176,7 @@ export function buildSyncPlanSync<TBookmark extends StackBookmarkInput>({
 
         effects.push(...rowEffects)
         planRows.push(
-            rowPlan(
-                row,
-                pull,
-                desiredBase,
-                rowEffects,
-                syncNote(rowEffects, desiredBase),
-            ),
+            rowPlan(row, pull, desiredBase, rowEffects, syncNote(rowEffects, desiredBase)),
         )
     }
 
@@ -245,27 +219,17 @@ function makePlan<TBookmark extends StackBookmarkInput>(
                 .map((e) => e.prNumber ?? 0),
         ),
         createPrBookmarks: uniqueStrings(
-            orderedEffects
-                .filter((e) => e.type === "create-pr")
-                .map((e) => e.bookmark),
+            orderedEffects.filter((e) => e.type === "create-pr").map((e) => e.bookmark),
         ),
         pushBookmarks: uniqueStrings(
-            orderedEffects
-                .filter((e) => e.type === "push")
-                .map((e) => e.bookmark),
+            orderedEffects.filter((e) => e.type === "push").map((e) => e.bookmark),
         ),
         rebaseBookmarks: uniqueStrings(
-            orderedEffects
-                .filter((e) => e.type === "rebase")
-                .map((e) => e.bookmark),
+            orderedEffects.filter((e) => e.type === "rebase").map((e) => e.bookmark),
         ),
         abandonBookmarks: uniqueStrings(
             orderedEffects
-                .filter(
-                    (e) =>
-                        e.type === "abandon" ||
-                        e.type === "abandon-landed-range",
-                )
+                .filter((e) => e.type === "abandon" || e.type === "abandon-landed-range")
                 .map((e) => e.bookmark),
         ),
         closePrNumbers: uniqueNumbers(
@@ -277,14 +241,11 @@ function makePlan<TBookmark extends StackBookmarkInput>(
     }
 }
 
-function orderStackEffects(
-    effects: readonly StackPlanEffect[],
-): readonly StackPlanEffect[] {
+function orderStackEffects(effects: readonly StackPlanEffect[]): readonly StackPlanEffect[] {
     return effects
         .map((effect, index) => ({ effect, index }))
         .sort((a, b) => {
-            const priorityDiff =
-                stackEffectPriority(a.effect) - stackEffectPriority(b.effect)
+            const priorityDiff = stackEffectPriority(a.effect) - stackEffectPriority(b.effect)
             return priorityDiff || a.index - b.index
         })
         .map(({ effect }) => effect)
@@ -315,9 +276,7 @@ function stackEffectPriority(effect: StackPlanEffect) {
 function syncNote(effects: readonly StackPlanEffect[], desiredBase: string) {
     const closePr = effects.find((effect) => effect.type === "close-pr")
     if (closePr) {
-        return closePr.reason
-            ? `would close PR: ${closePr.reason}`
-            : "would close descendant PR"
+        return closePr.reason ? `would close PR: ${closePr.reason}` : "would close descendant PR"
     }
     const blocked = effects.find((effect) => effect.type === "blocked")
     if (blocked) {
@@ -326,8 +285,7 @@ function syncNote(effects: readonly StackPlanEffect[], desiredBase: string) {
     const creates = effects.some((effect) => effect.type === "create-pr")
     const comments = effects.some((effect) => effect.type === "update-comment")
     const abandons = effects.some(
-        (effect) =>
-            effect.type === "abandon" || effect.type === "abandon-landed-range",
+        (effect) => effect.type === "abandon" || effect.type === "abandon-landed-range",
     )
     const rebases = effects.some((effect) => effect.type === "rebase")
     const pushes = effects.some((effect) => effect.type === "push")
@@ -339,12 +297,10 @@ function syncNote(effects: readonly StackPlanEffect[], desiredBase: string) {
     if (creates) return `would create PR onto ${desiredBase}`
     if (rebases && retargets && pushes)
         return `would rebase, push, and retarget onto ${desiredBase}`
-    if (rebases && retargets)
-        return `would rebase and retarget onto ${desiredBase}`
+    if (rebases && retargets) return `would rebase and retarget onto ${desiredBase}`
     if (rebases && pushes) return `would rebase and push onto ${desiredBase}`
     if (rebases) return `would rebase onto ${desiredBase}`
-    if (retargets && pushes)
-        return `would push and retarget PR onto ${desiredBase}`
+    if (retargets && pushes) return `would push and retarget PR onto ${desiredBase}`
     if (retargets) return `would retarget PR onto ${desiredBase}`
     if (pushes) return "would push"
     if (comments) return "would update stack comment"
@@ -355,9 +311,7 @@ function stackRows<TBookmark extends StackBookmarkInput>(
     stackRootName: string,
     stackModel: BookmarkStackModel<TBookmark>,
 ): readonly BookmarkStackRow<TBookmark>[] {
-    const rows = stackModel.rows.filter((row) =>
-        row.stackKeys.includes(stackRootName),
-    )
+    const rows = stackModel.rows.filter((row) => row.stackKeys.includes(stackRootName))
     const minDepth = Math.min(...rows.map((row) => row.depth))
     return rows.map((row) => ({
         ...row,

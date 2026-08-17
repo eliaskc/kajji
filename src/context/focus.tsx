@@ -9,8 +9,7 @@ const PANEL_ORDER: Panel[] = ["log", "refs", "detail", "commandlog"]
 export const { use: useFocus, provider: FocusProvider } = createSimpleContext({
     name: "Focus",
     init: () => {
-        const [activeContext, setActiveContext] =
-            createSignal<Context>("log.revisions")
+        const [activeContext, setActiveContext] = createSignal<Context>("log.revisions")
 
         const panel = createMemo<Panel>(() => {
             return panelFromContext(activeContext()) ?? "log"
@@ -47,10 +46,7 @@ export const { use: useFocus, provider: FocusProvider } = createSimpleContext({
         const cyclePrev = () => {
             const current = panel()
             const idx = PANEL_ORDER.indexOf(current)
-            const next =
-                PANEL_ORDER[
-                    (idx - 1 + PANEL_ORDER.length) % PANEL_ORDER.length
-                ] ?? "log"
+            const next = PANEL_ORDER[(idx - 1 + PANEL_ORDER.length) % PANEL_ORDER.length] ?? "log"
             setPanel(next)
         }
 

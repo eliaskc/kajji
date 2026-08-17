@@ -1,11 +1,4 @@
-import {
-    beforeEach,
-    describe,
-    expect,
-    mock,
-    setSystemTime,
-    test,
-} from "bun:test"
+import { beforeEach, describe, expect, mock, setSystemTime, test } from "bun:test"
 import {
     createDoubleClickDetector,
     createDoubleClickHandler,
@@ -83,11 +76,7 @@ describe("createDoubleClickHandler", () => {
     test("calls onDoubleClick when clicked twice within timeout", () => {
         const onSingleClick = mock(() => {})
         const onDoubleClick = mock(() => {})
-        const handler = createDoubleClickHandler(
-            onSingleClick,
-            onDoubleClick,
-            300,
-        )
+        const handler = createDoubleClickHandler(onSingleClick, onDoubleClick, 300)
 
         handler()
         setSystemTime(new Date("2025-01-01T00:00:00.200Z"))
@@ -100,11 +89,7 @@ describe("createDoubleClickHandler", () => {
     test("does not call onDoubleClick when clicks are too far apart", () => {
         const onSingleClick = mock(() => {})
         const onDoubleClick = mock(() => {})
-        const handler = createDoubleClickHandler(
-            onSingleClick,
-            onDoubleClick,
-            300,
-        )
+        const handler = createDoubleClickHandler(onSingleClick, onDoubleClick, 300)
 
         handler()
         setSystemTime(new Date("2025-01-01T00:00:00.400Z"))

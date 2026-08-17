@@ -24,15 +24,10 @@ function compareVersions(a: string, b: string): number {
 
 function stripLinks(text: string): string {
     const withoutCodeLinks = text.replace(/\[`[^`]*`\]\([^)]*\)/g, "")
-    const withoutLinks = withoutCodeLinks.replace(
-        /\[([^\]]+)\]\([^)]*\)/g,
-        "$1",
-    )
+    const withoutLinks = withoutCodeLinks.replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
     const withoutEmptyParens = withoutLinks.replace(/\(\s*\)/g, "")
     const withoutLinkParens = withoutEmptyParens.replace(/\(\s*[,)\s]*\)/g, "")
-    const normalized = withoutLinkParens
-        .replace(/\s+,/g, ",")
-        .replace(/,\s+/g, ", ")
+    const normalized = withoutLinkParens.replace(/\s+,/g, ",").replace(/,\s+/g, ", ")
     return normalized.replace(/\s+/g, " ").trim()
 }
 
@@ -77,19 +72,11 @@ export function parseChangelog(content: string): VersionBlock[] {
     return blocks
 }
 
-export function getChangesSince(
-    blocks: VersionBlock[],
-    sinceVersion: string,
-): VersionBlock[] {
-    return blocks.filter(
-        (block) => compareVersions(block.version, sinceVersion) > 0,
-    )
+export function getChangesSince(blocks: VersionBlock[], sinceVersion: string): VersionBlock[] {
+    return blocks.filter((block) => compareVersions(block.version, sinceVersion) > 0)
 }
 
-export function isMajorOrMinorUpdate(
-    currentVersion: string,
-    lastSeenVersion: string,
-): boolean {
+export function isMajorOrMinorUpdate(currentVersion: string, lastSeenVersion: string): boolean {
     const [currentMajor, currentMinor] = parseVersionParts(currentVersion)
     const [lastMajor, lastMinor] = parseVersionParts(lastSeenVersion)
     return currentMajor !== lastMajor || currentMinor !== lastMinor

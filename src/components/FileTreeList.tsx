@@ -46,16 +46,12 @@ export function FileTreeList(props: FileTreeListProps) {
                 const isBinary = () => Boolean(node.isBinary)
                 const lineStats = () => props.fileLineStats?.().get(node.path)
                 const visibleLineStats = () =>
-                    node.path === "" || hoveredPath() === node.path
-                        ? lineStats()
-                        : undefined
+                    node.path === "" || hoveredPath() === node.path ? lineStats() : undefined
 
                 const icon = node.isDirectory ? (isCollapsed ? "▶" : "▼") : " "
                 const displayName = isTree ? node.name : node.path
 
-                const statusChar = node.status
-                    ? (STATUS_CHARS[node.status] ?? " ")
-                    : " "
+                const statusChar = node.status ? (STATUS_CHARS[node.status] ?? " ") : " "
                 const statusColor = node.status
                     ? getStatusColor(node.status as FileStatus, colors())
                     : colors().text
@@ -70,9 +66,7 @@ export function FileTreeList(props: FileTreeListProps) {
 
                 let rowRef: BoxRenderable | undefined
 
-                const handleMouseDown = (e: {
-                    stopPropagation: () => void
-                }) => {
+                const handleMouseDown = (e: { stopPropagation: () => void }) => {
                     e.stopPropagation()
                     if (props.focusContext) {
                         focus.setActiveContext(props.focusContext)
@@ -98,7 +92,7 @@ export function FileTreeList(props: FileTreeListProps) {
                 const showSelection = () => isSelected()
 
                 return (
-                    // biome-ignore lint/a11y/useKeyWithMouseEvents: File-tree rows are keyboard navigable independently of hover stats.
+                    // oxlint-disable-next-line jsx-a11y/mouse-events-have-key-events -- File-tree rows are keyboard navigable independently of hover stats.
                     <box
                         ref={(ref) => {
                             rowRef = ref
@@ -123,24 +117,18 @@ export function FileTreeList(props: FileTreeListProps) {
                             flexShrink={1}
                             overflow="hidden"
                         >
-                            <span style={{ fg: colors().textMuted }}>
-                                {indent}
-                            </span>
+                            <span style={{ fg: colors().textMuted }}>{indent}</span>
                             <Show when={isTree}>
                                 <span
                                     style={{
-                                        fg: node.isDirectory
-                                            ? colors().info
-                                            : colors().textMuted,
+                                        fg: node.isDirectory ? colors().info : colors().textMuted,
                                     }}
                                 >
                                     {icon}{" "}
                                 </span>
                             </Show>
                             <Show when={!node.isDirectory}>
-                                <span style={{ fg: statusColor }}>
-                                    {statusChar}{" "}
-                                </span>
+                                <span style={{ fg: statusColor }}>{statusChar} </span>
                             </Show>
                             <span
                                 style={{
@@ -154,10 +142,7 @@ export function FileTreeList(props: FileTreeListProps) {
                                 {displayName}
                             </span>
                             <Show when={isBinary()}>
-                                <span style={{ fg: colors().textMuted }}>
-                                    {" "}
-                                    (binary)
-                                </span>
+                                <span style={{ fg: colors().textMuted }}> (binary)</span>
                             </Show>
                         </text>
                         <Show when={visibleLineStats()}>
@@ -167,26 +152,19 @@ export function FileTreeList(props: FileTreeListProps) {
                                         <Show when={stats().additions > 0}>
                                             <span
                                                 style={{
-                                                    fg: colors().diff
-                                                        .additionText,
+                                                    fg: colors().diff.additionText,
                                                 }}
                                             >
                                                 +{stats().additions}
                                             </span>
                                         </Show>
-                                        <Show
-                                            when={
-                                                stats().additions > 0 &&
-                                                stats().deletions > 0
-                                            }
-                                        >
+                                        <Show when={stats().additions > 0 && stats().deletions > 0}>
                                             <span> </span>
                                         </Show>
                                         <Show when={stats().deletions > 0}>
                                             <span
                                                 style={{
-                                                    fg: colors().diff
-                                                        .deletionText,
+                                                    fg: colors().diff.deletionText,
                                                 }}
                                             >
                                                 -{stats().deletions}

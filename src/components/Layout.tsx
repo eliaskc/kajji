@@ -4,11 +4,11 @@ import { useLayout } from "../context/layout"
 import { useSync } from "../context/sync"
 import { useTheme } from "../context/theme"
 import { getFilesLayoutWeights } from "../utils/layout"
-import { StatusBar } from "./StatusBar"
 import { BookmarksPanel } from "./panels/BookmarksPanel"
 import { CommandLogPanel } from "./panels/CommandLogPanel"
 import { LogPanel } from "./panels/LogPanel"
 import { MainArea } from "./panels/MainArea"
+import { StatusBar } from "./StatusBar"
 
 function VerticalDivider() {
     const { colors } = useTheme()
@@ -56,18 +56,8 @@ export function LayoutGrid() {
             gap={0}
         >
             <box flexDirection="row" flexGrow={1} gap={0}>
-                <box
-                    flexGrow={leftWeight()}
-                    flexBasis={0}
-                    flexDirection="column"
-                    gap={0}
-                >
-                    <box
-                        flexGrow={
-                            !isFilesView() && !isBookmarkDiffView() ? 3 : 1
-                        }
-                        flexBasis={0}
-                    >
+                <box flexGrow={leftWeight()} flexBasis={0} flexDirection="column" gap={0}>
+                    <box flexGrow={!isFilesView() && !isBookmarkDiffView() ? 3 : 1} flexBasis={0}>
                         <LogPanel filesWithRevisions={isFilesView()} />
                     </box>
                     <Show when={!isFilesView() && !isBookmarkDiffView()}>
@@ -78,11 +68,7 @@ export function LayoutGrid() {
                     </Show>
                 </box>
                 <VerticalDivider />
-                <box
-                    flexGrow={detailWeight()}
-                    flexBasis={0}
-                    flexDirection="column"
-                >
+                <box flexGrow={detailWeight()} flexBasis={0} flexDirection="column">
                     <box flexGrow={1}>
                         <MainArea />
                     </box>

@@ -1,11 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { Effect, Layer } from "effect"
 import { GitLive } from "../../../src/commander/git"
-import {
-    GitHub,
-    GitHubLive,
-    type GitHubService,
-} from "../../../src/commander/github-service"
+import { GitHub, GitHubLive, type GitHubService } from "../../../src/commander/github-service"
 import {
     type ProcessCommand,
     type ProcessError,
@@ -22,19 +18,14 @@ const success = {
 }
 
 function runWithFake<A, E>(
-    run: (
-        command: ProcessCommand,
-    ) => Effect.Effect<ProcessResult, ProcessError>,
+    run: (command: ProcessCommand) => Effect.Effect<ProcessResult, ProcessError>,
     operation: (gitHub: GitHubService) => Effect.Effect<A, E>,
 ) {
     const processLayer = makeAppProcessFake(run)
     const gitLayer = GitLive.pipe(Layer.provide(processLayer))
     const dependencies = Layer.merge(processLayer, gitLayer)
     return Effect.runPromise(
-        GitHub.use(operation).pipe(
-            Effect.provide(GitHubLive),
-            Effect.provide(dependencies),
-        ),
+        GitHub.use(operation).pipe(Effect.provide(GitHubLive), Effect.provide(dependencies)),
     )
 }
 
@@ -94,9 +85,7 @@ describe("GitHub", () => {
             (command) =>
                 Effect.succeed({
                     ...success,
-                    ...(command.executable === "git"
-                        ? { exitCode: 1 }
-                        : { stdout: "{" }),
+                    ...(command.executable === "git" ? { exitCode: 1 } : { stdout: "{" }),
                 }),
             (gitHub) =>
                 gitHub.listPullRequestsByHead(["feature"], {
@@ -148,14 +137,10 @@ describe("GitHub", () => {
             operation: "pull-requests",
         })
         await expect(
-            runMalformed(
-                '[{"id":"invalid","body":"<!-- kajji-stack pr=42 -->"}]',
-                (gitHub) =>
-                    gitHub.upsertStackComment(
-                        42,
-                        "<!-- kajji-stack pr=42 -->",
-                        { cwd: "/tmp/repository" },
-                    ),
+            runMalformed('[{"id":"invalid","body":"<!-- kajji-stack pr=42 -->"}]', (gitHub) =>
+                gitHub.upsertStackComment(42, "<!-- kajji-stack pr=42 -->", {
+                    cwd: "/tmp/repository",
+                }),
             ),
         ).rejects.toMatchObject({
             _tag: "GitHubDecodeError",
@@ -174,10 +159,7 @@ describe("GitHub", () => {
                         stdout: "git@github.com:eliaskc/kajji.git\n",
                     })
                 }
-                if (
-                    command.args[0] === "api" &&
-                    !command.args.includes("--method")
-                ) {
+                if (command.args[0] === "api" && !command.args.includes("--method")) {
                     return Effect.succeed({ ...success, stdout: "[]" })
                 }
                 return Effect.succeed(success)
@@ -185,17 +167,10 @@ describe("GitHub", () => {
             (gitHub) =>
                 Effect.gen(function* () {
                     const options = { cwd: "/tmp/repository" }
-                    yield* gitHub.prCreate(
-                        { head: "feature", base: "main" },
-                        options,
-                    )
+                    yield* gitHub.prCreate({ head: "feature", base: "main" }, options)
                     yield* gitHub.prEditBase(42, "next", options)
                     yield* gitHub.prClose(42, options)
-                    yield* gitHub.upsertStackComment(
-                        42,
-                        "<!-- kajji-stack pr=42 -->",
-                        options,
-                    )
+                    yield* gitHub.upsertStackComment(42, "<!-- kajji-stack pr=42 -->", options)
                 }),
         )
 
@@ -254,13 +229,7 @@ describe("GitHub", () => {
                 }),
         )
 
-        expect(commands[0]?.args).toEqual([
-            "pr",
-            "create",
-            "--web",
-            "--head",
-            "feature",
-        ])
+        expect(commands[0]?.args).toEqual(["pr", "create", "--web", "--head", "feature"])
         expect(result.command).toBe("gh pr create --web --head feature")
         expect(events).toEqual([
             "start:shell:gh pr create --web --head feature",

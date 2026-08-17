@@ -105,9 +105,7 @@ describe("commentCommand set", () => {
         }
 
         expect(mockWriteComments).toHaveBeenCalledTimes(1)
-        const calls = mockWriteComments.mock.calls as unknown as Array<
-            [string, CommentsStateLike]
-        >
+        const calls = mockWriteComments.mock.calls as unknown as Array<[string, CommentsStateLike]>
         const payload = calls[calls.length - 1]?.[1]
         if (!payload) {
             throw new Error("Missing writeComments payload")
@@ -175,9 +173,7 @@ describe("commentCommand delete", () => {
             console.log = originalLog
         }
 
-        const calls = mockWriteComments.mock.calls as unknown as Array<
-            [string, CommentsStateLike]
-        >
+        const calls = mockWriteComments.mock.calls as unknown as Array<[string, CommentsStateLike]>
         const payload = calls[calls.length - 1]?.[1]
         if (!payload) {
             throw new Error("Missing writeComments payload")

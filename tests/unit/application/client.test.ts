@@ -6,10 +6,7 @@ import type { CommandObserver } from "../../../src/commander/observer"
 import { ConfigSchema } from "../../../src/config"
 import { makeHooksLayer } from "../../../src/hooks/runner"
 import { HookOperation } from "../../../src/hooks/types"
-import {
-    type ProcessResult,
-    makeAppProcessFake,
-} from "../../../src/process/app-process"
+import { type ProcessResult, makeAppProcessFake } from "../../../src/process/app-process"
 import { makeInteractiveProcessFake } from "../../../src/process/interactive-process"
 import { Stack } from "../../../src/stack/executor"
 import type { StackPlan } from "../../../src/stack/model"
@@ -58,12 +55,7 @@ describe("ApplicationClient", () => {
             success: true,
             logged: true,
         })
-        expect(events).toEqual([
-            "start:jj git fetch",
-            "append:fetched",
-            "append:warning",
-            "finish",
-        ])
+        expect(events).toEqual(["start:jj git fetch", "append:fetched", "append:warning", "finish"])
         expect(completions).toBe(1)
     })
 
@@ -90,9 +82,7 @@ describe("ApplicationClient", () => {
         })
         const client = makeApplicationClient(layer)
 
-        await expect(
-            client.repositoryStatus("/tmp/repository/child"),
-        ).resolves.toEqual({
+        await expect(client.repositoryStatus("/tmp/repository/child")).resolves.toEqual({
             isJjRepo: true,
             hasGitRepo: true,
             startupError: null,
@@ -200,9 +190,7 @@ describe("ApplicationClient", () => {
             command: "gh pr create --web --head feature",
             success: true,
         })
-        expect(
-            commands.map((command) => command.split(" ").slice(0, 2)),
-        ).toEqual([
+        expect(commands.map((command) => command.split(" ").slice(0, 2))).toEqual([
             ["git", "remote"],
             ["gh", "api"],
             ["gh", "pr"],
@@ -232,9 +220,7 @@ describe("ApplicationClient", () => {
                     return Effect.succeed("main")
                 },
                 prepareSyncPlan: (options) => {
-                    calls.push(
-                        `prepare:${options.cwd}:${options.stackRootName}`,
-                    )
+                    calls.push(`prepare:${options.cwd}:${options.stackRootName}`)
                     return Effect.succeed(plan)
                 },
                 applyStackPlan: (input, options) => {
@@ -250,9 +236,9 @@ describe("ApplicationClient", () => {
             stackLayer,
         )
 
-        await expect(
-            client.stackParent("feature-a", { cwd: "/tmp/repository" }),
-        ).resolves.toBe("main")
+        await expect(client.stackParent("feature-a", { cwd: "/tmp/repository" })).resolves.toBe(
+            "main",
+        )
         await expect(
             client.prepareStackSync("feature-a", {
                 cwd: "/tmp/repository",
@@ -293,11 +279,7 @@ describe("ApplicationClient", () => {
         await client.jjNewAfter("after", options)
         await client.dispose()
 
-        expect(commands).toEqual([
-            "new revision",
-            "new -B before",
-            "new -A after",
-        ])
+        expect(commands).toEqual(["new revision", "new -B before", "new -A after"])
         expect(skipped).toEqual([
             "pre-hooks for jj.new skipped (--no-verify)",
             "pre-hooks for jj.new skipped (--no-verify)",
@@ -325,9 +307,9 @@ describe("ApplicationClient", () => {
                 cwd: "/tmp/repository",
             }),
         ).resolves.toBe(true)
-        await expect(
-            client.hasPreHooks(HookOperation.JjNew, { cwd: "/tmp/other" }),
-        ).resolves.toBe(false)
+        await expect(client.hasPreHooks(HookOperation.JjNew, { cwd: "/tmp/other" })).resolves.toBe(
+            false,
+        )
         await client.dispose()
     })
 
@@ -361,19 +343,15 @@ describe("ApplicationClient", () => {
             "/tmp/restore:jj op restore op-id",
             "/tmp/repair:jj workspace update-stale",
         ])
-        expect([
-            push.command,
-            undo.command,
-            redo.command,
-            restore.command,
-            repair.command,
-        ]).toEqual([
-            "jj git push --bookmark main --dry-run",
-            "jj undo",
-            "jj redo",
-            "jj op restore op-id",
-            "jj workspace update-stale",
-        ])
+        expect([push.command, undo.command, redo.command, restore.command, repair.command]).toEqual(
+            [
+                "jj git push --bookmark main --dry-run",
+                "jj undo",
+                "jj redo",
+                "jj op restore op-id",
+                "jj workspace update-stale",
+            ],
+        )
     })
 
     test("routes revision and bookmark mutations", async () => {
@@ -426,9 +404,7 @@ describe("ApplicationClient", () => {
         const commands: string[] = []
         let exitCode = 0
         const interactiveLayer = makeInteractiveProcessFake((command) => {
-            commands.push(
-                `${command.cwd}:${command.executable} ${command.args.join(" ")}`,
-            )
+            commands.push(`${command.cwd}:${command.executable} ${command.args.join(" ")}`)
             return Effect.succeed({ exitCode, durationMs: 10 })
         })
         const client = makeApplicationClient(
@@ -474,8 +450,7 @@ describe("ApplicationClient", () => {
     test("routes supporting reads without command observation", async () => {
         const layer = makeAppProcessFake((command) => {
             const args = command.args.join(" ")
-            if (args.startsWith("op log"))
-                return Effect.succeed({ ...success, stdout: "op\n" })
+            if (args.startsWith("op log")) return Effect.succeed({ ...success, stdout: "op\n" })
             if (args.includes("-T commit_id"))
                 return Effect.succeed({ ...success, stdout: "commit\n" })
             if (args.includes("-T description"))
@@ -492,9 +467,9 @@ describe("ApplicationClient", () => {
             subject: "subject",
             body: "body",
         })
-        expect(
-            await client.jjNearestAncestorBookmarkNames("revision", options),
-        ).toEqual(["bookmark"])
+        expect(await client.jjNearestAncestorBookmarkNames("revision", options)).toEqual([
+            "bookmark",
+        ])
         expect(await client.jjRefreshState(options)).toEqual({
             operationId: "op",
             workingCopyCommitId: "commit",
@@ -541,39 +516,28 @@ describe("ApplicationClient", () => {
         const client = makeApplicationClient(layer)
         const options = { cwd: "/tmp/repository" }
 
-        expect(await client.jjFiles({ revision: "revision" }, options)).toEqual(
-            [{ path: "src/file.ts", status: "modified", isBinary: false }],
-        )
+        expect(await client.jjFiles({ revision: "revision" }, options)).toEqual([
+            { path: "src/file.ts", status: "modified", isBinary: false },
+        ])
         expect(await client.jjCommitDetails("revision", options)).toEqual({
             subject: "styled",
             body: "body",
         })
         expect(await client.jjOpLog(1, options)).toEqual(["operation", ""])
         expect(await client.jjRepositoryRoot(options)).toBe("/repo")
-        expect(
-            await client.jjRevisionSummaries("cli-revisions", options),
-        ).toEqual([
+        expect(await client.jjRevisionSummaries("cli-revisions", options)).toEqual([
             {
                 changeId: "change",
                 commitId: "commit",
                 description: "description",
             },
         ])
-        expect(
-            await client.jjFileContent("revision", "src/file.ts", options),
-        ).toBe("contents\n")
-        const materialized = await client.jjMaterializeFiles(
-            "revision",
-            ["src/file.bin"],
-            options,
-        )
+        expect(await client.jjFileContent("revision", "src/file.ts", options)).toBe("contents\n")
+        const materialized = await client.jjMaterializeFiles("revision", ["src/file.bin"], options)
         expect(await Bun.file(materialized[0] ?? "").text()).toBe("contents")
-        expect(
-            await client.jjDiff(
-                { revision: "revision" },
-                { ...options, color: true },
-            ),
-        ).toBe("diff")
+        expect(await client.jjDiff({ revision: "revision" }, { ...options, color: true })).toBe(
+            "diff",
+        )
         expect(await client.jjBookmarks(options)).toEqual([])
         expect(await client.jjLogPage({ ...options, limit: 1 })).toEqual({
             commits: [],
@@ -621,12 +585,9 @@ describe("ApplicationClient", () => {
                 ]),
         )
         const client = makeApplicationClient(layer)
-        const stream = client.jjStreamLogPage(
-            { cwd: "/tmp/repository", limit: 50 },
-            () => {
-                throw new Error("consumer failed")
-            },
-        )
+        const stream = client.jjStreamLogPage({ cwd: "/tmp/repository", limit: 50 }, () => {
+            throw new Error("consumer failed")
+        })
 
         await expect(stream.result).rejects.toThrow("consumer failed")
         await client.dispose()
@@ -650,10 +611,7 @@ describe("ApplicationClient", () => {
             ),
         )
         const client = makeApplicationClient(layer)
-        const stream = client.jjStreamLogPage(
-            { cwd: "/tmp/repository", limit: 50 },
-            () => {},
-        )
+        const stream = client.jjStreamLogPage({ cwd: "/tmp/repository", limit: 50 }, () => {})
 
         await startedPromise
         stream.cancel()
@@ -702,9 +660,7 @@ describe("ApplicationClient", () => {
         await expect(operation).rejects.toBeDefined()
         expect(released).toBe(true)
         expect(completions).toBe(1)
-        await expect(
-            client.jjGitFetch({ cwd: "/tmp/repository" }),
-        ).rejects.toThrow("shutting down")
+        await expect(client.jjGitFetch({ cwd: "/tmp/repository" })).rejects.toThrow("shutting down")
         await expect(
             client.jjMaterializeFiles("revision", ["file"], {
                 cwd: "/tmp/repository",

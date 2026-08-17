@@ -1,9 +1,6 @@
 import { type ParentProps, createContext, useContext } from "solid-js"
 
-export function createSimpleContext<T>(input: {
-    name: string
-    init: () => T
-}) {
+export function createSimpleContext<T>(input: { name: string; init: () => T }) {
     const ctx = createContext<T>()
 
     return {
@@ -14,9 +11,7 @@ export function createSimpleContext<T>(input: {
         use: () => {
             const value = useContext(ctx)
             if (!value) {
-                throw new Error(
-                    `use${input.name} must be used within ${input.name}Provider`,
-                )
+                throw new Error(`use${input.name} must be used within ${input.name}Provider`)
             }
             return value
         },

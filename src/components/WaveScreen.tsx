@@ -34,11 +34,7 @@ export function WaveScreen(props: WaveScreenProps) {
                     alignItems="center"
                 >
                     <box flexDirection="column" alignItems="center">
-                        <text
-                            fg={colors().text}
-                            wrapMode="none"
-                            content={KAJJI_ASCII}
-                        />
+                        <text fg={colors().text} wrapMode="none" content={KAJJI_ASCII} />
                         <box height={1} />
                         <text fg={colors().primary} bg={colors().background}>
                             {TAGLINE}

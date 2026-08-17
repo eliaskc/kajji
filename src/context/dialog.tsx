@@ -55,9 +55,7 @@ interface DialogState {
     closeOnEsc?: boolean
 }
 
-export type StyledSegment =
-    | string
-    | { text: string; style?: "action" | "target" | "muted" }
+export type StyledSegment = string | { text: string; style?: "action" | "target" | "muted" }
 
 interface ConfirmOptions {
     message: string | StyledSegment[]
@@ -65,18 +63,12 @@ interface ConfirmOptions {
     maxWidth?: number
 }
 
-function StyledText(props: {
-    content: string | StyledSegment[]
-    bold?: boolean
-}) {
+function StyledText(props: { content: string | StyledSegment[]; bold?: boolean }) {
     const { colors } = useTheme()
 
     if (typeof props.content === "string") {
         return (
-            <text
-                fg={colors().text}
-                attributes={props.bold ? TextAttributes.BOLD : undefined}
-            >
+            <text fg={colors().text} attributes={props.bold ? TextAttributes.BOLD : undefined}>
                 {props.content}
             </text>
         )
@@ -91,9 +83,7 @@ function StyledText(props: {
                             <span
                                 style={{
                                     fg: colors().text,
-                                    attributes: props.bold
-                                        ? TextAttributes.BOLD
-                                        : undefined,
+                                    attributes: props.bold ? TextAttributes.BOLD : undefined,
                                 }}
                             >
                                 {segment}
@@ -124,19 +114,13 @@ function StyledText(props: {
                                 </span>
                             )
                         case "muted":
-                            return (
-                                <span style={{ fg: colors().textMuted }}>
-                                    {segment.text}
-                                </span>
-                            )
+                            return <span style={{ fg: colors().textMuted }}>{segment.text}</span>
                         default:
                             return (
                                 <span
                                     style={{
                                         fg: colors().text,
-                                        attributes: props.bold
-                                            ? TextAttributes.BOLD
-                                            : undefined,
+                                        attributes: props.bold ? TextAttributes.BOLD : undefined,
                                     }}
                                 >
                                     {segment.text}
@@ -168,199 +152,186 @@ function ConfirmDialogContent(props: {
     return <StyledText content={props.message} bold />
 }
 
-export const { use: useDialog, provider: DialogProvider } = createSimpleContext(
-    {
-        name: "Dialog",
-        init: () => {
-            const [stack, setStack] = createSignal<DialogState[]>([])
-            const [generatedHints, setGeneratedHints] = createSignal<
-                Record<string, DialogHint[]>
-            >({})
-            let nextDialogId = 0
+export const { use: useDialog, provider: DialogProvider } = createSimpleContext({
+    name: "Dialog",
+    init: () => {
+        const [stack, setStack] = createSignal<DialogState[]>([])
+        const [generatedHints, setGeneratedHints] = createSignal<Record<string, DialogHint[]>>({})
+        let nextDialogId = 0
 
-            const close = () => {
-                const current = stack().at(-1)
-                current?.onClose?.()
-                setStack((s) => s.slice(0, -1))
+        const close = () => {
+            const current = stack().at(-1)
+            current?.onClose?.()
+            setStack((s) => s.slice(0, -1))
+        }
+
+        useKeyboard((evt) => {
+            const current = stack().at(-1)
+            if (current && current.closeOnEsc !== false && evt.name === "escape") {
+                evt.preventDefault()
+                evt.stopPropagation()
+                close()
             }
+        })
 
-            useKeyboard((evt) => {
-                const current = stack().at(-1)
-                if (
-                    current &&
-                    current.closeOnEsc !== false &&
-                    evt.name === "escape"
-                ) {
-                    evt.preventDefault()
-                    evt.stopPropagation()
-                    close()
-                }
-            })
-
-            const open = (
-                render: () => JSX.Element,
-                options?: {
-                    id?: string
-                    onClose?: () => void
-                    hints?: DialogHint[]
-                    title?: string | StyledSegment[]
-                    width?: DimensionOrAccessor
-                    maxWidth?: number
-                    minHeight?: number
-                    paddingHorizontal?: number
-                    closeOnEsc?: boolean
+        const open = (
+            render: () => JSX.Element,
+            options?: {
+                id?: string
+                onClose?: () => void
+                hints?: DialogHint[]
+                title?: string | StyledSegment[]
+                width?: DimensionOrAccessor
+                maxWidth?: number
+                minHeight?: number
+                paddingHorizontal?: number
+                closeOnEsc?: boolean
+            },
+        ) => {
+            const id = options?.id ?? `dialog-${++nextDialogId}`
+            setStack((s) => [
+                ...s,
+                {
+                    id,
+                    render,
+                    onClose: options?.onClose,
+                    hints: options?.hints,
+                    title: options?.title,
+                    width: options?.width,
+                    maxWidth: options?.maxWidth,
+                    minHeight: options?.minHeight,
+                    paddingHorizontal: options?.paddingHorizontal,
+                    closeOnEsc: options?.closeOnEsc,
                 },
-            ) => {
-                const id = options?.id ?? `dialog-${++nextDialogId}`
-                setStack((s) => [
-                    ...s,
-                    {
-                        id,
-                        render,
-                        onClose: options?.onClose,
-                        hints: options?.hints,
-                        title: options?.title,
-                        width: options?.width,
-                        maxWidth: options?.maxWidth,
-                        minHeight: options?.minHeight,
-                        paddingHorizontal: options?.paddingHorizontal,
-                        closeOnEsc: options?.closeOnEsc,
-                    },
-                ])
-            }
+            ])
+        }
 
-            const toggle = (
-                id: string,
-                render: () => JSX.Element,
-                options?: {
-                    onClose?: () => void
-                    hints?: DialogHint[]
-                    title?: string | StyledSegment[]
-                    width?: DimensionOrAccessor
-                    maxWidth?: number
-                    minHeight?: number
-                    paddingHorizontal?: number
-                    closeOnEsc?: boolean
-                },
-            ) => {
-                const current = stack().at(-1)
-                if (current?.id === id) {
-                    close()
-                } else {
-                    open(render, {
-                        id,
-                        onClose: options?.onClose,
-                        hints: options?.hints,
-                        title: options?.title,
-                        width: options?.width,
-                        maxWidth: options?.maxWidth,
-                        minHeight: options?.minHeight,
-                        paddingHorizontal: options?.paddingHorizontal,
-                        closeOnEsc: options?.closeOnEsc,
-                    })
-                }
-            }
-
-            const confirm = (options: ConfirmOptions): Promise<boolean> => {
-                return new Promise((resolve) => {
-                    let resolved = false
-                    const handleResolve = (confirmed: boolean) => {
-                        if (resolved) return
-                        resolved = true
-                        close()
-                        resolve(confirmed)
-                    }
-                    open(
-                        () => (
-                            <ConfirmDialogContent
-                                message={options.message}
-                                onResolve={handleResolve}
-                            />
-                        ),
-                        {
-                            id: "confirm-dialog",
-                            width: options.width,
-                            maxWidth: options.maxWidth,
-                            hints: [
-                                { key: "y", label: "confirm" },
-                                { key: "n", label: "cancel" },
-                            ],
-                            onClose: () => {
-                                if (!resolved) {
-                                    resolved = true
-                                    resolve(false)
-                                }
-                            },
-                        },
-                    )
+        const toggle = (
+            id: string,
+            render: () => JSX.Element,
+            options?: {
+                onClose?: () => void
+                hints?: DialogHint[]
+                title?: string | StyledSegment[]
+                width?: DimensionOrAccessor
+                maxWidth?: number
+                minHeight?: number
+                paddingHorizontal?: number
+                closeOnEsc?: boolean
+            },
+        ) => {
+            const current = stack().at(-1)
+            if (current?.id === id) {
+                close()
+            } else {
+                open(render, {
+                    id,
+                    onClose: options?.onClose,
+                    hints: options?.hints,
+                    title: options?.title,
+                    width: options?.width,
+                    maxWidth: options?.maxWidth,
+                    minHeight: options?.minHeight,
+                    paddingHorizontal: options?.paddingHorizontal,
+                    closeOnEsc: options?.closeOnEsc,
                 })
             }
+        }
 
-            const resolveWidth = (
-                w: DimensionOrAccessor | undefined,
-            ): Dimension | undefined => (typeof w === "function" ? w() : w)
+        const confirm = (options: ConfirmOptions): Promise<boolean> => {
+            return new Promise((resolve) => {
+                let resolved = false
+                const handleResolve = (confirmed: boolean) => {
+                    if (resolved) return
+                    resolved = true
+                    close()
+                    resolve(confirmed)
+                }
+                open(
+                    () => (
+                        <ConfirmDialogContent message={options.message} onResolve={handleResolve} />
+                    ),
+                    {
+                        id: "confirm-dialog",
+                        width: options.width,
+                        maxWidth: options.maxWidth,
+                        hints: [
+                            { key: "y", label: "confirm" },
+                            { key: "n", label: "cancel" },
+                        ],
+                        onClose: () => {
+                            if (!resolved) {
+                                resolved = true
+                                resolve(false)
+                            }
+                        },
+                    },
+                )
+            })
+        }
 
-            return {
-                isOpen: () => stack().length > 0,
-                current: () => stack().at(-1),
-                previous: () => stack().at(-2),
-                currentId: () => {
-                    const id = stack().at(-1)?.id
-                    if (!id) throw new Error("No active dialog")
-                    return id
-                },
-                hints: () => {
-                    const current = stack().at(-1)
-                    if (!current) return []
-                    return mergeDialogHints(
-                        current.hints ?? [],
-                        generatedHints()[current.id ?? ""] ?? [],
-                    )
-                },
-                title: () => stack().at(-1)?.title,
-                width: () => stack().at(-1)?.width,
-                resolvedWidth: () =>
-                    resolveWidth(stack().at(-1)?.width) ?? "50%",
-                maxWidth: () => stack().at(-1)?.maxWidth,
-                minHeight: () => stack().at(-1)?.minHeight,
-                paddingHorizontal: () => stack().at(-1)?.paddingHorizontal ?? 2,
-                setHints: (hints: DialogHint[]) => {
-                    setStack((s) => {
-                        if (s.length === 0) return s
-                        const last = s[s.length - 1]
-                        if (!last) return s
-                        return [...s.slice(0, -1), { ...last, hints }]
-                    })
-                },
-                setGeneratedHints: (id: string, hints: DialogHint[]) => {
-                    setGeneratedHints((current) => ({
-                        ...current,
-                        [id]: hints,
-                    }))
-                },
-                clearGeneratedHints: (id: string) => {
-                    setGeneratedHints((current) => {
-                        if (!(id in current)) return current
-                        const next = { ...current }
-                        delete next[id]
-                        return next
-                    })
-                },
+        const resolveWidth = (w: DimensionOrAccessor | undefined): Dimension | undefined =>
+            typeof w === "function" ? w() : w
 
-                open,
-                toggle,
-                close,
-                confirm,
-                clear: () => {
-                    for (const item of stack()) {
-                        item.onClose?.()
-                    }
-                    setStack([])
-                },
-            }
-        },
+        return {
+            isOpen: () => stack().length > 0,
+            current: () => stack().at(-1),
+            previous: () => stack().at(-2),
+            currentId: () => {
+                const id = stack().at(-1)?.id
+                if (!id) throw new Error("No active dialog")
+                return id
+            },
+            hints: () => {
+                const current = stack().at(-1)
+                if (!current) return []
+                return mergeDialogHints(
+                    current.hints ?? [],
+                    generatedHints()[current.id ?? ""] ?? [],
+                )
+            },
+            title: () => stack().at(-1)?.title,
+            width: () => stack().at(-1)?.width,
+            resolvedWidth: () => resolveWidth(stack().at(-1)?.width) ?? "50%",
+            maxWidth: () => stack().at(-1)?.maxWidth,
+            minHeight: () => stack().at(-1)?.minHeight,
+            paddingHorizontal: () => stack().at(-1)?.paddingHorizontal ?? 2,
+            setHints: (hints: DialogHint[]) => {
+                setStack((s) => {
+                    if (s.length === 0) return s
+                    const last = s[s.length - 1]
+                    if (!last) return s
+                    return [...s.slice(0, -1), { ...last, hints }]
+                })
+            },
+            setGeneratedHints: (id: string, hints: DialogHint[]) => {
+                setGeneratedHints((current) => ({
+                    ...current,
+                    [id]: hints,
+                }))
+            },
+            clearGeneratedHints: (id: string) => {
+                setGeneratedHints((current) => {
+                    if (!(id in current)) return current
+                    const next = { ...current }
+                    delete next[id]
+                    return next
+                })
+            },
+
+            open,
+            toggle,
+            close,
+            confirm,
+            clear: () => {
+                for (const item of stack()) {
+                    item.onClose?.()
+                }
+                setStack([])
+            },
+        }
     },
-)
+})
 
 function DialogHints(props: { hints: DialogHint[] }) {
     const { colors, style } = useTheme()
@@ -386,20 +357,12 @@ function DialogHints(props: { hints: DialogHint[] }) {
                     <For each={groupedHints()}>
                         {(hint, index) => (
                             <>
-                                <span style={{ fg: colors().primary }}>
-                                    {hint.key}
-                                </span>{" "}
-                                <span style={{ fg: colors().textMuted }}>
-                                    {hint.label}
-                                </span>
-                                <Show
-                                    when={index() < groupedHints().length - 1}
-                                >
+                                <span style={{ fg: colors().primary }}>{hint.key}</span>{" "}
+                                <span style={{ fg: colors().textMuted }}>{hint.label}</span>
+                                <Show when={index() < groupedHints().length - 1}>
                                     <span
                                         style={{
-                                            fg: separator()
-                                                ? colors().textMuted
-                                                : undefined,
+                                            fg: separator() ? colors().textMuted : undefined,
                                         }}
                                     >
                                         {hintGap()}
@@ -431,8 +394,7 @@ function DialogBackdrop(props: { children: JSX.Element }) {
         onCleanup(() => renderer.off("resize", handleResize))
     })
 
-    const overlayColor = () =>
-        RGBA.fromInts(0, 0, 0, style().dialog.overlayOpacity)
+    const overlayColor = () => RGBA.fromInts(0, 0, 0, style().dialog.overlayOpacity)
     const overlayHeight = () => Math.max(0, dimensions().height)
 
     return (

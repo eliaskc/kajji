@@ -1,10 +1,6 @@
 import { For, Show } from "solid-js"
 import { useTheme } from "../../context/theme"
-import {
-    type FileId,
-    type FlattenedFile,
-    getFileStatusIndicator,
-} from "../../diff"
+import { type FileId, type FlattenedFile, getFileStatusIndicator } from "../../diff"
 import { getDiffStatusKey, getStatusColor } from "../../utils/status-colors"
 
 const STAT_COLORS = {
@@ -32,10 +28,7 @@ export function FileList(props: FileListProps) {
                 {(file) => {
                     const isActive = () => file.fileId === props.activeFileId
                     const indicator = getFileStatusIndicator(file.type)
-                    const statusColor = getStatusColor(
-                        getDiffStatusKey(file.type),
-                        colors(),
-                    )
+                    const statusColor = getStatusColor(getDiffStatusKey(file.type), colors())
 
                     return (
                         <box
@@ -47,14 +40,10 @@ export function FileList(props: FileListProps) {
                             onMouseDown={() => props.onSelectFile(file.fileId)}
                         >
                             <text wrapMode="none">
-                                <span style={{ fg: statusColor }}>
-                                    {indicator}
-                                </span>
+                                <span style={{ fg: statusColor }}>{indicator}</span>
                                 <span
                                     style={{
-                                        fg: isActive()
-                                            ? colors().primary
-                                            : colors().text,
+                                        fg: isActive() ? colors().primary : colors().text,
                                     }}
                                 >
                                     {" "}
@@ -67,35 +56,20 @@ export function FileList(props: FileListProps) {
                                     </span>
                                 </Show>
                                 <Show when={file.isBinary}>
-                                    <span style={{ fg: colors().textMuted }}>
-                                        {" "}
-                                        (binary)
-                                    </span>
+                                    <span style={{ fg: colors().textMuted }}> (binary)</span>
                                 </Show>
                                 <Show when={!file.isBinary}>
-                                    <span style={{ fg: SEPARATOR_COLOR }}>
-                                        {" "}
-                                        │{" "}
-                                    </span>
+                                    <span style={{ fg: SEPARATOR_COLOR }}> │ </span>
                                     <Show when={file.additions > 0}>
-                                        <span
-                                            style={{ fg: STAT_COLORS.addition }}
-                                        >
+                                        <span style={{ fg: STAT_COLORS.addition }}>
                                             +{file.additions}
                                         </span>
                                     </Show>
-                                    <Show
-                                        when={
-                                            file.additions > 0 &&
-                                            file.deletions > 0
-                                        }
-                                    >
+                                    <Show when={file.additions > 0 && file.deletions > 0}>
                                         <span> </span>
                                     </Show>
                                     <Show when={file.deletions > 0}>
-                                        <span
-                                            style={{ fg: STAT_COLORS.deletion }}
-                                        >
+                                        <span style={{ fg: STAT_COLORS.deletion }}>
                                             -{file.deletions}
                                         </span>
                                     </Show>

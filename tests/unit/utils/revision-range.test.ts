@@ -12,12 +12,7 @@ const commit = (id: string, parents: string[]): Commit =>
 const ids = (commits: Commit[]) => commits.map((c) => c.commitId)
 
 // Linear history, newest first: a -> b -> c -> d
-const linear = [
-    commit("a", ["b"]),
-    commit("b", ["c"]),
-    commit("c", ["d"]),
-    commit("d", ["e"]),
-]
+const linear = [commit("a", ["b"]), commit("b", ["c"]), commit("c", ["d"]), commit("d", ["e"])]
 
 // Sibling branch interleaved in log order, like a second workspace's
 // working copy: a and side are both children of b.
@@ -40,11 +35,7 @@ const withMerge = [
 
 // Elided revisions: b's parent "hidden" is not in the loaded log; c is the
 // next loaded commit below the elision marker.
-const withElision = [
-    commit("a", ["b"]),
-    commit("b", ["hidden"]),
-    commit("c", ["d"]),
-]
+const withElision = [commit("a", ["b"]), commit("b", ["hidden"]), commit("c", ["d"])]
 
 describe("connectedRevisionRange", () => {
     test("returns the single commit when anchor and cursor match", () => {
@@ -60,11 +51,7 @@ describe("connectedRevisionRange", () => {
     })
 
     test("normalizes anchor and cursor order", () => {
-        expect(ids(connectedRevisionRange(linear, 2, 0).chain)).toEqual([
-            "a",
-            "b",
-            "c",
-        ])
+        expect(ids(connectedRevisionRange(linear, 2, 0).chain)).toEqual(["a", "b", "c"])
     })
 
     test("skips interleaved sibling branches", () => {
@@ -74,11 +61,7 @@ describe("connectedRevisionRange", () => {
     })
 
     test("keeps the chain when anchored below the sibling", () => {
-        expect(ids(connectedRevisionRange(withSibling, 0, 3).chain)).toEqual([
-            "a",
-            "b",
-            "c",
-        ])
+        expect(ids(connectedRevisionRange(withSibling, 0, 3).chain)).toEqual(["a", "b", "c"])
     })
 
     test("reports endpoints as disconnected for sibling heads", () => {
@@ -117,12 +100,7 @@ describe("connectedRevisionRange", () => {
     })
 
     test("clamps out-of-range indices", () => {
-        expect(ids(connectedRevisionRange(linear, -5, 99).chain)).toEqual([
-            "a",
-            "b",
-            "c",
-            "d",
-        ])
+        expect(ids(connectedRevisionRange(linear, -5, 99).chain)).toEqual(["a", "b", "c", "d"])
     })
 
     test("returns empty for an empty log", () => {

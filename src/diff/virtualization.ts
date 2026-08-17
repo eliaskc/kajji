@@ -49,10 +49,7 @@ export function flattenToRows(files: FlattenedFile[]): DiffRow[] {
             // reserve matching row positions for virtualization and scrolling.
             for (let row = 0; row < BINARY_PREVIEW_HEIGHT; row += 1) {
                 rows.push({
-                    type:
-                        row === 0
-                            ? "binary-preview"
-                            : "binary-preview-reserved-row",
+                    type: row === 0 ? "binary-preview" : "binary-preview-reserved-row",
                     content: "",
                     fileId: file.fileId,
                     hunkId: null,
@@ -165,9 +162,7 @@ export interface DiffScrollAnchor {
     viewportOffset: number
 }
 
-export function findDiffScrollAnchorRowIndex<
-    Row extends { row: { fileId: FileId } },
->(
+export function findDiffScrollAnchorRowIndex<Row extends { row: { fileId: FileId } }>(
     rows: readonly Row[],
     anchor: DiffScrollAnchor,
     getNewLineNumber: (row: Row) => number | undefined,
@@ -178,18 +173,14 @@ export function findDiffScrollAnchorRowIndex<
         const newLineNumber = getNewLineNumber(row)
         const oldLineNumber = getOldLineNumber(row)
         return (
-            (anchor.newLineNumber === undefined ||
-                newLineNumber === anchor.newLineNumber) &&
-            (anchor.oldLineNumber === undefined ||
-                oldLineNumber === anchor.oldLineNumber)
+            (anchor.newLineNumber === undefined || newLineNumber === anchor.newLineNumber) &&
+            (anchor.oldLineNumber === undefined || oldLineNumber === anchor.oldLineNumber)
         )
     })
     return index >= 0 ? index : null
 }
 
-export function getCurrentDiffScrollAnchor<
-    Row extends { row: { fileId: FileId } },
->(
+export function getCurrentDiffScrollAnchor<Row extends { row: { fileId: FileId } }>(
     rows: readonly Row[],
     scrollTop: number,
     getNewLineNumber: (row: Row) => number | undefined,
@@ -197,22 +188,14 @@ export function getCurrentDiffScrollAnchor<
     focusRow = scrollTop,
 ): DiffScrollAnchor | null {
     if (rows.length === 0) return null
-    const topIndex = Math.min(
-        rows.length - 1,
-        Math.max(0, Math.floor(scrollTop)),
-    )
-    const focusIndex = Math.min(
-        rows.length - 1,
-        Math.max(0, Math.floor(focusRow)),
-    )
+    const topIndex = Math.min(rows.length - 1, Math.max(0, Math.floor(scrollTop)))
+    const focusIndex = Math.min(rows.length - 1, Math.max(0, Math.floor(focusRow)))
     const fileId = rows[topIndex]?.row.fileId
     if (!fileId) return null
 
     for (let distance = 0; distance < rows.length; distance++) {
         const indexes =
-            distance === 0
-                ? [focusIndex]
-                : [focusIndex + distance, focusIndex - distance]
+            distance === 0 ? [focusIndex] : [focusIndex + distance, focusIndex - distance]
         for (const index of indexes) {
             const row = rows[index]
             if (!row || row.row.fileId !== fileId) continue
@@ -241,10 +224,7 @@ export function getCurrentDiffPosition<Row extends { row: { fileId: FileId } }>(
 ): DiffPosition | null {
     if (rows.length === 0) return null
     const index = Math.min(rows.length - 1, Math.max(0, Math.floor(scrollTop)))
-    const focusIndex = Math.min(
-        rows.length - 1,
-        Math.max(0, Math.floor(focusRow)),
-    )
+    const focusIndex = Math.min(rows.length - 1, Math.max(0, Math.floor(focusRow)))
     const current = rows[index]
     if (!current) return null
 
@@ -271,15 +251,14 @@ export function getCurrentDiffPosition<Row extends { row: { fileId: FileId } }>(
 
     return {
         fileId,
-        lineNumber:
-            findNearestLine(getNewLineNumber) ??
-            findNearestLine(getOldLineNumber),
+        lineNumber: findNearestLine(getNewLineNumber) ?? findNearestLine(getOldLineNumber),
     }
 }
 
-export function getCurrentFileId<
-    Row extends { row: { fileId: FileId; type?: string } },
->(rows: readonly Row[], scrollTop: number): FileId | null {
+export function getCurrentFileId<Row extends { row: { fileId: FileId; type?: string } }>(
+    rows: readonly Row[],
+    scrollTop: number,
+): FileId | null {
     if (rows.length === 0) return null
     const index = Math.min(rows.length - 1, Math.max(0, Math.floor(scrollTop)))
     const current = rows[index]?.row
@@ -290,9 +269,7 @@ export function getCurrentFileId<
     return current.fileId
 }
 
-export function getFileScrollTailHeight<
-    Row extends { row: { fileId: FileId; type: string } },
->(
+export function getFileScrollTailHeight<Row extends { row: { fileId: FileId; type: string } }>(
     rows: readonly Row[],
     viewportHeight: number,
     leadingContentHeight = 0,
@@ -331,9 +308,7 @@ export function findRowIndexByHunkId(rows: DiffRow[], hunkId: HunkId): number {
 }
 
 export function findRowIndexByFileId(rows: DiffRow[], fileId: FileId): number {
-    return rows.findIndex(
-        (r) => r.fileId === fileId && r.type === "file-header",
-    )
+    return rows.findIndex((r) => r.fileId === fileId && r.type === "file-header")
 }
 
 export function getHunkRowOffsets(
@@ -380,9 +355,7 @@ export function getAdjacentHunk(
         })),
     )
     const currentIndex = positions.findIndex(
-        (position) =>
-            position.fileIndex === fileIndex &&
-            position.hunkIndex === hunkIndex,
+        (position) => position.fileIndex === fileIndex && position.hunkIndex === hunkIndex,
     )
     if (currentIndex === -1) return undefined
     return positions[currentIndex + direction]
@@ -404,8 +377,7 @@ export function getAdjacentHunkFromRow(
             })),
         )
         .filter(
-            (position): position is HunkPosition & { row: number } =>
-                position.row !== undefined,
+            (position): position is HunkPosition & { row: number } => position.row !== undefined,
         )
 
     const position =

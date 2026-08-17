@@ -25,8 +25,8 @@ Project work may be tracked in [GitHub Issues](https://github.com/eliaskc/kajji/
 - **E2E test**: `bun test:e2e` (runs Terminal Control TUI workflows)
 - **Benchmarks**: `bun test:bench` (runs benchmark tests)
 - **Typecheck**: `bun check` (tsc --noEmit)
-- **Lint**: `bun lint` (biome check)
-- **Lint fix**: `bun lint:fix` (biome check --write)
+- **Lint**: `bun lint` (oxlint + oxfmt --check)
+- **Lint fix**: `bun lint:fix` (oxlint --fix + oxfmt)
 - **Schema**: `bun generate:schema` (updates generated config schema)
 - **CLI/TUI entry**: `bun cli` (runs the app without watch mode)
 
@@ -45,7 +45,7 @@ Reuse an existing `/tmp` clone when present, and pull/update it before relying o
 
 - **Runtime**: Bun with TypeScript
 - **Framework**: OpenTUI (Solid.js-based TUI framework)
-- **Formatting**: Biome - tabs, no semicolons
+- **Formatting**: oxfmt - 4-space indentation, no semicolons; linting via oxlint
 - **Naming**: camelCase for variables/functions, PascalCase for components/types
 - **Imports**: Relative imports for local modules
 - **Types**: Define interfaces in separate types.ts files when shared

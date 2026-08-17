@@ -166,9 +166,9 @@ export function SyncProvider(props: { children: JSX.Element }) {
     const [viewMode, setViewMode] = createSignal<ViewMode>("log")
     const [files, setFiles] = createSignal<FileChange[]>([])
     const [fileTree, setFileTree] = createSignal<FileTreeNode | null>(null)
-    const [rawFileLineStats, setFileLineStats] = createSignal<
-        ReadonlyMap<string, FileLineStats>
-    >(new Map())
+    const [rawFileLineStats, setFileLineStats] = createSignal<ReadonlyMap<string, FileLineStats>>(
+        new Map(),
+    )
     const fileLineStats = createMemo(() => {
         const tree = fileTree()
         return tree
@@ -176,12 +176,8 @@ export function SyncProvider(props: { children: JSX.Element }) {
             : new Map<string, FileLineStats>()
     })
     const [selectedFileIndex, setSelectedFileIndexInternal] = createSignal(0)
-    const [userCollapsedPaths, setUserCollapsedPaths] = createSignal<
-        Set<string>
-    >(new Set())
-    const [currentDiffFilePath, setCurrentDiffFilePath] = createSignal<
-        string | null
-    >(null)
+    const [userCollapsedPaths, setUserCollapsedPaths] = createSignal<Set<string>>(new Set())
+    const [currentDiffFilePath, setCurrentDiffFilePath] = createSignal<string | null>(null)
     const [fileNavigationRequest, setFileNavigationRequest] = createSignal<{
         id: number
         path: string
@@ -192,8 +188,7 @@ export function SyncProvider(props: { children: JSX.Element }) {
     let filesRequestId = 0
     let filesRequestKind: "commit" | "bookmark" | null = null
     const [showTree, setShowTree] = createSignal(readConfig().ui.showFileTree)
-    const [activeBookmarkDiff, setActiveBookmarkDiff] =
-        createSignal<BookmarkDiffView | null>(null)
+    const [activeBookmarkDiff, setActiveBookmarkDiff] = createSignal<BookmarkDiffView | null>(null)
     onMount(() => {
         const unsubscribeConfig = onConfigChange((config) => {
             setShowTree(config.ui.showFileTree)
@@ -205,31 +200,18 @@ export function SyncProvider(props: { children: JSX.Element }) {
     const [remoteBookmarks, setRemoteBookmarks] = createSignal<Bookmark[]>([])
     const [selectedBookmarkIndex, setSelectedBookmarkIndex] = createSignal(0)
     const [bookmarksLoading, setBookmarksLoading] = createSignal(false)
-    const [bookmarksError, setBookmarksError] = createSignal<string | null>(
-        null,
-    )
-    const [remoteBookmarksLoading, setRemoteBookmarksLoading] =
-        createSignal(false)
-    const [remoteBookmarksError, setRemoteBookmarksError] = createSignal<
-        string | null
-    >(null)
+    const [bookmarksError, setBookmarksError] = createSignal<string | null>(null)
+    const [remoteBookmarksLoading, setRemoteBookmarksLoading] = createSignal(false)
+    const [remoteBookmarksError, setRemoteBookmarksError] = createSignal<string | null>(null)
     const [bookmarkLimit, setBookmarkLimit] = createSignal(100)
     const [bookmarksHasMore, setBookmarksHasMore] = createSignal(true)
     const [bookmarksLoadingMore, setBookmarksLoadingMore] = createSignal(false)
-    const visibleBookmarks = createMemo(() =>
-        getVisibleBookmarks(bookmarks(), bookmarkLimit()),
-    )
+    const visibleBookmarks = createMemo(() => getVisibleBookmarks(bookmarks(), bookmarkLimit()))
     const [pullRequestsByHead, setPullRequestsByHead] = createSignal<
         ReadonlyMap<string, GitHubPullRequestSummary>
     >(new Map())
     const bookmarkPrNumbers = createMemo(
-        () =>
-            new Map(
-                [...pullRequestsByHead()].map(([head, pull]) => [
-                    head,
-                    pull.number,
-                ]),
-            ),
+        () => new Map([...pullRequestsByHead()].map(([head, pull]) => [head, pull.number])),
     )
     const [prMetadataRefreshToken, setPrMetadataRefreshToken] = createSignal(0)
     const refreshPullRequestMetadata = () => {
@@ -243,34 +225,23 @@ export function SyncProvider(props: { children: JSX.Element }) {
     const refreshPullRequestMetadataSoon = () => {
         clearPrMetadataRefreshTimers()
         for (const delay of [15000, 30000, 60000]) {
-            prMetadataRefreshTimers.push(
-                setTimeout(refreshPullRequestMetadata, delay),
-            )
+            prMetadataRefreshTimers.push(setTimeout(refreshPullRequestMetadata, delay))
         }
     }
     onCleanup(clearPrMetadataRefreshTimers)
 
-    const [commitDetails, setCommitDetails] =
-        createSignal<CommitDetails | null>(null)
+    const [commitDetails, setCommitDetails] = createSignal<CommitDetails | null>(null)
     const [refreshCounter, setRefreshCounter] = createSignal(0)
 
-    const [revsetFilter, setRevsetFilterSignal] = createSignal<string | null>(
-        null,
-    )
+    const [revsetFilter, setRevsetFilterSignal] = createSignal<string | null>(null)
     const [revsetError, setRevsetError] = createSignal<string | null>(null)
-    const [activeBookmarkFilter, setActiveBookmarkFilterSignal] = createSignal<
-        string | null
-    >(null)
-    const [previousRevsetFilter, setPreviousRevsetFilterSignal] = createSignal<
-        string | null
-    >(null)
-    // biome-ignore lint/suspicious/noControlCharactersInRegex: ANSI escape sequence
+    const [activeBookmarkFilter, setActiveBookmarkFilterSignal] = createSignal<string | null>(null)
+    const [previousRevsetFilter, setPreviousRevsetFilterSignal] = createSignal<string | null>(null)
+    // oxlint-disable-next-line no-control-regex -- ANSI escape sequence
     const stripAnsi = (value: string) => value.replace(/\x1b\[[0-9;]*m/g, "")
     const cleanRevsetError = (message: string) => {
         const stripped = stripAnsi(message)
-        const firstLine =
-            stripped.split("\n").find((line) => line.trim().length > 0) ??
-            stripped
+        const firstLine = stripped.split("\n").find((line) => line.trim().length > 0) ?? stripped
         let cleaned = firstLine.trim()
         while (true) {
             const next = cleaned
@@ -301,9 +272,7 @@ export function SyncProvider(props: { children: JSX.Element }) {
     const flatFiles = createMemo(() => {
         const tree = fileTree()
         if (!tree) return []
-        return showTree()
-            ? flattenTree(tree, collapsedPaths())
-            : flattenFlat(tree)
+        return showTree() ? flattenTree(tree, collapsedPaths()) : flattenFlat(tree)
     })
 
     const selectedFile = () => flatFiles()[selectedFileIndex()]
@@ -362,11 +331,7 @@ export function SyncProvider(props: { children: JSX.Element }) {
         setRefreshCounter((c) => c + 1)
 
         try {
-            await Promise.all([
-                loadLog(options),
-                loadBookmarks(),
-                loadRemoteBookmarks(),
-            ])
+            await Promise.all([loadLog(options), loadBookmarks(), loadRemoteBookmarks()])
             const refreshState = await app.jjRefreshState({
                 cwd: getRepoPath(),
             })
@@ -430,16 +395,11 @@ export function SyncProvider(props: { children: JSX.Element }) {
                 const refreshState = await app.jjRefreshState({
                     cwd: getRepoPath(),
                 })
-                if (
-                    !refreshState.operationId &&
-                    !refreshState.workingCopyCommitId
-                ) {
+                if (!refreshState.operationId && !refreshState.workingCopyCommitId) {
                     return
                 }
 
-                const opChanged =
-                    lastOpLogId !== null &&
-                    refreshState.operationId !== lastOpLogId
+                const opChanged = lastOpLogId !== null && refreshState.operationId !== lastOpLogId
                 const workingCopyChanged =
                     lastWorkingCopyCommitId !== null &&
                     refreshState.workingCopyCommitId !== lastWorkingCopyCommitId
@@ -447,8 +407,7 @@ export function SyncProvider(props: { children: JSX.Element }) {
                 if (opChanged || workingCopyChanged) {
                     lastOpLogId = refreshState.operationId || lastOpLogId
                     lastWorkingCopyCommitId =
-                        refreshState.workingCopyCommitId ||
-                        lastWorkingCopyCommitId
+                        refreshState.workingCopyCommitId || lastWorkingCopyCommitId
                     await doFullRefresh()
                 } else {
                     lastOpLogId = refreshState.operationId
@@ -468,9 +427,7 @@ export function SyncProvider(props: { children: JSX.Element }) {
             if (pollTimer) {
                 clearTimeout(pollTimer)
             }
-            const interval = isFocused
-                ? POLL_INTERVAL_FOCUSED
-                : POLL_INTERVAL_UNFOCUSED
+            const interval = isFocused ? POLL_INTERVAL_FOCUSED : POLL_INTERVAL_UNFOCUSED
             pollTimer = setTimeout(() => {
                 checkAndRefresh()
                 schedulePoll()
@@ -539,9 +496,7 @@ export function SyncProvider(props: { children: JSX.Element }) {
         const currentPanel = focus.panel()
         if (currentPanel === "log") {
             const mode = viewMode()
-            focus.setActiveContext(
-                mode === "files" ? "log.files" : "log.revisions",
-            )
+            focus.setActiveContext(mode === "files" ? "log.files" : "log.revisions")
         } else if (currentPanel === "refs") {
             focus.setActiveContext("refs.bookmarks")
         }
@@ -549,8 +504,7 @@ export function SyncProvider(props: { children: JSX.Element }) {
 
     // Undefined while a multi-selection is active so single-revision
     // consumers stand down in favor of the combined view.
-    const activeCommit = () =>
-        multiSelectedCommits().length >= 2 ? undefined : selectedCommit()
+    const activeCommit = () => (multiSelectedCommits().length >= 2 ? undefined : selectedCommit())
 
     let currentDetailsCacheKey: string | null = null
     createEffect(() => {
@@ -575,9 +529,7 @@ export function SyncProvider(props: { children: JSX.Element }) {
         const revId = getRevisionId(commit)
 
         profileMsg(`--- select commit: ${commit.changeId.slice(0, 8)}`)
-        const endDetails = profile(
-            `commitDetails(${commit.changeId.slice(0, 8)})`,
-        )
+        const endDetails = profile(`commitDetails(${commit.changeId.slice(0, 8)})`)
         app.jjCommitDetails(revId, { cwd: getRepoPath() }).then((details) => {
             endDetails()
             if (currentDetailsCacheKey === cacheKey) {
@@ -609,15 +561,11 @@ export function SyncProvider(props: { children: JSX.Element }) {
     const selectedCommit = () => commits()[selectedIndex()]
 
     // Multi-select marks, keyed by changeId.
-    const [multiSelection, setMultiSelection] = createSignal<
-        ReadonlySet<string>
-    >(new Set())
+    const [multiSelection, setMultiSelection] = createSignal<ReadonlySet<string>>(new Set())
 
     // Elided revisions folded in by committed visual ranges, so selection
     // revsets have no gaps.
-    const [connectorIds, setConnectorIds] = createSignal<ReadonlySet<string>>(
-        new Set(),
-    )
+    const [connectorIds, setConnectorIds] = createSignal<ReadonlySet<string>>(new Set())
 
     const toggleMultiSelection = (changeId: string) => {
         setMultiSelection((prev) => {
@@ -638,9 +586,7 @@ export function SyncProvider(props: { children: JSX.Element }) {
     }
 
     // Visual select mode: cursor movement extends the range from the anchor.
-    const [visualAnchorId, setVisualAnchorId] = createSignal<string | null>(
-        null,
-    )
+    const [visualAnchorId, setVisualAnchorId] = createSignal<string | null>(null)
     const visualMode = () => visualAnchorId() !== null
 
     const visualRangeInfo = createMemo(() => {
@@ -649,14 +595,8 @@ export function SyncProvider(props: { children: JSX.Element }) {
         const list = commits()
         if (list.length === 0) return null
         const cursor = Math.min(selectedIndex(), list.length - 1)
-        const anchorIndex = list.findIndex(
-            (commit) => commit.changeId === anchorId,
-        )
-        const range = connectedRevisionRange(
-            list,
-            anchorIndex < 0 ? cursor : anchorIndex,
-            cursor,
-        )
+        const anchorIndex = list.findIndex((commit) => commit.changeId === anchorId)
+        const range = connectedRevisionRange(list, anchorIndex < 0 ? cursor : anchorIndex, cursor)
         const top = range.chain[0]
         const bottom = range.chain[range.chain.length - 1]
         if (!top || !bottom) return null
@@ -710,9 +650,7 @@ export function SyncProvider(props: { children: JSX.Element }) {
                     revset,
                     limit: 1000,
                 })
-                const loaded = new Set(
-                    commits().map((commit) => commit.changeId),
-                )
+                const loaded = new Set(commits().map((commit) => commit.changeId))
                 const visibleIds: string[] = []
                 const hiddenIds: string[] = []
                 for (const commit of result.commits) {
@@ -840,9 +778,7 @@ export function SyncProvider(props: { children: JSX.Element }) {
                     showFiles(result)
                 } catch (e) {
                     if (request !== filesRequestId) return
-                    setFilesError(
-                        e instanceof Error ? e.message : "Failed to load files",
-                    )
+                    setFilesError(e instanceof Error ? e.message : "Failed to load files")
                 } finally {
                     if (request === filesRequestId) {
                         filesRequestKind = null
@@ -860,9 +796,7 @@ export function SyncProvider(props: { children: JSX.Element }) {
 
     const selectNextFile = () => {
         const files = flatFiles()
-        setSelectedFileIndex(
-            Math.min(files.length - 1, selectedFileIndex() + 1),
-        )
+        setSelectedFileIndex(Math.min(files.length - 1, selectedFileIndex() + 1))
     }
 
     const selectFirstFile = () => {
@@ -916,9 +850,7 @@ export function SyncProvider(props: { children: JSX.Element }) {
     }
 
     const selectNextBookmark = () => {
-        setSelectedBookmarkIndex((i) =>
-            Math.min(localBookmarks().length - 1, i + 1),
-        )
+        setSelectedBookmarkIndex((i) => Math.min(localBookmarks().length - 1, i + 1))
     }
 
     const selectFirstBookmark = () => {
@@ -945,46 +877,37 @@ export function SyncProvider(props: { children: JSX.Element }) {
 
         const updateBookmarkState = (result: readonly Bookmark[]) => {
             setBookmarks(result.slice())
-            const localCount = result.filter(
-                (bookmark) => bookmark.isLocal,
-            ).length
+            const localCount = result.filter((bookmark) => bookmark.isLocal).length
             setBookmarksHasMore(localCount > bookmarkLimit())
         }
 
-        const stream = app.jjStreamBookmarks(
-            { cwd: getRepoPath() },
-            (batch) => {
-                if (token !== bookmarksStreamToken || batch.length === 0) return
-                if (
-                    previousBookmarks.length === 0 ||
-                    batch.length >= previousBookmarks.length
-                ) {
-                    updateBookmarkState(batch)
-                    return
-                }
-                const bookmarkKey = (bookmark: Bookmark) =>
-                    `${bookmark.isLocal ? "local" : "remote"}:${bookmark.remote ?? ""}:${bookmark.name}`
-                const batchKeys = new Set(batch.map(bookmarkKey))
-                const previousIndex = new Map<string, number>()
-                for (const [index, bookmark] of previousBookmarks.entries()) {
-                    previousIndex.set(bookmarkKey(bookmark), index)
-                }
-                const lastBatch = batch[batch.length - 1]
-                const lastBatchIndex = lastBatch
-                    ? (previousIndex.get(bookmarkKey(lastBatch)) ?? -1)
-                    : -1
-                const merged = batch.concat(
-                    previousBookmarks.filter((bookmark) => {
-                        const key = bookmarkKey(bookmark)
-                        const index = previousIndex.get(key) ?? -1
-                        if (lastBatchIndex >= 0 && index <= lastBatchIndex)
-                            return false
-                        return !batchKeys.has(key)
-                    }),
-                )
-                updateBookmarkState(merged)
-            },
-        )
+        const stream = app.jjStreamBookmarks({ cwd: getRepoPath() }, (batch) => {
+            if (token !== bookmarksStreamToken || batch.length === 0) return
+            if (previousBookmarks.length === 0 || batch.length >= previousBookmarks.length) {
+                updateBookmarkState(batch)
+                return
+            }
+            const bookmarkKey = (bookmark: Bookmark) =>
+                `${bookmark.isLocal ? "local" : "remote"}:${bookmark.remote ?? ""}:${bookmark.name}`
+            const batchKeys = new Set(batch.map(bookmarkKey))
+            const previousIndex = new Map<string, number>()
+            for (const [index, bookmark] of previousBookmarks.entries()) {
+                previousIndex.set(bookmarkKey(bookmark), index)
+            }
+            const lastBatch = batch[batch.length - 1]
+            const lastBatchIndex = lastBatch
+                ? (previousIndex.get(bookmarkKey(lastBatch)) ?? -1)
+                : -1
+            const merged = batch.concat(
+                previousBookmarks.filter((bookmark) => {
+                    const key = bookmarkKey(bookmark)
+                    const index = previousIndex.get(key) ?? -1
+                    if (lastBatchIndex >= 0 && index <= lastBatchIndex) return false
+                    return !batchKeys.has(key)
+                }),
+            )
+            updateBookmarkState(merged)
+        })
         bookmarksStreamHandle = stream
 
         try {
@@ -1000,11 +923,7 @@ export function SyncProvider(props: { children: JSX.Element }) {
             }
         } catch (error) {
             if (token !== bookmarksStreamToken) return
-            setBookmarksError(
-                error instanceof Error
-                    ? error.message
-                    : "Failed to load bookmarks",
-            )
+            setBookmarksError(error instanceof Error ? error.message : "Failed to load bookmarks")
             throw error
         } finally {
             if (token === bookmarksStreamToken) {
@@ -1021,17 +940,13 @@ export function SyncProvider(props: { children: JSX.Element }) {
         setBookmarkLimit(newLimit)
         try {
             const result = bookmarks()
-            const localCount = result.filter(
-                (bookmark) => bookmark.isLocal,
-            ).length
+            const localCount = result.filter((bookmark) => bookmark.isLocal).length
             setBookmarksHasMore(localCount > newLimit)
             setSelectedBookmarkIndex((index) =>
                 result.length === 0 ? 0 : Math.min(index, result.length - 1),
             )
         } catch (e) {
-            setBookmarksError(
-                e instanceof Error ? e.message : "Failed to load bookmarks",
-            )
+            setBookmarksError(e instanceof Error ? e.message : "Failed to load bookmarks")
         } finally {
             setBookmarksLoadingMore(false)
         }
@@ -1049,9 +964,7 @@ export function SyncProvider(props: { children: JSX.Element }) {
             setRemoteBookmarks(result)
         } catch (e) {
             setRemoteBookmarksError(
-                e instanceof Error
-                    ? e.message
-                    : "Failed to load remote bookmarks",
+                e instanceof Error ? e.message : "Failed to load remote bookmarks",
             )
         } finally {
             setRemoteBookmarksLoading(false)
@@ -1062,9 +975,7 @@ export function SyncProvider(props: { children: JSX.Element }) {
         const bookmark = selectedBookmark()
         if (!bookmark) return null
 
-        const index = commits().findIndex(
-            (c) => c.changeId === bookmark.changeId,
-        )
+        const index = commits().findIndex((c) => c.changeId === bookmark.changeId)
         if (index !== -1) {
             setSelectedIndex(index)
             return index
@@ -1100,14 +1011,11 @@ export function SyncProvider(props: { children: JSX.Element }) {
             setCommits(result.commits)
             setLogHasMore(result.hasMore)
             setSelectedIndex((index) =>
-                result.commits.length === 0
-                    ? 0
-                    : Math.min(index, result.commits.length - 1),
+                result.commits.length === 0 ? 0 : Math.min(index, result.commits.length - 1),
             )
         } catch (error) {
             if (token !== logStreamToken) return
-            const message =
-                error instanceof Error ? error.message : "Failed to load log"
+            const message = error instanceof Error ? error.message : "Failed to load log"
             if (filter) setRevsetError(cleanRevsetError(message))
             else setError(message)
         } finally {
@@ -1130,44 +1038,30 @@ export function SyncProvider(props: { children: JSX.Element }) {
         cancelLogStream()
 
         const stream = app.jjStreamLogPage(
-            filter
-                ? { cwd: getRepoPath(), revset: filter, limit }
-                : { cwd: getRepoPath(), limit },
+            filter ? { cwd: getRepoPath(), revset: filter, limit } : { cwd: getRepoPath(), limit },
             (batch) => {
                 if (token !== logStreamToken || batch.length === 0) return
                 const baseCommits = commits()
-                if (
-                    baseCommits.length === 0 ||
-                    batch.length >= baseCommits.length
-                ) {
+                if (baseCommits.length === 0 || batch.length >= baseCommits.length) {
                     batchUpdates(() => {
                         setCommits(batch.slice())
-                        const nextSelectedIndex = options?.selectIndex?.(
-                            batch.slice(),
-                        )
-                        if (nextSelectedIndex != null)
-                            setSelectedIndex(nextSelectedIndex)
+                        const nextSelectedIndex = options?.selectIndex?.(batch.slice())
+                        if (nextSelectedIndex != null) setSelectedIndex(nextSelectedIndex)
                     })
                 } else {
-                    const batchIds = new Set(
-                        batch.map((commit) => commit.changeId),
-                    )
-                    const batchHasWorkingCopy = batch.some(
-                        (commit) => commit.isWorkingCopy,
-                    )
+                    const batchIds = new Set(batch.map((commit) => commit.changeId))
+                    const batchHasWorkingCopy = batch.some((commit) => commit.isWorkingCopy)
                     const merged = batch.concat(
                         baseCommits.filter((commit) => {
                             if (batchIds.has(commit.changeId)) return false
-                            if (batchHasWorkingCopy && commit.isWorkingCopy)
-                                return false
+                            if (batchHasWorkingCopy && commit.isWorkingCopy) return false
                             return true
                         }),
                     )
                     batchUpdates(() => {
                         setCommits(merged)
                         const nextSelectedIndex = options?.selectIndex?.(merged)
-                        if (nextSelectedIndex != null)
-                            setSelectedIndex(nextSelectedIndex)
+                        if (nextSelectedIndex != null) setSelectedIndex(nextSelectedIndex)
                     })
                 }
                 if (isInitialLoad) setLoading(false)
@@ -1187,13 +1081,7 @@ export function SyncProvider(props: { children: JSX.Element }) {
                     result.commits.length === 0
                         ? 0
                         : nextSelectedIndex != null
-                          ? Math.max(
-                                0,
-                                Math.min(
-                                    nextSelectedIndex,
-                                    result.commits.length - 1,
-                                ),
-                            )
+                          ? Math.max(0, Math.min(nextSelectedIndex, result.commits.length - 1))
                           : Math.min(index, result.commits.length - 1),
                 )
             })
@@ -1204,8 +1092,7 @@ export function SyncProvider(props: { children: JSX.Element }) {
             }
         } catch (error) {
             if (token !== logStreamToken) return
-            const message =
-                error instanceof Error ? error.message : "Failed to load log"
+            const message = error instanceof Error ? error.message : "Failed to load log"
             if (filter) setRevsetError(cleanRevsetError(message))
             else setError(message)
         } finally {
@@ -1251,9 +1138,7 @@ export function SyncProvider(props: { children: JSX.Element }) {
             focus.setActiveContext("log.files")
         } catch (e) {
             if (request !== filesRequestId) return
-            setFilesError(
-                e instanceof Error ? e.message : "Failed to load files",
-            )
+            setFilesError(e instanceof Error ? e.message : "Failed to load files")
         } finally {
             if (request === filesRequestId) {
                 filesRequestKind = null
@@ -1281,9 +1166,7 @@ export function SyncProvider(props: { children: JSX.Element }) {
         } catch (e) {
             if (request !== filesRequestId) return
             setActiveBookmarkDiff(null)
-            setFilesError(
-                e instanceof Error ? e.message : "Failed to load files",
-            )
+            setFilesError(e instanceof Error ? e.message : "Failed to load files")
         } finally {
             if (request === filesRequestId) {
                 filesRequestKind = null
@@ -1413,11 +1296,7 @@ export function SyncProvider(props: { children: JSX.Element }) {
         refreshCounter,
     }
 
-    return (
-        <SyncContext.Provider value={value}>
-            {props.children}
-        </SyncContext.Provider>
-    )
+    return <SyncContext.Provider value={value}>{props.children}</SyncContext.Provider>
 }
 
 export function useSync(): SyncContextValue {

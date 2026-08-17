@@ -76,9 +76,7 @@ export function ActionMenuModal(props: ActionMenuModalProps) {
     useKeyboard((evt) => {
         if (evt.name && evt.name.length === 1) {
             const pressed = evt.name.toLowerCase()
-            const index = props.options.findIndex(
-                (option) => option.key.toLowerCase() === pressed,
-            )
+            const index = props.options.findIndex((option) => option.key.toLowerCase() === pressed)
             if (index >= 0) {
                 evt.preventDefault()
                 evt.stopPropagation()
@@ -97,21 +95,15 @@ export function ActionMenuModal(props: ActionMenuModalProps) {
                         paddingLeft={props.paddingLeft ?? 0}
                         paddingRight={props.paddingRight ?? 0}
                         backgroundColor={
-                            list.isSelected(index())
-                                ? colors().selectionBackground
-                                : undefined
+                            list.isSelected(index()) ? colors().selectionBackground : undefined
                         }
                         onMouseDown={() => list.selectByMouse(index())}
                     >
                         <text wrapMode="none" flexGrow={1}>
                             {option.mutedPrefix ? (
-                                <span style={{ fg: colors().textMuted }}>
-                                    {option.mutedPrefix}
-                                </span>
+                                <span style={{ fg: colors().textMuted }}>{option.mutedPrefix}</span>
                             ) : null}
-                            <span style={{ fg: colors().text }}>
-                                {option.label}
-                            </span>
+                            <span style={{ fg: colors().text }}>{option.label}</span>
                         </text>
                         <box flexDirection="row" gap={1}>
                             {option.detail ? (

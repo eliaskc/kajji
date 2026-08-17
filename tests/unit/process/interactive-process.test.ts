@@ -59,9 +59,7 @@ describe("InteractiveProcess", () => {
             }),
         ).pipe(Effect.provide(InteractiveProcessLive))
 
-        await expect(Effect.runPromise(effect)).rejects.toBeInstanceOf(
-            InteractiveProcessSpawnError,
-        )
+        await expect(Effect.runPromise(effect)).rejects.toBeInstanceOf(InteractiveProcessSpawnError)
     })
 
     test("fiber interruption terminates and reaps the child", async () => {

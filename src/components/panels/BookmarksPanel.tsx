@@ -1,16 +1,7 @@
 import type { ScrollBoxRenderable, TextareaRenderable } from "@opentui/core"
 import { useKeyboard } from "@opentui/solid"
 import fuzzysort from "fuzzysort"
-import {
-    For,
-    Show,
-    createEffect,
-    createMemo,
-    createSignal,
-    on,
-    onCleanup,
-    onMount,
-} from "solid-js"
+import { For, Show, createEffect, createMemo, createSignal, on, onCleanup, onMount } from "solid-js"
 import type { Bookmark } from "../../commander/bookmarks"
 import { getRevisionId } from "../../commander/types"
 import { useApplication } from "../../context/application"
@@ -27,30 +18,22 @@ import { createHorizontalCropScroll } from "../../hooks/horizontal-crop-scroll"
 import type { OperationResult } from "../../process/operation-result"
 import { getRepoPath } from "../../repo"
 import { buildBookmarkStackModel } from "../../stack/discovery"
-import type {
-    BookmarkStackModel,
-    BookmarkStackRow,
-    StackPlan,
-} from "../../stack/model"
+import type { BookmarkStackModel, BookmarkStackRow, StackPlan } from "../../stack/model"
 import { resolveAnsiForeground } from "../../theme/ansi"
 import { getVisibleWidth } from "../../utils/ansi"
 import { hasOriginDiff } from "../../utils/bookmark-origin-diff"
 import { createDoubleClickDetector } from "../../utils/double-click"
 import { isImmutableError } from "../../utils/error-parser"
-import {
-    FUZZY_THRESHOLD,
-    type SelectionSource,
-    scrollIntoView,
-} from "../../utils/scroll"
+import { FUZZY_THRESHOLD, type SelectionSource, scrollIntoView } from "../../utils/scroll"
 import { BookmarkStackRowView } from "../BookmarkStackRowView"
 import { FilterInput } from "../FilterInput"
-import { Panel } from "../Panel"
 import { ActionMenuModal } from "../modals/ActionMenuModal"
 import { BookmarkNameModal } from "../modals/BookmarkNameModal"
 import { RevisionPickerModal } from "../modals/RevisionPickerModal"
 import { StackActionsModal } from "../modals/StackActionsModal"
 import { StackPlanModal } from "../modals/StackPlanModal"
 import { StackPreparingModal } from "../modals/StackPreparingModal"
+import { Panel } from "../Panel"
 
 type BookmarkRow = BookmarkStackRow<Bookmark>
 
@@ -98,9 +81,7 @@ export function BookmarksPanel() {
 
     const runOperation = async (
         text: string,
-        op: (
-            observer: ReturnType<typeof commandLog.observer>,
-        ) => Promise<OperationResult>,
+        op: (observer: ReturnType<typeof commandLog.observer>) => Promise<OperationResult>,
     ) => {
         const observer = commandLog.observer()
         const result = await op(observer)
@@ -129,13 +110,10 @@ export function BookmarksPanel() {
                 })
             ) {
                 const observer = commandLog.observer()
-                const browseResult = await app.ghBrowseCommit(
-                    bookmark.commitId,
-                    {
-                        cwd: getRepoPath(),
-                        observer,
-                    },
-                )
+                const browseResult = await app.ghBrowseCommit(bookmark.commitId, {
+                    cwd: getRepoPath(),
+                    observer,
+                })
                 commandLog.addEntry(browseResult)
                 return
             }
@@ -192,10 +170,7 @@ export function BookmarksPanel() {
     const originChangedBookmarkNames = createMemo(() => {
         const originByName = new Map(
             remoteBookmarks()
-                .filter(
-                    (bookmark) =>
-                        !bookmark.isLocal && bookmark.remote === "origin",
-                )
+                .filter((bookmark) => !bookmark.isLocal && bookmark.remote === "origin")
                 .map((bookmark) => [bookmark.name, bookmark]),
         )
         const names = new Set<string>()
@@ -212,9 +187,7 @@ export function BookmarksPanel() {
     )
     const remoteOnlyBookmarks = createMemo(() => {
         const localNames = new Set(localBookmarks().map((b) => b.name))
-        return remoteBookmarks().filter(
-            (b) => !b.isLocal && !localNames.has(b.name),
-        )
+        return remoteBookmarks().filter((b) => !b.isLocal && !localNames.has(b.name))
     })
 
     const visibleLocalBookmarks = createMemo(() => [
@@ -231,9 +204,7 @@ export function BookmarksPanel() {
     const selectedBookmarkHasOriginDiff = createMemo(() => {
         if (showRemoteOnly()) return false
         const bookmark = selectedBookmark()
-        return Boolean(
-            bookmark && originChangedBookmarkNames().has(bookmark.name),
-        )
+        return Boolean(bookmark && originChangedBookmarkNames().has(bookmark.name))
     })
 
     let filterInputRef: TextareaRenderable | undefined
@@ -249,18 +220,12 @@ export function BookmarksPanel() {
         }
     })
 
-    const activeFilterQuery = createMemo(() =>
-        filterMode() ? filterQuery() : appliedFilter(),
-    )
-    const hasActiveFilter = createMemo(
-        () => activeFilterQuery().trim().length > 0,
-    )
+    const activeFilterQuery = createMemo(() => (filterMode() ? filterQuery() : appliedFilter()))
+    const hasActiveFilter = createMemo(() => activeFilterQuery().trim().length > 0)
 
     const filteredBookmarks = createMemo(() => {
         const q = activeFilterQuery().trim()
-        const source = showRemoteOnly()
-            ? remoteOnlyBookmarks()
-            : visibleLocalBookmarks()
+        const source = showRemoteOnly() ? remoteOnlyBookmarks() : visibleLocalBookmarks()
         if (!q) return source
 
         const results = fuzzysort.go(q, source, {
@@ -277,9 +242,7 @@ export function BookmarksPanel() {
         return visibleLocalBookmarks()
     })
 
-    const displayBookmarkStackModel = createMemo<
-        BookmarkStackModel<Bookmark> | undefined
-    >(() => {
+    const displayBookmarkStackModel = createMemo<BookmarkStackModel<Bookmark> | undefined>(() => {
         if (!githubStackingEnabled()) return undefined
         if (hasActiveFilter() || showRemoteOnly()) return undefined
         return buildBookmarkStackModel({
@@ -305,8 +268,7 @@ export function BookmarksPanel() {
         return displayBookmarkStackModel()?.rows ?? []
     })
 
-    const currentBookmarks = () =>
-        displayBookmarkRows().map((row) => row.bookmark)
+    const currentBookmarks = () => displayBookmarkRows().map((row) => row.bookmark)
 
     const listTotalRows = createMemo(() => displayBookmarkRows().length)
     const canPageBookmarks = createMemo(
@@ -318,26 +280,18 @@ export function BookmarksPanel() {
         if (showRemoteOnly()) return remoteSelectedIndex()
         const selected = selectedBookmark()
         if (!selected) return 0
-        const idx = currentBookmarks().findIndex(
-            (b) => b.name === selected.name,
-        )
+        const idx = currentBookmarks().findIndex((b) => b.name === selected.name)
         return idx >= 0 ? idx : 0
     })
 
     const currentSelectedIndex = () => displaySelectedIndex()
-    const selectedBookmarkRow = createMemo(
-        () => displayBookmarkRows()[currentSelectedIndex()],
-    )
+    const selectedBookmarkRow = createMemo(() => displayBookmarkRows()[currentSelectedIndex()])
     const activeStackKey = createMemo(() => {
         if (!githubStackingEnabled()) return undefined
         if (!isFocused()) return undefined
         const row = selectedBookmarkRow()
         if (!row) return undefined
-        if (
-            commits().find(
-                (commit) => commit.commitId === row.bookmark.commitId,
-            )?.immutable
-        ) {
+        if (commits().find((commit) => commit.commitId === row.bookmark.commitId)?.immutable) {
             return undefined
         }
         return row.stackKeys[0]
@@ -372,27 +326,18 @@ export function BookmarksPanel() {
             observer,
         })
 
-    const stackDialogMinHeight = (rowCount: number) =>
-        Math.max(18, rowCount + 14)
+    const stackDialogMinHeight = (rowCount: number) => Math.max(18, rowCount + 14)
 
     const openStackPlan = async (stackRootName: string) => {
         const preparingRows = stackRows(stackRootName)
         const minHeight = stackDialogMinHeight(preparingRows.length)
-        dialog.open(
-            () => (
-                <StackPreparingModal
-                    kind="sync"
-                    stackRootName={stackRootName}
-                />
-            ),
-            {
-                id: "bookmark-stack-sync-preparing",
-                ...DIALOG_SIZE.confirmWide,
-                minHeight,
-                closeOnEsc: false,
-                hints: [],
-            },
-        )
+        dialog.open(() => <StackPreparingModal kind="sync" stackRootName={stackRootName} />, {
+            id: "bookmark-stack-sync-preparing",
+            ...DIALOG_SIZE.confirmWide,
+            minHeight,
+            closeOnEsc: false,
+            hints: [],
+        })
         try {
             const plan = await preparePlan(stackRootName)
             dialog.close()
@@ -418,12 +363,9 @@ export function BookmarksPanel() {
             )
         } catch (error) {
             dialog.close()
-            status.show(
-                error instanceof Error ? error.message : String(error),
-                {
-                    kind: "error",
-                },
-            )
+            status.show(error instanceof Error ? error.message : String(error), {
+                kind: "error",
+            })
         }
     }
 
@@ -457,9 +399,7 @@ export function BookmarksPanel() {
     ]
 
     const stackRows = (stackRootName: string) => {
-        const rows = displayBookmarkRows().filter((row) =>
-            row.stackKeys.includes(stackRootName),
-        )
+        const rows = displayBookmarkRows().filter((row) => row.stackKeys.includes(stackRootName))
         const minDepth = Math.min(...rows.map((row) => row.depth))
         return rows.map((row) => ({
             ...row,
@@ -574,12 +514,7 @@ export function BookmarksPanel() {
 
     createEffect(
         on(
-            () =>
-                [
-                    hasActiveFilter(),
-                    filteredBookmarks(),
-                    filterSelectedIndex(),
-                ] as const,
+            () => [hasActiveFilter(), filteredBookmarks(), filterSelectedIndex()] as const,
             ([active, filtered, idx]) => {
                 if (!active) return
                 if (showRemoteOnly()) return
@@ -588,10 +523,7 @@ export function BookmarksPanel() {
                 const originalIndex = localBookmarks().findIndex(
                     (b) => b.name === selectedBookmarkItem.name,
                 )
-                if (
-                    originalIndex >= 0 &&
-                    originalIndex !== selectedBookmarkIndex()
-                ) {
+                if (originalIndex >= 0 && originalIndex !== selectedBookmarkIndex()) {
                     setSelectedBookmarkIndex(originalIndex)
                 }
             },
@@ -614,9 +546,7 @@ export function BookmarksPanel() {
         const nextIndex = Math.min(max, displaySelectedIndex() + 1)
         const nextBookmark = currentBookmarks()[nextIndex]
         if (!nextBookmark) return
-        const localIndex = localBookmarks().findIndex(
-            (b) => b.name === nextBookmark.name,
-        )
+        const localIndex = localBookmarks().findIndex((b) => b.name === nextBookmark.name)
         if (localIndex >= 0) {
             setSelectedBookmarkIndex(localIndex)
         }
@@ -635,9 +565,7 @@ export function BookmarksPanel() {
         const prevIndex = Math.max(0, displaySelectedIndex() - 1)
         const prevBookmark = currentBookmarks()[prevIndex]
         if (!prevBookmark) return
-        const localIndex = localBookmarks().findIndex(
-            (b) => b.name === prevBookmark.name,
-        )
+        const localIndex = localBookmarks().findIndex((b) => b.name === prevBookmark.name)
         if (localIndex >= 0) {
             setSelectedBookmarkIndex(localIndex)
         }
@@ -756,16 +684,12 @@ export function BookmarksPanel() {
         const prNumber = bookmarkPrNumbers().get(bookmark.name)
         if (prNumber) parts.push(`#${prNumber}`)
         parts.push(bookmark.changeIdDisplay || bookmark.changeId)
-        if (showRemoteOnly() && bookmark.remote)
-            parts.push(`@${bookmark.remote}`)
+        if (showRemoteOnly() && bookmark.remote) parts.push(`@${bookmark.remote}`)
         parts.push(bookmark.descriptionDisplay || bookmark.description)
         return parts.join(" ")
     }
     const bookmarkOriginChangedWidth = (row: BookmarkRow) =>
-        row.bookmark.isLocal &&
-        originChangedBookmarkNames().has(row.bookmark.name)
-            ? 1
-            : 0
+        row.bookmark.isLocal && originChangedBookmarkNames().has(row.bookmark.name) ? 1 : 0
     const bookmarkNameWidth = (row: BookmarkRow) =>
         Math.min(
             getVisibleWidth(row.bookmark.nameDisplay || row.bookmark.name),
@@ -800,10 +724,7 @@ export function BookmarksPanel() {
         scrollRef: () => listScrollRef,
         maxContentWidth: bookmarkMaxContentWidth,
         viewportContentWidth: () =>
-            Math.max(
-                1,
-                bookmarkHorizontal.viewportWidth() - bookmarkMaxGutterWidth(),
-            ),
+            Math.max(1, bookmarkHorizontal.viewportWidth() - bookmarkMaxGutterWidth()),
     })
 
     const syncListViewport = () => {
@@ -876,9 +797,7 @@ export function BookmarksPanel() {
 
     const title = () => (showRemoteOnly() ? "Bookmarks (Remote)" : "Bookmarks")
     const hasVisibleBookmarks = () =>
-        showRemoteOnly()
-            ? remoteOnlyBookmarks().length > 0
-            : localBookmarks().length > 0
+        showRemoteOnly() ? remoteOnlyBookmarks().length > 0 : localBookmarks().length > 0
 
     const openSelectedBookmarkOriginDiff = () => {
         if (showRemoteOnly()) return
@@ -1054,20 +973,14 @@ export function BookmarksPanel() {
                     () => (
                         <BookmarkNameModal
                             commits={commits()}
-                            defaultRevision={
-                                workingCopy
-                                    ? getRevisionId(workingCopy)
-                                    : undefined
-                            }
+                            defaultRevision={workingCopy ? getRevisionId(workingCopy) : undefined}
                             onSave={(name, revision) => {
-                                runOperation(
-                                    "Creating bookmark...",
-                                    (observer) =>
-                                        app.jjBookmarkCreate(name, {
-                                            cwd: getRepoPath(),
-                                            revision,
-                                            observer,
-                                        }),
+                                runOperation("Creating bookmark...", (observer) =>
+                                    app.jjBookmarkCreate(name, {
+                                        cwd: getRepoPath(),
+                                        revision,
+                                        observer,
+                                    }),
                                 )
                             }}
                         />
@@ -1110,10 +1023,7 @@ export function BookmarksPanel() {
                             observer,
                         }),
                     )
-                    if (
-                        currentIndex >= totalBookmarks - 1 &&
-                        currentIndex > 0
-                    ) {
+                    if (currentIndex >= totalBookmarks - 1 && currentIndex > 0) {
                         setSelectedBookmarkIndex(currentIndex - 1)
                     }
                 }
@@ -1136,17 +1046,11 @@ export function BookmarksPanel() {
                         <BookmarkNameModal
                             initialValue={bookmark.name}
                             onSave={(newName) => {
-                                runOperation(
-                                    "Renaming bookmark...",
-                                    (observer) =>
-                                        app.jjBookmarkRename(
-                                            bookmark.name,
-                                            newName,
-                                            {
-                                                cwd: getRepoPath(),
-                                                observer,
-                                            },
-                                        ),
+                                runOperation("Renaming bookmark...", (observer) =>
+                                    app.jjBookmarkRename(bookmark.name, newName, {
+                                        cwd: getRepoPath(),
+                                        observer,
+                                    }),
                                 )
                             }}
                         />
@@ -1165,9 +1069,8 @@ export function BookmarksPanel() {
         },
         {
             id: "refs.bookmarks.open",
-            title: commits().find(
-                (commit) => commit.commitId === selectedBookmark()?.commitId,
-            )?.inTrunk
+            title: commits().find((commit) => commit.commitId === selectedBookmark()?.commitId)
+                ?.inTrunk
                 ? "open commit"
                 : "open PR",
             keybind: "open",
@@ -1291,27 +1194,15 @@ export function BookmarksPanel() {
                 fallback={
                     !bookmarksLoading() && !bookmarksError() ? (
                         <text fg={colors().textMuted}>
-                            {showRemoteOnly()
-                                ? "No remote-only bookmarks"
-                                : "No bookmarks"}
+                            {showRemoteOnly() ? "No remote-only bookmarks" : "No bookmarks"}
                         </text>
                     ) : null
                 }
             >
-                <box
-                    flexDirection="column"
-                    flexGrow={1}
-                    backgroundColor={colors().background}
-                >
-                    <Show
-                        when={
-                            currentBookmarks().length === 0 && hasActiveFilter()
-                        }
-                    >
+                <box flexDirection="column" flexGrow={1} backgroundColor={colors().background}>
+                    <Show when={currentBookmarks().length === 0 && hasActiveFilter()}>
                         <box flexGrow={1}>
-                            <text fg={colors().textMuted}>
-                                No matching bookmarks
-                            </text>
+                            <text fg={colors().textMuted}>No matching bookmarks</text>
                         </box>
                     </Show>
 
@@ -1329,16 +1220,12 @@ export function BookmarksPanel() {
                             <For each={displayBookmarkRows()}>
                                 {(row, index) => {
                                     const bookmark = row.bookmark
-                                    const isSelected = () =>
-                                        index() === currentSelectedIndex()
-                                    const showSelection = () =>
-                                        isSelected() && isFocused()
-                                    const isActive = () =>
-                                        activeBookmarkFilter() === bookmark.name
-                                    const handleDoubleClick =
-                                        createDoubleClickDetector(() => {
-                                            handleListEnter()
-                                        })
+                                    const isSelected = () => index() === currentSelectedIndex()
+                                    const showSelection = () => isSelected() && isFocused()
+                                    const isActive = () => activeBookmarkFilter() === bookmark.name
+                                    const handleDoubleClick = createDoubleClickDetector(() => {
+                                        handleListEnter()
+                                    })
                                     const handleMouseDown = () => {
                                         setListSelectionSource("mouse")
                                         if (hasActiveFilter()) {
@@ -1346,35 +1233,24 @@ export function BookmarksPanel() {
                                         } else if (showRemoteOnly()) {
                                             setRemoteSelectedIndex(index())
                                         } else {
-                                            const localIndex =
-                                                localBookmarks().findIndex(
-                                                    (b) =>
-                                                        b.name ===
-                                                        bookmark.name,
-                                                )
+                                            const localIndex = localBookmarks().findIndex(
+                                                (b) => b.name === bookmark.name,
+                                            )
                                             if (localIndex >= 0) {
-                                                setSelectedBookmarkIndex(
-                                                    localIndex,
-                                                )
+                                                setSelectedBookmarkIndex(localIndex)
                                             }
                                         }
                                         handleDoubleClick()
                                     }
                                     const isDeleted = () => !bookmark.changeId
-                                    const prNumber = () =>
-                                        bookmarkPrNumbers().get(bookmark.name)
+                                    const prNumber = () => bookmarkPrNumbers().get(bookmark.name)
                                     const isInActiveStack = () =>
                                         Boolean(
                                             activeStackKey() &&
-                                                row.stackKeys.includes(
-                                                    activeStackKey() ?? "",
-                                                ),
+                                            row.stackKeys.includes(activeStackKey() ?? ""),
                                         )
                                     const isMutedByActiveStack = () =>
-                                        Boolean(
-                                            activeStackKey() &&
-                                                !isInActiveStack(),
-                                        )
+                                        Boolean(activeStackKey() && !isInActiveStack())
                                     const bookmarkContentWidth = () =>
                                         Math.max(
                                             1,
@@ -1389,20 +1265,14 @@ export function BookmarksPanel() {
                                                 flexShrink={0}
                                                 backgroundColor={
                                                     showSelection()
-                                                        ? colors()
-                                                              .selectionBackground
+                                                        ? colors().selectionBackground
                                                         : isActive()
-                                                          ? colors()
-                                                                .backgroundElement
+                                                          ? colors().backgroundElement
                                                           : colors().background
                                                 }
                                                 overflow="hidden"
                                                 onMouseDown={handleMouseDown}
-                                                opacity={
-                                                    isMutedByActiveStack()
-                                                        ? 0.6
-                                                        : 1
-                                                }
+                                                opacity={isMutedByActiveStack() ? 0.6 : 1}
                                             >
                                                 <BookmarkStackRowView
                                                     row={row}
@@ -1413,14 +1283,10 @@ export function BookmarksPanel() {
                                                     )}
                                                     showRemote={showRemoteOnly()}
                                                     horizontalScroll={{
-                                                        cropStart:
-                                                            bookmarkHorizontal.cropStart(),
-                                                        cropWidth:
-                                                            bookmarkContentWidth(),
+                                                        cropStart: bookmarkHorizontal.cropStart(),
+                                                        cropWidth: bookmarkContentWidth(),
                                                     }}
-                                                    maxNameWidth={bookmarkNameWidth(
-                                                        row,
-                                                    )}
+                                                    maxNameWidth={bookmarkNameWidth(row)}
                                                 />
                                             </box>
                                         </>
@@ -1436,18 +1302,13 @@ export function BookmarksPanel() {
                             fallback={
                                 <>
                                     <box height={1} overflow="hidden">
-                                        <text
-                                            fg={colors().textMuted}
-                                            wrapMode="none"
-                                        >
+                                        <text fg={colors().textMuted} wrapMode="none">
                                             {"─".repeat(200)}
                                         </text>
                                     </box>
                                     <box height={1}>
                                         <text fg={colors().textMuted}>/</text>
-                                        <text fg={colors().text}>
-                                            {appliedFilter()}
-                                        </text>
+                                        <text fg={colors().text}>{appliedFilter()}</text>
                                     </box>
                                 </>
                             }

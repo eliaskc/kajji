@@ -5,9 +5,7 @@ import type {
     StackCommitInput,
 } from "./model"
 
-export interface BuildBookmarkStackModelOptions<
-    TBookmark extends StackBookmarkInput,
-> {
+export interface BuildBookmarkStackModelOptions<TBookmark extends StackBookmarkInput> {
     readonly commits: readonly StackCommitInput[]
     readonly bookmarks: readonly TBookmark[]
     /** Preserve current panel order when sorting children and flat rows. */
@@ -19,29 +17,19 @@ export function buildBookmarkStackModel<TBookmark extends StackBookmarkInput>({
     bookmarks,
     sourceOrder,
 }: BuildBookmarkStackModelOptions<TBookmark>): BookmarkStackModel<TBookmark> {
-    const commitsByCommitId = new Map(
-        commits.map((commit) => [commit.commitId, commit]),
-    )
-    const order =
-        sourceOrder ??
-        new Map(bookmarks.map((bookmark, index) => [bookmark.name, index]))
-    const candidates = bookmarks.filter(
-        (bookmark) => bookmark.changeId && bookmark.commitId,
-    )
+    const commitsByCommitId = new Map(commits.map((commit) => [commit.commitId, commit]))
+    const order = sourceOrder ?? new Map(bookmarks.map((bookmark, index) => [bookmark.name, index]))
+    const candidates = bookmarks.filter((bookmark) => bookmark.changeId && bookmark.commitId)
     const candidateNames = new Set(candidates.map((bookmark) => bookmark.name))
     const bookmarkCommitIds = new Map(
         candidates.map((bookmark) => [bookmark.name, bookmark.commitId]),
     )
     const trunkNames = new Set(
         candidates
-            .filter(
-                (bookmark) =>
-                    commitsByCommitId.get(bookmark.commitId)?.immutable,
-            )
+            .filter((bookmark) => commitsByCommitId.get(bookmark.commitId)?.immutable)
             .map((bookmark) => bookmark.name),
     )
-    const defaultTrunk =
-        candidates.find((bookmark) => trunkNames.has(bookmark.name)) ?? null
+    const defaultTrunk = candidates.find((bookmark) => trunkNames.has(bookmark.name)) ?? null
 
     const parentByName = new Map<string, string>()
     for (const bookmark of candidates) {
@@ -54,9 +42,7 @@ export function buildBookmarkStackModel<TBookmark extends StackBookmarkInput>({
         for (const possibleParent of candidates) {
             if (possibleParent.name === bookmark.name) continue
             if (trunkNames.has(possibleParent.name)) continue
-            const possibleParentCommitId = bookmarkCommitIds.get(
-                possibleParent.name,
-            )
+            const possibleParentCommitId = bookmarkCommitIds.get(possibleParent.name)
             if (!possibleParentCommitId) continue
             const distance = ancestorDistance(
                 possibleParentCommitId,
@@ -91,9 +77,7 @@ export function buildBookmarkStackModel<TBookmark extends StackBookmarkInput>({
         childrenByName.set(parent, children)
     }
     for (const children of childrenByName.values()) {
-        children.sort(
-            (a, b) => (order.get(a.name) ?? 0) - (order.get(b.name) ?? 0),
-        )
+        children.sort((a, b) => (order.get(a.name) ?? 0) - (order.get(b.name) ?? 0))
     }
 
     const rows: BookmarkStackRow<TBookmark>[] = []
@@ -104,20 +88,11 @@ export function buildBookmarkStackModel<TBookmark extends StackBookmarkInput>({
 
         const isTrunk = trunkNames.has(bookmark.name)
         const currentStackKey =
-            stackKey ??
-            (!isTrunk && childrenByName.has(bookmark.name)
-                ? bookmark.name
-                : undefined)
+            stackKey ?? (!isTrunk && childrenByName.has(bookmark.name) ? bookmark.name : undefined)
         const targetStackKeys = isTrunk
-            ? (childrenByName.get(bookmark.name) ?? []).map(
-                  (child) => child.name,
-              )
+            ? (childrenByName.get(bookmark.name) ?? []).map((child) => child.name)
             : []
-        const stackKeys = isTrunk
-            ? targetStackKeys
-            : currentStackKey
-              ? [currentStackKey]
-              : []
+        const stackKeys = isTrunk ? targetStackKeys : currentStackKey ? [currentStackKey] : []
         rows.push({ bookmark, depth, stackKeys })
 
         for (const child of childrenByName.get(bookmark.name) ?? []) {

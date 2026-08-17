@@ -1,12 +1,6 @@
 #!/usr/bin/env bun
 
-import {
-    existsSync,
-    mkdirSync,
-    readFileSync,
-    rmSync,
-    writeFileSync,
-} from "node:fs"
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
 import { parseArgs } from "node:util"
@@ -110,9 +104,7 @@ if (!existsSync(join(repository, ".jj"))) {
 function summarize(values: number[]): MetricSummary {
     const sorted = values.slice().sort((a, b) => a - b)
     const percentile = (fraction: number) =>
-        sorted[
-            Math.min(sorted.length - 1, Math.ceil(sorted.length * fraction) - 1)
-        ] ?? 0
+        sorted[Math.min(sorted.length - 1, Math.ceil(sorted.length * fraction) - 1)] ?? 0
     return {
         median: percentile(0.5),
         p95: percentile(0.95),
@@ -133,9 +125,7 @@ async function waitForPid(path: string): Promise<number> {
     throw new Error(`Timed out waiting for Kajji PID at ${path}`)
 }
 
-function readProcessTree(
-    rootPid: number,
-): Omit<ProcessSample, "elapsedMs" | "phase"> {
+function readProcessTree(rootPid: number): Omit<ProcessSample, "elapsedMs" | "phase"> {
     const result = Bun.spawnSync(["ps", "-axo", "pid=,ppid=,rss=,%cpu="], {
         stdout: "pipe",
         stderr: "ignore",
@@ -144,10 +134,7 @@ function readProcessTree(
         return { rssMiB: 0, cpuPercent: 0, processCount: 0 }
     }
 
-    const processes = new Map<
-        number,
-        { parentPid: number; rssKiB: number; cpuPercent: number }
-    >()
+    const processes = new Map<number, { parentPid: number; rssKiB: number; cpuPercent: number }>()
     for (const line of result.stdout.toString().split("\n")) {
         const match = line.trim().match(/^(\d+)\s+(\d+)\s+(\d+)\s+([\d.]+)$/)
         if (!match) continue
@@ -255,10 +242,7 @@ function readInternalProfile(path: string): InternalDiffProfile {
 }
 
 async function runBenchmark(iteration: number): Promise<RunResult> {
-    const root = join(
-        tmpdir(),
-        `kajji-diff-benchmark-${process.pid}-${iteration}`,
-    )
+    const root = join(tmpdir(), `kajji-diff-benchmark-${process.pid}-${iteration}`)
     const home = join(root, "home")
     const configDir = join(home, ".config", "kajji")
     const pidFile = join(root, "kajji.pid")
@@ -321,13 +305,10 @@ async function runBenchmark(iteration: number): Promise<RunResult> {
             const direction = index < cycles ? "down" : "up"
             const before = await session.screen.capture()
             const startedAt = performance.now()
-            await session.keyboard.press(
-                direction === "down" ? "Control+D" : "Control+U",
-            )
-            await session.screen.waitUntil(
-                (snapshot) => snapshot.text !== before.text,
-                { timeoutMs: 10_000 },
-            )
+            await session.keyboard.press(direction === "down" ? "Control+D" : "Control+U")
+            await session.screen.waitUntil((snapshot) => snapshot.text !== before.text, {
+                timeoutMs: 10_000,
+            })
             const visibleMs = performance.now() - startedAt
             await session.screen.waitForIdle({
                 quietForMs: 50,
@@ -345,20 +326,12 @@ async function runBenchmark(iteration: number): Promise<RunResult> {
         await session.keyboard.type("q")
         await session.waitForExit({ timeoutMs: 5_000 })
         const processSamples = sampler.stop()
-        const scrollSamples = processSamples.filter(
-            (sample) => sample.phase === "scroll",
-        )
+        const scrollSamples = processSamples.filter((sample) => sample.phase === "scroll")
         return {
             startupMs,
             scroll,
-            peakScrollRssMiB: Math.max(
-                0,
-                ...scrollSamples.map((sample) => sample.rssMiB),
-            ),
-            peakScrollCpuPercent: Math.max(
-                0,
-                ...scrollSamples.map((sample) => sample.cpuPercent),
-            ),
+            peakScrollRssMiB: Math.max(0, ...scrollSamples.map((sample) => sample.rssMiB)),
+            peakScrollCpuPercent: Math.max(0, ...scrollSamples.map((sample) => sample.cpuPercent)),
             internal: readInternalProfile(profileFile),
         }
     } finally {
@@ -393,22 +366,14 @@ const report = {
     runs,
     aggregate: {
         startupMs: summarize(runs.map((run) => run.startupMs)),
-        visibleMs: summarize(
-            runs.flatMap((run) => run.scroll.map((sample) => sample.visibleMs)),
-        ),
-        settledMs: summarize(
-            runs.flatMap((run) => run.scroll.map((sample) => sample.settledMs)),
-        ),
+        visibleMs: summarize(runs.flatMap((run) => run.scroll.map((sample) => sample.visibleMs))),
+        settledMs: summarize(runs.flatMap((run) => run.scroll.map((sample) => sample.settledMs))),
         peakScrollRssMiB: summarize(runs.map((run) => run.peakScrollRssMiB)),
-        peakScrollCpuPercent: summarize(
-            runs.map((run) => run.peakScrollCpuPercent),
-        ),
+        peakScrollCpuPercent: summarize(runs.map((run) => run.peakScrollCpuPercent)),
     },
 }
 
-const output = resolve(
-    values.output ?? join(projectRoot, ".kajji-benchmarks", "diff-tui.json"),
-)
+const output = resolve(values.output ?? join(projectRoot, ".kajji-benchmarks", "diff-tui.json"))
 mkdirSync(resolve(output, ".."), { recursive: true })
 writeFileSync(output, `${JSON.stringify(report, null, 2)}\n`)
 console.log(`report: ${output}`)

@@ -128,18 +128,13 @@ export function initHighlighter(): void {
     try {
         const isBundled = import.meta.url.includes("/$bunfs/")
         const workerPaths = isBundled
-            ? [
-                  "./diff/syntax-worker.js",
-                  "./src/diff/syntax-worker.js",
-                  "./syntax-worker.js",
-              ]
+            ? ["./diff/syntax-worker.js", "./src/diff/syntax-worker.js", "./syntax-worker.js"]
             : ["./syntax-worker.ts"]
         let workerSpec: string | null = null
         for (const workerPath of workerPaths) {
             try {
                 workerSpec =
-                    import.meta.resolve?.(workerPath) ??
-                    new URL(workerPath, import.meta.url).href
+                    import.meta.resolve?.(workerPath) ?? new URL(workerPath, import.meta.url).href
                 break
             } catch {}
         }

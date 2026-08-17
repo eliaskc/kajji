@@ -1,10 +1,5 @@
 import type { DiffFile, Hunk } from "../diff/parser"
-import type {
-    CommentAnchor,
-    CommentAnchorHunk,
-    CommentAnchorLine,
-    RevisionComments,
-} from "./types"
+import type { CommentAnchor, CommentAnchorHunk, CommentAnchorLine, RevisionComments } from "./types"
 
 export interface HunkIndexEntry {
     id: string
@@ -25,11 +20,7 @@ interface LineCandidate {
     contextLines: string[]
 }
 
-export function getContextLines(
-    file: DiffFile,
-    hunk: Hunk,
-    maxLines = 5,
-): string[] {
+export function getContextLines(file: DiffFile, hunk: Hunk, maxLines = 5): string[] {
     const lines: string[] = []
     for (const content of hunk.hunkContent) {
         if (content.type !== "context") continue
@@ -42,11 +33,7 @@ export function getContextLines(
     return lines
 }
 
-export function buildHunkAnchor(
-    id: string,
-    file: DiffFile,
-    hunk: Hunk,
-): CommentAnchorHunk {
+export function buildHunkAnchor(id: string, file: DiffFile, hunk: Hunk): CommentAnchorHunk {
     return {
         id,
         type: "hunk",
@@ -121,9 +108,7 @@ function buildLineCandidates(files: DiffFile[]): Map<string, LineCandidate[]> {
             for (const content of hunk.hunkContent) {
                 if (content.type === "context") {
                     for (let i = 0; i < content.lines; i++) {
-                        const raw =
-                            file.additionLines[content.additionLineIndex + i] ??
-                            ""
+                        const raw = file.additionLines[content.additionLineIndex + i] ?? ""
                         lines.push({
                             type: "context",
                             content: raw,
@@ -137,8 +122,7 @@ function buildLineCandidates(files: DiffFile[]): Map<string, LineCandidate[]> {
                 }
 
                 for (let i = 0; i < content.deletions; i++) {
-                    const raw =
-                        file.deletionLines[content.deletionLineIndex + i] ?? ""
+                    const raw = file.deletionLines[content.deletionLineIndex + i] ?? ""
                     lines.push({
                         type: "deletion",
                         content: raw,
@@ -148,8 +132,7 @@ function buildLineCandidates(files: DiffFile[]): Map<string, LineCandidate[]> {
                 }
 
                 for (let i = 0; i < content.additions; i++) {
-                    const raw =
-                        file.additionLines[content.additionLineIndex + i] ?? ""
+                    const raw = file.additionLines[content.additionLineIndex + i] ?? ""
                     lines.push({
                         type: "addition",
                         content: raw,
@@ -214,28 +197,16 @@ function overlapScore(a: string[], b: string[]): number {
     return overlap / Math.max(a.length, b.length)
 }
 
-function lineScore(
-    anchor: CommentAnchorHunk,
-    candidate: HunkIndexEntry,
-): number {
+function lineScore(anchor: CommentAnchorHunk, candidate: HunkIndexEntry): number {
     const anchorStart =
-        anchor.lineRange.newCount > 0
-            ? anchor.lineRange.newStart
-            : anchor.lineRange.oldStart
-    const candidateStart =
-        candidate.newCount > 0 ? candidate.newStart : candidate.oldStart
+        anchor.lineRange.newCount > 0 ? anchor.lineRange.newStart : anchor.lineRange.oldStart
+    const candidateStart = candidate.newCount > 0 ? candidate.newStart : candidate.oldStart
     const delta = Math.abs(anchorStart - candidateStart)
     return 1 - Math.min(delta / 50, 1)
 }
 
-function matchScore(
-    anchor: CommentAnchorHunk,
-    candidate: HunkIndexEntry,
-): number {
-    if (
-        anchor.contextLines.length === 0 ||
-        candidate.contextLines.length === 0
-    ) {
+function matchScore(anchor: CommentAnchorHunk, candidate: HunkIndexEntry): number {
+    if (anchor.contextLines.length === 0 || candidate.contextLines.length === 0) {
         return lineScore(anchor, candidate)
     }
     const context = overlapScore(anchor.contextLines, candidate.contextLines)
@@ -248,14 +219,8 @@ function lineProximityScore(anchorLine: number, candidateLine: number): number {
     return 1 - Math.min(delta / 50, 1)
 }
 
-function matchLineScore(
-    anchor: CommentAnchorLine,
-    candidate: LineCandidate,
-): number {
-    if (
-        anchor.contextLines.length === 0 ||
-        candidate.contextLines.length === 0
-    ) {
+function matchLineScore(anchor: CommentAnchorLine, candidate: LineCandidate): number {
+    if (anchor.contextLines.length === 0 || candidate.contextLines.length === 0) {
         return lineProximityScore(anchor.lineNumber, candidate.lineNumber)
     }
     const context = overlapScore(anchor.contextLines, candidate.contextLines)
@@ -368,8 +333,7 @@ export function relocateRevision(
             if (
                 updatedAnchor.lineNumber !== anchor.lineNumber ||
                 anchor.stale ||
-                updatedAnchor.contextLines.join("\n") !==
-                    anchor.contextLines.join("\n")
+                updatedAnchor.contextLines.join("\n") !== anchor.contextLines.join("\n")
             ) {
                 changed = true
             }

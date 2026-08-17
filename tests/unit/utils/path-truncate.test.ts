@@ -11,14 +11,12 @@ describe("splitDisplayPath", () => {
     })
 
     test("keeps a renamed path suffix separate from the current file name", () => {
-        expect(
-            splitDisplayPath(
-                "src/components/NewName.tsx ← old/components/OldName.tsx",
-            ),
-        ).toEqual({
-            directory: "src/components/",
-            fileName: "NewName.tsx",
-            suffix: " ← old/components/OldName.tsx",
-        })
+        expect(splitDisplayPath("src/components/NewName.tsx ← old/components/OldName.tsx")).toEqual(
+            {
+                directory: "src/components/",
+                fileName: "NewName.tsx",
+                suffix: " ← old/components/OldName.tsx",
+            },
+        )
     })
 })

@@ -20,11 +20,7 @@ function toHex(r: number, g: number, b: number) {
 function lerpColor(from: string, to: string, t: number) {
     const f = parseHex(from)
     const c = parseHex(to)
-    return toHex(
-        f.r + (c.r - f.r) * t,
-        f.g + (c.g - f.g) * t,
-        f.b + (c.b - f.b) * t,
-    )
+    return toHex(f.r + (c.r - f.r) * t, f.g + (c.g - f.g) * t, f.b + (c.b - f.b) * t)
 }
 
 const directionalWaves = [
@@ -57,26 +53,18 @@ export function WaveBackground(props: WaveBackgroundProps) {
         const interval = setInterval(() => setTick((t) => t + 1), 16)
         onCleanup(() => clearInterval(interval))
 
-        const handleResize = (w: number, h: number) =>
-            setDimensions({ width: w, height: h })
+        const handleResize = (w: number, h: number) => setDimensions({ width: w, height: h })
         renderer.on("resize", handleResize)
         onCleanup(() => renderer.off("resize", handleResize))
     })
 
-    const getIntensity = (
-        x: number,
-        y: number,
-        t: number,
-        w: number,
-        h: number,
-    ) => {
+    const getIntensity = (x: number, y: number, t: number, w: number, h: number) => {
         let total = 0
         let totalAmp = 0
 
         for (const wave of directionalWaves) {
             const a = wave.angle + Math.sin(t * wave.twist) * 0.3
-            const val =
-                Math.sin((x * a + y) * wave.freq + t * wave.speed) * 0.5 + 0.5
+            const val = Math.sin((x * a + y) * wave.freq + t * wave.speed) * 0.5 + 0.5
             total += val * wave.amp
             totalAmp += wave.amp
         }
@@ -104,13 +92,7 @@ export function WaveBackground(props: WaveBackgroundProps) {
         for (let y = 0; y < height; y++) {
             const row: string[] = []
             for (let x = 0; x < width; x++) {
-                row.push(
-                    lerpColor(
-                        bg,
-                        peak,
-                        getIntensity(x, y, t, width, height) * opacity,
-                    ),
-                )
+                row.push(lerpColor(bg, peak, getIntensity(x, y, t, width, height) * opacity))
             }
             result.push(row)
         }
@@ -128,9 +110,7 @@ export function WaveBackground(props: WaveBackgroundProps) {
             <For each={rows()}>
                 {(row) => (
                     <text>
-                        <For each={row}>
-                            {(color) => <span style={{ fg: color }}>█</span>}
-                        </For>
+                        <For each={row}>{(color) => <span style={{ fg: color }}>█</span>}</For>
                     </text>
                 )}
             </For>

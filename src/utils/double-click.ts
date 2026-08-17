@@ -41,10 +41,7 @@ export function createDoubleClickHandler(
  * Simpler version that only detects double-clicks (no single-click delay).
  * Use this when you don't need to distinguish single clicks.
  */
-export function createDoubleClickDetector(
-    onDoubleClick: () => void,
-    timeout = 300,
-): () => void {
+export function createDoubleClickDetector(onDoubleClick: () => void, timeout = 300): () => void {
     let lastClickTime = 0
 
     return () => {

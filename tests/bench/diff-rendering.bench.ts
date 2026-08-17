@@ -11,11 +11,7 @@ import {
 
 const RESULTS_FILE = join(import.meta.dir, "../../bench-diff-results.json")
 
-function generateGitDiff(
-    fileCount: number,
-    hunksPerFile: number,
-    linesPerHunk: number,
-): string {
+function generateGitDiff(fileCount: number, hunksPerFile: number, linesPerHunk: number): string {
     const lines: string[] = []
 
     for (let f = 0; f < fileCount; f++) {
@@ -64,11 +60,7 @@ interface BenchResults {
     results: BenchResult[]
 }
 
-function benchmark(
-    name: string,
-    fn: () => void,
-    iterations = 100,
-): BenchResult {
+function benchmark(name: string, fn: () => void, iterations = 100): BenchResult {
     const times: number[] = []
 
     for (let i = 0; i < 5; i++) fn()

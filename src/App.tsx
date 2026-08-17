@@ -1,24 +1,14 @@
 import { useRenderer } from "@opentui/solid"
-import {
-    Match,
-    Switch,
-    createEffect,
-    createSignal,
-    onCleanup,
-    onMount,
-} from "solid-js"
+import { Match, Switch, createEffect, createSignal, onCleanup, onMount } from "solid-js"
 import { getRevisionId } from "./commander/types"
 import { ErrorScreen } from "./components/ErrorScreen"
 import { LayoutGrid } from "./components/Layout"
-import { WhatsNewScreen } from "./components/WhatsNewScreen"
 import { ActionMenuModal } from "./components/modals/ActionMenuModal"
-import {
-    CommandPalette,
-    commandPaletteContentWidth,
-} from "./components/modals/CommandPalette"
+import { CommandPalette, commandPaletteContentWidth } from "./components/modals/CommandPalette"
 import { DebugInfoModal } from "./components/modals/DebugInfoModal"
 import { RecentReposModal } from "./components/modals/RecentReposModal"
 import { UndoModal } from "./components/modals/UndoModal"
+import { WhatsNewScreen } from "./components/WhatsNewScreen"
 
 import type { ApplicationClient } from "./application/client"
 import {
@@ -31,12 +21,7 @@ import {
 import { ApplicationProvider, useApplication } from "./context/application"
 import { CommandProvider, useCommand } from "./context/command"
 import { CommandLogProvider, useCommandLog } from "./context/commandlog"
-import {
-    DIALOG_SIZE,
-    DialogContainer,
-    DialogProvider,
-    useDialog,
-} from "./context/dialog"
+import { DIALOG_SIZE, DialogContainer, DialogProvider, useDialog } from "./context/dialog"
 import { FocusProvider, type Panel, useFocus } from "./context/focus"
 import { KeybindProvider } from "./context/keybind"
 import { LayoutProvider } from "./context/layout"
@@ -45,17 +30,9 @@ import { SyncProvider, useSync } from "./context/sync"
 import { ThemeProvider, useTheme } from "./context/theme"
 import { UpdateProvider, useUpdate } from "./context/update"
 import { getRepoPath, setRepoPath } from "./repo"
-import {
-    getChangesSince,
-    isMajorOrMinorUpdate,
-    parseChangelog,
-} from "./utils/changelog"
+import { getChangesSince, isMajorOrMinorUpdate, parseChangelog } from "./utils/changelog"
 import type { VersionBlock } from "./utils/changelog"
-import {
-    getLogPath,
-    writeDebugSnapshot,
-    writeMemorySnapshot,
-} from "./utils/diagnostics"
+import { getLogPath, writeDebugSnapshot, writeMemorySnapshot } from "./utils/diagnostics"
 import { openInEditor, shouldSuspendForEditor } from "./utils/editor"
 import { parseJjError, shouldShowCriticalError } from "./utils/error-parser"
 import { readState, writeState } from "./utils/state"
@@ -96,14 +73,10 @@ function AppContent({ onQuit }: Pick<AppProps, "onQuit">) {
     const update = useUpdate()
     const status = useStatus()
     const { setTheme, setThemeMode, setSyntaxTheme } = useTheme()
-    const [whatsNewChanges, setWhatsNewChanges] = createSignal<
-        VersionBlock[] | null
-    >(null)
+    const [whatsNewChanges, setWhatsNewChanges] = createSignal<VersionBlock[] | null>(null)
 
     const visiblePanels = (): Panel[] =>
-        viewMode() === "files"
-            ? ["log", "detail"]
-            : ["log", "refs", "detail", "commandlog"]
+        viewMode() === "files" ? ["log", "detail"] : ["log", "refs", "detail", "commandlog"]
 
     const focusPanel = (panel: Panel) => {
         if (!visiblePanels().includes(panel)) return
@@ -123,12 +96,8 @@ function AppContent({ onQuit }: Pick<AppProps, "onQuit">) {
             const targets = ["log.files", "log.revisions", "detail"] as const
             const context = focus.activeContext()
             const current = context.startsWith("detail") ? "detail" : context
-            const idx = Math.max(
-                0,
-                targets.indexOf(current as (typeof targets)[number]),
-            )
-            const next =
-                targets[(idx + direction + targets.length) % targets.length]
+            const idx = Math.max(0, targets.indexOf(current as (typeof targets)[number]))
+            const next = targets[(idx + direction + targets.length) % targets.length]
             if (next) focus.setActiveContext(next)
             return
         }
@@ -186,22 +155,13 @@ function AppContent({ onQuit }: Pick<AppProps, "onQuit">) {
         checkForUpdates({
             onChecking: () => update.setChecking(),
             onUpdateAvailable: ({ currentVersion, latestVersion }) => {
-                commandLog.info(
-                    `kajji update available: v${currentVersion} → v${latestVersion}`,
-                )
+                commandLog.info(`kajji update available: v${currentVersion} → v${latestVersion}`)
             },
             onUpdateStarted: ({ version, command }) => {
                 update.setUpdating(version, command)
                 updateLogId = commandLog.start(command)
             },
-            onUpdateFinished: ({
-                version,
-                command,
-                success,
-                exitCode,
-                stdout,
-                stderr,
-            }) => {
+            onUpdateFinished: ({ version, command, success, exitCode, stdout, stderr }) => {
                 if (success) update.setSuccess(version)
                 else update.setFailure(version)
                 if (updateLogId) {
@@ -244,9 +204,7 @@ function AppContent({ onQuit }: Pick<AppProps, "onQuit">) {
             }
         }
 
-        renderer.console.keyBindings = [
-            { name: "y", ctrl: true, action: "copy-selection" },
-        ]
+        renderer.console.keyBindings = [{ name: "y", ctrl: true, action: "copy-selection" }]
         renderer.console.onCopySelection = (text) => {
             const proc = Bun.spawn(["pbcopy"], { stdin: "pipe" })
             proc.stdin.write(text)
@@ -256,10 +214,7 @@ function AppContent({ onQuit }: Pick<AppProps, "onQuit">) {
 
     const runGitFetch = async (
         text: string,
-        options?: Omit<
-            Parameters<ApplicationClient["jjGitFetch"]>[0],
-            "cwd" | "observer"
-        >,
+        options?: Omit<Parameters<ApplicationClient["jjGitFetch"]>[0], "cwd" | "observer">,
     ) => {
         const result = await app.jjGitFetch({
             ...options,
@@ -274,10 +229,7 @@ function AppContent({ onQuit }: Pick<AppProps, "onQuit">) {
 
     const runGitPush = async (
         text: string,
-        options?: Omit<
-            Parameters<ApplicationClient["jjGitPush"]>[0],
-            "cwd" | "observer"
-        >,
+        options?: Omit<Parameters<ApplicationClient["jjGitPush"]>[0], "cwd" | "observer">,
     ) => {
         const result = await app.jjGitPush({
             ...options,
@@ -298,22 +250,19 @@ function AppContent({ onQuit }: Pick<AppProps, "onQuit">) {
     }
 
     const openFetchMenu = () => {
-        const commit =
-            focus.activeContext() === "log.revisions" ? selectedCommit() : null
+        const commit = focus.activeContext() === "log.revisions" ? selectedCommit() : null
         const options = [
             {
                 key: "a",
                 mutedPrefix: "jj git fetch ",
                 label: "--all-remotes",
-                onSelect: () =>
-                    void runGitFetch("Fetching all...", { allRemotes: true }),
+                onSelect: () => void runGitFetch("Fetching all...", { allRemotes: true }),
             },
             {
                 key: "t",
                 mutedPrefix: "jj git fetch ",
                 label: "--tracked",
-                onSelect: () =>
-                    void runGitFetch("Fetching tracked...", { tracked: true }),
+                onSelect: () => void runGitFetch("Fetching tracked...", { tracked: true }),
             },
             {
                 key: "p",
@@ -346,36 +295,31 @@ function AppContent({ onQuit }: Pick<AppProps, "onQuit">) {
     }
 
     const openPushMenu = () => {
-        const commit =
-            focus.activeContext() === "log.revisions" ? selectedCommit() : null
+        const commit = focus.activeContext() === "log.revisions" ? selectedCommit() : null
         const options = [
             {
                 key: "a",
                 mutedPrefix: "jj git push ",
                 label: "--all",
-                onSelect: () =>
-                    void runGitPush("Pushing all...", { all: true }),
+                onSelect: () => void runGitPush("Pushing all...", { all: true }),
             },
             {
                 key: "t",
                 mutedPrefix: "jj git push ",
                 label: "--tracked",
-                onSelect: () =>
-                    void runGitPush("Pushing tracked...", { tracked: true }),
+                onSelect: () => void runGitPush("Pushing tracked...", { tracked: true }),
             },
             {
                 key: "d",
                 mutedPrefix: "jj git push ",
                 label: "--deleted",
-                onSelect: () =>
-                    void runGitPush("Pushing deleted...", { deleted: true }),
+                onSelect: () => void runGitPush("Pushing deleted...", { deleted: true }),
             },
             {
                 key: "n",
                 mutedPrefix: "jj git push ",
                 label: "--dry-run",
-                onSelect: () =>
-                    void runGitPush("Dry run push...", { dryRun: true }),
+                onSelect: () => void runGitPush("Dry run push...", { dryRun: true }),
             },
         ]
 
@@ -470,9 +414,7 @@ function AppContent({ onQuit }: Pick<AppProps, "onQuit">) {
             group: "navigation",
             visibleIn: ["palette"] as const,
             execute: () =>
-                viewMode() === "files"
-                    ? focus.setActiveContext("log.files")
-                    : focusPanel("log"),
+                viewMode() === "files" ? focus.setActiveContext("log.files") : focusPanel("log"),
         },
         {
             id: "global.focus_panel_2",
@@ -788,11 +730,7 @@ function AppContent({ onQuit }: Pick<AppProps, "onQuit">) {
                     <ErrorScreen
                         error={err()}
                         onRetry={handleRetry}
-                        onFix={
-                            parseJjError(err()).fixCommand
-                                ? handleFix
-                                : undefined
-                        }
+                        onFix={parseJjError(err()).fixCommand ? handleFix : undefined}
                         onQuit={onQuit}
                     />
                 )}
@@ -850,9 +788,7 @@ export function App({ app, onQuit }: AppProps) {
                                         <DialogProvider>
                                             <UpdateProvider>
                                                 <CommandProvider>
-                                                    <AppContent
-                                                        onQuit={onQuit}
-                                                    />
+                                                    <AppContent onQuit={onQuit} />
                                                 </CommandProvider>
                                             </UpdateProvider>
                                         </DialogProvider>

@@ -1,13 +1,6 @@
 #!/usr/bin/env bun
 
-import {
-    existsSync,
-    mkdirSync,
-    mkdtempSync,
-    readFileSync,
-    rmSync,
-    writeFileSync,
-} from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 import { parseArgs } from "node:util"
@@ -113,9 +106,7 @@ function runCommand(cwd: string, command: string[]): string {
         stderr: "pipe",
     })
     if (!result.success) {
-        throw new Error(
-            `${command.join(" ")} failed:\n${result.stderr.toString().trim()}`,
-        )
+        throw new Error(`${command.join(" ")} failed:\n${result.stderr.toString().trim()}`)
     }
     return result.stdout.toString().trim()
 }
@@ -127,14 +118,7 @@ function createFixture(root: string, commitCount: number) {
 
     runCommand(root, ["git", "init", "--bare", remote])
     runCommand(repository, ["jj", "git", "init"])
-    runCommand(repository, [
-        "jj",
-        "config",
-        "set",
-        "--repo",
-        "user.name",
-        "Kajji Benchmark",
-    ])
+    runCommand(repository, ["jj", "config", "set", "--repo", "user.name", "Kajji Benchmark"])
     runCommand(repository, [
         "jj",
         "config",
@@ -160,12 +144,7 @@ function createFixture(root: string, commitCount: number) {
                 `export const revision = ${index}\n`,
             )
         }
-        runCommand(repository, [
-            "jj",
-            "commit",
-            "-m",
-            `benchmark revision ${padded}`,
-        ])
+        runCommand(repository, ["jj", "commit", "-m", `benchmark revision ${padded}`])
     }
     runCommand(repository, ["jj", "bookmark", "create", "main", "-r", "@-"])
     runCommand(repository, ["jj", "git", "push", "--bookmark", "main"])
@@ -193,9 +172,7 @@ function createBenchmarkHome(root: string, iteration: number): string {
     return home
 }
 
-function readProcessTree(
-    rootPid: number,
-): Omit<MemorySample, "elapsedMs" | "phase"> {
+function readProcessTree(rootPid: number): Omit<MemorySample, "elapsedMs" | "phase"> {
     const result = Bun.spawnSync(["ps", "-axo", "pid=,ppid=,rss="], {
         stdout: "pipe",
         stderr: "ignore",
@@ -292,20 +269,12 @@ function summarizeMemory(samples: MemorySample[]): MemorySummary {
     const endingKajjiRssMiB = kibToMib(ending?.kajjiRssKiB ?? 0)
     return {
         startupKajjiRssMiB,
-        peakKajjiRssMiB: kibToMib(
-            Math.max(0, ...valid.map((sample) => sample.kajjiRssKiB)),
-        ),
-        peakTreeRssMiB: kibToMib(
-            Math.max(0, ...valid.map((sample) => sample.treeRssKiB)),
-        ),
+        peakKajjiRssMiB: kibToMib(Math.max(0, ...valid.map((sample) => sample.kajjiRssKiB))),
+        peakTreeRssMiB: kibToMib(Math.max(0, ...valid.map((sample) => sample.treeRssKiB))),
         endingKajjiRssMiB,
         endingTreeRssMiB: kibToMib(ending?.treeRssKiB ?? 0),
-        rssGrowthMiB:
-            Math.round((endingKajjiRssMiB - startupKajjiRssMiB) * 100) / 100,
-        maxProcessCount: Math.max(
-            0,
-            ...valid.map((sample) => sample.processCount),
-        ),
+        rssGrowthMiB: Math.round((endingKajjiRssMiB - startupKajjiRssMiB) * 100) / 100,
+        maxProcessCount: Math.max(0, ...valid.map((sample) => sample.processCount)),
     }
 }
 
@@ -393,8 +362,7 @@ async function runBenchmark(
         const shutdownStartedAt = performance.now()
         await session.keyboard.type("q")
         const exit = await session.waitForExit({ timeoutMs: 5_000 })
-        if (exit.reason !== "exited")
-            throw new Error("Kajji did not exit after q")
+        if (exit.reason !== "exited") throw new Error("Kajji did not exit after q")
         const shutdownMs = performance.now() - shutdownStartedAt
 
         return {
@@ -429,16 +397,10 @@ function aggregate(runs: BenchmarkRun[]): Record<string, MetricSummary> {
         fetchMs: summarize(runs.map((run) => run.fetchMs)),
         navigationMs: summarize(runs.flatMap((run) => run.navigationMs)),
         shutdownMs: summarize(runs.map((run) => run.shutdownMs)),
-        peakKajjiRssMiB: summarize(
-            runs.map((run) => run.memory.peakKajjiRssMiB),
-        ),
-        startupKajjiRssMiB: summarize(
-            runs.map((run) => run.memory.startupKajjiRssMiB),
-        ),
+        peakKajjiRssMiB: summarize(runs.map((run) => run.memory.peakKajjiRssMiB)),
+        startupKajjiRssMiB: summarize(runs.map((run) => run.memory.startupKajjiRssMiB)),
         peakTreeRssMiB: summarize(runs.map((run) => run.memory.peakTreeRssMiB)),
-        endingKajjiRssMiB: summarize(
-            runs.map((run) => run.memory.endingKajjiRssMiB),
-        ),
+        endingKajjiRssMiB: summarize(runs.map((run) => run.memory.endingKajjiRssMiB)),
         rssGrowthMiB: summarize(runs.map((run) => run.memory.rssGrowthMiB)),
     }
 }
@@ -480,9 +442,7 @@ function printSummary(report: BenchmarkReport, output: string) {
 
 const root = mkdtempSync(join(tmpdir(), "kajji-benchmark-"))
 try {
-    console.log(
-        `Creating fixture (${fixtureCommits} commits) outside measured runs...`,
-    )
+    console.log(`Creating fixture (${fixtureCommits} commits) outside measured runs...`)
     const fixture = createFixture(root, fixtureCommits)
     const runs: BenchmarkRun[] = []
     for (let iteration = 1; iteration <= runCount; iteration++) {

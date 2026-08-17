@@ -1,12 +1,5 @@
 import type { ScrollBoxRenderable } from "@opentui/core"
-import {
-    For,
-    Show,
-    createEffect,
-    createSignal,
-    onCleanup,
-    onMount,
-} from "solid-js"
+import { For, Show, createEffect, createSignal, onCleanup, onMount } from "solid-js"
 import type { Bookmark } from "../commander/bookmarks"
 import { useDialogCommands } from "../context/command"
 import { useDialog } from "../context/dialog"
@@ -26,9 +19,7 @@ export function BookmarkPicker(props: BookmarkPickerProps) {
 
     const findDefaultIndex = () => {
         if (props.defaultBookmark) {
-            const idx = props.bookmarks.findIndex(
-                (b) => b.name === props.defaultBookmark,
-            )
+            const idx = props.bookmarks.findIndex((b) => b.name === props.defaultBookmark)
             return idx >= 0 ? idx : 0
         }
         return 0
@@ -123,17 +114,13 @@ export function BookmarkPicker(props: BookmarkPickerProps) {
                         return (
                             <box
                                 backgroundColor={
-                                    isSelected()
-                                        ? colors().selectionBackground
-                                        : undefined
+                                    isSelected() ? colors().selectionBackground : undefined
                                 }
                                 overflow="hidden"
                                 onMouseDown={() => list.selectByMouse(index())}
                             >
                                 <text wrapMode="none">
-                                    <span style={{ fg: colors().primary }}>
-                                        {bookmark.name}
-                                    </span>
+                                    <span style={{ fg: colors().primary }}>{bookmark.name}</span>
                                     <span style={{ fg: colors().textMuted }}>
                                         {" "}
                                         {bookmark.changeId.slice(0, 8)}

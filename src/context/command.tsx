@@ -1,12 +1,5 @@
 import { useKeyboard } from "@opentui/solid"
-import {
-    type Accessor,
-    createEffect,
-    createMemo,
-    createSignal,
-    onCleanup,
-    onMount,
-} from "solid-js"
+import { type Accessor, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js"
 import {
     type CommandDefinition,
     type CommandSurface,
@@ -29,144 +22,131 @@ export type { Context }
 
 export type CommandOption = CommandDefinition
 
-export const { use: useCommand, provider: CommandProvider } =
-    createSimpleContext({
-        name: "Command",
-        init: () => {
-            const [registrations, setRegistrations] = createSignal<
-                Accessor<CommandOption[]>[]
-            >([])
-            const [inputMode, setInputMode] = createSignal(false)
-            const [focusedInputCount, setFocusedInputCount] = createSignal(0)
-            const keybind = useKeybind()
-            const focus = useFocus()
-            const dialog = useDialog()
-            const status = useStatus()
+export const { use: useCommand, provider: CommandProvider } = createSimpleContext({
+    name: "Command",
+    init: () => {
+        const [registrations, setRegistrations] = createSignal<Accessor<CommandOption[]>[]>([])
+        const [inputMode, setInputMode] = createSignal(false)
+        const [focusedInputCount, setFocusedInputCount] = createSignal(0)
+        const keybind = useKeybind()
+        const focus = useFocus()
+        const dialog = useDialog()
+        const status = useStatus()
 
-            const allCommands = createMemo(() => {
-                return registrations().flatMap((r) => r())
-            })
+        const allCommands = createMemo(() => {
+            return registrations().flatMap((r) => r())
+        })
 
-            const isBlockingCommands = () =>
-                inputMode() || focusedInputCount() > 0
+        const isBlockingCommands = () => inputMode() || focusedInputCount() > 0
 
-            const environment = () => ({
-                context: focus.activeContext(),
-                panel: focus.panel(),
-                dialogOpen: dialog.isOpen(),
-                dialogId: dialog.current()?.id,
-                inputMode: isBlockingCommands(),
-            })
+        const environment = () => ({
+            context: focus.activeContext(),
+            panel: focus.panel(),
+            dialogOpen: dialog.isOpen(),
+            dialogId: dialog.current()?.id,
+            inputMode: isBlockingCommands(),
+        })
 
-            const paletteEnvironment = () => {
-                const current = dialog.current()
-                if (current?.id !== "commandPalette") return environment()
-                const previous = dialog.previous()
-                return {
-                    ...environment(),
-                    dialogOpen: previous !== undefined,
-                    dialogId: previous?.id,
-                    inputMode: false,
-                }
-            }
-
-            useKeyboard((evt) => {
-                const dialogOpen = dialog.isOpen()
-                const isInputMode = isBlockingCommands()
-                const activeCtx = focus.activeContext()
-                const activePanel = focus.panel()
-
-                const mostSpecificMatch = resolveCommandKey(
-                    allCommands(),
-                    evt,
-                    {
-                        context: activeCtx,
-                        panel: activePanel,
-                        dialogOpen,
-                        dialogId: dialog.current()?.id,
-                        inputMode: isInputMode,
-                    },
-                    (configKey, event) => keybind.match(configKey, event),
-                )
-
-                if (mostSpecificMatch) {
-                    evt.preventDefault()
-                    evt.stopPropagation()
-                    const reason = commandUnavailableReason(mostSpecificMatch)
-                    if (reason) {
-                        status.show(
-                            commandUnavailableMessage(
-                                mostSpecificMatch,
-                                reason,
-                            ),
-                        )
-                    } else {
-                        mostSpecificMatch.execute()
-                    }
-                }
-            })
-
+        const paletteEnvironment = () => {
+            const current = dialog.current()
+            if (current?.id !== "commandPalette") return environment()
+            const previous = dialog.previous()
             return {
-                register: (cb: () => CommandOption[]) => {
-                    const accessor = createMemo(cb)
-                    setRegistrations((arr) => [...arr, accessor])
-                    onCleanup(() => {
-                        setRegistrations((arr) =>
-                            arr.filter((r) => r !== accessor),
-                        )
-                    })
-                },
-
-                execute: (id: string) => {
-                    const cmd = allCommands().find((c) => c.id === id)
-                    if (!cmd || !canDispatchCommand(cmd, environment()))
-                        return false
-                    const reason = commandUnavailableReason(cmd)
-                    if (reason) {
-                        status.show(commandUnavailableMessage(cmd, reason))
-                        return false
-                    }
-                    cmd.execute()
-                    return true
-                },
-
-                all: allCommands,
-                forSurface: (surface: CommandSurface) =>
-                    commandsForSurface(allCommands(), surface),
-                activeForSurface: (surface: CommandSurface) =>
-                    allCommands().filter(
-                        (cmd) =>
-                            isCommandVisible(cmd, surface) &&
-                            isCommandApplicable(cmd, environment()) &&
-                            !commandUnavailableReason(cmd),
-                    ),
-                isActive: (id: string) => {
-                    const cmd = allCommands().find((item) => item.id === id)
-                    return cmd
-                        ? canDispatchCommand(cmd, paletteEnvironment()) &&
-                              !commandUnavailableReason(cmd)
-                        : false
-                },
-                keyLabel: (id: string) => {
-                    const cmd = allCommands().find((item) => item.id === id)
-                    return cmd?.keybind ? keybind.print(cmd.keybind) : ""
-                },
-
-                // Input mode blocks all commands (for inline filtering, etc.)
-                setInputMode,
-                isInputMode: isBlockingCommands,
-                registerFocusedInput: () => {
-                    setFocusedInputCount((count) => count + 1)
-                    let released = false
-                    return () => {
-                        if (released) return
-                        released = true
-                        setFocusedInputCount((count) => Math.max(0, count - 1))
-                    }
-                },
+                ...environment(),
+                dialogOpen: previous !== undefined,
+                dialogId: previous?.id,
+                inputMode: false,
             }
-        },
-    })
+        }
+
+        useKeyboard((evt) => {
+            const dialogOpen = dialog.isOpen()
+            const isInputMode = isBlockingCommands()
+            const activeCtx = focus.activeContext()
+            const activePanel = focus.panel()
+
+            const mostSpecificMatch = resolveCommandKey(
+                allCommands(),
+                evt,
+                {
+                    context: activeCtx,
+                    panel: activePanel,
+                    dialogOpen,
+                    dialogId: dialog.current()?.id,
+                    inputMode: isInputMode,
+                },
+                (configKey, event) => keybind.match(configKey, event),
+            )
+
+            if (mostSpecificMatch) {
+                evt.preventDefault()
+                evt.stopPropagation()
+                const reason = commandUnavailableReason(mostSpecificMatch)
+                if (reason) {
+                    status.show(commandUnavailableMessage(mostSpecificMatch, reason))
+                } else {
+                    mostSpecificMatch.execute()
+                }
+            }
+        })
+
+        return {
+            register: (cb: () => CommandOption[]) => {
+                const accessor = createMemo(cb)
+                setRegistrations((arr) => [...arr, accessor])
+                onCleanup(() => {
+                    setRegistrations((arr) => arr.filter((r) => r !== accessor))
+                })
+            },
+
+            execute: (id: string) => {
+                const cmd = allCommands().find((c) => c.id === id)
+                if (!cmd || !canDispatchCommand(cmd, environment())) return false
+                const reason = commandUnavailableReason(cmd)
+                if (reason) {
+                    status.show(commandUnavailableMessage(cmd, reason))
+                    return false
+                }
+                cmd.execute()
+                return true
+            },
+
+            all: allCommands,
+            forSurface: (surface: CommandSurface) => commandsForSurface(allCommands(), surface),
+            activeForSurface: (surface: CommandSurface) =>
+                allCommands().filter(
+                    (cmd) =>
+                        isCommandVisible(cmd, surface) &&
+                        isCommandApplicable(cmd, environment()) &&
+                        !commandUnavailableReason(cmd),
+                ),
+            isActive: (id: string) => {
+                const cmd = allCommands().find((item) => item.id === id)
+                return cmd
+                    ? canDispatchCommand(cmd, paletteEnvironment()) &&
+                          !commandUnavailableReason(cmd)
+                    : false
+            },
+            keyLabel: (id: string) => {
+                const cmd = allCommands().find((item) => item.id === id)
+                return cmd?.keybind ? keybind.print(cmd.keybind) : ""
+            },
+
+            // Input mode blocks all commands (for inline filtering, etc.)
+            setInputMode,
+            isInputMode: isBlockingCommands,
+            registerFocusedInput: () => {
+                setFocusedInputCount((count) => count + 1)
+                let released = false
+                return () => {
+                    if (released) return
+                    released = true
+                    setFocusedInputCount((count) => Math.max(0, count - 1))
+                }
+            },
+        }
+    },
+})
 
 export function useCommandInputGuard() {
     const command = useCommand()
@@ -189,10 +169,7 @@ export type DialogCommandOption = Omit<
     visibleIn?: readonly CommandSurface[]
 }
 
-export function useDialogCommands(
-    dialogId: string,
-    definitions: () => DialogCommandOption[],
-) {
+export function useDialogCommands(dialogId: string, definitions: () => DialogCommandOption[]) {
     const command = useCommand()
     const dialog = useDialog()
     const keybind = useKeybind()
@@ -216,9 +193,7 @@ export function useDialogCommands(
                     definition.keybind,
             )
             .map((definition) => ({
-                key: definition.keybind
-                    ? keybind.print(definition.keybind)
-                    : "",
+                key: definition.keybind ? keybind.print(definition.keybind) : "",
                 label: definition.hintLabel ?? definition.title,
             }))
         dialog.setGeneratedHints(dialogId, hints)

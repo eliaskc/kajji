@@ -48,10 +48,7 @@ function mapStatus(type: DiffFile["type"]): FileStatus {
     }
 }
 
-function buildHunkDiff(
-    file: DiffFile,
-    hunk: DiffFile["hunks"][number],
-): string {
+function buildHunkDiff(file: DiffFile, hunk: DiffFile["hunks"][number]): string {
     const header = `@@ -${hunk.deletionStart},${hunk.deletionLines} +${hunk.additionStart},${hunk.additionLines} @@${hunk.hunkContext ? ` ${hunk.hunkContext}` : ""}`
     const lines: string[] = [header]
     const normalizeLine = (line: string) => line.replace(/[\r\n]+$/g, "")
@@ -59,8 +56,7 @@ function buildHunkDiff(
     for (const content of hunk.hunkContent) {
         if (content.type === "context") {
             for (let i = 0; i < content.lines; i++) {
-                const line =
-                    file.additionLines[content.additionLineIndex + i] ?? ""
+                const line = file.additionLines[content.additionLineIndex + i] ?? ""
                 lines.push(` ${normalizeLine(line)}`)
             }
             continue
@@ -132,9 +128,7 @@ export function makeChangesCommand(application: CliApplication) {
                             newCount: hunk.additionLines,
                             added: hunk.additionCount,
                             removed: hunk.deletionCount,
-                            diff: input.diff
-                                ? buildHunkDiff(file, hunk)
-                                : undefined,
+                            diff: input.diff ? buildHunkDiff(file, hunk) : undefined,
                         }
                     })
 

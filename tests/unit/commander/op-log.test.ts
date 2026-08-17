@@ -39,10 +39,7 @@ describe("parseOpLog", () => {
     })
 
     test("handles empty lines and input", () => {
-        const lines = [
-            "@  op1abc user@email.com 2025-01-01 12:00:00.000 +00:00",
-            "",
-        ]
+        const lines = ["@  op1abc user@email.com 2025-01-01 12:00:00.000 +00:00", ""]
 
         expect(parseOpLog(lines)[0]?.lines).toHaveLength(1)
         expect(parseOpLog([])).toEqual([])

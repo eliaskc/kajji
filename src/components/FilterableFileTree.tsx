@@ -1,15 +1,7 @@
 import type { ScrollBoxRenderable, TextareaRenderable } from "@opentui/core"
 import { useKeyboard } from "@opentui/solid"
 import fuzzysort from "fuzzysort"
-import {
-    Show,
-    createEffect,
-    createMemo,
-    createSignal,
-    on,
-    onCleanup,
-    untrack,
-} from "solid-js"
+import { Show, createEffect, createMemo, createSignal, on, onCleanup, untrack } from "solid-js"
 import { useCommand } from "../context/command"
 import { useKeybind } from "../context/keybind"
 import { useTheme } from "../context/theme"
@@ -67,9 +59,7 @@ export function FilterableFileTree(props: FilterableFileTreeProps) {
     let inputRef: TextareaRenderable | undefined
     let scrollRef: ScrollBoxRenderable | undefined
 
-    const activeQuery = createMemo(() =>
-        filterMode() ? query() : appliedQuery(),
-    )
+    const activeQuery = createMemo(() => (filterMode() ? query() : appliedQuery()))
     const hasActiveFilter = createMemo(() => activeQuery().trim().length > 0)
 
     const filteredFiles = createMemo(() => {
@@ -100,8 +90,7 @@ export function FilterableFileTree(props: FilterableFileTreeProps) {
     const currentSelectedIndex = () =>
         hasActiveFilter() ? filterSelectedIndex() : props.selectedIndex()
 
-    const currentFiles = () =>
-        hasActiveFilter() ? filteredFiles() : props.files()
+    const currentFiles = () => (hasActiveFilter() ? filteredFiles() : props.files())
 
     createEffect(
         on(
@@ -137,13 +126,8 @@ export function FilterableFileTree(props: FilterableFileTreeProps) {
                 if (selectedFile) {
                     const originalIndex = props
                         .files()
-                        .findIndex(
-                            (f) => f.node.path === selectedFile.node.path,
-                        )
-                    if (
-                        originalIndex >= 0 &&
-                        originalIndex !== props.selectedIndex()
-                    ) {
+                        .findIndex((f) => f.node.path === selectedFile.node.path)
+                    if (originalIndex >= 0 && originalIndex !== props.selectedIndex()) {
                         props.setSelectedIndex(originalIndex)
                     }
                 }

@@ -8,15 +8,9 @@ import {
     stackStatePath,
     writePersistedStackState,
 } from "../../../src/stack/state"
-import {
-    StackStore,
-    StackStoreError,
-    StackStoreLive,
-} from "../../../src/stack/store"
+import { StackStore, StackStoreError, StackStoreLive } from "../../../src/stack/store"
 
-async function withRepository(
-    run: (repository: string) => Promise<void>,
-): Promise<void> {
+async function withRepository(run: (repository: string) => Promise<void>): Promise<void> {
     const repository = await mkdtemp(join(tmpdir(), "kajji-stack-state-"))
     try {
         await run(repository)
@@ -35,15 +29,11 @@ test("persisted stack state treats only a missing file as empty", async () => {
         await writePersistedStackState({ version: 1, entries: [] }, repository)
         const path = await stackStatePath(repository)
         await Bun.write(path, "{ invalid")
-        await expect(
-            readPersistedStackState(repository),
-        ).rejects.toBeInstanceOf(Error)
-        const stored = StackStore.use((store) =>
-            store.readState(repository),
-        ).pipe(Effect.provide(StackStoreLive))
-        await expect(Effect.runPromise(stored)).rejects.toBeInstanceOf(
-            StackStoreError,
+        await expect(readPersistedStackState(repository)).rejects.toBeInstanceOf(Error)
+        const stored = StackStore.use((store) => store.readState(repository)).pipe(
+            Effect.provide(StackStoreLive),
         )
+        await expect(Effect.runPromise(stored)).rejects.toBeInstanceOf(StackStoreError)
     })
 })
 
@@ -61,15 +51,11 @@ test("persisted stack state validates and atomically replaces state", async () =
         }
 
         await writePersistedStackState(state, repository)
-        await expect(readPersistedStackState(repository)).resolves.toEqual(
-            state,
-        )
+        await expect(readPersistedStackState(repository)).resolves.toEqual(state)
 
         const path = await stackStatePath(repository)
         const invalid = JSON.stringify({ version: 1, entries: [{}] })
         await Bun.write(path, invalid)
-        await expect(
-            readPersistedStackState(repository),
-        ).rejects.toBeInstanceOf(Error)
+        await expect(readPersistedStackState(repository)).rejects.toBeInstanceOf(Error)
     })
 })

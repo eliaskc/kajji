@@ -15,9 +15,7 @@ const commit = (overrides: Partial<Commit> = {}): Commit =>
 
 describe("getRevisionRestorePlan", () => {
     test("uses the default restore behavior for the working copy", () => {
-        expect(getRevisionRestorePlan(commit({ isWorkingCopy: true }))).toEqual(
-            { supported: true },
-        )
+        expect(getRevisionRestorePlan(commit({ isWorkingCopy: true }))).toEqual({ supported: true })
     })
 
     test("rewrites a mutable single-parent revision from its parent", () => {
@@ -29,17 +27,19 @@ describe("getRevisionRestorePlan", () => {
     })
 
     test("uses the commit ID for a divergent revision", () => {
-        expect(
-            getRevisionRestorePlan(commit({ divergent: true })),
-        ).toMatchObject({ into: "commit-id" })
+        expect(getRevisionRestorePlan(commit({ divergent: true }))).toMatchObject({
+            into: "commit-id",
+        })
     })
 
     test("explains unsupported immutable and merge revisions", () => {
-        expect(
-            getRevisionRestorePlan(commit({ immutable: true })),
-        ).toMatchObject({ supported: false, message: expect.any(String) })
-        expect(
-            getRevisionRestorePlan(commit({ parentCommitIds: ["one", "two"] })),
-        ).toMatchObject({ supported: false, message: expect.any(String) })
+        expect(getRevisionRestorePlan(commit({ immutable: true }))).toMatchObject({
+            supported: false,
+            message: expect.any(String),
+        })
+        expect(getRevisionRestorePlan(commit({ parentCommitIds: ["one", "two"] }))).toMatchObject({
+            supported: false,
+            message: expect.any(String),
+        })
     })
 })

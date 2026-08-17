@@ -6,11 +6,7 @@ export interface HistoricalFileStore {
     materialize(
         revision: string,
         paths: readonly string[],
-        writeFile: (
-            revision: string,
-            path: string,
-            outputPath: string,
-        ) => Promise<void>,
+        writeFile: (revision: string, path: string, outputPath: string) => Promise<void>,
     ): Promise<string[]>
     dispose(): void
 }
@@ -29,10 +25,7 @@ export function makeHistoricalFileStore(): HistoricalFileStore {
     const getRevisionDirectory = (revision: string): string => {
         const existing = revisionDirectories.get(revision)
         if (existing) return existing
-        const directory = join(
-            getSnapshotRoot(),
-            String(revisionDirectories.size),
-        )
+        const directory = join(getSnapshotRoot(), String(revisionDirectories.size))
         mkdirSync(directory, { recursive: true })
         revisionDirectories.set(revision, directory)
         return directory
@@ -56,11 +49,7 @@ export function makeHistoricalFileStore(): HistoricalFileStore {
     const materializeFile = (
         revision: string,
         path: string,
-        writeFile: (
-            revision: string,
-            path: string,
-            outputPath: string,
-        ) => Promise<void>,
+        writeFile: (revision: string, path: string, outputPath: string) => Promise<void>,
     ): Promise<string> => {
         const key = JSON.stringify([revision, path])
         const completedPath = completed.get(key)

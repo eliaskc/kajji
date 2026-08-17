@@ -27,9 +27,7 @@ export function ErrorScreen(props: ErrorScreenProps) {
     const showRetry = () => !canFix()
 
     type Action = "fix" | "retry"
-    const [selectedAction, setSelectedAction] = createSignal<Action>(
-        canFix() ? "fix" : "retry",
-    )
+    const [selectedAction, setSelectedAction] = createSignal<Action>(canFix() ? "fix" : "retry")
 
     const handleFix = async () => {
         if (!props.onFix) return
@@ -164,16 +162,8 @@ export function ErrorScreen(props: ErrorScreenProps) {
                                         : undefined
                                 }
                             >
-                                <text
-                                    fg={
-                                        isLoading()
-                                            ? colors().textMuted
-                                            : colors().text
-                                    }
-                                >
-                                    {isFixing()
-                                        ? "Running..."
-                                        : parsedError().fixCommand}
+                                <text fg={isLoading() ? colors().textMuted : colors().text}>
+                                    {isFixing() ? "Running..." : parsedError().fixCommand}
                                 </text>
                                 <text fg={colors().primary}>f</text>
                             </box>
@@ -191,13 +181,7 @@ export function ErrorScreen(props: ErrorScreenProps) {
                                         : undefined
                                 }
                             >
-                                <text
-                                    fg={
-                                        isLoading()
-                                            ? colors().textMuted
-                                            : colors().text
-                                    }
-                                >
+                                <text fg={isLoading() ? colors().textMuted : colors().text}>
                                     {isRetrying() ? "Retrying..." : "retry"}
                                 </text>
                                 <text fg={colors().primary}>r</text>

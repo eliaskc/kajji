@@ -14,8 +14,7 @@ function stamp() {
 }
 
 export function getDiagnosticsDirectory() {
-    const stateHome =
-        process.env.XDG_STATE_HOME || join(homedir(), ".local", "state")
+    const stateHome = process.env.XDG_STATE_HOME || join(homedir(), ".local", "state")
     return join(stateHome, "kajji", "log")
 }
 

@@ -61,10 +61,7 @@ export function migrateStateIfNeeded(): void {
             stateWritten = true
         }
 
-        if (
-            oldState.whatsNewDisabled !== undefined &&
-            !existsSync(newConfigPath)
-        ) {
+        if (oldState.whatsNewDisabled !== undefined && !existsSync(newConfigPath)) {
             const nextConfig = { whatsNewDisabled: oldState.whatsNewDisabled }
             writeFileAtomic(newConfigPath, JSON.stringify(nextConfig, null, 2))
             configWritten = true
@@ -72,9 +69,7 @@ export function migrateStateIfNeeded(): void {
 
         const canFinalize =
             (existsSync(newStatePath) || stateWritten) &&
-            (oldState.whatsNewDisabled === undefined ||
-                existsSync(newConfigPath) ||
-                configWritten)
+            (oldState.whatsNewDisabled === undefined || existsSync(newConfigPath) || configWritten)
 
         if (canFinalize) {
             const backupPath = `${OLD_STATE_PATH}.bak`

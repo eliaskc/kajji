@@ -2,17 +2,9 @@ import { stdin as input, stdout as output } from "node:process"
 import { defineCommand } from "citty"
 import { nanoid } from "nanoid"
 import { JjReadError } from "../commander/jj"
-import {
-    buildHunkAnchor,
-    buildHunkIndex,
-    relocateRevision,
-} from "../comments/relocate"
+import { buildHunkAnchor, buildHunkIndex, relocateRevision } from "../comments/relocate"
 import { readComments, writeComments } from "../comments/storage"
-import type {
-    CommentAnchor,
-    CommentAnchorLine,
-    CommentEntry,
-} from "../comments/types"
+import type { CommentAnchor, CommentAnchorLine, CommentEntry } from "../comments/types"
 import { parseDiffString } from "../diff/parser"
 import type { CliApplication } from "./client"
 import { formatLineRange } from "./format"
@@ -75,10 +67,7 @@ function colorSymbol(symbol: string, colorCode: string): string {
     return `\x1b[${colorCode}m${symbol}\x1b[0m`
 }
 
-async function confirmAction(
-    message: string,
-    force?: boolean,
-): Promise<boolean> {
+async function confirmAction(message: string, force?: boolean): Promise<boolean> {
     if (force) return true
     if (!input.isTTY) {
         throw new Error("Confirmation required (use --yes to skip)")
@@ -120,10 +109,7 @@ async function confirmAction(
     })
 }
 
-async function resolveRepoRoot(
-    application: CliApplication,
-    cwd = process.cwd(),
-): Promise<string> {
+async function resolveRepoRoot(application: CliApplication, cwd = process.cwd()): Promise<string> {
     return application.jjRepositoryRoot({ cwd })
 }
 
@@ -139,9 +125,7 @@ async function readFileLinesAtRevision(
         })
     } catch (error) {
         if (!(error instanceof JjReadError)) throw error
-        throw new Error(
-            error.result.stderr.trim() || `Unable to read ${filePath}`,
-        )
+        throw new Error(error.result.stderr.trim() || `Unable to read ${filePath}`)
     }
     const normalized = content.replace(/\r\n/g, "\n")
     const lines = normalized.split("\n")
@@ -151,11 +135,7 @@ async function readFileLinesAtRevision(
     return lines
 }
 
-function getLineContextLines(
-    lines: string[],
-    lineNumber: number,
-    maxLines = 5,
-): string[] {
+function getLineContextLines(lines: string[], lineNumber: number, maxLines = 5): string[] {
     const index = lineNumber - 1
     if (index < 0 || index >= lines.length) {
         throw new Error(`Line ${lineNumber} is out of range`)
@@ -255,18 +235,14 @@ export function makeCommentCommand(application: CliApplication) {
                     },
                 },
                 async run({ args }) {
-                    const rev =
-                        (args as { revisions?: string }).revisions ?? "@"
+                    const rev = (args as { revisions?: string }).revisions ?? "@"
                     const hunk = (args as { hunk?: string }).hunk
                     const file = (args as { file?: string }).file
                     const lineInput = (args as { line?: string | number }).line
                     const sideInput = (args as { side?: string }).side
                     const message = (args as { message?: string }).message
-                    const author =
-                        (args as { author?: string }).author ?? "human"
-                    const explanation = Boolean(
-                        (args as { explanation?: boolean }).explanation,
-                    )
+                    const author = (args as { author?: string }).author ?? "human"
+                    const explanation = Boolean((args as { explanation?: boolean }).explanation)
                     const type = (args as { type?: string }).type ?? "feedback"
                     if (!message) {
                         throw new Error("Missing required option: --message")
@@ -277,22 +253,13 @@ export function makeCommentCommand(application: CliApplication) {
                     if (!hunk && (!file || lineInput === undefined)) {
                         throw new Error("Provide --hunk or --file/--line")
                     }
-                    if (
-                        sideInput &&
-                        sideInput !== "new" &&
-                        sideInput !== "old"
-                    ) {
+                    if (sideInput && sideInput !== "new" && sideInput !== "old") {
                         throw new Error("--side must be 'new' or 'old'")
                     }
-                    const revision = await resolveSingleRevision(
-                        application,
-                        rev,
-                    )
+                    const revision = await resolveSingleRevision(application, rev)
                     const repoRoot = await resolveRepoRoot(application)
                     const state = readComments(repoRoot)
-                    const revisionEntry = state.revisions[
-                        revision.changeId
-                    ] ?? {
+                    const revisionEntry = state.revisions[revision.changeId] ?? {
                         commitHash: revision.commitId,
                         anchors: [],
                     }
@@ -309,11 +276,7 @@ export function makeCommentCommand(application: CliApplication) {
                         if (!target) {
                             throw new Error(`Hunk not found: ${hunk}`)
                         }
-                        const anchor = buildHunkAnchor(
-                            hunk,
-                            target.file,
-                            target.hunk,
-                        )
+                        const anchor = buildHunkAnchor(hunk, target.file, target.hunk)
                         const comment = createCommentEntry({
                             message,
                             author,
@@ -321,13 +284,10 @@ export function makeCommentCommand(application: CliApplication) {
                             type,
                         })
                         const existingIndex = revisionEntry.anchors.findIndex(
-                            (entry) =>
-                                entry.type === "hunk" && entry.id === hunk,
+                            (entry) => entry.type === "hunk" && entry.id === hunk,
                         )
                         if (existingIndex >= 0) {
-                            const existing = revisionEntry.anchors[
-                                existingIndex
-                            ] as CommentAnchor
+                            const existing = revisionEntry.anchors[existingIndex] as CommentAnchor
                             if (existing.type === "hunk") {
                                 revisionEntry.anchors[existingIndex] = {
                                     ...existing,
@@ -358,10 +318,7 @@ export function makeCommentCommand(application: CliApplication) {
                         revision.commitId,
                         filePath,
                     )
-                    const contextLines = getLineContextLines(
-                        fileLines,
-                        lineNumber,
-                    )
+                    const contextLines = getLineContextLines(fileLines, lineNumber)
                     const comment = createCommentEntry({
                         message,
                         author,
@@ -369,19 +326,15 @@ export function makeCommentCommand(application: CliApplication) {
                         type,
                     })
                     const side = sideInput as "new" | "old" | undefined
-                    const existingIndex = revisionEntry.anchors.findIndex(
-                        (entry) => {
-                            if (entry.type !== "line") return false
-                            if (entry.filePath !== filePath) return false
-                            if (entry.lineNumber !== lineNumber) return false
-                            if (side) return entry.side === side
-                            return entry.side === undefined
-                        },
-                    )
+                    const existingIndex = revisionEntry.anchors.findIndex((entry) => {
+                        if (entry.type !== "line") return false
+                        if (entry.filePath !== filePath) return false
+                        if (entry.lineNumber !== lineNumber) return false
+                        if (side) return entry.side === side
+                        return entry.side === undefined
+                    })
                     if (existingIndex >= 0) {
-                        const existing = revisionEntry.anchors[
-                            existingIndex
-                        ] as CommentAnchorLine
+                        const existing = revisionEntry.anchors[existingIndex] as CommentAnchorLine
                         revisionEntry.anchors[existingIndex] = {
                             ...existing,
                             contextLines,
@@ -458,18 +411,13 @@ export function makeCommentCommand(application: CliApplication) {
 
                     if (args.id) {
                         const id = args.id
-                        for (const [changeId, revision] of Object.entries(
-                            state.revisions,
-                        )) {
+                        for (const [changeId, revision] of Object.entries(state.revisions)) {
                             const nextAnchors: CommentAnchor[] = []
                             for (const anchor of revision.anchors) {
                                 const nextComments = anchor.comments.filter(
                                     (comment) => comment.id !== id,
                                 )
-                                if (
-                                    nextComments.length !==
-                                    anchor.comments.length
-                                ) {
+                                if (nextComments.length !== anchor.comments.length) {
                                     updated = true
                                 }
                                 if (nextComments.length > 0) {
@@ -494,19 +442,14 @@ export function makeCommentCommand(application: CliApplication) {
                         return
                     }
 
-                    const rev =
-                        (args as { revisions?: string }).revisions ?? "@"
+                    const rev = (args as { revisions?: string }).revisions ?? "@"
                     const hunk = (args as { hunk?: string }).hunk
                     const file = (args as { file?: string }).file
                     const lineInput = (args as { line?: string | number }).line
                     const sideInput = (args as { side?: string }).side
                     const all = Boolean((args as { all?: boolean }).all)
                     const yes = Boolean((args as { yes?: boolean }).yes)
-                    if (
-                        sideInput &&
-                        sideInput !== "new" &&
-                        sideInput !== "old"
-                    ) {
+                    if (sideInput && sideInput !== "new" && sideInput !== "old") {
                         throw new Error("--side must be 'new' or 'old'")
                     }
                     if (all && (hunk || file || lineInput)) {
@@ -523,10 +466,7 @@ export function makeCommentCommand(application: CliApplication) {
                             "Provide a comment ID, --hunk, --file/--line, --file, or --all",
                         )
                     }
-                    const revision = await resolveSingleRevision(
-                        application,
-                        rev,
-                    )
+                    const revision = await resolveSingleRevision(application, rev)
                     const entry = state.revisions[revision.changeId]
                     if (!entry) {
                         throw new Error("No comments for that revision")
@@ -626,10 +566,9 @@ async function listComments(
 ): Promise<void> {
     const repoRoot = await resolveRepoRoot(application)
     const state = readComments(repoRoot)
-    const revisions = await application.jjRevisionSummaries(
-        args.revisions ?? "@",
-        { cwd: process.cwd() },
-    )
+    const revisions = await application.jjRevisionSummaries(args.revisions ?? "@", {
+        cwd: process.cwd(),
+    })
     const output: Array<{
         changeId: string
         commitId: string
@@ -704,9 +643,7 @@ async function listComments(
                     anchor.lineRange.newCount,
                 )
                 const staleLabel = anchor.stale ? " (stale)" : ""
-                console.log(
-                    `  ${anchor.id}${staleLabel} ${anchor.filePath} lines ${range}`,
-                )
+                console.log(`  ${anchor.id}${staleLabel} ${anchor.filePath} lines ${range}`)
                 for (const comment of anchor.comments) {
                     console.log(
                         `    ${comment.id} (${comment.author}/${comment.type}) ${comment.text}`,
@@ -716,13 +653,9 @@ async function listComments(
             }
             const sideLabel = anchor.side ? ` (${anchor.side})` : ""
             const staleLabel = anchor.stale ? " (stale)" : ""
-            console.log(
-                `  ${anchor.filePath}:${anchor.lineNumber}${sideLabel}${staleLabel}`,
-            )
+            console.log(`  ${anchor.filePath}:${anchor.lineNumber}${sideLabel}${staleLabel}`)
             for (const comment of anchor.comments) {
-                console.log(
-                    `    ${comment.id} (${comment.author}/${comment.type}) ${comment.text}`,
-                )
+                console.log(`    ${comment.id} (${comment.author}/${comment.type}) ${comment.text}`)
             }
         }
         if (output.length > 1) {

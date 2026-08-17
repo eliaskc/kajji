@@ -10,10 +10,7 @@ export interface ProcessCommand {
     readonly timeoutMs?: number
     readonly stdin?: string
     readonly stdoutFile?: string
-    readonly onOutput?: (
-        stream: ProcessOutputStream,
-        chunk: string,
-    ) => void | Promise<void>
+    readonly onOutput?: (stream: ProcessOutputStream, chunk: string) => void | Promise<void>
 }
 
 export const ProcessResult = Schema.Struct({
@@ -23,8 +20,7 @@ export const ProcessResult = Schema.Struct({
     durationMs: Schema.Number,
 })
 
-export interface ProcessResult
-    extends Schema.Schema.Type<typeof ProcessResult> {}
+export interface ProcessResult extends Schema.Schema.Type<typeof ProcessResult> {}
 
 export type ProcessEvent =
     | {
@@ -83,18 +79,15 @@ export type ProcessError =
     | ProcessTimeoutError
 
 export interface AppProcessService {
-    readonly run: (
-        command: ProcessCommand,
-    ) => Effect.Effect<ProcessResult, ProcessError>
+    readonly run: (command: ProcessCommand) => Effect.Effect<ProcessResult, ProcessError>
     readonly stream: (
         command: Omit<ProcessCommand, "onOutput">,
     ) => Stream.Stream<ProcessEvent, ProcessError>
 }
 
-export class AppProcess extends Context.Service<
-    AppProcess,
-    AppProcessService
->()("kajji/AppProcess") {}
+export class AppProcess extends Context.Service<AppProcess, AppProcessService>()(
+    "kajji/AppProcess",
+) {}
 
 interface ChildHandle {
     readonly pid: number
@@ -109,11 +102,7 @@ interface ChildHandle {
     kill(signal?: number | NodeJS.Signals): void
 }
 
-async function notifyOutput(
-    command: ProcessCommand,
-    stream: ProcessOutputStream,
-    chunk: string,
-) {
+async function notifyOutput(command: ProcessCommand, stream: ProcessOutputStream, chunk: string) {
     try {
         await command.onOutput?.(stream, chunk)
     } catch {
@@ -138,8 +127,7 @@ function readOutput<E>(
             while (true) {
                 const { done, value } = yield* Effect.tryPromise({
                     try: () => reader.read(),
-                    catch: (cause) =>
-                        new ProcessReadError({ command, stream, cause }),
+                    catch: (cause) => new ProcessReadError({ command, stream, cause }),
                 })
                 if (done) break
                 const chunk = decoder.decode(value, { stream: true })
@@ -186,9 +174,7 @@ async function terminateChild(child: ChildHandle) {
     }
 }
 
-const runLive = Effect.fn("AppProcess.run")(function* (
-    command: ProcessCommand,
-) {
+const runLive = Effect.fn("AppProcess.run")(function* (command: ProcessCommand) {
     let result: ProcessResult | undefined
     yield* streamLive(command).pipe(
         Stream.runForEach((event) => {
@@ -197,15 +183,11 @@ const runLive = Effect.fn("AppProcess.run")(function* (
                     result = event.result
                 })
             }
-            return Effect.promise(() =>
-                notifyOutput(command, event.stream, event.chunk),
-            )
+            return Effect.promise(() => notifyOutput(command, event.stream, event.chunk))
         }),
     )
     if (result === undefined) {
-        return yield* Effect.die(
-            new Error("Process stream completed without an exit result"),
-        )
+        return yield* Effect.die(new Error("Process stream completed without an exit result"))
     }
     return result
 })
@@ -221,27 +203,20 @@ function streamLive(
                     const child = yield* Effect.acquireRelease(
                         Effect.try({
                             try: () =>
-                                Bun.spawn(
-                                    [command.executable, ...command.args],
-                                    {
-                                        cwd: command.cwd,
-                                        env: {
-                                            ...process.env,
-                                            ...command.env,
-                                        },
-                                        stdin:
-                                            command.stdin === undefined
-                                                ? "ignore"
-                                                : "pipe",
-                                        stdout: command.stdoutFile
-                                            ? Bun.file(command.stdoutFile)
-                                            : "pipe",
-                                        stderr: "pipe",
-                                        detached: process.platform !== "win32",
+                                Bun.spawn([command.executable, ...command.args], {
+                                    cwd: command.cwd,
+                                    env: {
+                                        ...process.env,
+                                        ...command.env,
                                     },
-                                ) as unknown as ChildHandle,
-                            catch: (cause) =>
-                                new ProcessSpawnError({ command, cause }),
+                                    stdin: command.stdin === undefined ? "ignore" : "pipe",
+                                    stdout: command.stdoutFile
+                                        ? Bun.file(command.stdoutFile)
+                                        : "pipe",
+                                    stderr: "pipe",
+                                    detached: process.platform !== "win32",
+                                }) as unknown as ChildHandle,
+                            catch: (cause) => new ProcessSpawnError({ command, cause }),
                         }),
                         (child) => Effect.promise(() => terminateChild(child)),
                     )
@@ -252,36 +227,27 @@ function streamLive(
                                 child.stdin?.write(command.stdin as string)
                                 child.stdin?.end()
                             },
-                            catch: (cause) =>
-                                new ProcessWriteError({ command, cause }),
+                            catch: (cause) => new ProcessWriteError({ command, cause }),
                         })
                     }
 
                     const collect = Effect.all(
                         [
                             child.stdout
-                                ? readOutput(
-                                      command,
-                                      "stdout",
-                                      child.stdout,
-                                      (chunk) =>
-                                          Queue.offer(queue, {
-                                              _tag: "Output",
-                                              stream: "stdout",
-                                              chunk,
-                                          }),
+                                ? readOutput(command, "stdout", child.stdout, (chunk) =>
+                                      Queue.offer(queue, {
+                                          _tag: "Output",
+                                          stream: "stdout",
+                                          chunk,
+                                      }),
                                   )
                                 : Effect.succeed(""),
-                            readOutput(
-                                command,
-                                "stderr",
-                                child.stderr,
-                                (chunk) =>
-                                    Queue.offer(queue, {
-                                        _tag: "Output",
-                                        stream: "stderr",
-                                        chunk,
-                                    }),
+                            readOutput(command, "stderr", child.stderr, (chunk) =>
+                                Queue.offer(queue, {
+                                    _tag: "Output",
+                                    stream: "stderr",
+                                    chunk,
+                                }),
                             ),
                             Effect.promise(() => child.exited),
                         ] as const,

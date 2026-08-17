@@ -30,9 +30,7 @@ export function parseGhRepositoryJson(stdout: string): GitHubRepository {
     return { owner: ownerLogin, name: record.name }
 }
 
-export function parseGitHubRemoteUrl(
-    url: string,
-): GitHubRepository | undefined {
+export function parseGitHubRemoteUrl(url: string): GitHubRepository | undefined {
     const trimmed = url.trim()
     const match = trimmed.match(
         /^(?:https:\/\/github\.com\/|git@github\.com:)([^/]+)\/([^/]+?)(?:\.git)?$/,
@@ -100,11 +98,7 @@ function parseGhPullRequestsByHeadGraphqlJsonInternal(
             const record = node as Record<string, unknown>
             if (typeof record.number !== "number") continue
             if (typeof record.headRefName !== "string") continue
-            if (
-                !includeClosed &&
-                typeof record.state === "string" &&
-                record.state !== "OPEN"
-            ) {
+            if (!includeClosed && typeof record.state === "string" && record.state !== "OPEN") {
                 continue
             }
             const summary = {
@@ -113,18 +107,10 @@ function parseGhPullRequestsByHeadGraphqlJsonInternal(
                 ...(typeof record.baseRefName === "string"
                     ? { baseRefName: record.baseRefName }
                     : {}),
-                ...(typeof record.state === "string"
-                    ? { state: record.state }
-                    : {}),
-                ...(typeof record.merged === "boolean"
-                    ? { merged: record.merged }
-                    : {}),
-                ...(typeof record.updatedAt === "string"
-                    ? { updatedAt: record.updatedAt }
-                    : {}),
-                ...(typeof record.createdAt === "string"
-                    ? { createdAt: record.createdAt }
-                    : {}),
+                ...(typeof record.state === "string" ? { state: record.state } : {}),
+                ...(typeof record.merged === "boolean" ? { merged: record.merged } : {}),
+                ...(typeof record.updatedAt === "string" ? { updatedAt: record.updatedAt } : {}),
+                ...(typeof record.createdAt === "string" ? { createdAt: record.createdAt } : {}),
             } satisfies GitHubPullRequestSummary
             const existing = pulls.get(record.headRefName)
             if (!existing || preferPullRequest(summary, existing)) {
@@ -139,12 +125,8 @@ function preferPullRequest(
     candidate: GitHubPullRequestSummary,
     existing: GitHubPullRequestSummary,
 ): boolean {
-    const candidateTime = Date.parse(
-        candidate.updatedAt ?? candidate.createdAt ?? "",
-    )
-    const existingTime = Date.parse(
-        existing.updatedAt ?? existing.createdAt ?? "",
-    )
+    const candidateTime = Date.parse(candidate.updatedAt ?? candidate.createdAt ?? "")
+    const existingTime = Date.parse(existing.updatedAt ?? existing.createdAt ?? "")
     if (!Number.isNaN(candidateTime) && !Number.isNaN(existingTime)) {
         return candidateTime > existingTime
     }

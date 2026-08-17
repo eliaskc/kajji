@@ -20,11 +20,7 @@ function toHex(value: number) {
         .padStart(2, "0")
 }
 
-export function blendColors(
-    foreground: string,
-    background: string,
-    foregroundOpacity: number,
-) {
+export function blendColors(foreground: string, background: string, foregroundOpacity: number) {
     const fg = parseHexColor(foreground)
     const bg = parseHexColor(background)
     if (!fg || !bg) return foreground

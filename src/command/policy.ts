@@ -45,10 +45,7 @@ export interface CommandEnvironment {
     inputMode: boolean
 }
 
-export function contextMatches(
-    commandContext: Context,
-    activeContext: Context,
-): boolean {
+export function contextMatches(commandContext: Context, activeContext: Context): boolean {
     if (commandContext === "global") return true
     if (commandContext === activeContext) return true
     return activeContext.startsWith(`${commandContext}.`)
@@ -74,9 +71,7 @@ export function isCommandApplicable(
     return true
 }
 
-export function commandUnavailableReason(
-    command: CommandDefinition,
-): string | null {
+export function commandUnavailableReason(command: CommandDefinition): string | null {
     return command.unavailable?.() ?? null
 }
 
@@ -94,10 +89,7 @@ export function commandUnavailableMessage(
     return [{ text: title, style: "action" }, ` ${reason}`]
 }
 
-export function isCommandVisible(
-    command: CommandDefinition,
-    surface: CommandSurface,
-): boolean {
+export function isCommandVisible(command: CommandDefinition, surface: CommandSurface): boolean {
     return command.visibleIn.includes(surface)
 }
 
@@ -120,15 +112,12 @@ export function commandsForSurface(
     commands: readonly CommandDefinition[],
     surface: CommandSurface,
 ): CommandDefinition[] {
-    const visible = commands.filter((command) =>
-        isCommandVisible(command, surface),
-    )
+    const visible = commands.filter((command) => isCommandVisible(command, surface))
     if (surface !== "palette") return visible
 
     const navigationKeybinds = new Set<KeybindConfigKey>()
     return visible.filter((command) => {
-        if (commandGroup(command) !== "navigation" || !command.keybind)
-            return true
+        if (commandGroup(command) !== "navigation" || !command.keybind) return true
         if (navigationKeybinds.has(command.keybind)) return false
         navigationKeybinds.add(command.keybind)
         return true
@@ -139,11 +128,7 @@ export function canDispatchCommand(
     command: CommandDefinition,
     environment: CommandEnvironment,
 ): boolean {
-    if (
-        environment.inputMode &&
-        !(command.scope === "dialog" && command.allowInInput)
-    )
-        return false
+    if (environment.inputMode && !(command.scope === "dialog" && command.allowInInput)) return false
     if (command.scope === "dialog") {
         if (!environment.dialogOpen) return false
     } else if (environment.dialogOpen && command.scope !== "always") {
@@ -163,13 +148,9 @@ export function resolveCommandKey<Event>(
 
     for (const command of commands) {
         if (!canDispatchCommand(command, environment)) continue
-        if (!command.keybind || !matchesKeybind(command.keybind, event))
-            continue
+        if (!command.keybind || !matchesKeybind(command.keybind, event)) continue
 
-        const specificity = contextSpecificity(
-            command.context,
-            environment.context,
-        )
+        const specificity = contextSpecificity(command.context, environment.context)
         if (specificity > highestSpecificity) {
             match = command
             highestSpecificity = specificity

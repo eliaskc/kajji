@@ -6,13 +6,7 @@
  */
 
 import { execSync } from "node:child_process"
-import {
-    existsSync,
-    mkdirSync,
-    readFileSync,
-    rmSync,
-    writeFileSync,
-} from "node:fs"
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import solidPlugin from "../node_modules/@opentui/solid/scripts/solid-plugin"
 
@@ -30,15 +24,11 @@ type Target = (typeof allTargets)[number]
 
 const args = process.argv.slice(2)
 const targetArg = args.find((_, i) => args[i - 1] === "--target")
-const targets = targetArg
-    ? allTargets.filter((t) => `${t.os}-${t.arch}` === targetArg)
-    : allTargets
+const targets = targetArg ? allTargets.filter((t) => `${t.os}-${t.arch}` === targetArg) : allTargets
 
 if (targetArg && targets.length === 0) {
     console.error(`Unknown target: ${targetArg}`)
-    console.error(
-        `Available: ${allTargets.map((t) => `${t.os}-${t.arch}`).join(", ")}`,
-    )
+    console.error(`Available: ${allTargets.map((t) => `${t.os}-${t.arch}`).join(", ")}`)
     process.exit(1)
 }
 
@@ -50,9 +40,7 @@ const missingPlatforms = targets.filter(
     (t) => !existsSync(`node_modules/@opentui/core-${t.os}-${t.arch}`),
 )
 if (missingPlatforms.length > 0) {
-    const packages = targets
-        .map((t) => `@opentui/core-${t.os}-${t.arch}@${coreVersion}`)
-        .join(" ")
+    const packages = targets.map((t) => `@opentui/core-${t.os}-${t.arch}@${coreVersion}`).join(" ")
     console.log("Installing cross-platform dependencies...")
     execSync(`npm install --no-save --force ${packages}`, {
         stdio: "inherit",
@@ -116,10 +104,7 @@ for (const target of targets) {
             license: pkg.license,
             author: pkg.author,
         }
-        writeFileSync(
-            `${outdir}/package.json`,
-            JSON.stringify(platformPkg, null, 2),
-        )
+        writeFileSync(`${outdir}/package.json`, JSON.stringify(platformPkg, null, 2))
 
         results.push({ name, success: true })
         console.log(`  -> ${outfile}`)

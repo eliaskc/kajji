@@ -30,14 +30,8 @@ export function FooterHints(props: FooterHintsProps) {
                             <For each={row}>
                                 {(hint, index) => (
                                     <>
-                                        <span style={{ fg: colors().primary }}>
-                                            {hint.key}
-                                        </span>{" "}
-                                        <span
-                                            style={{ fg: colors().textMuted }}
-                                        >
-                                            {hint.label}
-                                        </span>
+                                        <span style={{ fg: colors().primary }}>{hint.key}</span>{" "}
+                                        <span style={{ fg: colors().textMuted }}>{hint.label}</span>
                                         <Show when={index() < row.length - 1}>
                                             <span
                                                 style={{

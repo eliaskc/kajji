@@ -22,9 +22,7 @@ export async function runCli(args: string[]): Promise<void> {
     if (normalizedArgs[0] === "changes") {
         const firstArg = normalizedArgs[1]
         if (firstArg && !firstArg.startsWith("-")) {
-            console.error(
-                "Use -r/--revisions for revsets. Example: kajji changes -r @",
-            )
+            console.error("Use -r/--revisions for revsets. Example: kajji changes -r @")
             process.exit(1)
         }
     }

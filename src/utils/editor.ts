@@ -21,15 +21,7 @@ const TERMINAL_EDITORS = new Set([
     "ne",
 ])
 
-const PLUS_LINE_EDITORS = new Set([
-    "vi",
-    "vim",
-    "nvim",
-    "nano",
-    "pico",
-    "emacs",
-    "emacsclient",
-])
+const PLUS_LINE_EDITORS = new Set(["vi", "vim", "nvim", "nano", "pico", "emacs", "emacsclient"])
 const GOTO_LINE_EDITORS = new Set(["code", "code-insiders", "codium", "cursor"])
 const COLON_LINE_EDITORS = new Set(["hx", "helix", "micro", "subl", "zed"])
 
@@ -83,10 +75,7 @@ export function shouldSuspendForEditor(editor = getPreferredEditor()): boolean {
     const basename = command.split("/").pop() || command
 
     if (basename === "emacs" && parts.includes("-nw")) return true
-    if (
-        basename === "emacsclient" &&
-        (parts.includes("-t") || parts.includes("--tty"))
-    ) {
+    if (basename === "emacsclient" && (parts.includes("-t") || parts.includes("--tty"))) {
         return true
     }
 
@@ -99,17 +88,14 @@ export async function openInEditor(
 ): Promise<OpenEditorResult> {
     const editor = getPreferredEditor()
     const args = getEditorArguments(paths, editor, options.line)
-    const proc = Bun.spawn(
-        ["sh", "-lc", 'exec $KAJJI_EDITOR "$@"', "kajji-editor", ...args],
-        {
-            cwd: options.cwd ?? getRepoPath(),
-            env: {
-                ...process.env,
-                KAJJI_EDITOR: editor,
-            },
-            stdio: ["inherit", "inherit", "inherit"],
+    const proc = Bun.spawn(["sh", "-lc", 'exec $KAJJI_EDITOR "$@"', "kajji-editor", ...args], {
+        cwd: options.cwd ?? getRepoPath(),
+        env: {
+            ...process.env,
+            KAJJI_EDITOR: editor,
         },
-    )
+        stdio: ["inherit", "inherit", "inherit"],
+    })
 
     const exitCode = await proc.exited
     const command = `${editor} ${args.map(shellEscape).join(" ")}`.trim()

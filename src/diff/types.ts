@@ -72,10 +72,7 @@ export interface DiffState {
 /**
  * Create initial diff state.
  */
-export function createDiffState(
-    files: DiffFile[] = [],
-    mode: DiffMode = "view",
-): DiffState {
+export function createDiffState(files: DiffFile[] = [], mode: DiffMode = "view"): DiffState {
     return {
         files,
         mode,

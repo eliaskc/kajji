@@ -5,11 +5,7 @@ export function findBinaryFiles(diffString: string): Set<string> {
     for (const block of blocks) {
         if (!block.includes("diff --git ")) continue
         // Match binary markers at start of line (not embedded in code)
-        if (
-            !/^GIT binary patch$/m.test(block) &&
-            !/^Binary files /m.test(block)
-        )
-            continue
+        if (!/^GIT binary patch$/m.test(block) && !/^Binary files /m.test(block)) continue
         const firstLine = block.split("\n", 1)[0]?.trim()
         if (!firstLine) continue
         const names = parseGitDiffNames(firstLine)

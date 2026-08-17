@@ -1,13 +1,6 @@
 import { Context, Effect, Layer, Schema } from "effect"
-import {
-    AppProcess,
-    type ProcessError,
-    ProcessResult,
-} from "../process/app-process"
-import {
-    OperationInterruptedError,
-    type OperationSink,
-} from "../process/operation-sink"
+import { AppProcess, type ProcessError, ProcessResult } from "../process/app-process"
+import { OperationInterruptedError, type OperationSink } from "../process/operation-sink"
 import { Git } from "./git"
 import {
     type GitHubPullRequestSummary,
@@ -43,11 +36,7 @@ export class GitHubCommandError extends Schema.TaggedErrorClass<GitHubCommandErr
     }
 }
 
-const GitHubDecodeOperation = Schema.Literals([
-    "repository",
-    "pull-requests",
-    "comments",
-])
+const GitHubDecodeOperation = Schema.Literals(["repository", "pull-requests", "comments"])
 
 const GitHubComments = Schema.Array(
     Schema.Struct({
@@ -110,9 +99,7 @@ export interface GitHubService {
     ) => Effect.Effect<GitHubOperationResult, GitHubError>
 }
 
-export class GitHub extends Context.Service<GitHub, GitHubService>()(
-    "kajji/GitHub",
-) {}
+export class GitHub extends Context.Service<GitHub, GitHubService>()("kajji/GitHub") {}
 
 function notify(callback: () => void) {
     try {
@@ -130,8 +117,7 @@ const decodeGitHubOutput = Effect.fn("GitHub.decodeOutput")(
     ): Effect.Effect<A, GitHubDecodeError> =>
         Effect.try({
             try: decode,
-            catch: (cause) =>
-                new GitHubDecodeError({ operation, output, cause }),
+            catch: (cause) => new GitHubDecodeError({ operation, output, cause }),
         }),
 )
 
@@ -155,21 +141,16 @@ export const GitHubLive = Layer.effect(
                     cwd: options.cwd,
                     timeoutMs: options.timeoutMs,
                     stdin: runOptions.stdin,
-                    onOutput: (stream, chunk) =>
-                        notify(() => options.sink?.output(stream, chunk)),
+                    onOutput: (stream, chunk) => notify(() => options.sink?.output(stream, chunk)),
                 })
                 .pipe(
                     Effect.tapError((error) =>
-                        Effect.sync(() =>
-                            notify(() => options.sink?.fail(error)),
-                        ),
+                        Effect.sync(() => notify(() => options.sink?.fail(error))),
                     ),
                     Effect.onInterrupt(() =>
                         Effect.sync(() =>
                             notify(() =>
-                                options.sink?.fail(
-                                    new OperationInterruptedError({ command }),
-                                ),
+                                options.sink?.fail(new OperationInterruptedError({ command })),
                             ),
                         ),
                     ),
@@ -202,32 +183,24 @@ export const GitHubLive = Layer.effect(
             return result.stdout
         })
 
-        const resolveRepository = Effect.fn("GitHub.resolveRepository")(
-            function* (options: GitHubReadOptions) {
-                const originUrl = yield* git.originRemoteUrl(options)
-                const originRepository = originUrl
-                    ? parseGitHubRemoteUrl(originUrl)
-                    : undefined
-                if (originRepository) return originRepository
-                const stdout = yield* output(
-                    ["repo", "view", "--json", "owner,name"],
-                    options,
-                )
-                return yield* decodeGitHubOutput("repository", stdout, () =>
-                    parseGhRepositoryJson(stdout),
-                )
-            },
-        )
+        const resolveRepository = Effect.fn("GitHub.resolveRepository")(function* (
+            options: GitHubReadOptions,
+        ) {
+            const originUrl = yield* git.originRemoteUrl(options)
+            const originRepository = originUrl ? parseGitHubRemoteUrl(originUrl) : undefined
+            if (originRepository) return originRepository
+            const stdout = yield* output(["repo", "view", "--json", "owner,name"], options)
+            return yield* decodeGitHubOutput("repository", stdout, () =>
+                parseGhRepositoryJson(stdout),
+            )
+        })
 
-        const withResolvedRepository = Effect.fn(
-            "GitHub.withResolvedRepository",
-        )(function* (args: readonly string[], options: GitHubReadOptions) {
+        const withResolvedRepository = Effect.fn("GitHub.withResolvedRepository")(function* (
+            args: readonly string[],
+            options: GitHubReadOptions,
+        ) {
             const repository = yield* resolveRepository(options)
-            return [
-                ...args,
-                "--repo",
-                `${repository.owner}/${repository.name}`,
-            ] as const
+            return [...args, "--repo", `${repository.owner}/${repository.name}`] as const
         })
 
         return GitHub.of({
@@ -237,9 +210,7 @@ export const GitHubLive = Layer.effect(
                     if (uniqueHeads.length === 0) return new Map()
 
                     const repository = yield* resolveRepository(options)
-                    const states = options.includeClosed
-                        ? "[OPEN, CLOSED, MERGED]"
-                        : "OPEN"
+                    const states = options.includeClosed ? "[OPEN, CLOSED, MERGED]" : "OPEN"
                     const query = `query PullRequestsByHead($owner: String!, $name: String!) {
   repository(owner: $owner, name: $name) {
 ${uniqueHeads
@@ -268,42 +239,27 @@ ${uniqueHeads
                         ],
                         options,
                     )
-                    return yield* decodeGitHubOutput(
-                        "pull-requests",
-                        stdout,
-                        () =>
-                            options.includeClosed
-                                ? parseGhPullRequestsByHeadGraphqlJsonIncludingClosed(
-                                      stdout,
-                                  )
-                                : parseGhPullRequestsByHeadGraphqlJson(stdout),
+                    return yield* decodeGitHubOutput("pull-requests", stdout, () =>
+                        options.includeClosed
+                            ? parseGhPullRequestsByHeadGraphqlJsonIncludingClosed(stdout)
+                            : parseGhPullRequestsByHeadGraphqlJson(stdout),
                     )
                 },
             ),
             prCreate: Effect.fn("GitHub.prCreate")(function* (input, options) {
                 const args = yield* withResolvedRepository(
-                    [
-                        "pr",
-                        "create",
-                        "--head",
-                        input.head,
-                        "--base",
-                        input.base,
-                        "--fill",
-                    ],
+                    ["pr", "create", "--head", input.head, "--base", input.base, "--fill"],
                     options,
                 )
                 return yield* run(args, options)
             }),
-            prEditBase: Effect.fn("GitHub.prEditBase")(
-                function* (prNumber, base, options) {
-                    const args = yield* withResolvedRepository(
-                        ["pr", "edit", String(prNumber), "--base", base],
-                        options,
-                    )
-                    return yield* run(args, options)
-                },
-            ),
+            prEditBase: Effect.fn("GitHub.prEditBase")(function* (prNumber, base, options) {
+                const args = yield* withResolvedRepository(
+                    ["pr", "edit", String(prNumber), "--base", base],
+                    options,
+                )
+                return yield* run(args, options)
+            }),
             prClose: Effect.fn("GitHub.prClose")(function* (prNumber, options) {
                 const args = yield* withResolvedRepository(
                     ["pr", "close", String(prNumber)],
@@ -322,17 +278,10 @@ ${uniqueHeads
                         ],
                         options,
                     )
-                    const comments = yield* decodeGitHubOutput(
-                        "comments",
-                        stdout,
-                        () =>
-                            Schema.decodeUnknownSync(GitHubComments)(
-                                JSON.parse(stdout),
-                            ),
+                    const comments = yield* decodeGitHubOutput("comments", stdout, () =>
+                        Schema.decodeUnknownSync(GitHubComments)(JSON.parse(stdout)),
                     )
-                    const existing = comments.find((comment) =>
-                        comment.body?.includes(marker),
-                    )
+                    const existing = comments.find((comment) => comment.body?.includes(marker))
                     const existingId = existing?.id
                     const path =
                         typeof existingId === "number"
@@ -358,15 +307,13 @@ ${uniqueHeads
             browseCommit: Effect.fn("GitHub.browseCommit")((commit, options) =>
                 runRaw(["browse", commit], options),
             ),
-            prViewWeb: Effect.fn("GitHub.prViewWeb")(
-                function* (prNumber, options) {
-                    const args = yield* withResolvedRepository(
-                        ["pr", "view", String(prNumber), "--web"],
-                        options,
-                    )
-                    return yield* runRaw(args, options)
-                },
-            ),
+            prViewWeb: Effect.fn("GitHub.prViewWeb")(function* (prNumber, options) {
+                const args = yield* withResolvedRepository(
+                    ["pr", "view", String(prNumber), "--web"],
+                    options,
+                )
+                return yield* runRaw(args, options)
+            }),
         })
     }),
 ) satisfies Layer.Layer<GitHub, never, AppProcess | Git>

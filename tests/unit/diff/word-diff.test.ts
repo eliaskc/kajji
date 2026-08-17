@@ -3,17 +3,10 @@ import { computeWordDiff } from "../../../src/diff/word-diff"
 
 describe("computeWordDiff", () => {
     test("preserves text while leaving spaces between changed words neutral", () => {
-        const result = computeWordDiff(
-            "const oldValue = 1",
-            "const newValue = 2",
-        )
+        const result = computeWordDiff("const oldValue = 1", "const newValue = 2")
 
-        expect(result.old.map((segment) => segment.text).join("")).toBe(
-            "const oldValue = 1",
-        )
-        expect(result.new.map((segment) => segment.text).join("")).toBe(
-            "const newValue = 2",
-        )
+        expect(result.old.map((segment) => segment.text).join("")).toBe("const oldValue = 1")
+        expect(result.new.map((segment) => segment.text).join("")).toBe("const newValue = 2")
         expect(
             [...result.old, ...result.new]
                 .filter((segment) => /^\s+$/.test(segment.text))

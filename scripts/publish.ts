@@ -3,13 +3,7 @@
  * Usage: bun run scripts/publish.ts [--tag <tag>] [--dry-run]
  */
 
-import {
-    cpSync,
-    existsSync,
-    mkdirSync,
-    readFileSync,
-    writeFileSync,
-} from "node:fs"
+import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { $ } from "bun"
 
@@ -18,17 +12,14 @@ const version = pkg.version
 
 const args = process.argv.slice(2)
 const dryRun = args.includes("--dry-run")
-const skipBuild =
-    args.includes("--skip-build") || process.env.SKIP_BUILD === "1"
+const skipBuild = args.includes("--skip-build") || process.env.SKIP_BUILD === "1"
 const tagArg = args.find((_, i) => args[i - 1] === "--tag")
 const tag = tagArg || "latest"
 
 const maxPublishAttempts = 3
 const baseRetryDelayMs = 1000
 
-console.log(
-    `Publishing kajji v${version} (tag: ${tag})${dryRun ? " [DRY RUN]" : ""}\n`,
-)
+console.log(`Publishing kajji v${version} (tag: ${tag})${dryRun ? " [DRY RUN]" : ""}\n`)
 
 if (!skipBuild) {
     // Side-effect import: re-runs the build. Used for the local release flow.
@@ -49,9 +40,7 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 const isPublished = async (name: string) => {
     try {
-        const published = (
-            await $`npm view ${name}@${version} version`.text()
-        ).trim()
+        const published = (await $`npm view ${name}@${version} version`.text()).trim()
         return published === version
     } catch {
         return false
@@ -207,9 +196,7 @@ if (!skipBuild) {
     console.log("\nNext steps:")
     console.log(`  1. git tag v${version}`)
     console.log(`  2. git push origin v${version}`)
-    console.log(
-        `  3. gh release create v${version} dist/*.tar.gz dist/*.zip --title "v${version}"`,
-    )
+    console.log(`  3. gh release create v${version} dist/*.tar.gz dist/*.zip --title "v${version}"`)
 }
 
 if (failures.length > 0) {

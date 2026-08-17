@@ -107,9 +107,7 @@ async function run(doPush: boolean) {
         await mkdir(join(tapDir, "Formula"), { recursive: true })
         writeFileSync(join(tapDir, "Formula", "kajji.rb"), formula)
 
-        const status = (
-            await $`git status --porcelain`.cwd(tapDir).text()
-        ).trim()
+        const status = (await $`git status --porcelain`.cwd(tapDir).text()).trim()
         if (!status) {
             console.log(`Homebrew tap already up to date for v${version}`)
             return
@@ -122,9 +120,7 @@ async function run(doPush: boolean) {
         await $`git add Formula/kajji.rb`.cwd(tapDir)
         await $`git commit -m ${`Update kajji to v${version}`}`.cwd(tapDir)
 
-        const defaultBranch = (
-            await $`git symbolic-ref --short HEAD`.cwd(tapDir).text()
-        ).trim()
+        const defaultBranch = (await $`git symbolic-ref --short HEAD`.cwd(tapDir).text()).trim()
 
         if (!doPush) {
             // Dry-run push validates that the token actually has write access —

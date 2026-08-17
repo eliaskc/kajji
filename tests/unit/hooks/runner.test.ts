@@ -17,9 +17,7 @@ const success: ProcessResult = {
     durationMs: 1,
 }
 
-function hookConfig(
-    commands: Array<string | { command: string; env?: Record<string, string> }>,
-) {
+function hookConfig(commands: Array<string | { command: string; env?: Record<string, string> }>) {
     return ConfigSchema.parse({
         gitHooksPath: false,
         repos: {
@@ -50,13 +48,10 @@ describe("Hooks", () => {
     test("runs configured hooks sequentially with shell and environment policy", async () => {
         const started: ProcessCommand[] = []
         const result = await Effect.runPromise(
-            runHooks(
-                ["first", { command: "second", env: { TOKEN: "yes" } }],
-                (command) => {
-                    started.push(command)
-                    return Effect.succeed(success)
-                },
-            ),
+            runHooks(["first", { command: "second", env: { TOKEN: "yes" } }], (command) => {
+                started.push(command)
+                return Effect.succeed(success)
+            }),
         )
 
         expect(result).toEqual({ success: true })
@@ -125,10 +120,7 @@ describe("Hooks", () => {
         )
         const absent = Hooks.use((hooks) =>
             hooks.hasPreHooks(HookOperation.JjNew, "/tmp/repository"),
-        ).pipe(
-            Effect.provide(makeHooksLayer(() => hookConfig([]))),
-            Effect.provide(processLayer),
-        )
+        ).pipe(Effect.provide(makeHooksLayer(() => hookConfig([]))), Effect.provide(processLayer))
 
         await expect(Effect.runPromise(configured)).resolves.toBe(true)
         await expect(Effect.runPromise(absent)).resolves.toBe(false)

@@ -20,8 +20,7 @@ export interface SelectableListOptions {
 }
 
 export function createSelectableList(options: SelectableListOptions) {
-    const [selectionSource, setSelectionSource] =
-        createSignal<SelectionSource>("programmatic")
+    const [selectionSource, setSelectionSource] = createSignal<SelectionSource>("programmatic")
     const [scrollTop, setScrollTop] = createSignal(0)
 
     const setIndex = (index: number) => {

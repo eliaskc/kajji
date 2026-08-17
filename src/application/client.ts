@@ -102,8 +102,7 @@ interface ApplicationDiffOptions extends Omit<JjDiffOptions, "sink"> {
     readonly signal?: AbortSignal
 }
 
-interface ApplicationBookmarkReadOptions
-    extends Omit<JjBookmarkReadOptions, "sink"> {
+interface ApplicationBookmarkReadOptions extends Omit<JjBookmarkReadOptions, "sink"> {
     readonly signal?: AbortSignal
 }
 
@@ -116,20 +115,17 @@ export interface ApplicationStreamHandle<A> {
     readonly cancel: () => void
 }
 
-export interface ApplicationGitFetchOptions
-    extends Omit<JjGitFetchOptions, "sink"> {
+export interface ApplicationGitFetchOptions extends Omit<JjGitFetchOptions, "sink"> {
     readonly observer?: CommandObserver
     readonly signal?: AbortSignal
 }
 
-export interface ApplicationGitPushOptions
-    extends Omit<JjGitPushOptions, "sink"> {
+export interface ApplicationGitPushOptions extends Omit<JjGitPushOptions, "sink"> {
     readonly observer?: CommandObserver
     readonly signal?: AbortSignal
 }
 
-interface ApplicationNewOptions
-    extends Omit<JjNewOptions, "sink" | "position"> {
+interface ApplicationNewOptions extends Omit<JjNewOptions, "sink" | "position"> {
     readonly observer?: CommandObserver
     readonly signal?: AbortSignal
 }
@@ -148,13 +144,11 @@ interface ApplicationInteractiveOptions extends InteractiveJjOptions {
     readonly signal?: AbortSignal
 }
 
-interface ApplicationInteractiveResolveOptions
-    extends InteractiveJjResolveOptions {
+interface ApplicationInteractiveResolveOptions extends InteractiveJjResolveOptions {
     readonly signal?: AbortSignal
 }
 
-interface ApplicationInteractiveSquashOptions
-    extends InteractiveJjSquashOptions {
+interface ApplicationInteractiveSquashOptions extends InteractiveJjSquashOptions {
     readonly signal?: AbortSignal
 }
 
@@ -173,14 +167,12 @@ interface ApplicationRebaseOptions extends Omit<JjRebaseOptions, "sink"> {
     readonly signal?: AbortSignal
 }
 
-interface ApplicationBookmarkCreateOptions
-    extends Omit<JjBookmarkCreateOptions, "sink"> {
+interface ApplicationBookmarkCreateOptions extends Omit<JjBookmarkCreateOptions, "sink"> {
     readonly observer?: CommandObserver
     readonly signal?: AbortSignal
 }
 
-interface ApplicationBookmarkSetOptions
-    extends Omit<JjBookmarkSetOptions, "sink"> {
+interface ApplicationBookmarkSetOptions extends Omit<JjBookmarkSetOptions, "sink"> {
     readonly observer?: CommandObserver
     readonly signal?: AbortSignal
 }
@@ -197,18 +189,10 @@ export interface ApplicationClient {
             readonly signal?: AbortSignal
         },
     ) => Promise<RepositoryInitResult>
-    readonly jjGitFetch: (
-        options: ApplicationGitFetchOptions,
-    ) => Promise<OperationResult>
-    readonly jjGitPush: (
-        options: ApplicationGitPushOptions,
-    ) => Promise<OperationResult>
-    readonly jjUndo: (
-        options: ApplicationOperationOptions,
-    ) => Promise<OperationResult>
-    readonly jjRedo: (
-        options: ApplicationOperationOptions,
-    ) => Promise<OperationResult>
+    readonly jjGitFetch: (options: ApplicationGitFetchOptions) => Promise<OperationResult>
+    readonly jjGitPush: (options: ApplicationGitPushOptions) => Promise<OperationResult>
+    readonly jjUndo: (options: ApplicationOperationOptions) => Promise<OperationResult>
+    readonly jjRedo: (options: ApplicationOperationOptions) => Promise<OperationResult>
     readonly jjOpRestore: (
         operationId: string,
         options: ApplicationOperationOptions,
@@ -216,10 +200,7 @@ export interface ApplicationClient {
     readonly jjWorkspaceUpdateStale: (
         options: ApplicationOperationOptions,
     ) => Promise<OperationResult>
-    readonly jjEdit: (
-        revision: string,
-        options: ApplicationEditOptions,
-    ) => Promise<OperationResult>
+    readonly jjEdit: (revision: string, options: ApplicationEditOptions) => Promise<OperationResult>
     readonly jjDescribe: (
         revision: string,
         message: string,
@@ -300,9 +281,7 @@ export interface ApplicationClient {
         paths: readonly string[],
         options: ApplicationReadOptions,
     ) => Promise<string[]>
-    readonly jjRepositoryRoot: (
-        options: ApplicationReadOptions,
-    ) => Promise<string>
+    readonly jjRepositoryRoot: (options: ApplicationReadOptions) => Promise<string>
     readonly jjRevisionSummaries: (
         revset: string,
         options: ApplicationReadOptions,
@@ -312,10 +291,7 @@ export interface ApplicationClient {
         path: string,
         options: ApplicationReadOptions,
     ) => Promise<string>
-    readonly jjIsInTrunk: (
-        revision: string,
-        options: ApplicationReadOptions,
-    ) => Promise<boolean>
+    readonly jjIsInTrunk: (revision: string, options: ApplicationReadOptions) => Promise<boolean>
     readonly jjShowDescription: (
         revision: string,
         options: ApplicationReadOptions,
@@ -324,9 +300,7 @@ export interface ApplicationClient {
         revision: string,
         options: ApplicationReadOptions,
     ) => Promise<string[]>
-    readonly jjRefreshState: (
-        options: ApplicationReadOptions,
-    ) => Promise<JjRefreshState>
+    readonly jjRefreshState: (options: ApplicationReadOptions) => Promise<JjRefreshState>
     readonly jjFiles: (
         target: JjDiffTarget,
         options: ApplicationReadOptions,
@@ -339,24 +313,17 @@ export interface ApplicationClient {
         limit: number | undefined,
         options: ApplicationReadOptions,
     ) => Promise<string[]>
-    readonly jjDiff: (
-        target: JjDiffTarget,
-        options: ApplicationDiffOptions,
-    ) => Promise<string>
+    readonly jjDiff: (target: JjDiffTarget, options: ApplicationDiffOptions) => Promise<string>
     readonly structuralDiff: (
         request: StructuralDiffRequest,
         options: ApplicationReadOptions,
     ) => Promise<StructuralDiffOutcome>
-    readonly jjBookmarks: (
-        options: ApplicationBookmarkReadOptions,
-    ) => Promise<Bookmark[]>
+    readonly jjBookmarks: (options: ApplicationBookmarkReadOptions) => Promise<Bookmark[]>
     readonly jjStreamBookmarks: (
         options: ApplicationBookmarkReadOptions,
         onBatch: (bookmarks: readonly Bookmark[]) => void | Promise<void>,
     ) => ApplicationStreamHandle<Bookmark[]>
-    readonly jjLogPage: (
-        options: ApplicationLogReadOptions,
-    ) => Promise<LogPageResult>
+    readonly jjLogPage: (options: ApplicationLogReadOptions) => Promise<LogPageResult>
     readonly jjStreamLogPage: (
         options: ApplicationLogReadOptions,
         onBatch: (commits: readonly Commit[]) => void | Promise<void>,
@@ -404,9 +371,7 @@ class ApplicationStreamConsumerError extends Schema.TaggedErrorClass<Application
     { cause: Schema.Defect() },
 ) {
     override get message() {
-        return this.cause instanceof Error
-            ? this.cause.message
-            : String(this.cause)
+        return this.cause instanceof Error ? this.cause.message : String(this.cause)
     }
 }
 
@@ -476,25 +441,14 @@ export function makeApplicationClient(
     const dependencies = Layer.merge(appProcessLayer, providedHooksLayer)
     const providedJjLayer = JjLayer.pipe(Layer.provide(dependencies))
     const providedGitLayer = GitLive.pipe(Layer.provide(appProcessLayer))
-    const providedStructuralDiffLayer = StructuralDiffLive.pipe(
-        Layer.provide(appProcessLayer),
-    )
+    const providedStructuralDiffLayer = StructuralDiffLive.pipe(Layer.provide(appProcessLayer))
     const gitHubDependencies = Layer.merge(appProcessLayer, providedGitLayer)
-    const providedGitHubLayer = GitHubLive.pipe(
-        Layer.provide(gitHubDependencies),
-    )
-    const repositoryBootstrapDependencies = Layer.merge(
-        providedJjLayer,
-        providedGitLayer,
-    )
+    const providedGitHubLayer = GitHubLive.pipe(Layer.provide(gitHubDependencies))
+    const repositoryBootstrapDependencies = Layer.merge(providedJjLayer, providedGitLayer)
     const providedRepositoryBootstrapLayer = RepositoryBootstrapLive.pipe(
         Layer.provide(repositoryBootstrapDependencies),
     )
-    const stackDependencies = Layer.mergeAll(
-        providedJjLayer,
-        providedGitHubLayer,
-        stackStoreLayer,
-    )
+    const stackDependencies = Layer.mergeAll(providedJjLayer, providedGitHubLayer, stackStoreLayer)
     const providedStackLayer = stackLayer.pipe(Layer.provide(stackDependencies))
     const providedInteractiveJjLayer = InteractiveJjLive.pipe(
         Layer.provide(interactiveProcessLayer),
@@ -518,8 +472,7 @@ export function makeApplicationClient(
         options: ApplicationReadOptions,
         operation: (jj: JjService) => Effect.Effect<A, E>,
     ): Promise<A> => {
-        if (!accepting)
-            return Promise.reject(new ApplicationClientClosedError())
+        if (!accepting) return Promise.reject(new ApplicationClientClosedError())
         return runtime.runPromise(Jj.use(operation), { signal: options.signal })
     }
 
@@ -550,8 +503,7 @@ export function makeApplicationClient(
                         }
                         return Effect.tryPromise({
                             try: () => Promise.resolve(onBatch(event.items)),
-                            catch: (cause) =>
-                                new ApplicationStreamConsumerError({ cause }),
+                            catch: (cause) => new ApplicationStreamConsumerError({ cause }),
                         })
                     }),
                 )
@@ -590,8 +542,7 @@ export function makeApplicationClient(
         options: ApplicationReadOptions,
         operation: (hooks: HooksService) => Effect.Effect<A, E>,
     ): Promise<A> => {
-        if (!accepting)
-            return Promise.reject(new ApplicationClientClosedError())
+        if (!accepting) return Promise.reject(new ApplicationClientClosedError())
         return runtime.runPromise(Hooks.use(operation), {
             signal: options.signal,
         })
@@ -601,8 +552,7 @@ export function makeApplicationClient(
         signal: AbortSignal | undefined,
         operation: (repository: RepositoryBootstrapService) => Effect.Effect<A>,
     ): Promise<A> => {
-        if (!accepting)
-            return Promise.reject(new ApplicationClientClosedError())
+        if (!accepting) return Promise.reject(new ApplicationClientClosedError())
         return runtime.runPromise(RepositoryBootstrap.use(operation), {
             signal,
         })
@@ -610,13 +560,9 @@ export function makeApplicationClient(
 
     const runStack = <A, E>(
         options: ApplicationStackOptions,
-        operation: (
-            stack: StackService,
-            sink: OperationSink,
-        ) => Effect.Effect<A, E>,
+        operation: (stack: StackService, sink: OperationSink) => Effect.Effect<A, E>,
     ): Promise<A> => {
-        if (!accepting)
-            return Promise.reject(new ApplicationClientClosedError())
+        if (!accepting) return Promise.reject(new ApplicationClientClosedError())
         const { observer, signal } = options
         const { sink } = observerSink(observer)
         return runtime.runPromise(
@@ -631,8 +577,7 @@ export function makeApplicationClient(
         options: ApplicationReadOptions,
         operation: (gitHub: GitHubService) => Effect.Effect<A, E>,
     ): Promise<A> => {
-        if (!accepting)
-            return Promise.reject(new ApplicationClientClosedError())
+        if (!accepting) return Promise.reject(new ApplicationClientClosedError())
         return runtime.runPromise(GitHub.use(operation), {
             signal: options.signal,
         })
@@ -713,9 +658,7 @@ export function makeApplicationClient(
 
     return {
         repositoryStatus: (path, options) =>
-            runRepositoryBootstrap(options?.signal, (repository) =>
-                repository.inspect(path),
-            ),
+            runRepositoryBootstrap(options?.signal, (repository) => repository.inspect(path)),
         initializeRepository: (path, options) =>
             runRepositoryBootstrap(options?.signal, (repository) =>
                 repository.initialize(path, { colocate: options?.colocate }),
@@ -757,15 +700,11 @@ export function makeApplicationClient(
                 jj.squash(revision, { ...options, sink }),
             ),
         jjSplitInteractive: (revision, { signal, ...options }) =>
-            runInteractive(signal, "jj split", (jj) =>
-                jj.split(revision, options),
-            ),
+            runInteractive(signal, "jj split", (jj) => jj.split(revision, options)),
         jjResolveInteractive: ({ signal, ...options }) =>
             runInteractive(signal, "jj resolve", (jj) => jj.resolve(options)),
         jjSquashInteractive: (revision, { signal, ...options }) =>
-            runInteractive(signal, "jj squash -i", (jj) =>
-                jj.squash(revision, options),
-            ),
+            runInteractive(signal, "jj squash -i", (jj) => jj.squash(revision, options)),
         jjRebase: (revision, destination, { observer, signal, ...options }) =>
             runOperation({ ...options, observer, signal }, (jj, sink) =>
                 jj.rebase(revision, destination, { ...options, sink }),
@@ -782,11 +721,7 @@ export function makeApplicationClient(
             runOperation({ ...options, observer, signal }, (jj, sink) =>
                 jj.bookmarkDelete(name, { ...options, sink }),
             ),
-        jjBookmarkRename: (
-            oldName,
-            newName,
-            { observer, signal, ...options },
-        ) =>
+        jjBookmarkRename: (oldName, newName, { observer, signal, ...options }) =>
             runOperation({ ...options, observer, signal }, (jj, sink) =>
                 jj.bookmarkRename(oldName, newName, { ...options, sink }),
             ),
@@ -807,9 +742,7 @@ export function makeApplicationClient(
                 jj.new(revisions, { ...options, position: "after", sink }),
             ),
         hasPreHooks: (operationId, options) =>
-            runHookRead(options, (hooks) =>
-                hooks.hasPreHooks(operationId, options.cwd),
-            ),
+            runHookRead(options, (hooks) => hooks.hasPreHooks(operationId, options.cwd)),
         jjDuplicate: (revision, { observer, signal, ...options }) =>
             runOperation({ ...options, observer, signal }, (jj, sink) =>
                 jj.duplicate(revision, { ...options, sink }),
@@ -838,8 +771,7 @@ export function makeApplicationClient(
                     ),
             )
         },
-        jjRepositoryRoot: (options) =>
-            runRead(options, (jj) => jj.repositoryRoot(options)),
+        jjRepositoryRoot: (options) => runRead(options, (jj) => jj.repositoryRoot(options)),
         jjRevisionSummaries: (revset, options) =>
             runRead(options, (jj) => jj.revisionSummaries(revset, options)),
         jjFileContent: (revision, path, options) =>
@@ -893,21 +825,17 @@ export function makeApplicationClient(
                     timeoutMs: options.timeoutMs,
                 }),
             ),
-        jjDiff: (target, options) =>
-            runRead(options, (jj) => jj.diff(target, options)),
+        jjDiff: (target, options) => runRead(options, (jj) => jj.diff(target, options)),
         structuralDiff: (request, options) => {
-            if (!accepting)
-                return Promise.reject(new ApplicationClientClosedError())
-            const effect = StructuralDiff.use((structural) =>
-                structural.diff(request),
-            ).pipe(
-                Effect.map(
-                    (files): StructuralDiffOutcome => ({ kind: "ok", files }),
-                ),
+            if (!accepting) return Promise.reject(new ApplicationClientClosedError())
+            const effect = StructuralDiff.use((structural) => structural.diff(request)).pipe(
+                Effect.map((files): StructuralDiffOutcome => ({
+                    kind: "ok",
+                    files,
+                })),
                 Effect.catch((error) =>
                     Effect.succeed<StructuralDiffOutcome>(
-                        error._tag === "ProcessSpawnError" &&
-                            error.command.executable === "difft"
+                        error._tag === "ProcessSpawnError" && error.command.executable === "difft"
                             ? { kind: "difft-missing" }
                             : {
                                   kind: "failed",
@@ -921,17 +849,14 @@ export function makeApplicationClient(
             )
             return runtime.runPromise(effect, { signal: options.signal })
         },
-        jjBookmarks: (options) =>
-            runRead(options, (jj) => jj.bookmarks(options)),
+        jjBookmarks: (options) => runRead(options, (jj) => jj.bookmarks(options)),
         jjStreamBookmarks: (options, onBatch) =>
             runStream(options, (jj) => jj.streamBookmarks(options), onBatch),
         jjLogPage: (options) => runRead(options, (jj) => jj.logPage(options)),
         jjStreamLogPage: (options, onBatch) =>
             runStream(options, (jj) => jj.streamLogPage(options), onBatch),
         stackParent: (bookmark, options) =>
-            runStack(options, (stack) =>
-                stack.persistedParent(bookmark, options.cwd),
-            ),
+            runStack(options, (stack) => stack.persistedParent(bookmark, options.cwd)),
         prepareStackSync: (stackRootName, options) =>
             runStack(options, (stack, sink) =>
                 stack.prepareSyncPlan({
@@ -945,33 +870,23 @@ export function makeApplicationClient(
                 stack.applyStackPlan(plan, { cwd: options.cwd, sink }),
             ),
         ghListPullRequestsByHead: (heads, options) =>
-            runGitHubRead(options, (gitHub) =>
-                gitHub.listPullRequestsByHead(heads, options),
-            ),
+            runGitHubRead(options, (gitHub) => gitHub.listPullRequestsByHead(heads, options)),
         ghPrCreateWeb: (head, { observer, signal, ...options }) =>
-            runGitHubOperation(
-                { ...options, observer, signal },
-                (gitHub, sink) =>
-                    gitHub.prCreateWeb(head, { ...options, sink }),
+            runGitHubOperation({ ...options, observer, signal }, (gitHub, sink) =>
+                gitHub.prCreateWeb(head, { ...options, sink }),
             ),
         ghBrowseCommit: (commit, { observer, signal, ...options }) =>
-            runGitHubOperation(
-                { ...options, observer, signal },
-                (gitHub, sink) =>
-                    gitHub.browseCommit(commit, { ...options, sink }),
+            runGitHubOperation({ ...options, observer, signal }, (gitHub, sink) =>
+                gitHub.browseCommit(commit, { ...options, sink }),
             ),
         ghPrViewWeb: (prNumber, { observer, signal, ...options }) =>
-            runGitHubOperation(
-                { ...options, observer, signal },
-                (gitHub, sink) =>
-                    gitHub.prViewWeb(prNumber, { ...options, sink }),
+            runGitHubOperation({ ...options, observer, signal }, (gitHub, sink) =>
+                gitHub.prViewWeb(prNumber, { ...options, sink }),
             ),
         dispose: () => {
             accepting = false
             if (!disposePromise) {
-                disposePromise = runtime
-                    .dispose()
-                    .finally(() => historicalFiles.dispose())
+                disposePromise = runtime.dispose().finally(() => historicalFiles.dispose())
             }
             return disposePromise
         },

@@ -27,17 +27,13 @@ const STALE_WORKING_COPY_PATTERN =
 export function isStaleWorkingCopyFailure(
     result: Pick<ProcessResult, "exitCode" | "stdout" | "stderr">,
 ): boolean {
-    return (
-        result.exitCode !== 0 &&
-        STALE_WORKING_COPY_PATTERN.test(result.stdout + result.stderr)
-    )
+    return result.exitCode !== 0 && STALE_WORKING_COPY_PATTERN.test(result.stdout + result.stderr)
 }
 
 export function isImmutableError(result: OperationResult): boolean {
     return (
         !result.success &&
-        (result.stderr.includes("immutable") ||
-            result.stderr.includes("Immutable"))
+        (result.stderr.includes("immutable") || result.stderr.includes("Immutable"))
     )
 }
 
@@ -132,8 +128,5 @@ export function shouldShowCriticalError(
     hasLoadedData: boolean,
 ): boolean {
     if (!isCriticalStartupError(errorMessage)) return false
-    return (
-        !hasLoadedData ||
-        parseJjError(errorMessage ?? "").errorType === "stale-working-copy"
-    )
+    return !hasLoadedData || parseJjError(errorMessage ?? "").errorType === "stale-working-copy"
 }

@@ -7,9 +7,7 @@ export interface GitReadOptions {
 }
 
 export interface GitService {
-    readonly isRepository: (
-        options: GitReadOptions,
-    ) => Effect.Effect<boolean, ProcessError>
+    readonly isRepository: (options: GitReadOptions) => Effect.Effect<boolean, ProcessError>
     readonly originRemoteUrl: (
         options: GitReadOptions,
     ) => Effect.Effect<string | undefined, ProcessError>
@@ -23,9 +21,7 @@ export const GitLive: Layer.Layer<Git, never, AppProcess> = Layer.effect(
         const appProcess = yield* AppProcess
 
         return Git.of({
-            isRepository: Effect.fn("Git.isRepository")(function* (
-                options: GitReadOptions,
-            ) {
+            isRepository: Effect.fn("Git.isRepository")(function* (options: GitReadOptions) {
                 const result = yield* appProcess.run({
                     executable: "git",
                     args: ["rev-parse", "--is-inside-work-tree"],
@@ -34,9 +30,7 @@ export const GitLive: Layer.Layer<Git, never, AppProcess> = Layer.effect(
                 })
                 return result.exitCode === 0 && result.stdout.trim() === "true"
             }),
-            originRemoteUrl: Effect.fn("Git.originRemoteUrl")(function* (
-                options: GitReadOptions,
-            ) {
+            originRemoteUrl: Effect.fn("Git.originRemoteUrl")(function* (options: GitReadOptions) {
                 const result = yield* appProcess.run({
                     executable: "git",
                     args: ["remote", "get-url", "origin"],

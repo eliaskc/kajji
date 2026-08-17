@@ -17,16 +17,12 @@ export function DescribeModal(props: DescribeModalProps) {
 
     const [subject, setSubject] = createSignal(props.initialSubject)
     const [body, setBody] = createSignal(props.initialBody)
-    const [focusedField, setFocusedField] = createSignal<"subject" | "body">(
-        "subject",
-    )
+    const [focusedField, setFocusedField] = createSignal<"subject" | "body">("subject")
 
     let subjectRef: InputRenderable | undefined
     let bodyRef: TextareaRenderable | undefined
 
-    const focusAtEnd = (
-        ref: { focus(): void; gotoBufferEnd(): void } | undefined,
-    ) => {
+    const focusAtEnd = (ref: { focus(): void; gotoBufferEnd(): void } | undefined) => {
         if (!ref) return
         ref.focus()
         ref.gotoBufferEnd()
@@ -72,16 +68,8 @@ export function DescribeModal(props: DescribeModalProps) {
     const charCount = () => subject().length
 
     return (
-        <box
-            flexDirection="column"
-            gap={1}
-            backgroundColor={colors().background}
-        >
-            <box
-                flexDirection="row"
-                width="100%"
-                backgroundColor={colors().background}
-            >
+        <box flexDirection="column" gap={1} backgroundColor={colors().background}>
+            <box flexDirection="row" width="100%" backgroundColor={colors().background}>
                 <input
                     ref={(r) => {
                         subjectRef = r

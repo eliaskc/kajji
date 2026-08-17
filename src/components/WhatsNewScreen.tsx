@@ -35,9 +35,7 @@ export function WhatsNewScreen(props: WhatsNewScreenProps) {
         }
         return [
             { key: "d", label: "don't show again" },
-            ...(props.onDisableAutoUpdates
-                ? [{ key: "u", label: "disable auto-updates" }]
-                : []),
+            ...(props.onDisableAutoUpdates ? [{ key: "u", label: "disable auto-updates" }] : []),
             { key: "enter", label: "continue" },
         ]
     }
@@ -110,15 +108,11 @@ export function WhatsNewScreen(props: WhatsNewScreenProps) {
                         <For each={props.changes}>
                             {(block) => (
                                 <box flexDirection="column">
-                                    <text fg={colors().primary}>
-                                        v{block.version}
-                                    </text>
+                                    <text fg={colors().primary}>v{block.version}</text>
                                     <For
                                         each={[
                                             ...new Set(
-                                                block.entries.map(
-                                                    (entry) => entry.category,
-                                                ),
+                                                block.entries.map((entry) => entry.category),
                                             ),
                                         ]}
                                     >
@@ -126,43 +120,28 @@ export function WhatsNewScreen(props: WhatsNewScreenProps) {
                                             <box flexDirection="column">
                                                 <text
                                                     fg={colors().textMuted}
-                                                    attributes={
-                                                        TextAttributes.BOLD
-                                                    }
+                                                    attributes={TextAttributes.BOLD}
                                                 >
                                                     {" "}
-                                                    {category
-                                                        .charAt(0)
-                                                        .toUpperCase() +
+                                                    {category.charAt(0).toUpperCase() +
                                                         category.slice(1)}
                                                     :
                                                 </text>
                                                 <For
                                                     each={block.entries.filter(
-                                                        (entry) =>
-                                                            entry.category ===
-                                                            category,
+                                                        (entry) => entry.category === category,
                                                     )}
                                                 >
                                                     {(entry) => (
                                                         <box flexDirection="row">
                                                             <text
-                                                                fg={
-                                                                    colors()
-                                                                        .text
-                                                                }
+                                                                fg={colors().text}
                                                                 width={5}
                                                                 flexShrink={0}
                                                             >
                                                                 {"   "}-{" "}
                                                             </text>
-                                                            <text
-                                                                fg={
-                                                                    colors()
-                                                                        .text
-                                                                }
-                                                                flexGrow={1}
-                                                            >
+                                                            <text fg={colors().text} flexGrow={1}>
                                                                 {entry.text}
                                                             </text>
                                                         </box>

@@ -1,11 +1,4 @@
-import {
-    For,
-    Show,
-    createMemo,
-    createSignal,
-    onCleanup,
-    onMount,
-} from "solid-js"
+import { For, Show, createMemo, createSignal, onCleanup, onMount } from "solid-js"
 
 import { useTheme } from "../context/theme"
 import { blendColors } from "../utils/color"
@@ -27,10 +20,7 @@ function useAmbientTick(intervalMs = 140) {
     const [tick, setTick] = createSignal(0)
 
     onMount(() => {
-        const interval = setInterval(
-            () => setTick((value) => value + 1),
-            intervalMs,
-        )
+        const interval = setInterval(() => setTick((value) => value + 1), intervalMs)
         onCleanup(() => clearInterval(interval))
     })
 
@@ -94,11 +84,8 @@ export function EmptyDiffState(props: EmptyDiffStateProps) {
             const x = addition
                 ? Math.floor((base + travel) % width)
                 : Math.floor((base - travel + width * 20) % width)
-            const y =
-                topPadding + Math.floor(noise(index * 5 + 4) * particleHeight)
-            const attenuation = props.normalMode
-                ? 1
-                : copyAttenuation(x, y, width, height)
+            const y = topPadding + Math.floor(noise(index * 5 + 4) * particleHeight)
+            const attenuation = props.normalMode ? 1 : copyAttenuation(x, y, width, height)
             if (attenuation < 0.06) continue
 
             const opacity =
@@ -111,9 +98,7 @@ export function EmptyDiffState(props: EmptyDiffStateProps) {
                 y,
                 char: addition ? "+" : "−",
                 color: blendColors(
-                    addition
-                        ? colors().diff.additionText
-                        : colors().diff.deletionText,
+                    addition ? colors().diff.additionText : colors().diff.deletionText,
                     colors().background,
                     opacity,
                 ),

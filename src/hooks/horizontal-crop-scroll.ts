@@ -9,22 +9,14 @@ export interface HorizontalCropScrollOptions {
     defaultViewportWidth?: number
 }
 
-export function createHorizontalCropScroll(
-    options: HorizontalCropScrollOptions,
-) {
+export function createHorizontalCropScroll(options: HorizontalCropScrollOptions) {
     const [scrollLeft, setScrollLeftRaw] = createSignal(0)
-    const [viewportWidth, setViewportWidth] = createSignal(
-        options.defaultViewportWidth ?? 80,
-    )
+    const [viewportWidth, setViewportWidth] = createSignal(options.defaultViewportWidth ?? 80)
 
-    const effectiveViewportWidth = () =>
-        options.viewportContentWidth?.() ?? viewportWidth()
+    const effectiveViewportWidth = () => options.viewportContentWidth?.() ?? viewportWidth()
 
     const clamp = (value: number) => {
-        const maxScroll = Math.max(
-            0,
-            options.maxContentWidth() - effectiveViewportWidth(),
-        )
+        const maxScroll = Math.max(0, options.maxContentWidth() - effectiveViewportWidth())
         return Math.max(0, Math.min(value, maxScroll))
     }
 
@@ -53,9 +45,7 @@ export function createHorizontalCropScroll(
         }
 
         const delta = event.scroll.delta || 1
-        setScrollLeft(
-            direction === "left" ? scrollLeft() - delta : scrollLeft() + delta,
-        )
+        setScrollLeft(direction === "left" ? scrollLeft() - delta : scrollLeft() + delta)
         event.preventDefault()
         event.stopPropagation()
     }

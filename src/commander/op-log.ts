@@ -5,7 +5,7 @@ export interface OpLogEntry {
 }
 
 function stripAnsi(str: string): string {
-    // biome-ignore lint/suspicious/noControlCharactersInRegex: ANSI escape sequence
+    // oxlint-disable-next-line no-control-regex -- ANSI escape sequence
     return str.replace(/\x1b\[[0-9;]*m/g, "")
 }
 

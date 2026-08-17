@@ -29,8 +29,7 @@ export function BookmarkStackRowView(props: BookmarkStackRowViewProps) {
     const { colors, mode } = useTheme()
 
     const inlineAnsiSpans = (content: string, defaultFg?: string) => {
-        const spans =
-            ptyToJson(content, { cols: 9999, rows: 1 }).lines[0]?.spans ?? []
+        const spans = ptyToJson(content, { cols: 9999, rows: 1 }).lines[0]?.spans ?? []
         return spans
             .filter((span) => span.text.length > 0)
             .map((span) => ({
@@ -48,13 +47,9 @@ export function BookmarkStackRowView(props: BookmarkStackRowViewProps) {
 
     const bookmark = () => props.row.bookmark
     const isDeleted = () => !bookmark().changeId
-    const selectedFg = () =>
-        props.selected ? colors().selectionText : undefined
+    const selectedFg = () => (props.selected ? colors().selectionText : undefined)
     const bookmarkNameFg = (defaultFg?: string) =>
-        inlineAnsiSpans(
-            bookmark().nameDisplay || bookmark().name,
-            defaultFg,
-        ).at(-1)?.fg ??
+        inlineAnsiSpans(bookmark().nameDisplay || bookmark().name, defaultFg).at(-1)?.fg ??
         defaultFg ??
         colors().text
     const visibleBookmarkName = () => {
@@ -79,11 +74,7 @@ export function BookmarkStackRowView(props: BookmarkStackRowViewProps) {
             parts.push(`@${bookmark().remote}`)
         }
         if (!props.hideDescription) {
-            parts.push(
-                props.annotation ??
-                    bookmark().descriptionDisplay ??
-                    bookmark().description,
-            )
+            parts.push(props.annotation ?? bookmark().descriptionDisplay ?? bookmark().description)
         }
         return parts.join(" ")
     }
@@ -91,9 +82,7 @@ export function BookmarkStackRowView(props: BookmarkStackRowViewProps) {
     const contentFg = () => {
         if (props.selected) return colors().selectionText
         if (isDeleted()) return colors().error
-        return props.annotation !== undefined
-            ? colors().text
-            : colors().textMuted
+        return props.annotation !== undefined ? colors().text : colors().textMuted
     }
 
     return (
@@ -115,9 +104,7 @@ export function BookmarkStackRowView(props: BookmarkStackRowViewProps) {
                                 )}
                             >
                                 {(span) => (
-                                    <span style={{ fg: span.fg, bg: span.bg }}>
-                                        {span.text}
-                                    </span>
+                                    <span style={{ fg: span.fg, bg: span.bg }}>{span.text}</span>
                                 )}
                             </For>
                         }
@@ -127,9 +114,7 @@ export function BookmarkStackRowView(props: BookmarkStackRowViewProps) {
                         </span>
                     </Show>
                     <Show when={bookmark().isLocal && props.showOriginChanged}>
-                        <span style={{ fg: bookmarkNameFg(selectedFg()) }}>
-                            *
-                        </span>
+                        <span style={{ fg: bookmarkNameFg(selectedFg()) }}>*</span>
                     </Show>
                 </text>
             </box>
@@ -157,8 +142,7 @@ export function BookmarkStackRowView(props: BookmarkStackRowViewProps) {
                                 <text wrapMode="none">
                                     <For
                                         each={inlineAnsiSpans(
-                                            bookmark().changeIdDisplay ||
-                                                bookmark().changeId,
+                                            bookmark().changeIdDisplay || bookmark().changeId,
                                             props.selected
                                                 ? colors().selectionText
                                                 : colors().textMuted,
@@ -175,9 +159,7 @@ export function BookmarkStackRowView(props: BookmarkStackRowViewProps) {
                                             </span>
                                         )}
                                     </For>
-                                    <span style={{ fg: colors().textMuted }}>
-                                        {" "}
-                                    </span>
+                                    <span style={{ fg: colors().textMuted }}> </span>
                                 </text>
                             </Show>
                         </Show>
@@ -187,41 +169,29 @@ export function BookmarkStackRowView(props: BookmarkStackRowViewProps) {
                             </text>
                         </Show>
                         <Show when={!isDeleted() && !props.hideDescription}>
-                            <box
-                                flexDirection="row"
-                                flexGrow={1}
-                                overflow="hidden"
-                            >
+                            <box flexDirection="row" flexGrow={1} overflow="hidden">
                                 <Show
                                     when={props.annotation !== undefined}
                                     fallback={
                                         <Show
                                             when={stripAnsi(
                                                 bookmark().descriptionDisplay,
-                                            ).startsWith(
-                                                emptyDescriptionPrefix,
-                                            )}
+                                            ).startsWith(emptyDescriptionPrefix)}
                                             fallback={
                                                 <text
                                                     fg={colors().textMuted}
-                                                    content={
-                                                        bookmark().description
-                                                    }
+                                                    content={bookmark().description}
                                                     wrapMode="none"
                                                 />
                                             }
                                         >
                                             <box
-                                                width={
-                                                    emptyDescriptionPrefix.length
-                                                }
+                                                width={emptyDescriptionPrefix.length}
                                                 flexShrink={0}
                                             >
                                                 <text
                                                     fg={colors().success}
-                                                    content={
-                                                        emptyDescriptionPrefix
-                                                    }
+                                                    content={emptyDescriptionPrefix}
                                                     wrapMode="none"
                                                 />
                                             </box>

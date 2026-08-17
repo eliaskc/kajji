@@ -3,10 +3,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { parse as parseJsonc } from "jsonc-parser"
-import {
-    migrateLegacyDiffEngine,
-    migrateLegacyHooks,
-} from "../../../src/config/config"
+import { migrateLegacyDiffEngine, migrateLegacyHooks } from "../../../src/config/config"
 
 describe("config migration", () => {
     test("moves legacy hooks with onlyIn into matching repo config", () => {

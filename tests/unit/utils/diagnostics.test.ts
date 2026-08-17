@@ -24,12 +24,8 @@ describe("diagnostics", () => {
     test("uses XDG_STATE_HOME for logs", () => {
         process.env.XDG_STATE_HOME = testStateHome
 
-        expect(getDiagnosticsDirectory()).toBe(
-            join(testStateHome, "kajji", "log"),
-        )
-        expect(getLogPath()).toBe(
-            join(testStateHome, "kajji", "log", "kajji.log"),
-        )
+        expect(getDiagnosticsDirectory()).toBe(join(testStateHome, "kajji", "log"))
+        expect(getLogPath()).toBe(join(testStateHome, "kajji", "log", "kajji.log"))
     })
 
     test("writes a JSON debug snapshot", () => {

@@ -27,8 +27,7 @@ export function UndoModal(props: UndoModalProps) {
         },
     )
 
-    const opDetails = () =>
-        props.operationLines?.join("\n") ?? fetchedDetails() ?? ""
+    const opDetails = () => props.operationLines?.join("\n") ?? fetchedDetails() ?? ""
 
     useDialogCommands(dialogId, () => [
         {

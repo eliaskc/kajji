@@ -156,10 +156,7 @@ describe("Jj", () => {
             { args: ["undo"], cwd: "/tmp/undo-repository" },
             { args: ["redo"], cwd: "/tmp/redo-repository" },
         ])
-        expect(results.map((result) => result.command)).toEqual([
-            "jj undo",
-            "jj redo",
-        ])
+        expect(results.map((result) => result.command)).toEqual(["jj undo", "jj redo"])
     })
 
     test("constructs op restore and workspace repair commands", async () => {
@@ -170,12 +167,8 @@ describe("Jj", () => {
         })
         const effect = Effect.all(
             [
-                Jj.use((jj) =>
-                    jj.opRestore("operation-id", { cwd: "/tmp/op-repository" }),
-                ),
-                Jj.use((jj) =>
-                    jj.workspaceUpdateStale({ cwd: "/tmp/stale-repository" }),
-                ),
+                Jj.use((jj) => jj.opRestore("operation-id", { cwd: "/tmp/op-repository" })),
+                Jj.use((jj) => jj.workspaceUpdateStale({ cwd: "/tmp/stale-repository" })),
             ],
             { concurrency: 1 },
         ).pipe(Effect.provide(JjLive), Effect.provide(processLayer))
@@ -244,13 +237,7 @@ describe("Jj", () => {
 
         expect(commands.map((command) => command.args)).toEqual([
             ["edit", "edit-rev", "--ignore-immutable"],
-            [
-                "describe",
-                "describe-rev",
-                "-m",
-                "secret message",
-                "--ignore-immutable",
-            ],
+            ["describe", "describe-rev", "-m", "secret message", "--ignore-immutable"],
             [
                 "squash",
                 "--from",
@@ -299,17 +286,13 @@ describe("Jj", () => {
                         allowBackwards: true,
                     }),
                 ),
-                Jj.use((jj) =>
-                    jj.bookmarkDelete("delete", { cwd: "/tmp/repository" }),
-                ),
+                Jj.use((jj) => jj.bookmarkDelete("delete", { cwd: "/tmp/repository" })),
                 Jj.use((jj) =>
                     jj.bookmarkRename("old", "new", {
                         cwd: "/tmp/repository",
                     }),
                 ),
-                Jj.use((jj) =>
-                    jj.bookmarkForget("forget", { cwd: "/tmp/repository" }),
-                ),
+                Jj.use((jj) => jj.bookmarkForget("forget", { cwd: "/tmp/repository" })),
             ],
             { concurrency: 1 },
         ).pipe(Effect.provide(JjLive), Effect.provide(processLayer))
@@ -386,9 +369,7 @@ describe("Jj", () => {
                 },
             },
         })
-        const effect = Jj.use((jj) =>
-            jj.new("revision", { cwd: "/tmp/repository" }),
-        ).pipe(
+        const effect = Jj.use((jj) => jj.new("revision", { cwd: "/tmp/repository" })).pipe(
             Effect.provide(JjLayer),
             Effect.provide(makeHooksLayer(() => config)),
             Effect.provide(processLayer),
@@ -411,9 +392,7 @@ describe("Jj", () => {
         })
         const effect = Effect.all(
             [
-                Jj.use((jj) =>
-                    jj.duplicate("duplicate", { cwd: "/tmp/repository" }),
-                ),
+                Jj.use((jj) => jj.duplicate("duplicate", { cwd: "/tmp/repository" })),
                 Jj.use((jj) =>
                     jj.abandon("abandon", {
                         cwd: "/tmp/repository",
@@ -454,13 +433,7 @@ describe("Jj", () => {
 
         await Effect.runPromise(effect)
 
-        expect(commands[0]?.args).toEqual([
-            "file",
-            "show",
-            "-r",
-            "revision",
-            "src/file.bin",
-        ])
+        expect(commands[0]?.args).toEqual(["file", "show", "-r", "revision", "src/file.bin"])
         expect(commands[0]?.stdoutFile).toBe("/tmp/output.bin")
     })
 
@@ -528,11 +501,7 @@ describe("Jj", () => {
 
         await expect(
             Effect.runPromise(
-                provide(
-                    Jj.use((jj) =>
-                        jj.repositoryRoot({ cwd: "/tmp/repository" }),
-                    ),
-                ),
+                provide(Jj.use((jj) => jj.repositoryRoot({ cwd: "/tmp/repository" }))),
             ),
         ).rejects.toThrow("not a repository")
         await expect(
@@ -573,9 +542,7 @@ describe("Jj", () => {
         })
         const effect = Effect.all(
             [
-                Jj.use((jj) =>
-                    jj.isInTrunk("revision", { cwd: "/tmp/repository" }),
-                ),
+                Jj.use((jj) => jj.isInTrunk("revision", { cwd: "/tmp/repository" })),
                 Jj.use((jj) =>
                     jj.showDescription("revision", {
                         cwd: "/tmp/repository",
@@ -597,14 +564,8 @@ describe("Jj", () => {
             { concurrency: 1 },
         ).pipe(Effect.provide(JjLive), Effect.provide(processLayer))
 
-        const [
-            inTrunk,
-            description,
-            bookmarks,
-            operationId,
-            hasMatches,
-            refreshState,
-        ] = await Effect.runPromise(effect)
+        const [inTrunk, description, bookmarks, operationId, hasMatches, refreshState] =
+            await Effect.runPromise(effect)
 
         expect(inTrunk).toBe(true)
         expect(description).toEqual({ subject: "subject", body: "body" })
@@ -665,39 +626,17 @@ describe("Jj", () => {
                         },
                     ),
                 ),
-                Jj.use((jj) =>
-                    jj.diff(
-                        { from: "from", to: "to" },
-                        { cwd: "/tmp/repository" },
-                    ),
-                ),
+                Jj.use((jj) => jj.diff({ from: "from", to: "to" }, { cwd: "/tmp/repository" })),
             ],
             { concurrency: 1 },
         ).pipe(Effect.provide(JjLive), Effect.provide(processLayer))
 
-        await expect(Effect.runPromise(effect)).resolves.toEqual([
-            "diff output",
-            "diff output",
-        ])
+        await expect(Effect.runPromise(effect)).resolves.toEqual(["diff output", "diff output"])
         expect(commands[0]).toMatchObject({
-            args: [
-                "diff",
-                "-r",
-                "revision",
-                "--color",
-                "always",
-                'file:"src/file.ts"',
-            ],
+            args: ["diff", "-r", "revision", "--color", "always", 'file:"src/file.ts"'],
             env: expect.objectContaining({ COLUMNS: "120" }),
         })
-        expect(commands[1]?.args).toEqual([
-            "diff",
-            "--from",
-            "from",
-            "--to",
-            "to",
-            "--git",
-        ])
+        expect(commands[1]?.args).toEqual(["diff", "--from", "from", "--to", "to", "--git"])
     })
 
     test("constructs captured bookmark and paged log reads", async () => {
@@ -776,13 +715,9 @@ describe("Jj", () => {
                 Stream.runForEach((event) =>
                     Effect.sync(() => {
                         if (event._tag === "Batch") {
-                            batches.push(
-                                event.items.map((bookmark) => bookmark.name),
-                            )
+                            batches.push(event.items.map((bookmark) => bookmark.name))
                         } else {
-                            finalNames = event.result.map(
-                                (bookmark) => bookmark.name,
-                            )
+                            finalNames = event.result.map((bookmark) => bookmark.name)
                         }
                     }),
                 ),
@@ -823,9 +758,7 @@ describe("Jj", () => {
                 Stream.runForEach((event) =>
                     Effect.sync(() => {
                         if (event._tag === "Batch") {
-                            batches.push(
-                                event.items.map((commit) => commit.changeId),
-                            )
+                            batches.push(event.items.map((commit) => commit.changeId))
                         } else {
                             finalResult = event.result
                         }
@@ -856,9 +789,7 @@ describe("Jj", () => {
         })
         const effect = Effect.all(
             [
-                Jj.use((jj) =>
-                    jj.commitDetails("revision", { cwd: "/tmp/repository" }),
-                ),
+                Jj.use((jj) => jj.commitDetails("revision", { cwd: "/tmp/repository" })),
                 Jj.use((jj) => jj.opLog(2, { cwd: "/tmp/repository" })),
             ],
             { concurrency: 1 },
@@ -925,13 +856,12 @@ describe("Jj", () => {
             }
             return Effect.succeed(success)
         })
-        const effect = Jj.use((jj) =>
-            jj.refreshState({ cwd: "/tmp/repository" }),
-        ).pipe(Effect.provide(JjLive), Effect.provide(processLayer))
-
-        await expect(Effect.runPromise(effect)).rejects.toBeInstanceOf(
-            JjStaleWorkingCopyError,
+        const effect = Jj.use((jj) => jj.refreshState({ cwd: "/tmp/repository" })).pipe(
+            Effect.provide(JjLive),
+            Effect.provide(processLayer),
         )
+
+        await expect(Effect.runPromise(effect)).rejects.toBeInstanceOf(JjStaleWorkingCopyError)
         expect(commands.map((command) => command.args)).toEqual([["status"]])
     })
 
@@ -951,12 +881,7 @@ describe("Jj", () => {
 
         await Effect.runPromise(invocation.effect)
 
-        expect(events).toEqual([
-            "start:jj git fetch",
-            "stdout:fetched",
-            "stderr:warning",
-            "finish",
-        ])
+        expect(events).toEqual(["start:jj git fetch", "stdout:fetched", "stderr:warning", "finish"])
     })
 
     test("distinguishes normal command failure from process lifecycle failure", async () => {
@@ -964,9 +889,7 @@ describe("Jj", () => {
             { ...success, exitCode: 1, stderr: "fetch failed" },
             { cwd: "/tmp/repository" },
         )
-        const commandExit = await Effect.runPromise(
-            Effect.exit(invocation.effect),
-        )
+        const commandExit = await Effect.runPromise(Effect.exit(invocation.effect))
         expect(Exit.isFailure(commandExit)).toBe(true)
         if (Exit.isFailure(commandExit)) {
             expect(commandExit.cause.reasons[0]).toMatchObject({
@@ -1023,9 +946,7 @@ describe("Jj", () => {
             sink,
         })
 
-        await expect(
-            Effect.runPromise(invocation.effect),
-        ).resolves.toMatchObject({
+        await expect(Effect.runPromise(invocation.effect)).resolves.toMatchObject({
             exitCode: 0,
         })
     })

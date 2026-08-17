@@ -15,29 +15,23 @@ export const PersistedStackEntry = Schema.Struct({
     syncedAt: Schema.String,
 })
 
-export interface PersistedStackEntry
-    extends Schema.Schema.Type<typeof PersistedStackEntry> {}
+export interface PersistedStackEntry extends Schema.Schema.Type<typeof PersistedStackEntry> {}
 
 export const PersistedStackState = Schema.Struct({
     version: Schema.Literal(1),
     entries: Schema.Array(PersistedStackEntry),
 })
 
-export interface PersistedStackState
-    extends Schema.Schema.Type<typeof PersistedStackState> {}
+export interface PersistedStackState extends Schema.Schema.Type<typeof PersistedStackState> {}
 
 const emptyState = (): PersistedStackState => ({ version: 1, entries: [] })
 
-export async function stackStatePath(
-    repositoryRoot = getRepoPath(),
-): Promise<string> {
+export async function stackStatePath(repositoryRoot = getRepoPath()): Promise<string> {
     const root = repositoryRoot
     const jjRepoFile = `${root}/.jj/repo`
     let repoPath = jjRepoFile
     try {
-        const stat = await import("node:fs/promises").then((fs) =>
-            fs.stat(jjRepoFile),
-        )
+        const stat = await import("node:fs/promises").then((fs) => fs.stat(jjRepoFile))
         if (stat.isFile()) {
             const pointer = (await Bun.file(jjRepoFile).text()).trim()
             repoPath = resolve(dirname(jjRepoFile), pointer)

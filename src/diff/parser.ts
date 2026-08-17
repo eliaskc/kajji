@@ -11,13 +11,7 @@ import { type FileId, type HunkId, fileId, hunkId } from "./identifiers"
 import type { WordDiffSegment } from "./word-diff"
 
 // Re-export types for convenience
-export type {
-    ChangeContent,
-    ContextContent,
-    FileDiffMetadata,
-    Hunk,
-    ParsedPatch,
-}
+export type { ChangeContent, ContextContent, FileDiffMetadata, Hunk, ParsedPatch }
 
 export type DiffFile = FileDiffMetadata & { isBinary?: boolean }
 
@@ -154,8 +148,7 @@ export function flattenHunk(file: FileDiffMetadata, hunk: Hunk): FlattenedHunk {
 
             // Deletions first (old side)
             for (let i = 0; i < change.deletions; i++) {
-                const raw =
-                    file.deletionLines[change.deletionLineIndex + i] ?? ""
+                const raw = file.deletionLines[change.deletionLineIndex + i] ?? ""
                 lines.push({
                     type: "deletion",
                     content: expandTabs(raw),
@@ -166,8 +159,7 @@ export function flattenHunk(file: FileDiffMetadata, hunk: Hunk): FlattenedHunk {
 
             // Then additions (new side)
             for (let i = 0; i < change.additions; i++) {
-                const raw =
-                    file.additionLines[change.additionLineIndex + i] ?? ""
+                const raw = file.additionLines[change.additionLineIndex + i] ?? ""
                 lines.push({
                     type: "addition",
                     content: expandTabs(raw),

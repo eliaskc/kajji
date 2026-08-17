@@ -13,8 +13,7 @@ export function mergeDialogHints(
         .sort(
             (a, b) =>
                 (a.hint.order ?? Number.MAX_SAFE_INTEGER) -
-                    (b.hint.order ?? Number.MAX_SAFE_INTEGER) ||
-                a.index - b.index,
+                    (b.hint.order ?? Number.MAX_SAFE_INTEGER) || a.index - b.index,
         )
 
     const seen = new Set<string>()
