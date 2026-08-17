@@ -30,10 +30,13 @@ const raw = z.toJSONSchema(ConfigSchema, { target: "draft-2020-12" })
 const schema = relaxSchema(raw as JsonSchema)
 schema.allowComments = true
 schema.allowTrailingCommas = true
-const output = JSON.stringify(schema, null, "\t")
+const output = JSON.stringify(schema, null, 4)
 const outPath = resolve(import.meta.dir, "../schema.json")
 const siteOutPath = resolve(import.meta.dir, "../site/public/schema.json")
 writeFileSync(outPath, `${output}\n`)
 writeFileSync(siteOutPath, `${output}\n`)
+// Keep the generated files aligned with the Biome formatter config so
+// `bun generate:schema` and `bun lint:fix` do not fight each other.
+Bun.spawnSync(["bunx", "biome", "format", "--write", outPath, siteOutPath])
 console.log(`Generated ${outPath}`)
 console.log(`Generated ${siteOutPath}`)

@@ -109,9 +109,7 @@ async function buildFiles(
                     newContent,
                     result,
                 )
-                return flattened.kind === "structural"
-                    ? flattened.file
-                    : file
+                return flattened.kind === "structural" ? flattened.file : file
             } catch {
                 // Tree contents unavailable for this file; keep the
                 // textual rendering.

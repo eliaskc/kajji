@@ -6,7 +6,6 @@ import {
     flattenStructuralFile,
 } from "../../../src/diff/structural/flatten"
 
-
 function fakeTextualFile(
     name: string,
     type: string,
