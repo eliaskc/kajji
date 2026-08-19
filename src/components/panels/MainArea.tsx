@@ -407,6 +407,16 @@ export function MainArea() {
         setDisplayedCommitDetails(details)
     })
 
+    // A refresh can change display-only commit metadata, such as remote bookmark
+    // tracking markers, without changing the revision or its diff.
+    createEffect(() => {
+        const commit = activeCommit()
+        const displayed = displayedCommit()
+        if (!commit || !displayed || commit === displayed) return
+        if (commit.changeId !== displayed.changeId || commit.commitId !== displayed.commitId) return
+        setDisplayedCommit(commit)
+    })
+
     const orderedFiles = createMemo(() =>
         orderFilesByPath(parsedFiles(), (file) => file.name, showTree()),
     )
