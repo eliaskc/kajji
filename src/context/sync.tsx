@@ -68,7 +68,7 @@ interface SyncContextValue {
     effectiveMultiSelection: () => ReadonlySet<string>
     multiSelectedCommits: () => Commit[]
     multiSelectionRevsetIds: () => string[]
-    toggleMultiSelection: (changeId: string) => void
+    toggleMultiSelection: (revisionId: string) => void
     clearMultiSelection: () => void
     visualMode: () => boolean
     startVisualSelection: () => void
@@ -560,20 +560,21 @@ export function SyncProvider(props: { children: JSX.Element }) {
 
     const selectedCommit = () => commits()[selectedIndex()]
 
-    // Multi-select marks, keyed by changeId.
+    // Multi-select marks, keyed by unambiguous revision ID. Divergent changes
+    // use commit IDs because several rows can have the same change ID.
     const [multiSelection, setMultiSelection] = createSignal<ReadonlySet<string>>(new Set())
 
     // Elided revisions folded in by committed visual ranges, so selection
     // revsets have no gaps.
     const [connectorIds, setConnectorIds] = createSignal<ReadonlySet<string>>(new Set())
 
-    const toggleMultiSelection = (changeId: string) => {
+    const toggleMultiSelection = (revisionId: string) => {
         setMultiSelection((prev) => {
             const next = new Set(prev)
-            if (next.has(changeId)) {
-                next.delete(changeId)
+            if (next.has(revisionId)) {
+                next.delete(revisionId)
             } else {
-                next.add(changeId)
+                next.add(revisionId)
             }
             return next
         })
@@ -595,7 +596,7 @@ export function SyncProvider(props: { children: JSX.Element }) {
         const list = commits()
         if (list.length === 0) return null
         const cursor = Math.min(selectedIndex(), list.length - 1)
-        const anchorIndex = list.findIndex((commit) => commit.changeId === anchorId)
+        const anchorIndex = list.findIndex((commit) => getRevisionId(commit) === anchorId)
         const range = connectedRevisionRange(list, anchorIndex < 0 ? cursor : anchorIndex, cursor)
         const top = range.chain[0]
         const bottom = range.chain[range.chain.length - 1]
@@ -650,14 +651,15 @@ export function SyncProvider(props: { children: JSX.Element }) {
                     revset,
                     limit: 1000,
                 })
-                const loaded = new Set(commits().map((commit) => commit.changeId))
+                const loaded = new Set(commits().map(getRevisionId))
                 const visibleIds: string[] = []
                 const hiddenIds: string[] = []
                 for (const commit of result.commits) {
-                    if (loaded.has(commit.changeId)) {
-                        visibleIds.push(commit.changeId)
+                    const revisionId = getRevisionId(commit)
+                    if (loaded.has(revisionId)) {
+                        visibleIds.push(revisionId)
                     } else {
-                        hiddenIds.push(getRevisionId(commit))
+                        hiddenIds.push(revisionId)
                     }
                 }
                 resolvedVisualRangeCache.set(key, { visibleIds, hiddenIds })
@@ -669,10 +671,10 @@ export function SyncProvider(props: { children: JSX.Element }) {
         })()
     })
 
-    const visualVisibleChangeIds = () => {
+    const visualVisibleRevisionIds = () => {
         const info = visualRangeInfo()
         if (!info) return []
-        const ids = info.chain.map((commit) => commit.changeId)
+        const ids = info.chain.map(getRevisionId)
         if (info.connected) return ids
         // Any resolution (even a stale one from the previous step) beats the
         // local estimate, which can overmark dead-end siblings hanging off
@@ -682,8 +684,8 @@ export function SyncProvider(props: { children: JSX.Element }) {
         const set = new Set(resolved.visibleIds)
         const first = info.chain[0]
         const last = info.chain[info.chain.length - 1]
-        if (first) set.add(first.changeId)
-        if (last) set.add(last.changeId)
+        if (first) set.add(getRevisionId(first))
+        if (last) set.add(getRevisionId(last))
         return [...set]
     }
 
@@ -695,7 +697,7 @@ export function SyncProvider(props: { children: JSX.Element }) {
 
     const effectiveMultiSelection = createMemo<ReadonlySet<string>>(() => {
         if (!visualMode()) return multiSelection()
-        return new Set(visualVisibleChangeIds())
+        return new Set(visualVisibleRevisionIds())
     })
 
     // Entering visual mode starts a fresh selection, replacing any marks.
@@ -703,11 +705,11 @@ export function SyncProvider(props: { children: JSX.Element }) {
         const commit = selectedCommit()
         if (!commit) return
         clearMultiSelection()
-        setVisualAnchorId(commit.changeId)
+        setVisualAnchorId(getRevisionId(commit))
     }
 
     const commitVisualSelection = () => {
-        setMultiSelection(new Set(visualVisibleChangeIds()))
+        setMultiSelection(new Set(visualVisibleRevisionIds()))
         setConnectorIds(new Set(visualHiddenIds()))
         setVisualAnchorId(null)
     }
@@ -717,7 +719,7 @@ export function SyncProvider(props: { children: JSX.Element }) {
     const multiSelectedCommits = createMemo(() => {
         const marks = effectiveMultiSelection()
         if (marks.size === 0) return []
-        return commits().filter((commit) => marks.has(commit.changeId))
+        return commits().filter((commit) => marks.has(getRevisionId(commit)))
     })
 
     // Ids for selection revsets: visible marks plus elided connectors.

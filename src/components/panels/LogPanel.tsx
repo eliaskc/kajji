@@ -1274,7 +1274,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                 if (!syncFilteredRevisionCursor()) return
                 const commit = selectedCommit()
                 if (!commit) return
-                toggleMultiSelection(commit.changeId)
+                toggleMultiSelection(getRevisionId(commit))
             },
         },
         {
@@ -2303,7 +2303,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
         }
         const selectionBackground = () =>
             isLogSelectionFocused() ? colors().selectionBackground : inactiveSelectionBackground()
-        const marked = () => effectiveMultiSelection().has(props.commit.changeId)
+        const marked = () => effectiveMultiSelection().has(getRevisionId(props.commit))
         const markedBackground = () => blendColors(selectionBackground(), colors().background, 0.45)
         const markedSelectionBackground = () =>
             blendColors(colors().text, selectionBackground(), 0.15)
