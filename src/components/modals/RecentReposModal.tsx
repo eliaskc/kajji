@@ -6,6 +6,7 @@ import { useDialog } from "../../context/dialog"
 import { useTheme } from "../../context/theme"
 import { getRepoPath } from "../../repo"
 import { createDoubleClickDetector } from "../../utils/double-click"
+import { abbreviateHomePath } from "../../utils/home-path"
 import type { RecentRepo } from "../../utils/state"
 import { formatRelativeTime, getRecentRepos } from "../../utils/state"
 
@@ -123,10 +124,7 @@ export function RecentReposModal(props: RecentReposModalProps) {
                         {(repo, index) => {
                             const isSelected = () => index() === selectedIndex()
                             const num = index() + 1
-                            const displayPath = repo.path.replace(
-                                new RegExp(`^${process.env.HOME}`),
-                                "~",
-                            )
+                            const displayPath = abbreviateHomePath(repo.path)
                             const handleDoubleClick = createDoubleClickDetector(() =>
                                 selectRepo(repo.path),
                             )

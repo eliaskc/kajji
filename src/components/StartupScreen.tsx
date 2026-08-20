@@ -1,11 +1,20 @@
 import type { ScrollBoxRenderable } from "@opentui/core"
 import { useKeyboard, useRenderer } from "@opentui/solid"
 import { For, Show, createEffect, createSignal, onCleanup, onMount } from "solid-js"
+import type { CommandObserver } from "../commander/observer"
+import type { CommandLogEntry } from "../context/commandlog"
 import { useTheme } from "../context/theme"
+import type {
+    BrokenRepositoryMetadata,
+    RepositoryRecoveryMode,
+    RepositoryRecoveryResult,
+} from "../repository-bootstrap"
 import { createDoubleClickDetector } from "../utils/double-click"
+import { abbreviateHomePath } from "../utils/home-path"
 import type { RecentRepo } from "../utils/state"
 import { formatRelativeTime } from "../utils/state"
 import { FooterHints } from "./FooterHints"
+import { RepositoryRecoveryScreen } from "./RepositoryRecoveryScreen"
 import { WaveBackground } from "./WaveBackground"
 
 interface GitRepoScreenProps {
@@ -283,10 +292,7 @@ function NoVcsScreen(props: NoVcsScreenProps) {
                                         const isSelected = () =>
                                             repoIndex(index()) === selectedIndex()
                                         const num = index() + 1
-                                        const displayPath = repo.path.replace(
-                                            new RegExp(`^${process.env.HOME}`),
-                                            "~",
-                                        )
+                                        const displayPath = abbreviateHomePath(repo.path)
                                         const handleDoubleClick = createDoubleClickDetector(() =>
                                             props.onSelectRepo(repo.path),
                                         )
@@ -337,10 +343,18 @@ function NoVcsScreen(props: NoVcsScreenProps) {
 }
 
 export interface StartupScreenProps {
+    repoPath: string
     hasGitRepo: boolean
+    brokenMetadata: BrokenRepositoryMetadata | null
     recentRepos: RecentRepo[]
     onSelectRepo: (path: string) => void
     onInitRepository: (colocate: boolean) => void
+    onRecoverRepository: (
+        mode: RepositoryRecoveryMode,
+        colocate: boolean,
+        observer: CommandObserver,
+    ) => Promise<RepositoryRecoveryResult>
+    onRepositoryRecovered: (entries: readonly CommandLogEntry[]) => void
     onQuit: () => void
 }
 
@@ -351,17 +365,33 @@ export function StartupScreen(props: StartupScreenProps) {
             <WaveBackground />
             {/* Content renders on top */}
             <Show
-                when={props.hasGitRepo}
+                when={props.brokenMetadata}
                 fallback={
-                    <NoVcsScreen
-                        recentRepos={props.recentRepos}
-                        onSelectRepo={props.onSelectRepo}
-                        onInit={() => props.onInitRepository(false)}
-                        onQuit={props.onQuit}
-                    />
+                    <Show
+                        when={props.hasGitRepo}
+                        fallback={
+                            <NoVcsScreen
+                                recentRepos={props.recentRepos}
+                                onSelectRepo={props.onSelectRepo}
+                                onInit={() => props.onInitRepository(false)}
+                                onQuit={props.onQuit}
+                            />
+                        }
+                    >
+                        <GitRepoScreen onInit={props.onInitRepository} onQuit={props.onQuit} />
+                    </Show>
                 }
             >
-                <GitRepoScreen onInit={props.onInitRepository} onQuit={props.onQuit} />
+                {(metadata: () => BrokenRepositoryMetadata) => (
+                    <RepositoryRecoveryScreen
+                        repoPath={props.repoPath}
+                        metadata={metadata()}
+                        hasGitRepo={props.hasGitRepo}
+                        onRecover={props.onRecoverRepository}
+                        onRecovered={props.onRepositoryRecovered}
+                        onQuit={props.onQuit}
+                    />
+                )}
             </Show>
         </box>
     )

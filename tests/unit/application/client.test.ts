@@ -85,6 +85,7 @@ describe("ApplicationClient", () => {
         await expect(client.repositoryStatus("/tmp/repository/child")).resolves.toEqual({
             isJjRepo: true,
             hasGitRepo: true,
+            brokenMetadata: null,
             startupError: null,
             repoPath: "/tmp/repository",
             refreshState: { operationId: "snapshot-id", workingCopyCommitId: "snapshot-id" },

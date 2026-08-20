@@ -41,9 +41,14 @@ export function CommandLogPanel() {
     }
 
     const entryText = (entry: ReturnType<typeof commandLog.entries>[number]) => {
-        const body = entry.command ? `$ ${entry.command}` : (entry.message ?? "")
+        const isCommand = entry.command !== undefined && entry.kind !== "step"
+        const body = entry.command
+            ? isCommand
+                ? `$ ${entry.command}`
+                : entry.command
+            : (entry.message ?? "")
         const suffix =
-            entry.command && entry.status === "failure" ? `  [exit ${entry.exitCode ?? 1}]` : ""
+            isCommand && entry.status === "failure" ? `  [exit ${entry.exitCode ?? 1}]` : ""
         return `${body}${suffix}`
     }
 

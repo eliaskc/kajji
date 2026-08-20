@@ -890,6 +890,22 @@ describe("Jj", () => {
         ])
     })
 
+    test("rejects refreshes when jj cannot open the repository", async () => {
+        const processLayer = makeAppProcessFake(() =>
+            Effect.succeed({
+                ...success,
+                exitCode: 255,
+                stderr: "The repository appears broken or inaccessible",
+            }),
+        )
+        const effect = Jj.use((jj) => jj.refreshState({ cwd: "/tmp/repository" })).pipe(
+            Effect.provide(JjLive),
+            Effect.provide(processLayer),
+        )
+
+        await expect(Effect.runPromise(effect)).rejects.toBeInstanceOf(JjCommandError)
+    })
+
     test("reports output and exactly one completion to the sink", async () => {
         const events: string[] = []
         const sink: OperationSink = {

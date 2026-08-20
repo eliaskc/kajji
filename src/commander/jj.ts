@@ -227,10 +227,8 @@ export interface JjService {
         path: string,
         options: JjOperationOptions,
     ) => Effect.Effect<string, JjReadError | ProcessError>
-    readonly checkWorkingCopy: (
-        options: JjOperationOptions,
-    ) => Effect.Effect<void, JjStaleWorkingCopyError | ProcessError>
     readonly gitInit: (
+        /** `true` adds `--colocate`, `false` adds `--no-colocate`, and omitted uses jj config. */
         options: JjOperationOptions & { readonly colocate?: boolean },
     ) => Effect.Effect<JjOperationResult, JjCommandError | ProcessError>
     readonly gitFetch: (
@@ -573,17 +571,6 @@ export const JjLayer: Layer.Layer<Jj, never, AppProcess | Hooks> = Layer.effect(
             return Effect.void
         }
 
-        const checkWorkingCopy = Effect.fn("Jj.checkWorkingCopy")(function* (
-            options: JjOperationOptions,
-        ) {
-            const result = yield* runRaw(["status"], options)
-            if (isStaleWorkingCopyFailure(result)) {
-                return yield* new JjStaleWorkingCopyError({
-                    output: result.stdout + result.stderr,
-                })
-            }
-        })
-
         const readOpLogId = Effect.fn("Jj.opLogId")(function* (options: JjOperationOptions) {
             const result = yield* runRead(
                 [
@@ -760,13 +747,22 @@ export const JjLayer: Layer.Layer<Jj, never, AppProcess | Hooks> = Layer.effect(
                 }
                 return result.stdout
             }),
-            checkWorkingCopy,
             gitInit: Effect.fn("Jj.gitInit")(
                 (
                     options: JjOperationOptions & {
                         readonly colocate?: boolean
                     },
-                ) => run(["git", "init", ...(options.colocate ? ["--colocate"] : [])], options),
+                ) =>
+                    run(
+                        [
+                            "git",
+                            "init",
+                            ...(options.colocate === undefined
+                                ? []
+                                : [options.colocate ? "--colocate" : "--no-colocate"]),
+                        ],
+                        options,
+                    ),
             ),
             gitFetch: Effect.fn("Jj.gitFetch")((options: JjGitFetchOptions) =>
                 run(makeGitFetchArgs(options), options),
