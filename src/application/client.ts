@@ -68,6 +68,8 @@ import {
     RepositoryBootstrapLive,
     type RepositoryBootstrapService,
     type RepositoryInitResult,
+    type RepositoryRecoveryMode,
+    type RepositoryRecoveryResult,
     type RepositoryStatus,
 } from "../repository-bootstrap"
 import { Stack, StackLive, type StackService } from "../stack/executor"
@@ -189,6 +191,15 @@ export interface ApplicationClient {
             readonly signal?: AbortSignal
         },
     ) => Promise<RepositoryInitResult>
+    readonly recoverRepository: (
+        path: string,
+        options?: {
+            readonly mode?: RepositoryRecoveryMode
+            readonly colocate?: boolean
+            readonly observer?: CommandObserver
+            readonly signal?: AbortSignal
+        },
+    ) => Promise<RepositoryRecoveryResult>
     readonly jjGitFetch: (options: ApplicationGitFetchOptions) => Promise<OperationResult>
     readonly jjGitPush: (options: ApplicationGitPushOptions) => Promise<OperationResult>
     readonly jjUndo: (options: ApplicationOperationOptions) => Promise<OperationResult>
@@ -663,6 +674,16 @@ export function makeApplicationClient(
             runRepositoryBootstrap(options?.signal, (repository) =>
                 repository.initialize(path, { colocate: options?.colocate }),
             ),
+        recoverRepository: (path, options) => {
+            const { sink } = observerSink(options?.observer)
+            return runRepositoryBootstrap(options?.signal, (repository) =>
+                repository.recover(path, {
+                    mode: options?.mode,
+                    colocate: options?.colocate,
+                    sink,
+                }),
+            )
+        },
         jjGitFetch: ({ observer, signal, ...options }) =>
             runOperation({ ...options, observer, signal }, (jj, sink) =>
                 jj.gitFetch({ ...options, sink }),

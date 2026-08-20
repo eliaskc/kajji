@@ -13,15 +13,18 @@ import { GhosttyTerminalRenderable } from "ghostty-opentui/terminal-buffer"
 import { Show, createSignal } from "solid-js"
 import { App } from "./App"
 import { makeApplicationClient } from "./application/client"
+import type { CommandObserver } from "./commander/observer"
 import { ErrorScreen } from "./components/ErrorScreen"
 import { StartupScreen } from "./components/StartupScreen"
 import { WaveScreen } from "./components/WaveScreen"
 import { WhatsNewScreen } from "./components/WhatsNewScreen"
+import type { CommandLogEntry } from "./context/commandlog"
 import { ThemeProvider } from "./context/theme"
 import { initHighlighter } from "./diff"
 import { type MockMode, mockMode, setMockMode } from "./mock"
 import { disableOpenTuiSelection } from "./opentui-selection"
 import { getRepoPath, setRepoPath } from "./repo"
+import type { BrokenRepositoryMetadata, RepositoryRecoveryMode } from "./repository-bootstrap"
 import { getChangesSince, parseChangelog } from "./utils/changelog"
 import { getRecentRepos } from "./utils/state"
 
@@ -107,6 +110,7 @@ export async function runTui(args: string[]): Promise<void> {
         ? {
               isJjRepo: mockMode !== "startup-no-vcs" && mockMode !== "startup-git",
               hasGitRepo: mockMode === "startup-git",
+              brokenMetadata: null,
               startupError: null,
               repoPath: getRepoPath(),
           }
@@ -122,6 +126,12 @@ export async function runTui(args: string[]): Promise<void> {
         destroyRenderer = () => renderer.destroy()
         const [isJjRepo, setIsJjRepo] = createSignal(initialStatus.isJjRepo)
         const [hasGitRepo, setHasGitRepo] = createSignal(initialStatus.hasGitRepo)
+        const [brokenMetadata, setBrokenMetadata] = createSignal<BrokenRepositoryMetadata | null>(
+            initialStatus.brokenMetadata,
+        )
+        const [recoveryLogEntries, setRecoveryLogEntries] = createSignal<
+            readonly CommandLogEntry[]
+        >([])
         const [startupError, setStartupError] = createSignal<string | null>(
             initialStatus.startupError,
         )
@@ -134,12 +144,34 @@ export async function runTui(args: string[]): Promise<void> {
             }
             setIsJjRepo(status.isJjRepo)
             setHasGitRepo(status.hasGitRepo)
+            setBrokenMetadata(status.brokenMetadata)
             setStartupError(status.startupError)
         }
 
         const handleInitRepository = async (colocate: boolean) => {
             const result = await application.initializeRepository(getRepoPath(), { colocate })
-            if (result.success) setIsJjRepo(true)
+            if (result.success) {
+                setBrokenMetadata(null)
+                setIsJjRepo(true)
+            }
+        }
+
+        const handleRecoverRepository = async (
+            mode: RepositoryRecoveryMode,
+            colocate: boolean,
+            observer: CommandObserver,
+        ) => {
+            return application.recoverRepository(getRepoPath(), {
+                mode,
+                colocate,
+                observer,
+            })
+        }
+
+        const handleRepositoryRecovered = (entries: readonly CommandLogEntry[]) => {
+            setRecoveryLogEntries(entries)
+            setBrokenMetadata(null)
+            setIsJjRepo(true)
         }
 
         const handleQuit = () => {
@@ -200,6 +232,7 @@ export async function runTui(args: string[]): Promise<void> {
             }
             setStartupError(status.startupError)
             setHasGitRepo(status.hasGitRepo)
+            setBrokenMetadata(status.brokenMetadata)
             if (!status.startupError) setIsJjRepo(status.isJjRepo)
         }
 
@@ -229,16 +262,24 @@ export async function runTui(args: string[]): Promise<void> {
                         fallback={
                             <ThemeProvider>
                                 <StartupScreen
+                                    repoPath={getRepoPath()}
                                     hasGitRepo={hasGitRepo()}
+                                    brokenMetadata={brokenMetadata()}
                                     recentRepos={mockMode ? [] : getRecentRepos()}
                                     onSelectRepo={handleSelectRepo}
                                     onInitRepository={handleInitRepository}
+                                    onRecoverRepository={handleRecoverRepository}
+                                    onRepositoryRecovered={handleRepositoryRecovered}
                                     onQuit={handleQuit}
                                 />
                             </ThemeProvider>
                         }
                     >
-                        <App app={application} onQuit={shutdown} />
+                        <App
+                            app={application}
+                            initialCommandLogEntries={recoveryLogEntries()}
+                            onQuit={shutdown}
+                        />
                     </Show>
                 }
             >

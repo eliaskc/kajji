@@ -1,4 +1,8 @@
 import { describe, expect, test } from "bun:test"
+import { existsSync, mkdirSync, writeFileSync } from "node:fs"
+import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import { Effect, Layer, Stream } from "effect"
 import { makeApplicationClient } from "../../../src/application/client"
 import type { Bookmark } from "../../../src/commander/bookmarks"
@@ -8,6 +12,11 @@ import { makeHooksLayer } from "../../../src/hooks/runner"
 import { HookOperation } from "../../../src/hooks/types"
 import { type ProcessResult, makeAppProcessFake } from "../../../src/process/app-process"
 import { makeInteractiveProcessFake } from "../../../src/process/interactive-process"
+import {
+    permanentRemovalResult,
+    removeMetadataBackups,
+    restoreMetadataBackups,
+} from "../../../src/repository-bootstrap"
 import { Stack } from "../../../src/stack/executor"
 import type { StackPlan } from "../../../src/stack/model"
 
@@ -85,6 +94,7 @@ describe("ApplicationClient", () => {
         await expect(client.repositoryStatus("/tmp/repository/child")).resolves.toEqual({
             isJjRepo: true,
             hasGitRepo: true,
+            brokenMetadata: null,
             startupError: null,
             repoPath: "/tmp/repository",
         })
@@ -132,6 +142,321 @@ describe("ApplicationClient", () => {
         await client.dispose()
 
         expect(status.startupError).toBe("The working copy is stale")
+    })
+
+    test("does not offer recovery for a generic jj status failure", async () => {
+        const repository = await mkdtemp(join(tmpdir(), "kajji-recovery-"))
+        await mkdir(join(repository, ".jj", "repo", "store"), { recursive: true })
+        await writeFile(join(repository, ".jj", "repo", "store", "type"), "git")
+        const layer = makeAppProcessFake((command) =>
+            Effect.succeed(
+                command.args[0] === "root"
+                    ? { ...success, stdout: `${repository}\n`, stderr: "" }
+                    : command.args[0] === "status"
+                      ? { ...success, exitCode: 1, stdout: "", stderr: "permission denied" }
+                      : { ...success, exitCode: 128, stdout: "", stderr: "not a git repository" },
+            ),
+        )
+        const client = makeApplicationClient(layer)
+
+        try {
+            const status = await client.repositoryStatus(repository)
+            expect(status.brokenMetadata).toBeNull()
+            expect(status.startupError).toBe("permission denied")
+            await expect(client.recoverRepository(repository)).resolves.toEqual({
+                success: false,
+                error: "No broken repository metadata was found",
+            })
+        } finally {
+            await client.dispose()
+            await rm(repository, { recursive: true, force: true })
+        }
+    })
+
+    test("finds malformed parent metadata when inspecting a child path", async () => {
+        const repository = await mkdtemp(join(tmpdir(), "kajji-recovery-"))
+        const child = join(repository, "one", "two")
+        await Promise.all([mkdir(join(repository, ".jj")), mkdir(child, { recursive: true })])
+        const layer = makeAppProcessFake(() =>
+            Effect.succeed({ ...success, exitCode: 1, stdout: "", stderr: "not a repository" }),
+        )
+        const client = makeApplicationClient(layer)
+
+        try {
+            const status = await client.repositoryStatus(child)
+            expect(status.repoPath).toBe(repository)
+            expect(status.brokenMetadata).toEqual({ jj: true, git: false })
+        } finally {
+            await client.dispose()
+            await rm(repository, { recursive: true, force: true })
+        }
+    })
+
+    test("does not classify marker files as broken repository directories", async () => {
+        const repository = await mkdtemp(join(tmpdir(), "kajji-recovery-"))
+        await Promise.all([
+            writeFile(join(repository, ".jj"), "not repository metadata"),
+            writeFile(join(repository, ".git"), "gitdir: elsewhere"),
+        ])
+        const layer = makeAppProcessFake(() =>
+            Effect.succeed({ ...success, exitCode: 1, stdout: "", stderr: "not a repository" }),
+        )
+        const client = makeApplicationClient(layer)
+
+        try {
+            expect((await client.repositoryStatus(repository)).brokenMetadata).toBeNull()
+        } finally {
+            await client.dispose()
+            await rm(repository, { recursive: true, force: true })
+        }
+    })
+
+    test("backs up broken repository metadata before initialization", async () => {
+        const repository = await mkdtemp(join(tmpdir(), "kajji-recovery-"))
+        await Promise.all([mkdir(join(repository, ".jj")), mkdir(join(repository, ".git"))])
+        const layer = makeAppProcessFake((command) => {
+            if (command.executable === "jj" && command.args[0] === "root") {
+                return Effect.succeed({
+                    ...success,
+                    stdout: `${repository}\n`,
+                    stderr: "",
+                })
+            }
+            if (command.executable === "jj" && command.args[0] === "status") {
+                return Effect.succeed(
+                    existsSync(join(repository, ".jj", "repo", "store", "type"))
+                        ? { ...success, stdout: "", stderr: "" }
+                        : {
+                              ...success,
+                              stdout: "",
+                              stderr: "The repository appears broken or inaccessible",
+                              exitCode: 255,
+                          },
+                )
+            }
+            if (command.executable === "jj" && command.args[0] === "git") {
+                mkdirSync(join(repository, ".jj", "repo", "store"), { recursive: true })
+                writeFileSync(join(repository, ".jj", "repo", "store", "type"), "git")
+                return Effect.succeed({ ...success, stdout: "", stderr: "" })
+            }
+            return Effect.succeed({
+                ...success,
+                stdout: "",
+                stderr: "not a git repository",
+                exitCode: 128,
+            })
+        })
+        const client = makeApplicationClient(layer)
+        const recoveryEvents: string[] = []
+        let recoveryLogId = 0
+        const observer: CommandObserver = {
+            start: (command) => {
+                recoveryEvents.push(`start:${command}`)
+                return `recovery-${recoveryLogId++}`
+            },
+            append: (_id, chunk) => recoveryEvents.push(`output:${chunk.trim()}`),
+            finish: (_id, result) => recoveryEvents.push(`finish:${result.success}`),
+            skip: () => {},
+        }
+
+        try {
+            await expect(client.repositoryStatus(repository)).resolves.toEqual({
+                isJjRepo: false,
+                hasGitRepo: false,
+                brokenMetadata: { jj: true, git: true },
+                startupError: null,
+                repoPath: repository,
+            })
+
+            const result = await client.recoverRepository(repository, { observer })
+
+            expect(result.success).toBe(true)
+            expect(result.backups).toHaveLength(2)
+            expect(result.backups?.every((path) => existsSync(path))).toBe(true)
+            expect(existsSync(join(repository, ".jj"))).toBe(true)
+            expect(existsSync(join(repository, ".git"))).toBe(false)
+            expect(recoveryEvents).toContain("start:Back up repository metadata")
+            expect(recoveryEvents).toContain("start:jj git init")
+            expect(recoveryEvents.some((event) => event.startsWith("output:.jj →"))).toBe(true)
+            expect(recoveryEvents.filter((event) => event === "finish:true")).toHaveLength(2)
+        } finally {
+            await client.dispose()
+            await rm(repository, { recursive: true, force: true })
+        }
+    })
+
+    test("removes staged metadata after successful recovery when requested", async () => {
+        const repository = await mkdtemp(join(tmpdir(), "kajji-recovery-"))
+        await Promise.all([mkdir(join(repository, ".jj")), mkdir(join(repository, ".git"))])
+        const layer = makeAppProcessFake((command) => {
+            if (command.executable === "jj" && command.args[0] === "root") {
+                return Effect.succeed({ ...success, stdout: `${repository}\n`, stderr: "" })
+            }
+            if (command.executable === "jj" && command.args[0] === "status") {
+                return Effect.succeed(
+                    existsSync(join(repository, ".jj", "repo", "store", "type"))
+                        ? { ...success, stdout: "", stderr: "" }
+                        : {
+                              ...success,
+                              exitCode: 255,
+                              stderr: "The repository appears broken or inaccessible",
+                          },
+                )
+            }
+            if (command.executable === "jj" && command.args[0] === "git") {
+                mkdirSync(join(repository, ".jj", "repo", "store"), { recursive: true })
+                writeFileSync(join(repository, ".jj", "repo", "store", "type"), "git")
+                return Effect.succeed({ ...success, stdout: "", stderr: "" })
+            }
+            return Effect.succeed({ ...success, exitCode: 128, stdout: "" })
+        })
+        const client = makeApplicationClient(layer)
+
+        try {
+            const result = await client.recoverRepository(repository, { mode: "remove" })
+
+            expect(result).toEqual({ success: true })
+            expect((await readdir(repository)).filter((name) => name.includes("backup"))).toEqual(
+                [],
+            )
+        } finally {
+            await client.dispose()
+            await rm(repository, { recursive: true, force: true })
+        }
+    })
+
+    test("restores broken metadata when recovery initialization fails", async () => {
+        const repository = await mkdtemp(join(tmpdir(), "kajji-recovery-"))
+        await Promise.all([mkdir(join(repository, ".jj")), mkdir(join(repository, ".git"))])
+        await Promise.all([
+            writeFile(join(repository, ".jj", "sentinel"), "jj"),
+            writeFile(join(repository, ".git", "sentinel"), "git"),
+        ])
+        const layer = makeAppProcessFake((command) => {
+            if (command.executable === "jj" && command.args[0] === "root") {
+                return Effect.succeed({ ...success, stdout: `${repository}\n`, stderr: "" })
+            }
+            if (command.executable === "jj" && command.args[0] === "status") {
+                return Effect.succeed({
+                    ...success,
+                    exitCode: 255,
+                    stderr: "The repository appears broken or inaccessible",
+                })
+            }
+            if (command.executable === "jj" && command.args[0] === "git") {
+                mkdirSync(join(repository, ".jj"))
+                return Effect.succeed({
+                    ...success,
+                    exitCode: 1,
+                    stderr: "initialization failed",
+                })
+            }
+            return Effect.succeed({ ...success, exitCode: 128, stdout: "" })
+        })
+        const client = makeApplicationClient(layer)
+
+        try {
+            const result = await client.recoverRepository(repository)
+
+            expect(result).toEqual({ success: false, error: "initialization failed" })
+            expect(await readFile(join(repository, ".jj", "sentinel"), "utf8")).toBe("jj")
+            expect(await readFile(join(repository, ".git", "sentinel"), "utf8")).toBe("git")
+        } finally {
+            await client.dispose()
+            await rm(repository, { recursive: true, force: true })
+        }
+    })
+
+    test("restores old metadata when post-init inspection fails", async () => {
+        const repository = await mkdtemp(join(tmpdir(), "kajji-recovery-"))
+        await mkdir(join(repository, ".jj"))
+        await writeFile(join(repository, ".jj", "sentinel"), "old")
+        let initialized = false
+        const layer = makeAppProcessFake((command) => {
+            if (command.args[0] === "root") {
+                return Effect.succeed({ ...success, stdout: `${repository}\n`, stderr: "" })
+            }
+            if (command.args[0] === "git") {
+                initialized = true
+                mkdirSync(join(repository, ".jj", "repo", "store"), { recursive: true })
+                writeFileSync(join(repository, ".jj", "repo", "store", "type"), "git")
+                return Effect.succeed({ ...success, stdout: "", stderr: "" })
+            }
+            if (command.args[0] === "status") {
+                return Effect.succeed({
+                    ...success,
+                    exitCode: 1,
+                    stdout: "",
+                    stderr: initialized ? "post-init inspection failed" : "broken repository",
+                })
+            }
+            return Effect.succeed({ ...success, exitCode: 128, stdout: "", stderr: "" })
+        })
+        const client = makeApplicationClient(layer)
+
+        try {
+            await expect(client.recoverRepository(repository)).resolves.toEqual({
+                success: false,
+                error: "post-init inspection failed",
+            })
+            expect(await readFile(join(repository, ".jj", "sentinel"), "utf8")).toBe("old")
+        } finally {
+            await client.dispose()
+            await rm(repository, { recursive: true, force: true })
+        }
+    })
+
+    test("reports permanent-removal failures through a transferable command result", async () => {
+        const error = await removeMetadataBackups(
+            [{ original: "/repo/.jj", backup: "/repo/.jj.backup" }],
+            {
+                exists: async () => true,
+                rename: async () => {},
+                remove: async () => {
+                    throw new Error("operation not permitted")
+                },
+            },
+        )
+        const result = permanentRemovalResult(["/repo/.jj.backup"], error)
+        const transferredOutput: string[] = []
+        if (result.warning) transferredOutput.push(`Warning: ${result.warning}`)
+
+        expect(result).toEqual({
+            success: true,
+            backups: ["/repo/.jj.backup"],
+            warning:
+                "The new repository was created, but some old metadata could not be removed:\n/repo/.jj.backup: operation not permitted",
+        })
+        expect(transferredOutput[0]).toStartWith("Warning: The new repository was created")
+    })
+
+    test("keeps displaced new metadata when restoration fails", async () => {
+        const files = new Set(["/repo/.jj", "/repo/.jj.backup"])
+        const removed: string[] = []
+        let restoreAttempted = false
+        const error = await restoreMetadataBackups(
+            [{ original: "/repo/.jj", backup: "/repo/.jj.backup" }],
+            {
+                exists: async (path) => files.has(path),
+                rename: async (from, to) => {
+                    if (from === "/repo/.jj.backup" && !restoreAttempted) {
+                        restoreAttempted = true
+                        throw new Error("restore blocked")
+                    }
+                    if (!files.delete(from)) throw new Error(`missing ${from}`)
+                    files.add(to)
+                },
+                remove: async (path) => {
+                    removed.push(path)
+                    files.delete(path)
+                },
+            },
+        )
+
+        expect(error).toBe("restore blocked")
+        expect(files.has("/repo/.jj")).toBe(true)
+        expect(files.has("/repo/.jj.backup")).toBe(true)
+        expect(removed).toEqual([])
     })
 
     test("routes GitHub reads and browser operations through the supplied process", async () => {

@@ -223,7 +223,7 @@ export interface JjService {
     ) => Effect.Effect<string, JjReadError | ProcessError>
     readonly checkWorkingCopy: (
         options: JjOperationOptions,
-    ) => Effect.Effect<void, JjStaleWorkingCopyError | ProcessError>
+    ) => Effect.Effect<void, JjCommandError | JjStaleWorkingCopyError | ProcessError>
     readonly gitInit: (
         options: JjOperationOptions & { readonly colocate?: boolean },
     ) => Effect.Effect<JjOperationResult, JjCommandError | ProcessError>
@@ -329,7 +329,7 @@ export interface JjService {
     ) => Effect.Effect<boolean, ProcessError>
     readonly refreshState: (
         options: JjOperationOptions,
-    ) => Effect.Effect<JjRefreshState, JjStaleWorkingCopyError | ProcessError>
+    ) => Effect.Effect<JjRefreshState, JjCommandError | JjStaleWorkingCopyError | ProcessError>
     readonly files: (
         target: JjDiffTarget,
         options: JjOperationOptions,
@@ -546,6 +546,12 @@ export const JjLayer: Layer.Layer<Jj, never, AppProcess | Hooks> = Layer.effect(
             if (isStaleWorkingCopyFailure(result)) {
                 return yield* new JjStaleWorkingCopyError({
                     output: result.stdout + result.stderr,
+                })
+            }
+            if (result.exitCode !== 0) {
+                return yield* new JjCommandError({
+                    command: result.command,
+                    result,
                 })
             }
         })

@@ -20,7 +20,7 @@ import {
 } from "./config"
 import { ApplicationProvider, useApplication } from "./context/application"
 import { CommandProvider, useCommand } from "./context/command"
-import { CommandLogProvider, useCommandLog } from "./context/commandlog"
+import { CommandLogProvider, type CommandLogEntry, useCommandLog } from "./context/commandlog"
 import { DIALOG_SIZE, DialogContainer, DialogProvider, useDialog } from "./context/dialog"
 import { FocusProvider, type Panel, useFocus } from "./context/focus"
 import { KeybindProvider } from "./context/keybind"
@@ -47,7 +47,18 @@ const GIT_ACTION_MENU_DIALOG = {
 
 interface AppProps {
     app: ApplicationClient
+    initialCommandLogEntries?: readonly CommandLogEntry[]
     onQuit: () => void | Promise<void>
+}
+
+function InitialCommandLogEntries(props: { entries: readonly CommandLogEntry[] }) {
+    const commandLog = useCommandLog()
+
+    onMount(() => {
+        if (props.entries.length > 0) commandLog.addEntries(props.entries)
+    })
+
+    return null
 }
 
 function AppContent({ onQuit }: Pick<AppProps, "onQuit">) {
@@ -775,7 +786,7 @@ function AppContent({ onQuit }: Pick<AppProps, "onQuit">) {
     )
 }
 
-export function App({ app, onQuit }: AppProps) {
+export function App({ app, initialCommandLogEntries = [], onQuit }: AppProps) {
     return (
         <ApplicationProvider app={app}>
             <ThemeProvider>
@@ -784,6 +795,7 @@ export function App({ app, onQuit }: AppProps) {
                         <SyncProvider>
                             <KeybindProvider>
                                 <CommandLogProvider>
+                                    <InitialCommandLogEntries entries={initialCommandLogEntries} />
                                     <StatusProvider>
                                         <DialogProvider>
                                             <UpdateProvider>

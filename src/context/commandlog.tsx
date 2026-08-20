@@ -121,6 +121,10 @@ export const { use: useCommandLog, provider: CommandLogProvider } = createSimple
             )
         }
 
+        const addEntries = (newEntries: readonly CommandLogEntry[]) => {
+            setEntries((prev) => limitEntries([...prev, ...newEntries]))
+        }
+
         const addEntry = (result: OperationResult) => {
             if (result.logged) return
             const entry: CommandLogEntry = {
@@ -152,6 +156,7 @@ export const { use: useCommandLog, provider: CommandLogProvider } = createSimple
         return {
             entries,
             addEntry,
+            addEntries,
             start,
             append,
             finish,
