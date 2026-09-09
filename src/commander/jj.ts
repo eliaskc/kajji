@@ -12,7 +12,15 @@ export type { OperationFailure, OperationSink } from "../process/operation-sink"
 import { findBinaryFiles } from "../utils/diff-binary"
 import { isStaleWorkingCopyFailure } from "../utils/error-parser"
 import { toFilesetArgs } from "../utils/jj-fileset"
-import { BOOKMARK_TEMPLATE, type Bookmark, parseBookmarkOutput } from "./bookmarks"
+import {
+    BOOKMARK_REFERENCE_TEMPLATE,
+    BOOKMARK_TEMPLATE,
+    type Bookmark,
+    applyBookmarkTargets,
+    bookmarkTargetTemplate,
+    groupBookmarkTargetReads,
+    parseBookmarkOutput,
+} from "./bookmarks"
 import { parseFileSummary } from "./files"
 import {
     type LogPageResult,
@@ -573,6 +581,88 @@ export const JjLayer: Layer.Layer<Jj, never, AppProcess | Hooks> = Layer.effect(
             return Effect.void
         }
 
+        const streamSharedBookmarkTargets = (
+            options: JjBookmarkReadOptions,
+            fallback: Stream.Stream<
+                JjStreamEvent<Bookmark, Bookmark[]>,
+                JjReadError | JjStaleWorkingCopyError | ProcessError
+            >,
+        ) => {
+            // Multiple reads must use exactly the same repository operation.
+            if (!options.atOperation) return fallback
+            return Stream.unwrap(
+                Effect.gen(function* () {
+                    const result = yield* runRead(
+                        [
+                            "--color",
+                            "always",
+                            "bookmark",
+                            "list",
+                            "--sort",
+                            "committer-date-",
+                            "--template",
+                            BOOKMARK_REFERENCE_TEMPLATE,
+                            ...(options.allRemotes ? ["--all-remotes"] : []),
+                        ],
+                        options,
+                    )
+                    yield* throwIfStale(result)
+                    if (result.exitCode !== 0) {
+                        return yield* new JjReadError({
+                            kind: "bookmarks",
+                            command: result.command,
+                            result,
+                        })
+                    }
+                    const references = parseBookmarkOutput(result.stdout)
+                    // Preserve the existing conflict/deleted-target formatting path.
+                    if (
+                        references.some(
+                            (reference) => !/^[0-9a-f]{40,64}$/.test(reference.commitId),
+                        )
+                    ) {
+                        return fallback
+                    }
+                    const groups = groupBookmarkTargetReads(references)
+                    const targets = yield* Effect.all(
+                        groups.map((group) =>
+                            Effect.gen(function* () {
+                                const targetResult = yield* runRead(
+                                    [
+                                        "--color",
+                                        "always",
+                                        "bookmark",
+                                        "list",
+                                        "--all-remotes",
+                                        "--template",
+                                        bookmarkTargetTemplate(group.remote),
+                                        ...group.names.map((name) => `exact:${name}`),
+                                    ],
+                                    options,
+                                )
+                                yield* throwIfStale(targetResult)
+                                if (targetResult.exitCode !== 0) {
+                                    return yield* new JjReadError({
+                                        kind: "bookmarks",
+                                        command: targetResult.command,
+                                        result: targetResult,
+                                    })
+                                }
+                                return parseBookmarkOutput(targetResult.stdout)
+                            }),
+                        ),
+                        { concurrency: 2 },
+                    )
+                    const bookmarks = applyBookmarkTargets(references, targets.flat())
+                    if (!bookmarks) return fallback
+                    return Stream.succeed<JjStreamEvent<Bookmark, Bookmark[]>>({
+                        _tag: "Complete",
+                        result: bookmarks,
+                    })
+                }),
+            )
+        }
+
         const checkWorkingCopy = Effect.fn("Jj.checkWorkingCopy")(function* (
             options: JjOperationOptions,
         ) {
@@ -1094,64 +1184,67 @@ export const JjLayer: Layer.Layer<Jj, never, AppProcess | Hooks> = Layer.effect(
                 return parseBookmarkOutput(result.stdout)
             }),
             streamBookmarks: (options: JjBookmarkReadOptions) =>
-                Stream.suspend(() => {
-                    const args = [
-                        "--color",
-                        "always",
-                        "bookmark",
-                        "list",
-                        "--sort",
-                        "committer-date-",
-                        "--template",
-                        BOOKMARK_TEMPLATE,
-                    ]
-                    if (options.allRemotes) args.push("--all-remotes")
+                streamSharedBookmarkTargets(
+                    options,
+                    Stream.suspend(() => {
+                        const args = [
+                            "--color",
+                            "always",
+                            "bookmark",
+                            "list",
+                            "--sort",
+                            "committer-date-",
+                            "--template",
+                            BOOKMARK_TEMPLATE,
+                        ]
+                        if (options.allRemotes) args.push("--all-remotes")
 
-                    let output = ""
-                    let lastCount = 0
-                    const { command, events } = streamRead(args, options)
-                    return events.pipe(
-                        Stream.flatMap((event) => {
-                            if (event._tag === "Output") {
-                                if (event.stream !== "stdout") return Stream.empty
-                                output += event.chunk
-                                const completeEnd = output.lastIndexOf("\n")
-                                if (completeEnd < 0) return Stream.empty
-                                const bookmarks = parseBookmarkOutput(
-                                    output.slice(0, completeEnd + 1),
+                        let output = ""
+                        let lastCount = 0
+                        const { command, events } = streamRead(args, options)
+                        return events.pipe(
+                            Stream.flatMap((event) => {
+                                if (event._tag === "Output") {
+                                    if (event.stream !== "stdout") return Stream.empty
+                                    output += event.chunk
+                                    const completeEnd = output.lastIndexOf("\n")
+                                    if (completeEnd < 0) return Stream.empty
+                                    const bookmarks = parseBookmarkOutput(
+                                        output.slice(0, completeEnd + 1),
+                                    )
+                                    if (bookmarks.length <= lastCount) return Stream.empty
+                                    lastCount = bookmarks.length
+                                    return Stream.succeed<JjStreamEvent<Bookmark, Bookmark[]>>({
+                                        _tag: "Batch",
+                                        items: bookmarks,
+                                    })
+                                }
+
+                                const result = {
+                                    ...event.result,
+                                    command,
+                                }
+                                return Stream.fromEffect(
+                                    Effect.gen(function* () {
+                                        yield* throwIfStale(result)
+                                        if (result.exitCode !== 0) {
+                                            return yield* new JjReadError({
+                                                kind: "bookmarks",
+                                                command,
+                                                result,
+                                            })
+                                        }
+                                        return {
+                                            _tag: "Complete" as const,
+                                            result: parseBookmarkOutput(result.stdout),
+                                        }
+                                    }),
                                 )
-                                if (bookmarks.length <= lastCount) return Stream.empty
-                                lastCount = bookmarks.length
-                                return Stream.succeed<JjStreamEvent<Bookmark, Bookmark[]>>({
-                                    _tag: "Batch",
-                                    items: bookmarks,
-                                })
-                            }
-
-                            const result = {
-                                ...event.result,
-                                command,
-                            }
-                            return Stream.fromEffect(
-                                Effect.gen(function* () {
-                                    yield* throwIfStale(result)
-                                    if (result.exitCode !== 0) {
-                                        return yield* new JjReadError({
-                                            kind: "bookmarks",
-                                            command,
-                                            result,
-                                        })
-                                    }
-                                    return {
-                                        _tag: "Complete" as const,
-                                        result: parseBookmarkOutput(result.stdout),
-                                    }
-                                }),
-                            )
-                        }),
-                        Stream.withSpan("Jj.streamBookmarks"),
-                    )
-                }),
+                            }),
+                            Stream.withSpan("Jj.streamBookmarks"),
+                        )
+                    }),
+                ),
             logPage: Effect.fn("Jj.logPage")(function* (options: JjLogReadOptions) {
                 const commandLimit = options.limit ? options.limit + 1 : undefined
                 const result = yield* runRead(
