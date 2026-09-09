@@ -182,6 +182,33 @@ describe("shared bookmark targets", () => {
         },
     )
 
+    test.each([undefined, "@", "@-", "abcdef"])(
+        "symbolic or unpinned operation uses one read: %s",
+        async (atOperation) => {
+            const output = line("one", firstId, "", "original")
+            let streamed = 0
+            const processLayer = makeAppProcessFake(
+                () => {
+                    throw new Error("unexpected multi-read path")
+                },
+                (command) => {
+                    streamed++
+                    expect(command.args).toContain(BOOKMARK_TEMPLATE)
+                    return outputEvents(output)
+                },
+            )
+            const events = await Effect.runPromise(
+                Jj.use((jj) =>
+                    jj
+                        .streamBookmarks({ cwd: "/tmp/repository", atOperation })
+                        .pipe(Stream.runCollect),
+                ).pipe(Effect.provide(JjLive), Effect.provide(processLayer)),
+            )
+            expect(streamed).toBe(1)
+            expect(events.at(-1)).toEqual({ _tag: "Complete", result: parseBookmarkOutput(output) })
+        },
+    )
+
     test("empty reference list completes without metadata reads", async () => {
         const events = await runBookmarks(
             makeAppProcessFake(
@@ -206,6 +233,35 @@ describe("shared bookmark targets", () => {
             ),
         )
         await expect(effect).rejects.toMatchObject({ _tag: "JjReadError" })
+    })
+
+    test("reference read failures do not start metadata streams", async () => {
+        await expect(
+            runBookmarks(
+                makeAppProcessFake(
+                    () => Effect.succeed({ ...success, exitCode: 1, stderr: "reference failure" }),
+                    () => {
+                        throw new Error("unexpected metadata read")
+                    },
+                ),
+            ),
+        ).rejects.toMatchObject({ _tag: "JjReadError" })
+    })
+
+    test("missing metadata falls back without reporting an incomplete success", async () => {
+        const output = line("one", firstId, "", "original")
+        let streamed = 0
+        const events = await runBookmarks(
+            makeAppProcessFake(
+                () => Effect.succeed({ ...success, stdout: line("one", firstId) }),
+                (command) => {
+                    streamed++
+                    return outputEvents(command.args.includes(BOOKMARK_TEMPLATE) ? output : "")
+                },
+            ),
+        )
+        expect(streamed).toBe(2)
+        expect(events.at(-1)).toEqual({ _tag: "Complete", result: parseBookmarkOutput(output) })
     })
 
     test("interrupting a shared read cancels every active metadata stream", async () => {
@@ -280,13 +336,19 @@ describe("shared bookmark targets", () => {
         const client = makeApplicationClient(processLayer)
         const compare = async () => {
             const state = await client.jjRefreshState({ cwd: root })
-            const options = { cwd: root, atOperation: state.operationId, allRemotes: true }
-            const expected = await client.jjBookmarks(options)
-            const actual = await client.jjStreamBookmarks(options, (batch) => {
-                // Validate a complete prefix on every callback, not just the final list.
-                expect(batch).toEqual(expected.slice(0, batch.length))
-            }).result
-            expect(actual).toEqual(expected)
+            let actual: Bookmark[] = []
+            for (const allRemotes of [false, true]) {
+                const options = { cwd: root, atOperation: state.operationId, allRemotes }
+                const expected = await client.jjBookmarks(options)
+                let previousLength = 0
+                actual = await client.jjStreamBookmarks(options, (batch) => {
+                    // Validate every prefix, including publication order.
+                    expect(batch.length).toBeGreaterThanOrEqual(previousLength)
+                    expect(batch).toEqual(expected.slice(0, batch.length))
+                    previousLength = batch.length
+                }).result
+                expect(actual).toEqual(expected)
+            }
             return actual
         }
         try {
