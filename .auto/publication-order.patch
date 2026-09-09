@@ -1,0 +1,146 @@
+diff --git a/src/commander/jj.ts b/src/commander/jj.ts
+index e022181320..6f55cb8ed8 100644
+--- a/src/commander/jj.ts
++++ b/src/commander/jj.ts
+@@ -627,8 +627,8 @@
+                     }
+                     const groups = groupBookmarkTargetReads(references)
+                     const accumulator = createBookmarkTargetAccumulator(references)
+-                    const publish = (output: string) => {
+-                        const items = accumulator.add(parseBookmarkOutput(output))
++                    const publish = (targets: readonly Bookmark[]) => {
++                        const items = accumulator.add(targets)
+                         return items
+                             ? Stream.succeed<JjStreamEvent<Bookmark, Bookmark[]>>({
+                                   _tag: "Batch",
+@@ -665,7 +665,7 @@
+                                                 if (end < 0) return Stream.empty
+                                                 const output = pending.slice(0, end + 1)
+                                                 pending = pending.slice(end + 1)
+-                                                return publish(output)
++                                                return Stream.succeed(parseBookmarkOutput(output))
+                                             }
+                                             return Stream.unwrap(
+                                                 Effect.gen(function* () {
+@@ -678,7 +678,9 @@
+                                                             result,
+                                                         })
+                                                     }
+-                                                    return publish(result.stdout)
++                                                    return Stream.succeed(
++                                                        parseBookmarkOutput(result.stdout),
++                                                    )
+                                                 }),
+                                             )
+                                         }),
+@@ -686,6 +688,9 @@
+                                 }),
+                             { concurrency: 2 },
+                         ),
++                        // Join after merging concurrent sources so prefix snapshots
++                        // are published in the same order they are constructed.
++                        Stream.flatMap(publish),
+                         Stream.concat(
+                             Stream.suspend(() => {
+                                 const bookmarks = accumulator.complete()
+diff --git a/tests/unit/commander/bookmark-targets.test.ts b/tests/unit/commander/bookmark-targets.test.ts
+index 677e1acb29..114e0ddbac 100644
+--- a/tests/unit/commander/bookmark-targets.test.ts
++++ b/tests/unit/commander/bookmark-targets.test.ts
+@@ -182,6 +182,33 @@
+         },
+     )
+ 
++    test.each([undefined, "@", "@-", "abcdef"])(
++        "symbolic or unpinned operation uses one read: %s",
++        async (atOperation) => {
++            const output = line("one", firstId, "", "original")
++            let streamed = 0
++            const processLayer = makeAppProcessFake(
++                () => {
++                    throw new Error("unexpected multi-read path")
++                },
++                (command) => {
++                    streamed++
++                    expect(command.args).toContain(BOOKMARK_TEMPLATE)
++                    return outputEvents(output)
++                },
++            )
++            const events = await Effect.runPromise(
++                Jj.use((jj) =>
++                    jj
++                        .streamBookmarks({ cwd: "/tmp/repository", atOperation })
++                        .pipe(Stream.runCollect),
++                ).pipe(Effect.provide(JjLive), Effect.provide(processLayer)),
++            )
++            expect(streamed).toBe(1)
++            expect(events.at(-1)).toEqual({ _tag: "Complete", result: parseBookmarkOutput(output) })
++        },
++    )
++
+     test("empty reference list completes without metadata reads", async () => {
+         const events = await runBookmarks(
+             makeAppProcessFake(
+@@ -208,6 +235,35 @@
+         await expect(effect).rejects.toMatchObject({ _tag: "JjReadError" })
+     })
+ 
++    test("reference read failures do not start metadata streams", async () => {
++        await expect(
++            runBookmarks(
++                makeAppProcessFake(
++                    () => Effect.succeed({ ...success, exitCode: 1, stderr: "reference failure" }),
++                    () => {
++                        throw new Error("unexpected metadata read")
++                    },
++                ),
++            ),
++        ).rejects.toMatchObject({ _tag: "JjReadError" })
++    })
++
++    test("missing metadata falls back without reporting an incomplete success", async () => {
++        const output = line("one", firstId, "", "original")
++        let streamed = 0
++        const events = await runBookmarks(
++            makeAppProcessFake(
++                () => Effect.succeed({ ...success, stdout: line("one", firstId) }),
++                (command) => {
++                    streamed++
++                    return outputEvents(command.args.includes(BOOKMARK_TEMPLATE) ? output : "")
++                },
++            ),
++        )
++        expect(streamed).toBe(2)
++        expect(events.at(-1)).toEqual({ _tag: "Complete", result: parseBookmarkOutput(output) })
++    })
++
+     test("interrupting a shared read cancels every active metadata stream", async () => {
+         const started = Deferred.makeUnsafe<void>()
+         let active = 0
+@@ -280,13 +336,19 @@
+         const client = makeApplicationClient(processLayer)
+         const compare = async () => {
+             const state = await client.jjRefreshState({ cwd: root })
+-            const options = { cwd: root, atOperation: state.operationId, allRemotes: true }
+-            const expected = await client.jjBookmarks(options)
+-            const actual = await client.jjStreamBookmarks(options, (batch) => {
+-                // Validate a complete prefix on every callback, not just the final list.
+-                expect(batch).toEqual(expected.slice(0, batch.length))
+-            }).result
+-            expect(actual).toEqual(expected)
++            let actual: Bookmark[] = []
++            for (const allRemotes of [false, true]) {
++                const options = { cwd: root, atOperation: state.operationId, allRemotes }
++                const expected = await client.jjBookmarks(options)
++                let previousLength = 0
++                actual = await client.jjStreamBookmarks(options, (batch) => {
++                    // Validate every prefix, including publication order.
++                    expect(batch.length).toBeGreaterThanOrEqual(previousLength)
++                    expect(batch).toEqual(expected.slice(0, batch.length))
++                    previousLength = batch.length
++                }).result
++                expect(actual).toEqual(expected)
++            }
+             return actual
+         }
+         try {

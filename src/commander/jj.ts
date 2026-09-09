@@ -627,8 +627,8 @@ export const JjLayer: Layer.Layer<Jj, never, AppProcess | Hooks> = Layer.effect(
                     }
                     const groups = groupBookmarkTargetReads(references)
                     const accumulator = createBookmarkTargetAccumulator(references)
-                    const publish = (output: string) => {
-                        const items = accumulator.add(parseBookmarkOutput(output))
+                    const publish = (targets: readonly Bookmark[]) => {
+                        const items = accumulator.add(targets)
                         return items
                             ? Stream.succeed<JjStreamEvent<Bookmark, Bookmark[]>>({
                                   _tag: "Batch",
@@ -665,7 +665,7 @@ export const JjLayer: Layer.Layer<Jj, never, AppProcess | Hooks> = Layer.effect(
                                                 if (end < 0) return Stream.empty
                                                 const output = pending.slice(0, end + 1)
                                                 pending = pending.slice(end + 1)
-                                                return publish(output)
+                                                return Stream.succeed(parseBookmarkOutput(output))
                                             }
                                             return Stream.unwrap(
                                                 Effect.gen(function* () {
@@ -678,14 +678,19 @@ export const JjLayer: Layer.Layer<Jj, never, AppProcess | Hooks> = Layer.effect(
                                                             result,
                                                         })
                                                     }
-                                                    return publish(result.stdout)
+                                                    return Stream.succeed(
+                                                        parseBookmarkOutput(result.stdout),
+                                                    )
                                                 }),
                                             )
                                         }),
                                     )
                                 }),
-                            { concurrency: 2 },
+                            { concurrency: 4 },
                         ),
+                        // Join after merging concurrent sources so prefix snapshots
+                        // are published in the same order they are constructed.
+                        Stream.flatMap(publish),
                         Stream.concat(
                             Stream.suspend(() => {
                                 const bookmarks = accumulator.complete()
