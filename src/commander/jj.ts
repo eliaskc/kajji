@@ -16,8 +16,8 @@ import {
     BOOKMARK_REFERENCE_TEMPLATE,
     BOOKMARK_TEMPLATE,
     type Bookmark,
-    applyBookmarkTargets,
     bookmarkTargetTemplate,
+    createBookmarkTargetAccumulator,
     groupBookmarkTargetReads,
     parseBookmarkOutput,
 } from "./bookmarks"
@@ -589,7 +589,9 @@ export const JjLayer: Layer.Layer<Jj, never, AppProcess | Hooks> = Layer.effect(
             >,
         ) => {
             // Multiple reads must use exactly the same repository operation.
-            if (!options.atOperation) return fallback
+            if (!options.atOperation || !/^[0-9a-f]{128}$/.test(options.atOperation)) {
+                return fallback
+            }
             return Stream.unwrap(
                 Effect.gen(function* () {
                     const result = yield* runRead(
@@ -624,41 +626,78 @@ export const JjLayer: Layer.Layer<Jj, never, AppProcess | Hooks> = Layer.effect(
                         return fallback
                     }
                     const groups = groupBookmarkTargetReads(references)
-                    const targets = yield* Effect.all(
-                        groups.map((group) =>
-                            Effect.gen(function* () {
-                                const targetResult = yield* runRead(
-                                    [
-                                        "--color",
-                                        "always",
-                                        "bookmark",
-                                        "list",
-                                        "--all-remotes",
-                                        "--template",
-                                        bookmarkTargetTemplate(group.remote),
-                                        ...group.names.map((name) => `exact:${name}`),
-                                    ],
-                                    options,
-                                )
-                                yield* throwIfStale(targetResult)
-                                if (targetResult.exitCode !== 0) {
-                                    return yield* new JjReadError({
-                                        kind: "bookmarks",
-                                        command: targetResult.command,
-                                        result: targetResult,
-                                    })
-                                }
-                                return parseBookmarkOutput(targetResult.stdout)
+                    const accumulator = createBookmarkTargetAccumulator(references)
+                    const publish = (output: string) => {
+                        const items = accumulator.add(parseBookmarkOutput(output))
+                        return items
+                            ? Stream.succeed<JjStreamEvent<Bookmark, Bookmark[]>>({
+                                  _tag: "Batch",
+                                  items,
+                              })
+                            : Stream.empty
+                    }
+                    return Stream.fromIterable(groups).pipe(
+                        Stream.flatMap(
+                            (group) =>
+                                Stream.suspend(() => {
+                                    const { command, events } = streamRead(
+                                        [
+                                            "--color",
+                                            "always",
+                                            "bookmark",
+                                            "list",
+                                            "--all-remotes",
+                                            "--sort",
+                                            "committer-date-",
+                                            "--template",
+                                            bookmarkTargetTemplate(group.remote),
+                                            ...group.names.map((name) => `exact:${name}`),
+                                        ],
+                                        options,
+                                    )
+                                    let pending = ""
+                                    return events.pipe(
+                                        Stream.flatMap((event) => {
+                                            if (event._tag === "Output") {
+                                                if (event.stream !== "stdout") return Stream.empty
+                                                pending += event.chunk
+                                                const end = pending.lastIndexOf("\n")
+                                                if (end < 0) return Stream.empty
+                                                const output = pending.slice(0, end + 1)
+                                                pending = pending.slice(end + 1)
+                                                return publish(output)
+                                            }
+                                            return Stream.unwrap(
+                                                Effect.gen(function* () {
+                                                    const result = { ...event.result, command }
+                                                    yield* throwIfStale(result)
+                                                    if (result.exitCode !== 0) {
+                                                        return yield* new JjReadError({
+                                                            kind: "bookmarks",
+                                                            command,
+                                                            result,
+                                                        })
+                                                    }
+                                                    return publish(result.stdout)
+                                                }),
+                                            )
+                                        }),
+                                    )
+                                }),
+                            { concurrency: 2 },
+                        ),
+                        Stream.concat(
+                            Stream.suspend(() => {
+                                const bookmarks = accumulator.complete()
+                                if (!bookmarks) return fallback
+                                return Stream.succeed<JjStreamEvent<Bookmark, Bookmark[]>>({
+                                    _tag: "Complete",
+                                    result: bookmarks,
+                                })
                             }),
                         ),
-                        { concurrency: 2 },
+                        Stream.withSpan("Jj.streamSharedBookmarkTargets"),
                     )
-                    const bookmarks = applyBookmarkTargets(references, targets.flat())
-                    if (!bookmarks) return fallback
-                    return Stream.succeed<JjStreamEvent<Bookmark, Bookmark[]>>({
-                        _tag: "Complete",
-                        result: bookmarks,
-                    })
                 }),
             )
         }

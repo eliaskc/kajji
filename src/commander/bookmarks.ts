@@ -59,11 +59,12 @@ export function groupBookmarkTargetReads(references: readonly Bookmark[]): Bookm
         byRemote.set(remote, group)
     }
     const result: BookmarkTargetRead[] = []
+    const encoder = new TextEncoder()
     for (const [remote, references] of byRemote) {
         let names: string[] = []
         let bytes = 0
         for (const reference of references) {
-            const size = new TextEncoder().encode(reference.name).length + 7
+            const size = encoder.encode(reference.name).length + 7
             if (names.length && (names.length >= 256 || bytes + size > 16_384)) {
                 result.push({ remote, names })
                 names = []
@@ -83,22 +84,40 @@ export function bookmarkTargetTemplate(remote: string): string {
     return `if(stringify(remote) == ${JSON.stringify(remote)}, (${BOOKMARK_DESCRIPTION_TEMPLATE}), "")`
 }
 
+export function createBookmarkTargetAccumulator(references: readonly Bookmark[]) {
+    const byCommit = new Map<string, Bookmark>()
+    const result: Bookmark[] = []
+    return {
+        add(targets: readonly Bookmark[]): Bookmark[] | undefined {
+            for (const target of targets) byCommit.set(target.commitId, target)
+            const previousLength = result.length
+            while (result.length < references.length) {
+                const reference = references[result.length]!
+                const target = byCommit.get(reference.commitId)
+                if (!target) break
+                result.push({
+                    ...reference,
+                    description: target.description,
+                    descriptionDisplay: target.descriptionDisplay,
+                })
+            }
+            // Only publish a fully resolved prefix, in the original reference
+            // order. Later batches must not mutate earlier snapshots.
+            return result.length > previousLength ? result.slice() : undefined
+        },
+        complete(): Bookmark[] | undefined {
+            return result.length === references.length ? result.slice() : undefined
+        },
+    }
+}
+
 export function applyBookmarkTargets(
     references: readonly Bookmark[],
     targets: readonly Bookmark[],
 ): Bookmark[] | undefined {
-    const byCommit = new Map(targets.map((target) => [target.commitId, target]))
-    const result: Bookmark[] = []
-    for (const reference of references) {
-        const target = byCommit.get(reference.commitId)
-        if (!target) return undefined
-        result.push({
-            ...reference,
-            description: target.description,
-            descriptionDisplay: target.descriptionDisplay,
-        })
-    }
-    return result
+    const accumulator = createBookmarkTargetAccumulator(references)
+    accumulator.add(targets)
+    return accumulator.complete()
 }
 
 // oxlint-disable-next-line no-control-regex -- intentional ANSI escape sequence
