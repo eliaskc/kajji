@@ -11,7 +11,6 @@ import { ConsolePosition } from "@opentui/core"
 import { extend, render, useRenderer } from "@opentui/solid"
 import { GhosttyTerminalRenderable } from "ghostty-opentui/terminal-buffer"
 import { Show, createSignal } from "solid-js"
-import { App } from "./App"
 import { makeApplicationClient } from "./application/client"
 import { ErrorScreen } from "./components/ErrorScreen"
 import { StartupScreen } from "./components/StartupScreen"
@@ -111,7 +110,7 @@ export async function runTui(args: string[]): Promise<void> {
     }
 
     _trace("before repositoryStatus()")
-    const initialStatus = mockMode
+    const initialStatusPromise = mockMode
         ? {
               isJjRepo: mockMode !== "startup-no-vcs" && mockMode !== "startup-git",
               hasGitRepo: mockMode === "startup-git",
@@ -119,7 +118,11 @@ export async function runTui(args: string[]): Promise<void> {
               repoPath: getRepoPath(),
               refreshState: undefined,
           }
-        : await application.repositoryStatus(getRepoPath())
+        : application.repositoryStatus(getRepoPath())
+    const [initialStatus, { App }] = await Promise.all([
+        initialStatusPromise,
+        import("./App"),
+    ])
     _trace("after repositoryStatus()")
     if (initialStatus.repoPath !== getRepoPath()) {
         setRepoPath(initialStatus.repoPath)
