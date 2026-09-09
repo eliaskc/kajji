@@ -119,10 +119,7 @@ export async function runTui(args: string[]): Promise<void> {
               refreshState: undefined,
           }
         : application.repositoryStatus(getRepoPath())
-    const [initialStatus, { App }] = await Promise.all([
-        initialStatusPromise,
-        import("./App"),
-    ])
+    const [initialStatus, { App }] = await Promise.all([initialStatusPromise, import("./App")])
     _trace("after repositoryStatus()")
     if (initialStatus.repoPath !== getRepoPath()) {
         setRepoPath(initialStatus.repoPath)
