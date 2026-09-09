@@ -1,5 +1,12 @@
 # Autoresearch: Kajji startup
 
+## Current user request — PAUSED after one bundled run
+The user stopped the loop and requested exactly one bundled-binary measurement. Completed: current code b6c5c2e built with release settings, one launch on goodmorning, no warmup. Content/highlighting ready 2015.604ms, first visible 1293.929ms. Report: .kajji-benchmarks/startup-auto/bundled/single-run.json. Installed binary unchanged. This is one first launch, NOT proof that compiled code is slower than source medians. Do not resume the loop without a new user request.
+
+Current measure.sh runs .auto/measure-binary.ts once. Original source loop wrapper is .auto/measure-source.sh. Log has a new binary_startup_ms config segment. Any future target change needs init_experiment and a new baseline. The source-loop notes below are historical.
+
+Latest retained source work: shared pinned bookmark descriptions, progressive metadata streams with concurrency4 and downstream ordered prefix joins (b6c5c2e). Source primary1214ms, real1417ms, stress1040ms. 17 new tests cover native colors/aliases, remotes, conflicts, deleted refs, operation guards, failures, fallback and cancellation. tui formatting is fixed. User explicitly approved this larger change. Source A verification was interrupted and not completed.
+
 ## Objective
 Reduce real TUI fresh-process startup to loaded log, bookmarks, and selected diff. Do not optimize only a synthetic workload. Reuse prepared stress and copied goodmorning fixtures. These are warm-filesystem, prepared-working-copy measurements, not cold disk.
 
