@@ -1,10 +1,10 @@
-import { ptyToJson } from "ghostty-opentui"
 import { For, Show } from "solid-js"
 import type { Bookmark } from "../commander/bookmarks"
 import { useTheme } from "../context/theme"
 import type { BookmarkStackRow } from "../stack/model"
 import { resolveAnsiForeground } from "../theme/ansi"
 import { stripAnsi } from "../utils/ansi"
+import { parseAnsiLines } from "../utils/ansi-lines"
 import { AnsiText } from "./AnsiText"
 
 const emptyDescriptionPrefix = "(empty) "
@@ -29,7 +29,7 @@ export function BookmarkStackRowView(props: BookmarkStackRowViewProps) {
     const { colors, mode } = useTheme()
 
     const inlineAnsiSpans = (content: string, defaultFg?: string) => {
-        const spans = ptyToJson(content, { cols: 9999, rows: 1 }).lines[0]?.spans ?? []
+        const spans = parseAnsiLines(content)[0]?.spans ?? []
         return spans
             .filter((span) => span.text.length > 0)
             .map((span) => ({
