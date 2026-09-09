@@ -4,7 +4,7 @@ const BOOKMARK_MARKER = "__BJ__"
 const BOOKMARK_DESCRIPTION =
     'if(normal_target, if(normal_target.empty(), label("empty", "(empty) "), "") ++ if(normal_target.description().first_line(), normal_target.description().first_line(), label("description placeholder", "(no description set)")), "")'
 
-export const BOOKMARK_TEMPLATE = [
+const BOOKMARK_FIELDS = [
     `"${BOOKMARK_MARKER}"`,
     "name",
     `"${BOOKMARK_MARKER}"`,
@@ -22,7 +22,84 @@ export const BOOKMARK_TEMPLATE = [
     `"${BOOKMARK_MARKER}"`,
     `coalesce(${BOOKMARK_DESCRIPTION}, self.added_targets().map(|c| if(c.empty(), label("empty", "(empty) "), "") ++ if(c.description().first_line(), c.description().first_line(), label("description placeholder", "(no description set)"))).join(", "), self.removed_targets().map(|c| if(c.empty(), label("empty", "(empty) "), "") ++ if(c.description().first_line(), c.description().first_line(), label("description placeholder", "(no description set)"))).join(", "))`,
     '"\\n"',
+]
+
+export const BOOKMARK_TEMPLATE = BOOKMARK_FIELDS.join(" ++ ")
+
+// Read reference identity separately from target formatting. Several local and
+// remote references can share one target, whose empty check can be expensive.
+export const BOOKMARK_REFERENCE_TEMPLATE = [...BOOKMARK_FIELDS.slice(0, -2), '"\\n"'].join(" ++ ")
+
+const BOOKMARK_DESCRIPTION_TEMPLATE = [
+    `"${BOOKMARK_MARKER}${BOOKMARK_MARKER}${BOOKMARK_MARKER}${BOOKMARK_MARKER}${BOOKMARK_MARKER}${BOOKMARK_MARKER}${BOOKMARK_MARKER}"`,
+    'if(normal_target, normal_target.commit_id(), "")',
+    `"${BOOKMARK_MARKER}"`,
+    BOOKMARK_DESCRIPTION,
+    '"\\n"',
 ].join(" ++ ")
+
+export interface BookmarkTargetRead {
+    remote: string
+    names: string[]
+}
+
+export function groupBookmarkTargetReads(references: readonly Bookmark[]): BookmarkTargetRead[] {
+    const representatives = new Map<string, Bookmark>()
+    // Prefer local references so shared targets usually fit in one remote group.
+    for (const reference of references) {
+        if (!representatives.has(reference.commitId) || reference.isLocal) {
+            representatives.set(reference.commitId, reference)
+        }
+    }
+    const byRemote = new Map<string, Bookmark[]>()
+    for (const reference of representatives.values()) {
+        const remote = reference.remote ?? ""
+        const group = byRemote.get(remote) ?? []
+        group.push(reference)
+        byRemote.set(remote, group)
+    }
+    const result: BookmarkTargetRead[] = []
+    for (const [remote, references] of byRemote) {
+        let names: string[] = []
+        let bytes = 0
+        for (const reference of references) {
+            const size = new TextEncoder().encode(reference.name).length + 7
+            if (names.length && (names.length >= 256 || bytes + size > 16_384)) {
+                result.push({ remote, names })
+                names = []
+                bytes = 0
+            }
+            names.push(reference.name)
+            bytes += size
+        }
+        if (names.length) result.push({ remote, names })
+    }
+    return result
+}
+
+export function bookmarkTargetTemplate(remote: string): string {
+    // Keep bookmark_list label scope and user template aliases exactly as in the
+    // original read. Using `jj log` here would change scoped user colors.
+    return `if(stringify(remote) == ${JSON.stringify(remote)}, (${BOOKMARK_DESCRIPTION_TEMPLATE}), "")`
+}
+
+export function applyBookmarkTargets(
+    references: readonly Bookmark[],
+    targets: readonly Bookmark[],
+): Bookmark[] | undefined {
+    const byCommit = new Map(targets.map((target) => [target.commitId, target]))
+    const result: Bookmark[] = []
+    for (const reference of references) {
+        const target = byCommit.get(reference.commitId)
+        if (!target) return undefined
+        result.push({
+            ...reference,
+            description: target.description,
+            descriptionDisplay: target.descriptionDisplay,
+        })
+    }
+    return result
+}
 
 // oxlint-disable-next-line no-control-regex -- intentional ANSI escape sequence
 const stripAnsi = (str: string) => str.replace(/\x1b\[[0-9;]*m/g, "")
