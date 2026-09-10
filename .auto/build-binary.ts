@@ -1,7 +1,11 @@
 import solidPlugin from "../node_modules/@opentui/solid/scripts/solid-plugin"
 import { mkdir, chmod } from "node:fs/promises"
 import { resolve } from "node:path"
-const outfile = resolve(".kajji-benchmarks/startup-auto/bundled/kajji")
+const outfile = resolve(process.env.KAJJI_BUILD_OUTPUT ?? ".kajji-benchmarks/startup-auto/bundled/kajji")
+const targets = { "darwin-arm64": "bun-darwin-arm64", "darwin-x64": "bun-darwin-x64", "linux-arm64": "bun-linux-arm64", "linux-x64": "bun-linux-x64" } as const
+const targetName = process.env.KAJJI_BUILD_TARGET ?? "darwin-arm64"
+if (!(targetName in targets)) throw new Error(`Unknown target: ${targetName}`)
+const target = targets[targetName as keyof typeof targets]
 const sourceRoot = resolve(process.env.KAJJI_BUILD_ROOT ?? ".")
 process.chdir(sourceRoot)
 const pkg = await Bun.file("package.json").json()
@@ -20,7 +24,7 @@ const result = await Bun.build({
     plugins: [solidPlugin],
     conditions: ["browser"],
     define: { "process.env.KAJJI_VERSION": JSON.stringify(pkg.version) },
-    compile: { target: "bun-darwin-arm64", outfile },
+    compile: { target, outfile },
 })
 if (!result.success) {
     for (const log of result.logs) console.error(log)
