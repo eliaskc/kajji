@@ -8,7 +8,9 @@ import type { Run, Settings } from "../scripts/perf/types"
 
 const root = resolve(".")
 const binary = resolve(".kajji-benchmarks/startup-auto/bundled/kajji")
-const binarySha256 = createHash("sha256").update(readFileSync(binary)).digest("hex")
+const binaryBytes = readFileSync(binary)
+const binarySha256 = createHash("sha256").update(binaryBytes).digest("hex")
+const binaryMiB = binaryBytes.length / 1_048_576
 const settings: Settings = {
     scenarios: ["diff"], runs: 3, warmups: 1, steps: 20, intervalMs: 16,
     passes: 1, sampleMs: 0, cols: 120, rows: 36,
@@ -40,6 +42,7 @@ const startup = fixtures.map(f => median(f.runs.map(r => r.startup.contentReadyO
 const metric = (key: string) => fixtures.reduce((sum, f) => sum + median(f.runs.map(r => r.startup[key]!)), 0)/fixtures.length
 console.log(`Reports: ${output}`)
 for (const f of fixtures) console.log(`${f.name} startup samples: ${f.runs.map(r => r.startup.contentReadyOutputMs!.toFixed(2)).join(", ")}`)
+console.log(`METRIC binary_mib=${binaryMiB}`)
 console.log(`METRIC bundled_startup_ms=${Math.sqrt(startup[0]! * startup[1]!)}`)
 console.log(`METRIC stress_ms=${startup[0]}`)
 console.log(`METRIC real_ms=${startup[1]}`)

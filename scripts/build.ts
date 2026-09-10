@@ -69,6 +69,8 @@ for (const target of targets) {
         const result = await Bun.build({
             entrypoints: ["./src/index.tsx", "./src/diff/syntax-worker.ts"],
             minify: true,
+            format: "esm",
+            bytecode: true,
             sourcemap: "none",
             plugins: [solidPlugin],
             conditions: ["browser"],
