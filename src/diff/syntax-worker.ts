@@ -34,7 +34,7 @@ import zig from "@shikijs/langs/zig"
 import ayuDark from "@shikijs/themes/ayu-dark"
 import githubLight from "@shikijs/themes/github-light"
 import type { BundledLanguage } from "shiki"
-import { type Highlighter, createHighlighter, createOnigurumaEngine } from "shiki"
+import { type Highlighter, createHighlighter, createJavaScriptRegexEngine } from "shiki"
 import type { SyntaxThemeName } from "../theme/syntax"
 import { MAX_HIGHLIGHT_LINE_LENGTH } from "./preparation-limits"
 
@@ -102,7 +102,7 @@ async function init() {
         highlighter = await createHighlighter({
             themes: [ayuDark, githubLight],
             langs: LANG_MODULES.flat(),
-            engine: createOnigurumaEngine(import("shiki/wasm")),
+            engine: createJavaScriptRegexEngine(),
         })
 
         self.postMessage({ type: "ready" } satisfies WorkerResponse)
