@@ -1,6 +1,9 @@
 # Autoresearch: Kajji startup
 
-## Current user request — PAUSED after one bundled run
+## Latest requested iteration — unchanged bundled binary verified
+The user requested the next iteration after the single-run pause. Run20 repeated the identical SHA256 binary without source changes: content/highlighting897.061ms, first frame227.205ms, first visible240.675ms. Tests pass. First report preserved as bundled/first-launch.json; repeat is bundled/single-run.json. This is NOT a code speed improvement: first-launch costs, executable page caching and lower machine load are confounded. Future bundled optimization must rebuild each candidate and compare equal warmup policies with repeated runs across real and stress workloads. No additional iterations were requested in this turn.
+
+## Previous user request — single bundled run
 The user stopped the loop and requested exactly one bundled-binary measurement. Completed: current code b6c5c2e built with release settings, one launch on goodmorning, no warmup. Content/highlighting ready 2015.604ms, first visible 1293.929ms. Report: .kajji-benchmarks/startup-auto/bundled/single-run.json. Installed binary unchanged. This is one first launch, NOT proof that compiled code is slower than source medians. Do not resume the loop without a new user request.
 
 Current measure.sh runs .auto/measure-binary.ts once. Original source loop wrapper is .auto/measure-source.sh. Log has a new binary_startup_ms config segment. Any future target change needs init_experiment and a new baseline. The source-loop notes below are historical.
