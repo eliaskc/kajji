@@ -1,12 +1,21 @@
 import solidPlugin from "../node_modules/@opentui/solid/scripts/solid-plugin"
 import { mkdir, chmod } from "node:fs/promises"
 import { resolve } from "node:path"
-const pkg = await Bun.file("package.json").json()
 const outfile = resolve(".kajji-benchmarks/startup-auto/bundled/kajji")
+const sourceRoot = resolve(process.env.KAJJI_BUILD_ROOT ?? ".")
+process.chdir(sourceRoot)
+const pkg = await Bun.file("package.json").json()
+// Follow the actual release recipe, including after an experiment is reverted.
+const buildRecipe = await Bun.file("scripts/build.ts").text()
+const bytecode = /\bbytecode:\s*true\b/.test(buildRecipe)
+const format = /\bformat:\s*"esm"/.test(buildRecipe) ? "esm" : undefined
+console.log(`Building source: ${sourceRoot}`)
 await mkdir(resolve(outfile, ".."), { recursive: true })
 const result = await Bun.build({
     entrypoints: ["./src/index.tsx", "./src/diff/syntax-worker.ts"],
     minify: true,
+    bytecode,
+    format,
     sourcemap: "none",
     plugins: [solidPlugin],
     conditions: ["browser"],
