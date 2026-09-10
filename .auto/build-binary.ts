@@ -12,18 +12,27 @@ const pkg = await Bun.file("package.json").json()
 // Follow the actual release recipe, including after an experiment is reverted.
 const buildRecipe = await Bun.file("scripts/build.ts").text()
 const bytecode = /\bbytecode:\s*true\b/.test(buildRecipe)
+const splitting = /\bsplitting:\s*true\b/.test(buildRecipe)
+const minifySetting = buildRecipe.match(/\bminify:\s*(true|false)\b/)
+if (!minifySetting) throw new Error("Expected an explicit boolean release minify setting")
+const minify = minifySetting[1] === "true"
 const format = /\bformat:\s*"esm"/.test(buildRecipe) ? "esm" : undefined
+const productionDefine = buildRecipe.includes('"process.env.NODE_ENV": JSON.stringify("production")')
 console.log(`Building source: ${sourceRoot}`)
 await mkdir(resolve(outfile, ".."), { recursive: true })
 const result = await Bun.build({
     entrypoints: ["./src/index.tsx", "./src/diff/syntax-worker.ts"],
-    minify: true,
+    minify,
     bytecode,
+    splitting,
     format,
     sourcemap: "none",
     plugins: [solidPlugin],
     conditions: ["browser"],
-    define: { "process.env.KAJJI_VERSION": JSON.stringify(pkg.version) },
+    define: {
+        "process.env.KAJJI_VERSION": JSON.stringify(pkg.version),
+        ...(productionDefine ? { "process.env.NODE_ENV": JSON.stringify("production") } : {}),
+    },
     compile: { target, outfile },
 })
 if (!result.success) {

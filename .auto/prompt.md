@@ -1,5 +1,19 @@
 # Autoresearch: compiled Kajji startup
 
+## Latest experiment (run37)
+Concurrent Git probe and jj refresh-state reads after root resolution discarded: primary397.132ms vs best369.028ms (+7.6%); stress225.043ms, real700.815ms. Three deterministic regression tests and all checks passed, but no performance benefit. Real samples included1578ms outlier; do not attribute all slowdown to concurrency. Source restored; zero-byte new-test rollback artifact removed. Do not retry unchanged. Seek substantial repeated post-first-frame work.
+
+## Latest verification (run36)
+Fresh rebuild, no app changes: primary370.261ms vs best369.028ms (+0.33%), real672.014ms,stress204.003ms,first-frame124.894ms,first-visible147.328ms,highlighting782.111ms,peakRSS275.03MiB. Logged discard only because slower than best; retained app unchanged. Tests and types pass. This supports repeatability of the current tradeoff, NOT an additional optimization. Avoid further engine toggling without a changed hypothesis.
+
+## Latest retained state (run35)
+Current best compiled primary369.028ms (geometric mean): stress202.513ms, real672.457ms; first-visible138.929ms averaged fixture medians; peakRSS275.75MiB; highlighted-ready783.265ms averaged medians. Retained JavaScript regex engine again WITH release ESM bytecode enabled (f26c057). Compared with Oniguruma+bytecode: primary2.6% lower, memory25.5% lower, but highlighting-ready490→783ms slower. Small primary gain needs repeat; do not hide highlighting tradeoff.
+User approved release-build option experiments. scripts/build.ts now sets format:"esm",bytecode:true. .auto/build-binary.ts follows those actual flags from the production recipe, including after reverts, and always rebuilds. Binary101.85MiB vs84.43MiB without bytecode; binary_mib is an additional secondary metric. .auto builder supports explicit KAJJI_BUILD_ROOT/TARGET/OUTPUT for controls/validation.
+Bytecode evidence: retained run33 primary378.980ms, first-frame130.425ms; disabling ONLY bytecode (run34) raised primary439.100ms and first-frame166.400ms. Same code, compiler, fixtures, warmups and readiness; this is a fair compiled control.
+Original996dbf68 compiled A (run27) real3177ms vs following current B (run28) real1063ms under higher machine load; stress362→383ms did not improve. Strong workload-specific full-bookmark-loading gain, not a universal first-paint speedup. NEVER compare source-era baseline to current compiled headline.
+Latest E2E:21/21 pass. Compiled CLI help/version pass; darwin-x64 compilation and --version under Rosetta pass. Linux builds blocked by missing @opentui/core-linux-*-musl packages; the same failure reproduces original source before bytecode. No new dependencies installed; Linux runtime not validated.
+Other compiled discards: sequential log-prefetch wait(run26), worker smol mode(run29), PR metadata coalescing(run30) did not improve primary. Do not retry unchanged. Multilingual tests are now retained and type-correct(30 languages x2 themes); old run23 instruction to restore patch below is historical.
+
 ## Current objective
 User resumed optimization after comparing a short video of the installed app. Optimize compiled/release-settings binaries, not source launches. Never cheat by changing readiness, removing required data, or measuring a stale binary. Continue until interrupted.
 

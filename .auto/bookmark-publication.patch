@@ -1,0 +1,152 @@
+diff --git a/src/context/sync.tsx b/src/context/sync.tsx
+index 5bb85047db..837d373367 100644
+--- a/src/context/sync.tsx
++++ b/src/context/sync.tsx
+@@ -219,7 +219,11 @@
+         onCleanup(unsubscribeConfig)
+     })
+ 
+-    const [bookmarks, setBookmarks] = createSignal<Bookmark[]>([])
++    const [bookmarks, setBookmarks] = createSignal<Bookmark[]>([], {
++        equals: (previous, next) =>
++            previous.length === next.length &&
++            previous.every((bookmark, index) => bookmark === next[index]),
++    })
+     const [selectedBookmarkIndex, setSelectedBookmarkIndex] = createSignal(0)
+     const [bookmarksLoading, setBookmarksLoading] = createSignal(false)
+     const [bookmarksError, setBookmarksError] = createSignal<string | null>(null)
+@@ -917,7 +921,11 @@
+         setSelectedFileIndex(files.length - 1)
+     }
+ 
+-    const localBookmarks = () => bookmarks().filter((b) => b.isLocal)
++    const localBookmarks = createMemo(() => bookmarks().filter((b) => b.isLocal), undefined, {
++        equals: (previous, next) =>
++            previous.length === next.length &&
++            previous.every((bookmark, index) => bookmark === next[index]),
++    })
+     const selectedBookmark = () => localBookmarks()[selectedBookmarkIndex()]
+ 
+     createEffect(
+diff --git a/tests/unit/context/sync-bookmark-publication.test.tsx b/tests/unit/context/sync-bookmark-publication.test.tsx
+new file mode 100644
+index 0000000000..44a4203a03
+--- /dev/null
++++ b/tests/unit/context/sync-bookmark-publication.test.tsx
+@@ -0,0 +1,116 @@
++import { expect, test } from "bun:test"
++import { testRender } from "@opentui/solid"
++import { Effect } from "effect"
++import { createEffect } from "solid-js"
++import { makeApplicationClient, type ApplicationClient } from "../../../src/application/client"
++import type { Bookmark } from "../../../src/commander/bookmarks"
++import { ApplicationProvider } from "../../../src/context/application"
++import { FocusProvider } from "../../../src/context/focus"
++import { LayoutProvider } from "../../../src/context/layout"
++import { SyncProvider, useSync } from "../../../src/context/sync"
++import { ThemeProvider } from "../../../src/context/theme"
++import { makeAppProcessFake } from "../../../src/process/app-process"
++
++test("remote-only batches and duplicate completion do not repeat local PR reads", async () => {
++    const base = makeApplicationClient(
++        makeAppProcessFake(() =>
++            Effect.succeed({
++                stdout: "",
++                stderr: "",
++                exitCode: 0,
++                durationMs: 0,
++            }),
++        ),
++    )
++    const started = Promise.withResolvers<void>()
++    const loaded = Promise.withResolvers<void>()
++    let completion = Promise.withResolvers<Bookmark[]>()
++    let emit: (items: readonly Bookmark[]) => void | Promise<void> = () => {
++        throw new Error("stream not started")
++    }
++    const queries: string[][] = []
++    const app: ApplicationClient = {
++        ...base,
++        jjStreamBookmarks: (_options, onBatch) => {
++            emit = onBatch
++            started.resolve()
++            return { result: completion.promise, cancel: () => {} }
++        },
++        ghListPullRequestsByHead: async (names) => {
++            queries.push([...names])
++            return new Map()
++        },
++    }
++    let sync: ReturnType<typeof useSync> | undefined
++    function Probe() {
++        sync = useSync()
++        const current = sync
++        let wasLoading = false
++        createEffect(() => {
++            if (current.bookmarksLoading()) wasLoading = true
++            else if (wasLoading) loaded.resolve()
++        })
++        return <text>bookmark publication</text>
++    }
++    const setup = await testRender(
++        () => (
++            <ApplicationProvider app={app}>
++                <ThemeProvider>
++                    <FocusProvider>
++                        <LayoutProvider>
++                            <SyncProvider
++                                initialRefreshState={{
++                                    operationId: "a".repeat(128),
++                                    workingCopyCommitId: "commit",
++                                }}
++                            >
++                                <Probe />
++                            </SyncProvider>
++                        </LayoutProvider>
++                    </FocusProvider>
++                </ThemeProvider>
++            </ApplicationProvider>
++        ),
++        { width: 80, height: 24 },
++    )
++    const local: Bookmark = {
++        name: "feature",
++        nameDisplay: "feature",
++        changeId: "change",
++        commitId: "commit",
++        changeIdDisplay: "change",
++        commitIdDisplay: "commit",
++        description: "first",
++        descriptionDisplay: "first",
++        isLocal: true,
++    }
++    const remote: Bookmark = { ...local, isLocal: false, remote: "origin" }
++    try {
++        await started.promise
++        await emit([local])
++        await setup.renderOnce()
++        expect(queries).toHaveLength(1)
++        await emit([local, remote])
++        await setup.renderOnce()
++        expect(sync?.bookmarks()).toEqual([local, remote])
++        expect(queries).toHaveLength(1)
++        completion.resolve([local, remote])
++        await loaded.promise
++        await setup.renderOnce()
++        expect(queries).toHaveLength(1)
++
++        completion = Promise.withResolvers<Bookmark[]>()
++        const reloading = sync!.loadBookmarks()
++        const updated = { ...local, description: "updated", descriptionDisplay: "updated" }
++        await emit([updated, remote])
++        completion.resolve([updated, remote])
++        await reloading
++        await setup.renderOnce()
++        expect(sync?.bookmarks()[0]?.description).toBe("updated")
++        expect(queries).toHaveLength(2)
++    } finally {
++        completion.resolve([])
++        setup.renderer.destroy()
++        await base.dispose()
++    }
++})
