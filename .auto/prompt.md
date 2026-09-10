@@ -1,43 +1,38 @@
-# Autoresearch: Kajji startup
+# Autoresearch: compiled Kajji startup
 
-## Latest requested iteration — unchanged bundled binary verified
-The user requested the next iteration after the single-run pause. Run20 repeated the identical SHA256 binary without source changes: content/highlighting897.061ms, first frame227.205ms, first visible240.675ms. Tests pass. First report preserved as bundled/first-launch.json; repeat is bundled/single-run.json. This is NOT a code speed improvement: first-launch costs, executable page caching and lower machine load are confounded. Future bundled optimization must rebuild each candidate and compare equal warmup policies with repeated runs across real and stress workloads. No additional iterations were requested in this turn.
+## Current objective
+User resumed optimization after comparing a short video of the installed app. Optimize compiled/release-settings binaries, not source launches. Never cheat by changing readiness, removing required data, or measuring a stale binary. Continue until interrupted.
 
-## Previous user request — single bundled run
-The user stopped the loop and requested exactly one bundled-binary measurement. Completed: current code b6c5c2e built with release settings, one launch on goodmorning, no warmup. Content/highlighting ready 2015.604ms, first visible 1293.929ms. Report: .kajji-benchmarks/startup-auto/bundled/single-run.json. Installed binary unchanged. This is one first launch, NOT proof that compiled code is slower than source medians. Do not resume the loop without a new user request.
+## Active benchmark
+`bash .auto/measure.sh` rebuilds current source via .auto/build-binary.ts, then runs .auto/measure-bundled-suite.ts. Build uses the same entrypoints, minification, browser conditions, embedded worker and darwin-arm64 compile flags as scripts/build.ts. It does not overwrite the installed executable.
 
-Current measure.sh runs .auto/measure-binary.ts once. Original source loop wrapper is .auto/measure-source.sh. Log has a new binary_startup_ms config segment. Any future target change needs init_experiment and a new baseline. The source-loop notes below are historical.
+Primary: bundled_startup_ms, lower is better: geometric mean of per-fixture median contentReadyOutputMs for stress and goodmorning. This combined value is not an individual launch time.
+Secondary: stress_ms, real_ms, first_visible_ms, first_frame_ms, highlighted_ms, recovery_ms, peak_rss_mib.
+Each fixture has one excluded warmup and three measured fresh processes. Order rotates between repetitions. Same 120x36 viewport, textual unified wrapped diff,20 line-scroll inputs per direction,1 pass. All runs verify content/highlight readiness and real movement. Warmup reports are retained separately. No CPU-heavy work concurrently.
 
-Latest retained source work: shared pinned bookmark descriptions, progressive metadata streams with concurrency4 and downstream ordered prefix joins (b6c5c2e). Source primary1214ms, real1417ms, stress1040ms. 17 new tests cover native colors/aliases, remotes, conflicts, deleted refs, operation guards, failures, fallback and cancellation. tui formatting is fixed. User explicitly approved this larger change. Source A verification was interrupted and not completed.
+Reports: .kajji-benchmarks/startup-auto/bundled-suite/<timestamp>/{stress,goodmorning}.json, including SHA256 of compiled binary. The .auto/bundled-run.ts adapter is a copy of scripts/perf/run.ts with ONLY launch argv (compiled binary instead of Bun/source/preload) and module import paths changed. Readiness, observer, screen validation and resource sampling are unchanged. Do not alter them.
 
-## Objective
-Reduce real TUI fresh-process startup to loaded log, bookmarks, and selected diff. Do not optimize only a synthetic workload. Reuse prepared stress and copied goodmorning fixtures. These are warm-filesystem, prepared-working-copy measurements, not cold disk.
+## Scope and constraints
+src application code except src/utils/benchmark.ts and readiness/position hooks; relevant regression tests. No new dependencies without approval. Preserve colors, aliases, conflicts, remotes, cancellation, errors and complete accessible data. Prepared fixtures, scripts/perf and observation semantics are off limits. If metric/workload changes, init_experiment and establish a new baseline.
 
-## Metrics
-- Primary: startup_ms (ms, lower): geometric mean of per-fixture median contentReadyOutputMs, equally weighted.
-- Secondary: stress_ms, real_ms, highlighted_ms, first_frame_ms, recovery_ms.
+Checks: .auto/checks.sh runs bun check then bun test after passing benchmark. Focused lint/format checks manually. E2E outside benchmarks. log_experiment handles commits/reverts; no manual commits. Use jj log/status/diff for inspection.
 
-## How to run
-`bash .auto/measure.sh`. Uses the existing real TUI harness with fixed readiness, observations, runtime, fixture, 3 measured runs and 1 warmup per fixture, diff scenario, 20 steps, 1 pass. Each launch still verifies highlighted readiness and real navigation. Do not run CPU-heavy work concurrently. Reports are retained under .kajji-benchmarks/startup-auto/.
+## Current compiled segment
+- Run21 baseline: primary453.324ms; stress263.179ms; real780.846ms; first-visible187.387ms (average fixture medians); highlighted875.976ms; peakRSS274.55MiB.
+- Run22 retained Oniguruma engine (265c0d0): primary431.161ms; stress266.094ms; real698.625ms; highlighted525.644ms; RSS346.94MiB. Clear syntax improvement, modest primary gain; memory tradeoff needs checking. Built binary successfully embeds WASM. Source worker imports full shiki factory and createOnigurumaEngine(import('shiki/wasm')).
+- Run23 Shiki core imports discarded/checks_failed. Primary437.127ms; no RSS benefit. Multilingual test passed runtime243 assertions but inferred string[][] failed strict tuple typecheck. Restore .auto/multilingual-tests.patch and declare samples: [string,string][] before next verification. Do not retry core imports unchanged.
 
-## Scope
-Application source in src (except benchmark observer/readiness hooks), relevant unit tests. Prefer small changes that remove redundant work or improve import/loading paths. No new dependencies unless separately approved. Preserve errors, repository refresh semantics, cancellation, highlighting, and configuration behavior.
+## Prior retained application work
+Base before session996dbf68. App import overlaps repository inspection; BookmarkStackRowView uses bounded ANSI parse cache. Shared bookmark target descriptions (b6c5c2e) are the main win: expensive empty/description formatting once per unique commit, same per-reference ID aliases and bookmark_list color scope. Uses full128-hex operation IDs only; fallback single read for symbolic/unpinned operations and deleted/conflicted refs. Representative refs grouped by remote and bounded argv,concurrency4. Prefix accumulator joins downstream of concurrent streams to preserve publication order.17 tests cover native/default/all-remotes/custom colors/aliases, conflicts/deleted refs, fallback, cancellation and errors. User explicitly approved this larger change.
 
-## Off limits
-Do not alter scripts/perf, prepared fixtures, src/utils/benchmark.ts, readiness/position hooks, or production behavior based on benchmark environment. Do not weaken tests or postpone required content beyond the measured boundary. No hidden warm caches across processes. Keep measurement definition fixed; changing it requires a new baseline.
+## Earlier measurements and video
+Source loop was geometric mean stress/real and is archived in .auto/measure-source.sh; do not compare with compiled numbers. Single newly built binary run:2015.6ms, first-visible1293.9ms. Identical binary next launch:897.1ms, first-visible240.7ms. These demonstrate one-time/environment variation, NOT a code gain. Earlier single reports in bundled/first-launch.json and bundled/single-run.json.
+Video is0.708s: layout0.317s,bookmarks0.450s,log and EMPTY selected revision visible0.533s. Enter origin uncertain; video does not prove all bookmarks finished loading. Fixture uses different revision/config and full required-data readiness. Do not present video and fixture as identical workloads.
 
-## Validation
-Run bun check and bun test after successful measurements via checks.sh. Check focused formatting for changed code. Use E2E tests for retained TUI behavior changes, outside measured runs. Inspect jj diff --git. log_experiment manages experiment commits/reverts; do not manually commit or revert.
-
-## What's been tried
-Initial base: 996dbf68. Existing fixtures: stress (synthetic) and goodmorning (copied real repo). Historical reports use older readiness definitions and are NOT comparable.
-- Run 1 baseline: startup 1862ms, stress 1029ms, real 3370ms.
-- Retained: App dynamic import overlapped with repositoryStatus (435598b), bounded ANSI cache reuse in BookmarkStackRowView (afe46da). Best 1712ms, stress 921ms, real 3184ms. These small gains are NOT strongly attributable: an original-code A repeat was 1757ms, and unchanged candidate varied 1731–1827ms.
-- Discarded: incremental bookmark parsing twice (runs 2,7), memoized local bookmark filtering (8), unused ghostty registration removal (9), Shiki core imports (10), Oniguruma regex engine (11). See log ASI for details. Do not thrash by repeating these unchanged ideas.
-- Oniguruma dramatically shortens syntax catch-up but did NOT improve primary content startup; save for separate highlighting work. No new dependencies required.
-- Source inspection: real bookmark stream pauses ~300ms for each of three adjacent entries then emits many small batches. Suspect per-target jj template empty()/ID cost; bulk unique-target metadata is a larger design change to discuss first.
-- Source clones /tmp/opentui, /tmp/pierre, /tmp/shiki were updated. OpenTUI default preload transforms JSX/TSX, not plain jj.ts; earlier ASI speculation about jj.ts transform cache is unproven.
-- Machine has substantial unrelated CPU load (load ~12, Sandbed, WindowServer, Figma, other Pi). Do not stop user processes. Be conservative about speed claims; the dashboard confidence is not a causal proof.
-- Tests/typecheck pass each measured run. E2E: 20 pass, file-navigation test fails identically on original base in /tmp/kajji-startup-e2e-baseline (jj workspace). Failure expects view marker absent but it is visible at bottom. Do not weaken test; outside startup scope.
-- Retained tui.tsx Promise.all currently needs oxfmt line collapsing. A formatting fix bundled with run 9 was discarded. Fix in a later kept run.
-
+## Discards and remaining leads
+- Source-loop incremental parsing twice, local filter memoization, unused ghostty registration removal, theme-color memoization, sync.tsx->.ts conversion did not improve primary. Avoid thrashing. See log ASI.
+- Oniguruma/core were originally discarded on source workload; only Oniguruma improved under new compiled measurement. Core still did not.
+- Machine CPU load varies; no control of user processes. Require repeats and A/B/A before small causal speed claims.
+- E2E20/21 pass. File-navigation failure reproduces unchanged base in /tmp/kajji-startup-e2e-baseline; do not weaken test. Further E2E after final retained changes needed.
+- Updated dependency clones: /tmp/shiki,/tmp/opentui,/tmp/pierre,/tmp/jj. Inspect current source when investigating APIs.
+- Tool rollback of newly renamed file once left zero-byte src/context/sync.ts shadowing sync.tsx; cleaned that own artifact. Check status after future discarded new files.
