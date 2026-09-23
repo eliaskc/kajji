@@ -1270,39 +1270,6 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
             execute: selectPrevCommit,
         },
         {
-            id: "log.revisions.toggle_select",
-            title: "select",
-            keybind: "multiselect_toggle",
-            context: "log.revisions",
-
-            panel: "log",
-            visibleIn: ["palette", "statusBar"] as const,
-            execute: () => {
-                if (visualMode()) return
-                if (!syncFilteredRevisionCursor()) return
-                const commit = selectedCommit()
-                if (!commit) return
-                toggleMultiSelection(getRevisionId(commit))
-            },
-        },
-        {
-            id: "log.revisions.visual_select",
-            title: visualMode() ? "exit visual" : "visual",
-            keybind: "multiselect_visual",
-            context: "log.revisions",
-
-            panel: "log",
-            visibleIn: ["palette", "statusBar"] as const,
-            execute: () => {
-                if (visualMode()) {
-                    commitVisualSelection()
-                    return
-                }
-                if (!syncFilteredRevisionCursor()) return
-                startVisualSelection()
-            },
-        },
-        {
             id: "log.revisions.view_files",
             title: "view files",
             keybind: "enter",
@@ -2082,6 +2049,52 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
             },
         },
         {
+            id: "log.revisions.bookmark_diff_origin",
+            title: "compare to origin",
+            keybind: "bookmark_diff_origin",
+            context: "log.revisions",
+
+            panel: "log",
+            visibleIn: ["palette", "statusBar"] as const,
+            unavailable: () =>
+                singleRevisionOnly() ??
+                (selectedOriginDiffBookmark() ? null : "has no changes to show"),
+            execute: openBookmarkOriginDiff,
+        },
+        {
+            id: "log.revisions.toggle_select",
+            title: "select",
+            keybind: "multiselect_toggle",
+            context: "log.revisions",
+
+            panel: "log",
+            visibleIn: ["palette", "statusBar"] as const,
+            execute: () => {
+                if (visualMode()) return
+                if (!syncFilteredRevisionCursor()) return
+                const commit = selectedCommit()
+                if (!commit) return
+                toggleMultiSelection(getRevisionId(commit))
+            },
+        },
+        {
+            id: "log.revisions.visual_select",
+            title: visualMode() ? "exit visual" : "visual",
+            keybind: "multiselect_visual",
+            context: "log.revisions",
+
+            panel: "log",
+            visibleIn: ["palette", "statusBar"] as const,
+            execute: () => {
+                if (visualMode()) {
+                    commitVisualSelection()
+                    return
+                }
+                if (!syncFilteredRevisionCursor()) return
+                startVisualSelection()
+            },
+        },
+        {
             id: "log.revisions.filter",
             title: "filter",
             keybind: "search",
@@ -2114,19 +2127,6 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                 }
                 handleClearFilter()
             },
-        },
-        {
-            id: "log.revisions.bookmark_diff_origin",
-            title: "compare to origin",
-            keybind: "bookmark_diff_origin",
-            context: "log.revisions",
-
-            panel: "log",
-            visibleIn: ["palette", "statusBar"] as const,
-            unavailable: () =>
-                singleRevisionOnly() ??
-                (selectedOriginDiffBookmark() ? null : "has no changes to show"),
-            execute: openBookmarkOriginDiff,
         },
         {
             id: "log.oplog.restore",
