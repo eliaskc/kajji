@@ -15,6 +15,7 @@ import type { Bookmark } from "../commander/bookmarks"
 import type { GitHubPullRequestSummary } from "../commander/github"
 import type { JjDiffTarget, JjOperationOptions, JjRefreshState } from "../commander/jj"
 import { getRepoPath } from "../repo"
+import { findCommitIndex } from "../utils/commit-selection"
 import { connectedRevisionRange } from "../utils/revision-range"
 import { addRecentRepo } from "../utils/state"
 import { getVisibleBookmarks } from "./sync-bookmarks"
@@ -1093,6 +1094,23 @@ export function SyncProvider(props: {
         return null
     }
 
+    // Replaces the commit list and keeps the cursor on the same revision.
+    // An explicit selectIndex wins; otherwise follow the selected commit by
+    // identity so new revisions above it do not shift the selection.
+    const replaceCommitsKeepingSelection = (next: Commit[], options?: RefreshOptions) => {
+        const previous = selectedCommit()
+        batchUpdates(() => {
+            setCommits(next)
+            if (next.length === 0) {
+                setSelectedIndex(0)
+                return
+            }
+            const explicit = options?.selectIndex?.(next)
+            const index = explicit ?? findCommitIndex(next, previous) ?? selectedIndex()
+            setSelectedIndex(Math.max(0, Math.min(index, next.length - 1)))
+        })
+    }
+
     const loadMoreLog = async () => {
         if (!logHasMore() || logLoadingMore()) return
         const token = logStreamToken + 1
@@ -1109,7 +1127,7 @@ export function SyncProvider(props: {
                 : { ...readOptions(), limit: newLimit },
             (batch) => {
                 if (token !== logStreamToken) return
-                if (batch.length >= minLength) setCommits(batch.slice())
+                if (batch.length >= minLength) replaceCommitsKeepingSelection(batch.slice())
             },
         )
         logStreamHandle = stream
@@ -1120,11 +1138,10 @@ export function SyncProvider(props: {
             // A streamed initial batch can trigger prefetch before loadLog
             // completes. The replacement page then owns startup completion.
             benchmarkLogReady = true
-            setCommits(result.commits)
-            setLogHasMore(result.hasMore)
-            setSelectedIndex((index) =>
-                result.commits.length === 0 ? 0 : Math.min(index, result.commits.length - 1),
-            )
+            batchUpdates(() => {
+                replaceCommitsKeepingSelection(result.commits)
+                setLogHasMore(result.hasMore)
+            })
         } catch (error) {
             if (token !== logStreamToken) return
             const message = error instanceof Error ? error.message : "Failed to load log"
@@ -1155,11 +1172,7 @@ export function SyncProvider(props: {
                 if (token !== logStreamToken || batch.length === 0) return
                 const baseCommits = commits()
                 if (baseCommits.length === 0 || batch.length >= baseCommits.length) {
-                    batchUpdates(() => {
-                        setCommits(batch.slice())
-                        const nextSelectedIndex = options?.selectIndex?.(batch.slice())
-                        if (nextSelectedIndex != null) setSelectedIndex(nextSelectedIndex)
-                    })
+                    replaceCommitsKeepingSelection(batch.slice(), options)
                 } else {
                     const batchIds = new Set(batch.map((commit) => commit.changeId))
                     const batchHasWorkingCopy = batch.some((commit) => commit.isWorkingCopy)
@@ -1170,11 +1183,7 @@ export function SyncProvider(props: {
                             return true
                         }),
                     )
-                    batchUpdates(() => {
-                        setCommits(merged)
-                        const nextSelectedIndex = options?.selectIndex?.(merged)
-                        if (nextSelectedIndex != null) setSelectedIndex(nextSelectedIndex)
-                    })
+                    replaceCommitsKeepingSelection(merged, options)
                 }
                 if (isInitialLoad) setLoading(false)
             },
@@ -1185,17 +1194,9 @@ export function SyncProvider(props: {
             const result = await stream.result
             if (token !== logStreamToken) return
             batchUpdates(() => {
-                setCommits(result.commits)
+                replaceCommitsKeepingSelection(result.commits, options)
                 setLogHasMore(result.hasMore)
                 setLogLimit(limit)
-                const nextSelectedIndex = options?.selectIndex?.(result.commits)
-                setSelectedIndex((index) =>
-                    result.commits.length === 0
-                        ? 0
-                        : nextSelectedIndex != null
-                          ? Math.max(0, Math.min(nextSelectedIndex, result.commits.length - 1))
-                          : Math.min(index, result.commits.length - 1),
-                )
             })
             setRevsetError(null)
             benchmarkLogReady = true
