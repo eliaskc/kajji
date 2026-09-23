@@ -128,7 +128,7 @@ export function CommandLogPanel() {
     ])
 
     return (
-        <box height={10} overflow="hidden">
+        <box flexGrow={1} overflow="hidden">
             <Panel title="Command log" hotkey="4" focused={isFocused()} panelId="commandlog">
                 <scrollbox
                     ref={scrollRef}

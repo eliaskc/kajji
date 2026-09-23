@@ -1,5 +1,6 @@
 import { useRenderer } from "@opentui/solid"
 import { Show, createEffect } from "solid-js"
+import { useFocus } from "../context/focus"
 import { useLayout } from "../context/layout"
 import { useSync } from "../context/sync"
 import { useTheme } from "../context/theme"
@@ -32,6 +33,7 @@ export function LayoutGrid() {
     const renderer = useRenderer()
     const { colors } = useTheme()
     const { terminalWidth } = useLayout()
+    const focus = useFocus()
     const { activeBookmarkDiff, viewMode } = useSync()
     const isFilesView = () => viewMode() === "files"
     const isBookmarkDiffView = () => Boolean(activeBookmarkDiff())
@@ -69,12 +71,14 @@ export function LayoutGrid() {
                 </box>
                 <VerticalDivider />
                 <box flexGrow={detailWeight()} flexBasis={0} flexDirection="column">
-                    <box flexGrow={1}>
+                    <box flexGrow={!isFilesView() && !isBookmarkDiffView() ? 4 : 1} flexBasis={0}>
                         <MainArea />
                     </box>
                     <Show when={!isFilesView() && !isBookmarkDiffView()}>
                         <HorizontalDivider />
-                        <CommandLogPanel />
+                        <box flexGrow={focus.isPanel("commandlog") ? 3 : 1} flexBasis={0}>
+                            <CommandLogPanel />
+                        </box>
                     </Show>
                 </box>
             </box>
