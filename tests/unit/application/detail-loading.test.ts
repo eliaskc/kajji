@@ -4,6 +4,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { Effect } from "effect"
 import { makeApplicationClient } from "../../../src/application/client"
+import { JjReadError } from "../../../src/commander/jj"
 import { AppProcess, AppProcessLive, type ProcessResult } from "../../../src/process/app-process"
 import { makeAppProcessFake } from "../../support/layers"
 
@@ -223,7 +224,9 @@ describe("detail loading", () => {
             }),
         )
         try {
-            await expect(client.jjPreparedDiff({ revision: a }, options)).rejects.toThrow()
+            const failure = client.jjPreparedDiff({ revision: a }, options)
+            await expect(failure).rejects.toBeInstanceOf(JjReadError)
+            await expect(failure).rejects.toThrow("jj diff failed: failed")
             expect(await client.jjPreparedDiff({ revision: a }, options)).toHaveLength(1)
             expect(calls).toBe(2)
         } finally {

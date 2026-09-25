@@ -29,7 +29,7 @@ test("persisted stack state treats only a missing file as empty", async () => {
         await writePersistedStackState({ version: 1, entries: [] }, repository)
         const path = await stackStatePath(repository)
         await Bun.write(path, "{ invalid")
-        await expect(readPersistedStackState(repository)).rejects.toBeInstanceOf(Error)
+        await expect(readPersistedStackState(repository)).rejects.toBeInstanceOf(SyntaxError)
         const stored = StackStore.use((store) => store.readState(repository)).pipe(
             Effect.provide(StackStoreLive),
         )
@@ -56,6 +56,9 @@ test("persisted stack state validates and atomically replaces state", async () =
         const path = await stackStatePath(repository)
         const invalid = JSON.stringify({ version: 1, entries: [{}] })
         await Bun.write(path, invalid)
-        await expect(readPersistedStackState(repository)).rejects.toBeInstanceOf(Error)
+        await expect(readPersistedStackState(repository)).rejects.toMatchObject({
+            _tag: "SchemaError",
+            message: expect.stringContaining('["entries"][0]["bookmark"]'),
+        })
     })
 })
