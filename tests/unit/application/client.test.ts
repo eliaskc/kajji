@@ -2,15 +2,15 @@ import { describe, expect, test } from "bun:test"
 import { Effect, Layer, Stream } from "effect"
 import { makeApplicationClient } from "../../../src/application/client"
 import type { Bookmark } from "../../../src/commander/bookmarks"
-import { Jj, JjLive, type JjOperationResult, type JjService } from "../../../src/commander/jj"
+import { Jj, type JjOperationResult, type JjService } from "../../../src/commander/jj"
 import type { CommandObserver } from "../../../src/commander/observer"
 import { ConfigSchema } from "../../../src/config"
 import { makeHooksLayer } from "../../../src/hooks/runner"
 import { HookOperation } from "../../../src/hooks/types"
-import { type ProcessResult, makeAppProcessFake } from "../../../src/process/app-process"
-import { makeInteractiveProcessFake } from "../../../src/process/interactive-process"
+import type { ProcessResult } from "../../../src/process/app-process"
 import { Stack } from "../../../src/stack/executor"
 import type { StackPlan } from "../../../src/stack/model"
+import { JjLive, makeAppProcessFake, makeInteractiveProcessFake } from "../../support/layers"
 
 const success: ProcessResult = {
     stdout: "fetched\n",

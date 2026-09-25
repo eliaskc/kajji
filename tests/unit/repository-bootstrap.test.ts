@@ -6,11 +6,7 @@ import { join } from "node:path"
 import { Effect } from "effect"
 import { makeApplicationClient } from "../../src/application/client"
 import type { CommandObserver } from "../../src/commander/observer"
-import {
-    type ProcessCommand,
-    type ProcessResult,
-    makeAppProcessFake,
-} from "../../src/process/app-process"
+import type { ProcessCommand, ProcessResult } from "../../src/process/app-process"
 import {
     RECOVERY_BACKUP_DIRECTORY,
     applyMoves,
@@ -18,6 +14,7 @@ import {
     removeMetadataBackups,
     restoreMetadataBackups,
 } from "../../src/repository-bootstrap"
+import { makeAppProcessFake } from "../support/layers"
 
 const ok: ProcessResult = { stdout: "", stderr: "", exitCode: 0, durationMs: 1 }
 const brokenRepositoryError: ProcessResult = {

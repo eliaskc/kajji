@@ -4,12 +4,8 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { Effect } from "effect"
 import { makeApplicationClient } from "../../../src/application/client"
-import {
-    AppProcess,
-    AppProcessLive,
-    makeAppProcessFake,
-    type ProcessResult,
-} from "../../../src/process/app-process"
+import { AppProcess, AppProcessLive, type ProcessResult } from "../../../src/process/app-process"
+import { makeAppProcessFake } from "../../support/layers"
 
 const options = { cwd: "/tmp/repository" }
 const a = "a".repeat(40)

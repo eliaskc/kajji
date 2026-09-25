@@ -8,7 +8,8 @@ import { FocusProvider } from "../../../src/context/focus"
 import { LayoutProvider } from "../../../src/context/layout"
 import { SyncProvider, useSync } from "../../../src/context/sync"
 import { ThemeProvider } from "../../../src/context/theme"
-import { makeAppProcessFake, type ProcessCommand } from "../../../src/process/app-process"
+import type { ProcessCommand } from "../../../src/process/app-process"
+import { makeAppProcessFake } from "../../support/layers"
 
 for (const seeded of [false, true]) {
     test(`sync ${seeded ? "reuses bootstrap state" : "snapshots when bootstrap state is absent"} before reading`, async () => {

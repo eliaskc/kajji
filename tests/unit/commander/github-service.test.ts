@@ -6,9 +6,9 @@ import {
     type ProcessCommand,
     type ProcessError,
     type ProcessResult,
-    makeAppProcessFake,
 } from "../../../src/process/app-process"
 import type { OperationSink } from "../../../src/process/operation-sink"
+import { makeAppProcessFake } from "../../support/layers"
 
 const success = {
     stdout: "",

@@ -16,7 +16,8 @@ import { LayoutProvider } from "../../../../src/context/layout"
 import { StatusProvider } from "../../../../src/context/status"
 import { SyncProvider, useSync } from "../../../../src/context/sync"
 import { ThemeProvider } from "../../../../src/context/theme"
-import { makeAppProcessFake, type ProcessCommand } from "../../../../src/process/app-process"
+import type { ProcessCommand } from "../../../../src/process/app-process"
+import { makeAppProcessFake } from "../../../support/layers"
 
 writeConfig({ diff: { ...readConfig().diff, layout: "unified", engine: "jj-formatter" } })
 const commit: Commit = {

@@ -1,5 +1,5 @@
 import { Context, Data, Effect, Layer, RcMap, Schema, Stream } from "effect"
-import { Hooks, HooksLive } from "../hooks/runner"
+import { Hooks } from "../hooks/runner"
 import { HookOperation } from "../hooks/types"
 import {
     AppProcess,
@@ -1249,5 +1249,3 @@ export const JjLayer: Layer.Layer<Jj, never, AppProcess | Hooks> = Layer.effect(
         })
     }),
 )
-
-export const JjLive = JjLayer.pipe(Layer.provide(HooksLive))

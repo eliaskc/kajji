@@ -4,11 +4,8 @@ import type { OperationSink } from "../../../src/commander/jj"
 import { ConfigSchema } from "../../../src/config"
 import { Hooks, makeHooksLayer } from "../../../src/hooks/runner"
 import { HookOperation } from "../../../src/hooks/types"
-import {
-    type ProcessCommand,
-    type ProcessResult,
-    makeAppProcessFake,
-} from "../../../src/process/app-process"
+import type { ProcessCommand, ProcessResult } from "../../../src/process/app-process"
+import { makeAppProcessFake } from "../../support/layers"
 
 const success: ProcessResult = {
     stdout: "",

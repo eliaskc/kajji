@@ -4,14 +4,14 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { Deferred, Effect, Fiber, Layer } from "effect"
 import { makeApplicationClient } from "../../../src/application/client"
-import { Jj, JjLive } from "../../../src/commander/jj"
+import { Jj } from "../../../src/commander/jj"
 import {
     AppProcess,
     AppProcessLive,
-    makeAppProcessFake,
     type ProcessCommand,
     type ProcessResult,
 } from "../../../src/process/app-process"
+import { JjLive, makeAppProcessFake } from "../../support/layers"
 
 const result = (stdout: string): ProcessResult => ({
     stdout,

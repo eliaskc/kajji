@@ -8,7 +8,6 @@ import {
     JjCommandError,
     type JjGitFetchOptions,
     JjLayer,
-    JjLive,
     JjReadError,
     JjStaleWorkingCopyError,
     makeReadOperationArgs,
@@ -23,8 +22,8 @@ import {
     type ProcessCommand,
     type ProcessResult,
     ProcessSpawnError,
-    makeAppProcessFake,
 } from "../../../src/process/app-process"
+import { JjLive, makeAppProcessFake } from "../../support/layers"
 
 function runWithResult(result: ProcessResult, options: JjGitFetchOptions) {
     let command: ProcessCommand | undefined

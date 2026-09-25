@@ -1,10 +1,8 @@
 import { describe, expect, test } from "bun:test"
 import { Effect } from "effect"
 import { InteractiveJj, InteractiveJjLive } from "../../../src/commander/interactive-jj"
-import {
-    type InteractiveProcessCommand,
-    makeInteractiveProcessFake,
-} from "../../../src/process/interactive-process"
+import type { InteractiveProcessCommand } from "../../../src/process/interactive-process"
+import { makeInteractiveProcessFake } from "../../support/layers"
 
 describe("InteractiveJj", () => {
     test("constructs split, resolve, and interactive squash commands", async () => {

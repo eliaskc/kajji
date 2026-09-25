@@ -95,9 +95,3 @@ export const InteractiveProcessLive: Layer.Layer<InteractiveProcess> = Layer.suc
         run: (command) => Effect.scoped(runLive(command)),
     }),
 )
-
-export function makeInteractiveProcessFake(
-    run: InteractiveProcessService["run"],
-): Layer.Layer<InteractiveProcess> {
-    return Layer.succeed(InteractiveProcess, InteractiveProcess.of({ run }))
-}

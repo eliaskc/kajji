@@ -296,16 +296,3 @@ export const AppProcessLive = Layer.succeed(AppProcess)(
         stream: streamLive,
     }),
 )
-
-export function makeAppProcessFake(
-    run: AppProcessService["run"],
-    stream: AppProcessService["stream"] = (command) =>
-        Stream.fromEffect(run(command)).pipe(
-            Stream.map((result) => ({
-                _tag: "Complete" as const,
-                result,
-            })),
-        ),
-): Layer.Layer<AppProcess> {
-    return Layer.succeed(AppProcess)(AppProcess.of({ run, stream }))
-}
