@@ -44,7 +44,7 @@
     },
     "devDependencies": {
         "@kitlangton/terminal-control": "1.2.1",
-        "@types/bun": "1.3.14",
+        "@types/bun": "1.4.2",
         "oxfmt": "0.63.0",
         "oxlint": "1.78.0"
     },
