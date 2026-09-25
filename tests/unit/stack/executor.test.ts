@@ -12,7 +12,12 @@ import {
     type StackService,
 } from "../../../src/stack/executor"
 import type { PersistedStackState } from "../../../src/stack/state"
-import { type StackJournal, StackStore, type StackStoreService } from "../../../src/stack/store"
+import {
+    type StackJournal,
+    StackStore,
+    StackStoreError,
+    type StackStoreService,
+} from "../../../src/stack/store"
 
 const mainCommit = commit("main", [], true)
 const parentCommit = commit("a", ["main"])
@@ -39,7 +44,10 @@ interface FakeOptions {
     readonly calls?: string[]
     readonly journals?: StackJournal[]
     readonly commitId?: () => string
-    readonly failPush?: boolean
+    /** Fails the push of this bookmark. */
+    readonly failPushFor?: string
+    /** Fails the journal write that would hold this many entries. */
+    readonly failJournalAt?: number
     readonly pushActivity?: { active: number; max: number }
     readonly bookmarks?: () => readonly Bookmark[]
 }
@@ -89,7 +97,9 @@ function makeServices(options: FakeOptions = {}) {
         },
         gitPush: (input: { readonly bookmarks?: readonly string[] }) => {
             calls.push(`push:${input.bookmarks?.join(",")}`)
-            if (options.failPush) return Effect.fail(new Error("push failed"))
+            if (input.bookmarks?.includes(options.failPushFor ?? "")) {
+                return Effect.fail(new Error("push failed"))
+            }
             const activity = options.pushActivity
             if (!activity) return Effect.succeed(success)
             return Effect.gen(function* () {
@@ -147,6 +157,14 @@ function makeServices(options: FakeOptions = {}) {
             return Effect.void
         },
         writeJournal: (_cwd: string, journal: StackJournal) => {
+            if (journal.entries.length === options.failJournalAt) {
+                return Effect.fail(
+                    new StackStoreError({
+                        operation: "write-journal",
+                        cause: new Error("disk full"),
+                    }),
+                )
+            }
             journals.push(structuredClone(journal))
             calls.push(`journal:${journal.entries.length}`)
             return Effect.void
@@ -187,24 +205,32 @@ describe("Stack", () => {
         expect(plan.pushBookmarks).toEqual(["feature-a", "feature-b"])
     })
 
-    test("validates, journals, and applies a prepared plan", async () => {
+    test("journals each step as it applies a prepared plan", async () => {
         const services = makeServices()
         const plan = await runStack(services, prepare)
         services.calls.length = 0
 
         await runStack(services, (stack) => stack.applyStackPlan(plan, { cwd: "/tmp/repository" }))
 
-        expect(services.calls[0]).toBe("journal:0")
-        expect(services.calls).toContain("push:feature-b")
-        expect(services.calls).toContain("create:feature-b:feature-a")
-        expect(services.calls).toContain("edit:10:main")
-        expect(services.calls).toContain("state")
+        // A PR needs its pushed head, and each completed step is journaled before the next.
+        expect(services.calls).toEqual([
+            "journal:0",
+            "push:feature-b",
+            "journal:1",
+            "create:feature-b:feature-a",
+            "journal:2",
+            "push:feature-a",
+            "journal:3",
+            "edit:10:main",
+            "journal:4",
+            "comment:10",
+            "journal:5",
+            "comment:11",
+            "journal:6",
+            "state",
+            "journal:6",
+        ])
         expect(services.journals.at(-1)?.afterOperationId).toBe("operation-id")
-        for (let index = 1; index < services.journals.length; index++) {
-            expect(services.journals[index]?.entries.length).toBeGreaterThanOrEqual(
-                services.journals[index - 1]?.entries.length ?? 0,
-            )
-        }
     })
 
     test("rejects a stale plan before writing a journal or mutating", async () => {
@@ -240,21 +266,39 @@ describe("Stack", () => {
         expect(activity.max).toBe(1)
     })
 
-    test("reports only durably journaled steps after partial failure", async () => {
-        const services = makeServices({ failPush: true })
+    test("reports the steps completed before a later step fails", async () => {
+        const services = makeServices({ failPushFor: "feature-a" })
         const plan = await runStack(services, prepare)
         services.calls.length = 0
 
-        try {
-            await runStack(services, (stack) =>
-                stack.applyStackPlan(plan, { cwd: "/tmp/repository" }),
-            )
-            throw new Error("expected stack apply to fail")
-        } catch (error) {
-            expect(error).toBeInstanceOf(StackApplyError)
-            expect((error as StackApplyError).completedEntries).toEqual([])
-        }
-        expect(services.journals.map((journal) => journal.entries.length)).toEqual([0])
+        const error = await runStack(services, (stack) =>
+            stack.applyStackPlan(plan, { cwd: "/tmp/repository" }),
+        ).catch((error: unknown) => error)
+
+        expect(error).toBeInstanceOf(StackApplyError)
+        expect((error as StackApplyError).completedEntries).toEqual([
+            { type: "BookmarkPushed", bookmark: "feature-b" },
+            { type: "PrCreated", prNumber: 11, head: "feature-b" },
+        ])
+        expect(services.journals.map((journal) => journal.entries.length)).toEqual([0, 1, 2])
+        expect(services.calls).not.toContain("edit:10:main")
+    })
+
+    test("does not report a step whose journal write failed", async () => {
+        const services = makeServices({ failJournalAt: 2 })
+        const plan = await runStack(services, prepare)
+        services.calls.length = 0
+
+        const error = await runStack(services, (stack) =>
+            stack.applyStackPlan(plan, { cwd: "/tmp/repository" }),
+        ).catch((error: unknown) => error)
+
+        expect(error).toBeInstanceOf(StackApplyError)
+        expect((error as StackApplyError).completedEntries).toEqual([
+            { type: "BookmarkPushed", bookmark: "feature-b" },
+        ])
+        expect(services.journals.map((journal) => journal.entries.length)).toEqual([0, 1])
+        expect(services.calls).not.toContain("push:feature-a")
     })
 })
 
