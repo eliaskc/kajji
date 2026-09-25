@@ -252,14 +252,15 @@ test("browses virtual bookmarks and all files in a large summary", async () => {
             await session.resize({ cols: 100, rows: 24 })
             await session.screen.waitForText("virtual-036", { timeoutMs: 5_000 })
             await session.keyboard.type("-")
-            await session.screen.waitForText("Bookmarks (Remote)", { timeoutMs: 5_000 })
+            await session.screen.waitForText("remote only", { timeoutMs: 5_000 })
             await session.keyboard.write(Buffer.from("j".repeat(36)))
             await session.screen.waitForText("remote-036", { timeoutMs: 5_000 })
             await session.keyboard.type("-")
-            await session.screen.waitUntil(
-                (snapshot) => !snapshot.text.includes("Bookmarks (Remote)"),
-                { timeoutMs: 5_000 },
-            )
+            await session.screen.waitForText("deleted only", { timeoutMs: 5_000 })
+            await session.keyboard.type("-")
+            await session.screen.waitUntil((snapshot) => !snapshot.text.includes("deleted only"), {
+                timeoutMs: 5_000,
+            })
             await session.keyboard.type("/")
             await waitForInput(session)
             await session.keyboard.type("virtual-099")
@@ -657,7 +658,7 @@ function bookmarkTargets(repository: string) {
         "--all-remotes",
         "feat/reset",
         "--template",
-        'if(remote, remote, "local") ++ " " ++ normal_target.commit_id() ++ "\\n"',
+        'if(remote, remote, "local") ++ " " ++ if(normal_target, normal_target.commit_id(), "") ++ "\\n"',
     )
         .trim()
         .split("\n")
@@ -706,6 +707,52 @@ test("resets a bookmark to origin from the compare view", async () => {
             { timeoutMs: 10_000 },
         )
     }, prepareRewrittenOriginBookmark)
+}, 45_000)
+
+test("restores a deleted bookmark from the deleted-only view", async () => {
+    await withKajji(
+        async (session, repository) => {
+            await session.keyboard.type("2")
+            await session.keyboard.type("-")
+            await session.screen.waitForText("remote only", { timeoutMs: 5_000 })
+            await session.keyboard.type("-")
+            await session.screen.waitForText("deleted only", { timeoutMs: 5_000 })
+            await session.screen.waitForText("feat/reset", { timeoutMs: 5_000 })
+            await session.screen.waitForIdle({ quietForMs: 100, timeoutMs: 5_000 })
+            const statusBar = (await session.screen.capture({ settleMs: 50 })).text
+                .trimEnd()
+                .split("\n")
+                .at(-1)
+            expect(statusBar).toContain("c create")
+            for (const hidden of [
+                "n new",
+                "e edit",
+                "d delete",
+                "r rename",
+                "open PR",
+                "compare",
+            ]) {
+                expect(statusBar).not.toContain(hidden)
+            }
+            await session.keyboard.type("C")
+            await session.screen.waitForText("needs a bookmark that is not deleted", {
+                timeoutMs: 5_000,
+            })
+            await session.keyboard.type("R")
+            await session.screen.waitForText("Reset feat/reset to origin?", {
+                timeoutMs: 5_000,
+            })
+            await session.keyboard.type("y")
+            await session.screen.waitUntil(() => bookmarkMatchesOrigin(repository), {
+                timeoutMs: 10_000,
+            })
+            await session.screen.waitForText("No deleted bookmarks", { timeoutMs: 5_000 })
+        },
+        (repository) => {
+            prepareRewrittenOriginBookmark(repository)
+            runJj(repository, "bookmark", "delete", "feat/reset")
+        },
+    )
 }, 45_000)
 
 test("navigates between files in diff mode", async () => {

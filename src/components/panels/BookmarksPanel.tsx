@@ -25,6 +25,11 @@ import { resolveAnsiForeground } from "../../theme/ansi"
 import { getVisibleWidth } from "../../utils/ansi"
 import { benchmarkRegion, registerBenchmarkState } from "../../utils/benchmark"
 import { hasOriginDiff, resetToOriginUnavailableReason } from "../../utils/bookmark-origin-diff"
+import {
+    BOOKMARK_VIEW_LABELS,
+    type BookmarkView,
+    nextBookmarkView,
+} from "../../utils/bookmark-view"
 import { createDoubleClickDetector } from "../../utils/double-click"
 import { isImmutableError } from "../../utils/error-parser"
 import { FUZZY_THRESHOLD, type SelectionSource, scrollIntoView } from "../../utils/scroll"
@@ -199,16 +204,34 @@ export function BookmarksPanel() {
         ...activeLocalBookmarks(),
         ...deletedLocalBookmarks(),
     ])
+    // The deleted view reads the full list, so it does not depend on paging.
+    const allDeletedLocalBookmarks = createMemo(() =>
+        localBookmarks().filter((bookmark) => !bookmark.changeId),
+    )
 
     const [filterMode, setFilterModeInternal] = createSignal(false)
     const [filterQuery, setFilterQuery] = createSignal("")
     const [appliedFilter, setAppliedFilter] = createSignal("")
     const [filterSelectedIndex, setFilterSelectedIndex] = createSignal(0)
-    const [showRemoteOnly, setShowRemoteOnly] = createSignal(false)
+    const [bookmarkView, setBookmarkView] = createSignal<BookmarkView>("local")
+    const showRemoteOnly = () => bookmarkView() === "remote"
     const [remoteSelectedIndex, setRemoteSelectedIndex] = createSignal(0)
+    const viewBookmarks = () => {
+        const view = bookmarkView()
+        if (view === "remote") return remoteOnlyBookmarks()
+        if (view === "deleted") return allDeletedLocalBookmarks()
+        return visibleLocalBookmarks()
+    }
     const cycleBookmarkView = () => {
-        setShowRemoteOnly((prev) => !prev)
+        const next = nextBookmarkView(bookmarkView())
+        setBookmarkView(next)
         setRemoteSelectedIndex(0)
+        if (next === "deleted") {
+            // Local actions act on the selected local bookmark, so select a visible one.
+            const first = allDeletedLocalBookmarks()[0]
+            const index = first ? localBookmarks().findIndex((b) => b.name === first.name) : -1
+            if (index >= 0) setSelectedBookmarkIndex(index)
+        }
     }
     const selectedBookmarkHasOriginDiff = createMemo(() => {
         if (showRemoteOnly()) return false
@@ -234,7 +257,7 @@ export function BookmarksPanel() {
 
     const filteredBookmarks = createMemo(() => {
         const q = activeFilterQuery().trim()
-        const source = showRemoteOnly() ? remoteOnlyBookmarks() : visibleLocalBookmarks()
+        const source = viewBookmarks()
         if (!q) return source
 
         const results = fuzzysort.go(q, source, {
@@ -247,13 +270,12 @@ export function BookmarksPanel() {
 
     const displayBookmarks = createMemo(() => {
         if (hasActiveFilter()) return filteredBookmarks()
-        if (showRemoteOnly()) return remoteOnlyBookmarks()
-        return visibleLocalBookmarks()
+        return viewBookmarks()
     })
 
     const displayBookmarkStackModel = createMemo<BookmarkStackModel<Bookmark> | undefined>(() => {
         if (!githubStackingEnabled()) return undefined
-        if (hasActiveFilter() || showRemoteOnly()) return undefined
+        if (hasActiveFilter() || bookmarkView() !== "local") return undefined
         return buildBookmarkStackModel({
             commits: commits().map((commit) => ({
                 commitId: commit.commitId,
@@ -266,7 +288,7 @@ export function BookmarksPanel() {
 
     const displayBookmarkRows = createMemo<readonly BookmarkRow[]>(() => {
         const source = displayBookmarks()
-        if (!githubStackingEnabled() || hasActiveFilter() || showRemoteOnly()) {
+        if (!githubStackingEnabled() || hasActiveFilter() || bookmarkView() !== "local") {
             return source.map((bookmark) => ({
                 bookmark,
                 depth: 0,
@@ -281,7 +303,7 @@ export function BookmarksPanel() {
 
     const listTotalRows = createMemo(() => displayBookmarkRows().length)
     const canPageBookmarks = createMemo(
-        () => !showRemoteOnly() && !hasActiveFilter() && bookmarksHasMore(),
+        () => bookmarkView() === "local" && !hasActiveFilter() && bookmarksHasMore(),
     )
 
     const displaySelectedIndex = createMemo(() => {
@@ -807,9 +829,18 @@ export function BookmarksPanel() {
         onCleanup(() => clearInterval(pollInterval))
     })
 
-    const title = () => (showRemoteOnly() ? "Bookmarks (Remote)" : "Bookmarks")
+    const viewLabel = () => BOOKMARK_VIEW_LABELS[bookmarkView()]
+    const renderViewLabel = () => (
+        <text fg={isFocused() ? colors().titleTextFocused : colors().textMuted}>{viewLabel()}</text>
+    )
     const hasVisibleBookmarks = () =>
-        showRemoteOnly() ? remoteOnlyBookmarks().length > 0 : localBookmarks().length > 0
+        bookmarkView() === "local" ? localBookmarks().length > 0 : viewBookmarks().length > 0
+    const emptyText = () => {
+        const view = bookmarkView()
+        if (view === "remote") return "No remote-only bookmarks"
+        if (view === "deleted") return "No deleted bookmarks"
+        return "No bookmarks"
+    }
 
     const openSelectedBookmarkOriginDiff = () => {
         if (showRemoteOnly()) return
@@ -822,6 +853,12 @@ export function BookmarksPanel() {
         if (activeDiff?.bookmark === bookmark.name) return
         void enterBookmarkDiffView(bookmark.name)
     }
+
+    // A deleted local bookmark has no target, so there is nothing to open or compare.
+    const deletedBookmarkUnavailable = () =>
+        !showRemoteOnly() && selectedBookmark() && !selectedBookmark()?.changeId
+            ? "needs a bookmark that is not deleted"
+            : null
 
     const selectedBookmarkCanResetToOrigin = createMemo(
         () =>
@@ -840,7 +877,7 @@ export function BookmarksPanel() {
     const handleListEnter = () => {
         if (showRemoteOnly()) return
         const bookmark = selectedBookmark()
-        if (!bookmark) return
+        if (!bookmark?.changeId) return
         if (!activeBookmarkFilter()) {
             setPreviousRevsetFilter(revsetFilter())
             setPreviousLogSelection({
@@ -883,6 +920,7 @@ export function BookmarksPanel() {
 
             panel: "refs",
             visibleIn: ["palette"] as const,
+            unavailable: deletedBookmarkUnavailable,
             execute: handleListEnter,
         },
         {
@@ -893,20 +931,12 @@ export function BookmarksPanel() {
 
             panel: "refs",
             visibleIn: ["palette", "statusBar"] as const,
+            unavailable: deletedBookmarkUnavailable,
             execute: () => {
                 if (showRemoteOnly()) return
                 const bookmark = selectedBookmark()
                 if (!bookmark) return
-                if (!bookmark.changeId) {
-                    commandLog.addEntry({
-                        command: `jj new ${bookmark.name}`,
-                        success: false,
-                        exitCode: 1,
-                        stdout: "",
-                        stderr: "Bookmark has no target change",
-                    })
-                    return
-                }
+                if (!bookmark.changeId) return
                 runOperation("Creating...", (observer) =>
                     app.jjNew(bookmark.name, {
                         cwd: getRepoPath(),
@@ -923,20 +953,12 @@ export function BookmarksPanel() {
 
             panel: "refs",
             visibleIn: ["palette", "statusBar"] as const,
+            unavailable: deletedBookmarkUnavailable,
             execute: async () => {
                 if (showRemoteOnly()) return
                 const bookmark = selectedBookmark()
                 if (!bookmark) return
-                if (!bookmark.changeId) {
-                    commandLog.addEntry({
-                        command: `jj edit ${bookmark.name}`,
-                        success: false,
-                        exitCode: 1,
-                        stdout: "",
-                        stderr: "Bookmark has no target change",
-                    })
-                    return
-                }
+                if (!bookmark.changeId) return
                 const result = await app.jjEdit(bookmark.name, {
                     cwd: getRepoPath(),
                 })
@@ -979,7 +1001,7 @@ export function BookmarksPanel() {
         },
         {
             id: "refs.bookmarks.cycle_view",
-            title: "remote-only",
+            title: "cycle view",
             keybind: "bookmark_cycle_view",
             context: "refs.bookmarks",
 
@@ -1030,6 +1052,7 @@ export function BookmarksPanel() {
 
             panel: "refs",
             visibleIn: ["palette", "statusBar"] as const,
+            unavailable: deletedBookmarkUnavailable,
             execute: async () => {
                 if (showRemoteOnly()) return
                 const bookmark = selectedBookmark()
@@ -1066,6 +1089,7 @@ export function BookmarksPanel() {
 
             panel: "refs",
             visibleIn: ["palette", "statusBar"] as const,
+            unavailable: deletedBookmarkUnavailable,
             execute: () => {
                 if (showRemoteOnly()) return
                 const bookmark = selectedBookmark()
@@ -1107,6 +1131,7 @@ export function BookmarksPanel() {
 
             panel: "refs",
             visibleIn: ["palette", "statusBar"] as const,
+            unavailable: deletedBookmarkUnavailable,
             execute: () => {
                 if (showRemoteOnly()) return
                 const bookmark = selectedBookmark()
@@ -1195,6 +1220,7 @@ export function BookmarksPanel() {
                       context: "refs.bookmarks" as const,
                       panel: "refs" as const,
                       visibleIn: ["palette", "statusBar"] as const,
+                      unavailable: deletedBookmarkUnavailable,
                       execute: openSelectedStack,
                   },
               ]
@@ -1209,6 +1235,7 @@ export function BookmarksPanel() {
             visibleIn: selectedBookmarkHasOriginDiff()
                 ? (["palette", "statusBar"] as const)
                 : (["palette"] as const),
+            unavailable: deletedBookmarkUnavailable,
             execute: openSelectedBookmarkOriginDiff,
         },
         {
@@ -1230,7 +1257,13 @@ export function BookmarksPanel() {
     ])
 
     return (
-        <Panel title={title()} hotkey="2" panelId="refs" focused={isFocused()}>
+        <Panel
+            title="Bookmarks"
+            hotkey="2"
+            panelId="refs"
+            focused={isFocused()}
+            topRight={viewLabel() ? renderViewLabel : undefined}
+        >
             <Show when={bookmarksError() && localBookmarks().length === 0}>
                 <text fg={colors().error}>Error: {bookmarksError()}</text>
             </Show>
@@ -1238,9 +1271,7 @@ export function BookmarksPanel() {
                 when={hasVisibleBookmarks()}
                 fallback={
                     !bookmarksLoading() && !bookmarksError() ? (
-                        <text fg={colors().textMuted}>
-                            {showRemoteOnly() ? "No remote-only bookmarks" : "No bookmarks"}
-                        </text>
+                        <text fg={colors().textMuted}>{emptyText()}</text>
                     ) : null
                 }
             >

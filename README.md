@@ -74,7 +74,7 @@ Toggle between them with `ctrl+x`.
 - File view with tree/list toggle, editor launching, and discard for working-copy files
 - New, edit, describe, squash, abandon, duplicate, rebase, split, resolve
 - Undo, redo, operation log, and restore
-- Bookmark create/delete/rename/forget/set/move/reset-to-origin plus remote-only filtering
+- Bookmark create/delete/rename/forget/set/move/reset-to-origin plus remote-only and deleted-only views
 - Git fetch/push menus
 - Open commits and PRs on GitHub
 - Recent repository switcher
@@ -199,7 +199,7 @@ Default keybindings are contextual. Press `?` or `ctrl+p` in kajji for the full 
 | `m`       | Move bookmark                                      |
 | `C`       | Compare bookmark to origin                         |
 | `R`       | Reset bookmark to origin                           |
-| `-`       | Cycle bookmark views (local / remote-only)         |
+| `-`       | Cycle bookmark views (local / remote / deleted)    |
 | `o` / `O` | Open selected revision on GitHub (prompt / direct) |
 | `o`       | Open selected bookmark's commit or PR on GitHub    |
 
