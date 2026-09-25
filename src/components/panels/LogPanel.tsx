@@ -14,12 +14,17 @@ import { useStatus } from "../../context/status"
 import { useSync } from "../../context/sync"
 import { useTheme } from "../../context/theme"
 import type { Context } from "../../context/types"
+import { useBookmarkReset } from "../../hooks/bookmark-reset"
 import { createScrollViewport } from "../../hooks/scroll-viewport"
 import { HookOperation } from "../../hooks/types"
 import type { OperationResult } from "../../process/operation-result"
 import { getRepoPath } from "../../repo"
 import { benchmarkRegion, registerBenchmarkState } from "../../utils/benchmark"
-import { findCommitBookmarkWithOriginDiff, hasOriginDiff } from "../../utils/bookmark-origin-diff"
+import {
+    findCommitBookmarkWithOriginDiff,
+    hasOriginDiff,
+    resetToOriginUnavailableReason,
+} from "../../utils/bookmark-origin-diff"
 import { blendColors } from "../../utils/color"
 import { createDoubleClickDetector } from "../../utils/double-click"
 import { isImmutableError } from "../../utils/error-parser"
@@ -1220,6 +1225,28 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
         findCommitBookmarkWithOriginDiff(selectedLogCommit(), bookmarks()),
     )
 
+    const comparedBookmarkResetUnavailable = () => {
+        const diff = activeBookmarkDiff()
+        if (!diff) return "needs a bookmark comparison"
+        const local = bookmarks().find(
+            (bookmark) => bookmark.isLocal && bookmark.name === diff.bookmark,
+        )
+        return resetToOriginUnavailableReason(local, bookmarks())
+    }
+
+    const resetBookmarkToOrigin = useBookmarkReset()
+    const resetComparedBookmarkToOrigin = () => {
+        const diff = activeBookmarkDiff()
+        if (!diff) return
+        const name = diff.bookmark
+        void resetBookmarkToOrigin(name, async () => {
+            await refresh()
+            await refreshAppliedFilterGroups()
+            loadOpLog()
+            if (activeBookmarkDiff()?.bookmark === name) exitFilesView()
+        })
+    }
+
     const openBookmarkOriginDiff = () => {
         const bookmark = selectedOriginDiffBookmark()
         if (!bookmark) return
@@ -2281,6 +2308,20 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                 }
             },
         },
+        ...(activeBookmarkDiff()
+            ? [
+                  {
+                      id: "log.files.bookmark_reset_origin",
+                      title: "reset to origin",
+                      keybind: "bookmark_reset_origin" as const,
+                      context: "log.files" as const,
+                      panel: "log" as const,
+                      visibleIn: ["palette", "statusBar"] as const,
+                      unavailable: comparedBookmarkResetUnavailable,
+                      execute: resetComparedBookmarkToOrigin,
+                  },
+              ]
+            : []),
         {
             id: "log.files.toggle_tree",
             title: "tree/list",

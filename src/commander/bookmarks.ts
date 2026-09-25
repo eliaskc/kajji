@@ -75,6 +75,14 @@ export function parseBookmarkOutput(output: string): Bookmark[] {
     return bookmarks
 }
 
+/**
+ * Revset for a bookmark on a remote. Uses exact string patterns so that names
+ * with revset characters (such as `/` or `-`) resolve correctly.
+ */
+export function remoteBookmarkRevset(name: string, remote: string): string {
+    return `remote_bookmarks(exact:${JSON.stringify(name)}, exact:${JSON.stringify(remote)})`
+}
+
 export function isBookmarkBackwardsError(result: OperationResult): boolean {
     if (result.success) return false
     const combined = `${result.stdout}\n${result.stderr}`

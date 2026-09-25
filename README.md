@@ -74,7 +74,7 @@ Toggle between them with `ctrl+x`.
 - File view with tree/list toggle, editor launching, and discard for working-copy files
 - New, edit, describe, squash, abandon, duplicate, rebase, split, resolve
 - Undo, redo, operation log, and restore
-- Bookmark create/delete/rename/forget/set/move plus remote-only filtering
+- Bookmark create/delete/rename/forget/set/move/reset-to-origin plus remote-only filtering
 - Git fetch/push menus
 - Open commits and PRs on GitHub
 - Recent repository switcher
@@ -171,7 +171,7 @@ Default keybindings are contextual. Press `?` or `ctrl+p` in kajji for the full 
 | `r`       | Rebase, or rename bookmark in refs                                                         |
 | `S`       | Split                                                                                      |
 | `D`       | Duplicate                                                                                  |
-| `R`       | Resolve conflicts, or toggle remote-only bookmarks in refs                                 |
+| `R`       | Resolve conflicts, or reset bookmark to origin in refs and bookmark compare view           |
 | `u` / `U` | Undo / redo                                                                                |
 | `f` / `F` | Git fetch / fetch menu                                                                     |
 | `p` / `P` | Git push / push menu                                                                       |
@@ -197,6 +197,9 @@ Default keybindings are contextual. Press `?` or `ctrl+p` in kajji for the full 
 | `x`       | Forget bookmark locally                            |
 | `b`       | Set bookmark on selected revision                  |
 | `m`       | Move bookmark                                      |
+| `C`       | Compare bookmark to origin                         |
+| `R`       | Reset bookmark to origin                           |
+| `-`       | Cycle bookmark views (local / remote-only)         |
 | `o` / `O` | Open selected revision on GitHub (prompt / direct) |
 | `o`       | Open selected bookmark's commit or PR on GitHub    |
 

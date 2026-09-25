@@ -251,11 +251,11 @@ test("browses virtual bookmarks and all files in a large summary", async () => {
             await session.screen.waitForText("virtual-036", { timeoutMs: 5_000 })
             await session.resize({ cols: 100, rows: 24 })
             await session.screen.waitForText("virtual-036", { timeoutMs: 5_000 })
-            await session.keyboard.type("R")
+            await session.keyboard.type("-")
             await session.screen.waitForText("Bookmarks (Remote)", { timeoutMs: 5_000 })
             await session.keyboard.write(Buffer.from("j".repeat(36)))
             await session.screen.waitForText("remote-036", { timeoutMs: 5_000 })
-            await session.keyboard.type("R")
+            await session.keyboard.type("-")
             await session.screen.waitUntil(
                 (snapshot) => !snapshot.text.includes("Bookmarks (Remote)"),
                 { timeoutMs: 5_000 },
@@ -637,6 +637,75 @@ test("creates and deletes a bookmark", async () => {
             runJj(repository, "bookmark", "list", "--template", 'name ++ "\\n"').split("\n"),
         ).not.toContain("e2e-bookmark")
     })
+}, 45_000)
+
+function prepareRewrittenOriginBookmark(repository: string) {
+    const remote = join(repository, "..", "origin.git")
+    const init = Bun.spawnSync(["git", "init", "--bare", "--quiet", remote])
+    if (!init.success) throw new Error(init.stderr.toString())
+    runJj(repository, "git", "remote", "add", "origin", remote)
+    runJj(repository, "bookmark", "create", "feat/reset", "-r", "@-")
+    runJj(repository, "git", "push", "--bookmark", "feat/reset")
+    runJj(repository, "describe", "-r", "@-", "-m", "fixture: parser change (rewritten)")
+}
+
+function bookmarkTargets(repository: string) {
+    return runJj(
+        repository,
+        "bookmark",
+        "list",
+        "--all-remotes",
+        "feat/reset",
+        "--template",
+        'if(remote, remote, "local") ++ " " ++ normal_target.commit_id() ++ "\\n"',
+    )
+        .trim()
+        .split("\n")
+        .filter((line) => !line.startsWith("git "))
+}
+
+function bookmarkMatchesOrigin(repository: string) {
+    const targets = new Map(
+        bookmarkTargets(repository).map((line) => line.split(" ") as [string, string]),
+    )
+    return Boolean(targets.get("origin")) && targets.get("local") === targets.get("origin")
+}
+
+function hasDivergentCommits(repository: string) {
+    return runJj(repository, "log", "-r", "divergent()", "--no-graph", "-T", "commit_id") !== ""
+}
+
+test("resets a bookmark to origin from the bookmarks panel", async () => {
+    await withKajji(async (session, repository) => {
+        expect(bookmarkMatchesOrigin(repository)).toBe(false)
+        await session.keyboard.type("2")
+        await session.screen.waitForText("feat/reset*", { timeoutMs: 5_000 })
+        await session.keyboard.type("R")
+        await session.screen.waitForText("Reset feat/reset to origin", { timeoutMs: 5_000 })
+        await session.screen.waitForText("reset and abandon it", { timeoutMs: 5_000 })
+        await session.keyboard.type("a")
+        await session.screen.waitUntil(
+            () => bookmarkMatchesOrigin(repository) && !hasDivergentCommits(repository),
+            { timeoutMs: 10_000 },
+        )
+    }, prepareRewrittenOriginBookmark)
+}, 45_000)
+
+test("resets a bookmark to origin from the compare view", async () => {
+    await withKajji(async (session, repository) => {
+        await session.keyboard.type("2")
+        await session.screen.waitForText("feat/reset*", { timeoutMs: 5_000 })
+        await session.keyboard.type("C")
+        await session.screen.waitForText("reset to origin", { timeoutMs: 5_000 })
+        await session.keyboard.type("R")
+        await session.screen.waitForText("Reset feat/reset to origin", { timeoutMs: 5_000 })
+        await session.screen.waitForText("reset and abandon it", { timeoutMs: 5_000 })
+        await session.keyboard.type("a")
+        await session.screen.waitUntil(
+            () => bookmarkMatchesOrigin(repository) && !hasDivergentCommits(repository),
+            { timeoutMs: 10_000 },
+        )
+    }, prepareRewrittenOriginBookmark)
 }, 45_000)
 
 test("navigates between files in diff mode", async () => {

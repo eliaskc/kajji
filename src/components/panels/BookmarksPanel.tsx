@@ -14,6 +14,7 @@ import { useStatus } from "../../context/status"
 import { useSync } from "../../context/sync"
 import { useTheme } from "../../context/theme"
 import { featureFlags } from "../../feature-flags"
+import { useBookmarkReset } from "../../hooks/bookmark-reset"
 import { createHorizontalCropScroll } from "../../hooks/horizontal-crop-scroll"
 import { createScrollViewport } from "../../hooks/scroll-viewport"
 import type { OperationResult } from "../../process/operation-result"
@@ -23,7 +24,7 @@ import type { BookmarkStackModel, BookmarkStackRow, StackPlan } from "../../stac
 import { resolveAnsiForeground } from "../../theme/ansi"
 import { getVisibleWidth } from "../../utils/ansi"
 import { benchmarkRegion, registerBenchmarkState } from "../../utils/benchmark"
-import { hasOriginDiff } from "../../utils/bookmark-origin-diff"
+import { hasOriginDiff, resetToOriginUnavailableReason } from "../../utils/bookmark-origin-diff"
 import { createDoubleClickDetector } from "../../utils/double-click"
 import { isImmutableError } from "../../utils/error-parser"
 import { FUZZY_THRESHOLD, type SelectionSource, scrollIntoView } from "../../utils/scroll"
@@ -205,6 +206,10 @@ export function BookmarksPanel() {
     const [filterSelectedIndex, setFilterSelectedIndex] = createSignal(0)
     const [showRemoteOnly, setShowRemoteOnly] = createSignal(false)
     const [remoteSelectedIndex, setRemoteSelectedIndex] = createSignal(0)
+    const cycleBookmarkView = () => {
+        setShowRemoteOnly((prev) => !prev)
+        setRemoteSelectedIndex(0)
+    }
     const selectedBookmarkHasOriginDiff = createMemo(() => {
         if (showRemoteOnly()) return false
         const bookmark = selectedBookmark()
@@ -613,7 +618,7 @@ export function BookmarksPanel() {
     }
 
     useKeyboard((evt) => {
-        if (!isFocused()) return
+        if (!isFocused() || dialog.isOpen()) return
 
         if (!filterMode() && hasActiveFilter() && evt.name === "escape") {
             evt.preventDefault()
@@ -622,11 +627,10 @@ export function BookmarksPanel() {
             return
         }
 
-        if (!filterMode() && keybind.match("bookmark_toggle_remote", evt)) {
+        if (!filterMode() && keybind.match("bookmark_cycle_view", evt)) {
             evt.preventDefault()
             evt.stopPropagation()
-            setShowRemoteOnly((prev) => !prev)
-            setRemoteSelectedIndex(0)
+            cycleBookmarkView()
             return
         }
 
@@ -819,6 +823,20 @@ export function BookmarksPanel() {
         void enterBookmarkDiffView(bookmark.name)
     }
 
+    const selectedBookmarkCanResetToOrigin = createMemo(
+        () =>
+            !showRemoteOnly() &&
+            resetToOriginUnavailableReason(selectedBookmark(), bookmarks()) === null,
+    )
+
+    const resetBookmarkToOrigin = useBookmarkReset()
+    const resetSelectedBookmarkToOrigin = () => {
+        if (showRemoteOnly()) return
+        const bookmark = selectedBookmark()
+        if (!bookmark) return
+        void resetBookmarkToOrigin(bookmark.name, refresh)
+    }
+
     const handleListEnter = () => {
         if (showRemoteOnly()) return
         const bookmark = selectedBookmark()
@@ -960,17 +978,14 @@ export function BookmarksPanel() {
             execute: activateBookmarkFilter,
         },
         {
-            id: "refs.bookmarks.toggle_remote",
+            id: "refs.bookmarks.cycle_view",
             title: "remote-only",
-            keybind: "bookmark_toggle_remote",
+            keybind: "bookmark_cycle_view",
             context: "refs.bookmarks",
 
             panel: "refs",
             visibleIn: ["palette"] as const,
-            execute: () => {
-                setShowRemoteOnly((prev) => !prev)
-                setRemoteSelectedIndex(0)
-            },
+            execute: cycleBookmarkView,
         },
         {
             id: "refs.bookmarks.create",
@@ -1195,6 +1210,22 @@ export function BookmarksPanel() {
                 ? (["palette", "statusBar"] as const)
                 : (["palette"] as const),
             execute: openSelectedBookmarkOriginDiff,
+        },
+        {
+            id: "refs.bookmarks.reset_origin",
+            title: "reset to origin",
+            keybind: "bookmark_reset_origin",
+            context: "refs.bookmarks",
+
+            panel: "refs",
+            visibleIn: selectedBookmarkCanResetToOrigin()
+                ? (["palette", "statusBar"] as const)
+                : (["palette"] as const),
+            unavailable: () =>
+                showRemoteOnly()
+                    ? "needs a local bookmark"
+                    : resetToOriginUnavailableReason(selectedBookmark(), bookmarks()),
+            execute: resetSelectedBookmarkToOrigin,
         },
     ])
 

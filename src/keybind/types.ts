@@ -51,7 +51,8 @@ export type KeybindConfigKey =
     | "bookmark_move"
     | "bookmark_stack"
     | "bookmark_diff_origin"
-    | "bookmark_toggle_remote"
+    | "bookmark_reset_origin"
+    | "bookmark_cycle_view"
     | "toggle_file_tree"
     | "cycle_diff_engine"
     | "cycle_diff_engine_global"
@@ -132,7 +133,8 @@ export const DEFAULT_KEYBINDS: KeybindConfig = {
     bookmark_move: "m",
     bookmark_stack: "s",
     bookmark_diff_origin: "C",
-    bookmark_toggle_remote: "R",
+    bookmark_reset_origin: "R",
+    bookmark_cycle_view: "-",
     toggle_file_tree: "-",
     cycle_diff_engine: "-",
     cycle_diff_engine_global: "ctrl+e",
