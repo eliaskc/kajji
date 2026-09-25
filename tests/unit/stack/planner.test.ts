@@ -210,7 +210,7 @@ describe("stack planners", () => {
         expect(plan.rows[3]?.effects.map((effect) => effect.type)).toEqual(["push"])
     })
 
-    test("sync keeps a merged local bookmark while remote bookmark still exists", async () => {
+    test("sync keeps a merged local bookmark while its remote exists and skips stack comments", async () => {
         const plan = buildSyncPlanSync({
             stackRootName: "feature-a",
             stackModel: await model(),
@@ -248,39 +248,6 @@ describe("stack planners", () => {
             "update-pr",
         ])
         expect(plan.abandonBookmarks).toEqual([])
-    })
-
-    test("sync does not update stack comments when stack contains merged PRs", async () => {
-        const plan = buildSyncPlanSync({
-            stackRootName: "feature-a",
-            stackModel: await model(),
-            pullRequestsByHead: new Map([
-                [
-                    "feature-a",
-                    {
-                        number: 10,
-                        headRefName: "feature-a",
-                        baseRefName: "main",
-                        state: "MERGED",
-                        merged: true,
-                    },
-                ],
-                [
-                    "feature-b",
-                    {
-                        number: 11,
-                        headRefName: "feature-b",
-                        baseRefName: "feature-a",
-                        state: "OPEN",
-                    },
-                ],
-            ]),
-            remoteBookmarksByName: new Map([
-                ["feature-a", { name: "feature-a", commitId: "a" }],
-                ["feature-b", { name: "feature-b", commitId: "b" }],
-            ]),
-        })
-
         expect(plan.effects.some((effect) => effect.type === "update-comment")).toBe(false)
     })
 
