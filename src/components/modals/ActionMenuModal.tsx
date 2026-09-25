@@ -1,7 +1,7 @@
 import { useKeyboard } from "@opentui/solid"
 import { For, createSignal } from "solid-js"
 import { useDialogCommands } from "../../context/command"
-import { useDialog } from "../../context/dialog"
+import { type StyledSegment, StyledText, useDialog } from "../../context/dialog"
 import { useTheme } from "../../context/theme"
 import { createSelectableList } from "../../hooks/selectable-list"
 
@@ -15,10 +15,10 @@ export interface ActionMenuOption {
 
 interface ActionMenuModalProps {
     options: ActionMenuOption[]
-    /** Muted line above the options, for context that applies to all of them. */
-    summary?: string
-    /** Muted line below the options, for example a warning. */
-    footer?: string
+    /** Line above the options, for context that applies to all of them. */
+    summary?: string | StyledSegment[]
+    /** Line below the options, for example a warning. */
+    footer?: string | StyledSegment[]
     paddingLeft?: number
     paddingRight?: number
 }
@@ -93,7 +93,7 @@ export function ActionMenuModal(props: ActionMenuModalProps) {
         <box flexDirection="column" minHeight={8}>
             {props.summary ? (
                 <box paddingLeft={props.paddingLeft ?? 0} marginBottom={1}>
-                    <text fg={colors().textMuted}>{props.summary}</text>
+                    <StyledText content={props.summary} />
                 </box>
             ) : null}
             <For each={props.options}>
@@ -129,7 +129,7 @@ export function ActionMenuModal(props: ActionMenuModalProps) {
             </For>
             {props.footer ? (
                 <box paddingLeft={props.paddingLeft ?? 0} marginTop={1}>
-                    <text fg={colors().textMuted}>{props.footer}</text>
+                    <StyledText content={props.footer} />
                 </box>
             ) : null}
         </box>

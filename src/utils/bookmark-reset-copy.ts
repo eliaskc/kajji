@@ -1,18 +1,20 @@
 import type { BookmarkResetMode, BookmarkResetPlan } from "../application/bookmark-reset"
+import type { StyledSegment } from "../context/dialog"
 
 function pronouns(count: number) {
-    return count === 1
-        ? { object: "it", possessive: "its", verb: "is", has: "has" }
-        : { object: "them", possessive: "their", verb: "are", has: "have" }
+    return count === 1 ? { object: "it", verb: "is" } : { object: "them", verb: "are" }
 }
 
-/** Question above the reset menu, in plain words. */
-export function resetMenuSummary(plan: BookmarkResetPlan) {
+/** Question above the reset menu, in plain words. The commit count is highlighted. */
+export function resetMenuSummary(plan: BookmarkResetPlan): StyledSegment[] {
     const count = plan.localOnly.length
     const words = pronouns(count)
     const commits = `${count} local commit${count === 1 ? "" : "s"}`
     const sameContent = plan.sameContent ? ", but the content is the same" : ""
-    return `${commits} ${words.verb} not on origin${sameContent}. What do you want to do with ${words.object}?`
+    return [
+        { text: commits, style: "target" },
+        ` ${words.verb} not on origin${sameContent}. What do you want to do with ${words.object}?`,
+    ]
 }
 
 /** Warning below the reset menu, or undefined when nothing else changes. */
@@ -30,9 +32,8 @@ export function resetMenuFooter(plan: BookmarkResetPlan) {
 }
 
 export function resetMenuOption(plan: BookmarkResetPlan, mode: BookmarkResetMode) {
-    const { object, possessive } = pronouns(plan.localOnly.length)
+    const { object } = pronouns(plan.localOnly.length)
     const mutedPrefix = "reset and "
     if (mode === "abandon") return { key: "a", mutedPrefix, label: `abandon ${object}` }
-    if (mode === "keep") return { key: "k", mutedPrefix, label: `keep ${object}` }
-    return { key: "n", mutedPrefix, label: `keep ${possessive} changes as a new commit` }
+    return { key: "k", mutedPrefix, label: `keep ${object}` }
 }

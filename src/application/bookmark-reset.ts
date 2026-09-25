@@ -8,15 +8,11 @@ import type { ApplicationClient } from "./client"
 /**
  * - `abandon`: move the bookmark and abandon the local-only commits.
  * - `keep`: move the bookmark and leave the local-only commits in place.
- * - `new-commit`: put the local content in a new commit on origin, then abandon.
  */
-export type BookmarkResetMode = "abandon" | "keep" | "new-commit"
+export type BookmarkResetMode = "abandon" | "keep"
 
 export interface BookmarkResetPlan {
     readonly name: string
-    /** Local target commit IDs. Empty for a deleted local bookmark; several for a conflict. */
-    readonly localCommitIds: readonly string[]
-    readonly originCommitId: string
     /** Mutable commits that only the local bookmark reaches. Reset leaves them behind. */
     readonly localOnly: readonly JjRevisionSummary[]
     /** True when the local and origin trees are equal (for example after a rebase). */
@@ -29,13 +25,7 @@ export interface BookmarkResetPlan {
 
 type ResetClient = Pick<
     ApplicationClient,
-    | "jjRevisionSummaries"
-    | "jjFiles"
-    | "jjShowDescription"
-    | "jjBookmarkSet"
-    | "jjNew"
-    | "jjRestore"
-    | "jjAbandon"
+    "jjRevisionSummaries" | "jjFiles" | "jjBookmarkSet" | "jjAbandon"
 >
 
 interface ResetReadOptions {
@@ -75,14 +65,9 @@ export async function planBookmarkReset(
     options: ResetReadOptions,
 ): Promise<BookmarkResetPlan> {
     const localIds = localCommitIds(local)
-    const base = {
-        name: local.name,
-        localCommitIds: localIds,
-        originCommitId: origin.commitId,
-    }
     if (localIds.length === 0) {
         return {
-            ...base,
+            name: local.name,
             localOnly: [],
             sameContent: false,
             descendants: 0,
@@ -101,7 +86,7 @@ export async function planBookmarkReset(
     ])
 
     return {
-        ...base,
+        name: local.name,
         localOnly,
         sameContent: files !== null && files.length === 0,
         descendants: descendants.length,
@@ -111,18 +96,12 @@ export async function planBookmarkReset(
 
 /** Modes that make sense for a plan. The first mode is the default. */
 export function availableResetModes(plan: BookmarkResetPlan): BookmarkResetMode[] {
-    if (plan.localOnly.length === 0) return ["keep"]
-    const newCommit = !plan.sameContent && plan.localCommitIds.length === 1
-    return newCommit ? ["abandon", "keep", "new-commit"] : ["abandon", "keep"]
-}
-
-function failure(command: string, stderr: string): OperationResult {
-    return { command, success: false, exitCode: 1, stdout: "", stderr }
+    return plan.localOnly.length === 0 ? ["keep"] : ["abandon", "keep"]
 }
 
 /**
- * Runs the jj operations for one reset mode. Each operation goes through
- * `run`, which records it; the sequence stops at the first failure.
+ * Moves the bookmark to origin, then abandons the local-only commits unless
+ * the mode keeps them. Each operation goes through `run`, which records it.
  */
 export async function runBookmarkReset(
     app: ResetClient,
@@ -133,38 +112,6 @@ export async function runBookmarkReset(
 ): Promise<OperationResult> {
     const origin = remoteBookmarkRevset(plan.name, "origin")
     const abandonIds = plan.localOnly.map((commit) => commit.commitId)
-
-    if (mode === "new-commit") {
-        const local = plan.localCommitIds[0]
-        if (!local || plan.localCommitIds.length !== 1) {
-            return failure("reset to origin", "Cannot keep changes of a conflicted bookmark")
-        }
-        const childrenRevset = `children(${plan.originCommitId})`
-        const [before, description] = await Promise.all([
-            app.jjRevisionSummaries(childrenRevset, options),
-            app.jjShowDescription(local, options),
-        ])
-        const message = description.body
-            ? `${description.subject}\n\n${description.body}`
-            : description.subject
-        const created = await run((observer) =>
-            app.jjNew(plan.originCommitId, { ...options, observer, noEdit: true, message }),
-        )
-        if (!created.success) return created
-
-        const known = new Set(before.map((commit) => commit.commitId))
-        const after = await app.jjRevisionSummaries(childrenRevset, options)
-        const added = after.filter((commit) => !known.has(commit.commitId))
-        const target = added[0]
-        if (!target || added.length !== 1) {
-            return failure("reset to origin", "Could not find the new commit on top of origin")
-        }
-
-        const restored = await run((observer) =>
-            app.jjRestore([], { ...options, observer, from: local, into: target.commitId }),
-        )
-        if (!restored.success) return restored
-    }
 
     const moved = await run((observer) =>
         app.jjBookmarkSet(plan.name, origin, { ...options, observer, allowBackwards: true }),

@@ -124,29 +124,28 @@ describe("bookmark reset to origin", () => {
         expect(repo.divergent()).not.toBe("")
     })
 
-    test("keeps local changes as a new commit on origin", async () => {
+    test("abandons a whole rewritten stack", async () => {
         const repo = await makeRepository()
-        repo.jj("new", "feat/reset")
-        await writeFile(join(repo.repo, "local.txt"), "local only\n")
-        repo.jj("describe", "-m", "local work")
+        repo.jj("new", "feat/reset", "-m", "second")
+        repo.jj("new", "-m", "third")
         repo.jj("bookmark", "set", "feat/reset", "-r", "@")
+        repo.jj("git", "push", "--bookmark", "feat/reset")
         repo.jj("new", "root()")
+        // Rewriting the bottom commit rewrites every commit in the stack.
+        repo.jj("describe", "-r", 'description(exact:"base\n")', "-m", "base (rewritten)")
 
         const plan = await repo.plan()
-        expect(plan.sameContent).toBe(false)
-        expect(availableResetModes(plan)).toEqual(["abandon", "keep", "new-commit"])
+        expect(plan.localOnly.map((commit) => commit.description)).toEqual([
+            "third",
+            "second",
+            "feature",
+            "base (rewritten)",
+        ])
+        expect(availableResetModes(plan)).toEqual(["abandon", "keep"])
 
-        expect((await repo.reset("new-commit")).success).toBe(true)
+        expect((await repo.reset("abandon")).success).toBe(true)
         expect(repo.matchesOrigin()).toBe(true)
-        expect(
-            repo.jj("log", "-r", "children(feat/reset)", "--no-graph", "-T", "description"),
-        ).toBe("local work")
-        expect(repo.jj("file", "show", "-r", "children(feat/reset)", "local.txt")).toBe(
-            "local only",
-        )
-        expect(
-            repo.jj("log", "-r", 'description(substring:"local work")', "--no-graph", "-T", '"x"'),
-        ).toBe("x")
+        expect(repo.divergent()).toBe("")
     })
 
     test("does not abandon commits that another bookmark uses", async () => {

@@ -74,9 +74,6 @@ export interface JjEditOptions extends JjOperationOptions {
 export interface JjNewOptions extends JjOperationOptions {
     readonly verify?: boolean
     readonly position?: "before" | "after"
-    /** Adds `--no-edit`, so the working copy stays where it is. */
-    readonly noEdit?: boolean
-    readonly message?: string
 }
 
 export interface JjSquashOptions extends JjOperationOptions {
@@ -887,8 +884,6 @@ export const JjLayer: Layer.Layer<Jj, never, AppProcess | Hooks> = Layer.effect(
 
                 const list = typeof revisions === "string" ? [revisions] : revisions
                 const args = ["new"]
-                if (options.noEdit) args.push("--no-edit")
-                if (options.message !== undefined) args.push("-m", options.message)
                 if (options.position === "before") {
                     for (const revision of list) args.push("-B", revision)
                 } else if (options.position === "after") {

@@ -63,7 +63,7 @@ interface ConfirmOptions {
     maxWidth?: number
 }
 
-function StyledText(props: { content: string | StyledSegment[]; bold?: boolean }) {
+export function StyledText(props: { content: string | StyledSegment[]; bold?: boolean }) {
     const { colors } = useTheme()
 
     if (typeof props.content === "string") {

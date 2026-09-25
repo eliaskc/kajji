@@ -22,7 +22,7 @@ import { resetMenuFooter, resetMenuOption, resetMenuSummary } from "../utils/boo
 /**
  * Returns a function that resets a local bookmark to its origin target. When
  * the local bookmark has commits that origin does not have, it opens a menu:
- * abandon them, keep their changes as a new commit on origin, or leave them.
+ * abandon them (default) or keep them.
  */
 export function useBookmarkReset() {
     const app = useApplication()
