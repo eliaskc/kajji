@@ -891,6 +891,9 @@ test("reports a failed operation in the command log", async () => {
         await session.screen.waitUntil((snapshot) => snapshot.frame.cols === 200, {
             timeoutMs: 5_000,
         })
+        await session.screen.waitForText("expected <EOI>", { timeoutMs: 20_000 })
+        // The unfocused command log is short. Focus it so the full error fits.
+        await session.keyboard.type("4")
         await session.screen.waitUntil(
             (snapshot) =>
                 snapshot.text.includes("invalid:name") && snapshot.text.includes("expected <EOI>"),
