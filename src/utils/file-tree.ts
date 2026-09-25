@@ -204,19 +204,3 @@ export function aggregateFileLineStats(
     collect(root)
     return aggregated
 }
-
-export function getFilePaths(node: FileTreeNode): string[] {
-    const paths: string[] = []
-
-    function collect(n: FileTreeNode): void {
-        if (!n.isDirectory) {
-            paths.push(n.path)
-        }
-        for (const child of n.children) {
-            collect(child)
-        }
-    }
-
-    collect(node)
-    return paths
-}

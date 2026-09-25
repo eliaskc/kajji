@@ -7,7 +7,6 @@ import {
     buildFileTree,
     flattenFlat,
     flattenTree,
-    getFilePaths,
     orderFilePaths,
     orderFilesByPath,
 } from "../../../src/utils/file-tree"
@@ -235,48 +234,5 @@ describe("flattenFlat", () => {
     it("handles empty tree", () => {
         const tree = buildFileTree([])
         expect(flattenFlat(tree)).toEqual([])
-    })
-})
-
-describe("getFilePaths", () => {
-    it("returns file path for single file node", () => {
-        const files: FileChange[] = [{ path: "file.ts", status: "added" }]
-        const tree = buildFileTree(files)
-        const fileNode = tree.children[0]
-        if (!fileNode) throw new Error("Expected file node")
-
-        expect(getFilePaths(fileNode)).toEqual(["file.ts"])
-    })
-
-    it("returns all file paths under directory", () => {
-        const files: FileChange[] = [
-            { path: "src/a.ts", status: "added" },
-            { path: "src/b.ts", status: "modified" },
-        ]
-        const tree = buildFileTree(files)
-        const srcNode = tree.children[0]
-        if (!srcNode) throw new Error("Expected src node")
-
-        expect(getFilePaths(srcNode)).toEqual(["src/a.ts", "src/b.ts"])
-    })
-
-    it("returns nested file paths under directory", () => {
-        const files: FileChange[] = [
-            { path: "src/utils/helper.ts", status: "added" },
-            { path: "src/index.ts", status: "modified" },
-        ]
-        const tree = buildFileTree(files)
-        const srcNode = tree.children[0]
-        if (!srcNode) throw new Error("Expected src node")
-
-        const paths = getFilePaths(srcNode)
-        expect(paths).toContain("src/utils/helper.ts")
-        expect(paths).toContain("src/index.ts")
-        expect(paths).toHaveLength(2)
-    })
-
-    it("returns empty array for empty directory", () => {
-        const tree = buildFileTree([])
-        expect(getFilePaths(tree)).toEqual([])
     })
 })
