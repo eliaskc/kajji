@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test"
-import { Effect, Exit, Schema, Stream } from "effect"
+import { mkdtemp, rm, writeFile } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+import { Effect, Exit, Layer, Schema, Stream } from "effect"
 import {
     Jj,
     JjCommandError,
@@ -15,6 +18,8 @@ import type { LogPageResult } from "../../../src/commander/log"
 import { ConfigSchema } from "../../../src/config"
 import { makeHooksLayer } from "../../../src/hooks/runner"
 import {
+    AppProcess,
+    AppProcessLive,
     type ProcessCommand,
     type ProcessResult,
     ProcessSpawnError,
@@ -990,5 +995,59 @@ describe("Jj", () => {
         await expect(Effect.runPromise(invocation.effect)).resolves.toMatchObject({
             exitCode: 0,
         })
+    })
+})
+
+describe("Jj with real jj", () => {
+    test("reads one summary per revision", async () => {
+        const root = await mkdtemp(join(tmpdir(), "kajji-summaries-"))
+        const config = join(root, "jj.toml")
+        await writeFile(config, '[user]\nname="Test"\nemail="test@example.com"\n')
+        const env = { ...process.env, JJ_CONFIG: config }
+        const run = (...args: string[]) => {
+            const child = Bun.spawnSync(["jj", ...args], { cwd: root, env })
+            if (!child.success) throw new Error(child.stderr.toString())
+        }
+        const processLayer = Layer.effect(
+            AppProcess,
+            AppProcess.use((appProcess) =>
+                Effect.succeed(
+                    AppProcess.of({
+                        run: (command) =>
+                            appProcess.run({
+                                ...command,
+                                env: { ...command.env, JJ_CONFIG: config },
+                            }),
+                        stream: (command) =>
+                            appProcess.stream({
+                                ...command,
+                                env: { ...command.env, JJ_CONFIG: config },
+                            }),
+                    }),
+                ),
+            ),
+        ).pipe(Layer.provide(AppProcessLive))
+        try {
+            run("git", "init")
+            run("describe", "-m", "first")
+            run("new", "-m", "second")
+            run("new", "-m", "third")
+
+            const summaries = await Effect.runPromise(
+                Jj.use((jj) => jj.revisionSummaries("::@ ~ root()", { cwd: root })).pipe(
+                    Effect.provide(JjLive),
+                    Effect.provide(processLayer),
+                ),
+            )
+
+            expect(summaries.map((summary) => summary.description)).toEqual([
+                "third",
+                "second",
+                "first",
+            ])
+            expect(summaries.every((summary) => /^[0-9a-f]{40}$/.test(summary.commitId))).toBe(true)
+        } finally {
+            await rm(root, { recursive: true, force: true })
+        }
     })
 })

@@ -710,8 +710,9 @@ export const JjLayer: Layer.Layer<Jj, never, AppProcess | Hooks> = Layer.effect(
                 revset: string,
                 options: JjOperationOptions,
             ) {
+                // `--no-graph` does not end entries with a newline, so the template must.
                 const template =
-                    'change_id ++ "\\t" ++ commit_id ++ "\\t" ++ description.first_line()'
+                    'change_id ++ "\\t" ++ commit_id ++ "\\t" ++ description.first_line() ++ "\\n"'
                 const result = yield* runRead(
                     ["log", "-r", revset, "--no-graph", "-T", template],
                     options,
