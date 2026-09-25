@@ -852,9 +852,16 @@ test("undoes a description update", async () => {
             timeoutMs: 5_000,
         })
         await session.keyboard.press("Enter")
-        await session.screen.waitForText("fixture: UI change then undo", {
-            timeoutMs: 10_000,
-        })
+        // The modal already shows the new text. Wait for it to close and for jj to apply it.
+        await session.screen.waitUntil(
+            (snapshot) =>
+                !snapshot.text.includes("Body") &&
+                snapshot.text.includes("fixture: UI change then undo"),
+            { timeoutMs: 10_000 },
+        )
+        expect(runJj(repository, "log", "-r", "@", "--no-graph", "-T", "description")).toBe(
+            "fixture: UI change then undo\n",
+        )
 
         await session.keyboard.type("u")
         await session.screen.waitForText("Undo last operation?", {
