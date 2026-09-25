@@ -213,7 +213,8 @@ for (const View of [VirtualizedUnifiedView, VirtualizedSplitView]) {
             expect(restoreCalls).toBe(initialRestoreCalls)
             expect(position!.fileId).toBe("file-0")
             expect(position!.lineNumber).toBeGreaterThan(1)
-            expect(anchor!.oldLineNumber).toBeDefined()
+            // A real line number, so the reflow equality below cannot pass as undefined === undefined.
+            expect(anchor!.oldLineNumber).toBeGreaterThan(1)
             expect(anchor!.newLineNumber).toBeUndefined()
 
             const saved = anchor!
@@ -245,7 +246,7 @@ for (const View of [VirtualizedUnifiedView, VirtualizedSplitView]) {
             setTop(fileOffsets.get("file-1" as FileId)!)
             await setup.renderOnce()
             expect(position!.fileId).toBe("file-1")
-            expect(anchor!.newLineNumber).toBeDefined()
+            expect(anchor!.newLineNumber).toBe(1)
             setLeft(10)
             await setup.renderOnce()
             expect(hunkCalls).toBe(3)

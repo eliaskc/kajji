@@ -114,7 +114,7 @@ describe("ConfigSchema", () => {
         expect(disabled.gitHooksPath).toBe(false)
     })
 
-    test("top-level hooks are no longer accepted", () => {
+    test("drops legacy top-level hooks from parsed config", () => {
         const config = ConfigSchema.parse({
             hooks: {
                 "jj.new": {

@@ -622,7 +622,7 @@ describe("ApplicationClient", () => {
         await startedPromise
         stream.cancel()
 
-        await expect(stream.result).rejects.toBeDefined()
+        await expect(stream.result).rejects.toThrow("interrupted")
         expect(released).toBe(true)
         await client.dispose()
     })
@@ -663,7 +663,7 @@ describe("ApplicationClient", () => {
         await startedPromise
         await client.dispose()
 
-        await expect(operation).rejects.toBeDefined()
+        await expect(operation).rejects.toThrow("interrupted")
         expect(released).toBe(true)
         expect(completions).toBe(1)
         await expect(client.jjGitFetch({ cwd: "/tmp/repository" })).rejects.toThrow("shutting down")

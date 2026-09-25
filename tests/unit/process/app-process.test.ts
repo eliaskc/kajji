@@ -220,7 +220,7 @@ describe("AppProcess", () => {
                 ),
         ).pipe(Effect.provide(AppProcessLive))
 
-        await expect(Effect.runPromise(effect)).rejects.toBeDefined()
+        await expect(Effect.runPromise(effect)).rejects.toBe("consumer failed")
         expect(await waitForFile(ready)).toMatch(/^\d+$/)
         expect(await waitForFile(settled)).toBe("settled")
     })

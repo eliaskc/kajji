@@ -33,13 +33,13 @@ describe("getRevisionRestorePlan", () => {
     })
 
     test("explains unsupported immutable and merge revisions", () => {
-        expect(getRevisionRestorePlan(commit({ immutable: true }))).toMatchObject({
+        expect(getRevisionRestorePlan(commit({ immutable: true }))).toEqual({
             supported: false,
-            message: expect.any(String),
+            message: "Can't discard changes from an immutable revision.",
         })
-        expect(getRevisionRestorePlan(commit({ parentCommitIds: ["one", "two"] }))).toMatchObject({
+        expect(getRevisionRestorePlan(commit({ parentCommitIds: ["one", "two"] }))).toEqual({
             supported: false,
-            message: expect.any(String),
+            message: "Discarding from root or merge revisions isn't supported.",
         })
     })
 })
