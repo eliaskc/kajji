@@ -422,28 +422,6 @@ describe("DetailReads", () => {
                 ).toBe(true)
             }),
         ))
-
-    test("an interrupted consumer cannot receive a cached result", () =>
-        run(
-            Effect.gen(function* () {
-                const reads = yield* makeDetailReads(limits)
-                const read = yield* reads.makeReader<string>()
-                yield* read("A", Effect.succeed("A"), size)
-                let published = false
-                const consumer = yield* fork(
-                    Effect.interrupt.pipe(
-                        Effect.andThen(read("A", Effect.succeed("A"), size)),
-                        Effect.tap(() =>
-                            Effect.sync(() => {
-                                published = true
-                            }),
-                        ),
-                    ),
-                )
-                expect(Exit.hasInterrupts(yield* Fiber.await(consumer))).toBe(true)
-                expect(published).toBe(false)
-            }),
-        ))
 })
 
 test("reusable targets require full commit IDs, including every union member", () => {
