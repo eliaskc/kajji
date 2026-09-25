@@ -1446,6 +1446,10 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
             execute: async () => {
                 const commit = selectedLogCommit()
                 if (!commit) return
+                if (!commit.conflict) {
+                    status.show("No conflicts to resolve.")
+                    return
+                }
                 renderer.suspend?.()
                 const revId = getRevisionId(commit)
                 const result = await app
