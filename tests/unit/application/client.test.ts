@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test"
 import { Effect, Layer, Stream } from "effect"
 import { makeApplicationClient } from "../../../src/application/client"
 import type { Bookmark } from "../../../src/commander/bookmarks"
+import { Jj, JjLive, type JjOperationResult, type JjService } from "../../../src/commander/jj"
 import type { CommandObserver } from "../../../src/commander/observer"
 import { ConfigSchema } from "../../../src/config"
 import { makeHooksLayer } from "../../../src/hooks/runner"
@@ -16,6 +17,37 @@ const success: ProcessResult = {
     stderr: "warning\n",
     exitCode: 0,
     durationMs: 10,
+}
+
+interface Invocation {
+    readonly cwd: string
+    readonly args: readonly string[]
+}
+
+function recordingProcess() {
+    const invocations: Invocation[] = []
+    const layer = makeAppProcessFake((command) => {
+        invocations.push({ cwd: command.cwd, args: command.args })
+        return Effect.succeed(success)
+    })
+    return { layer, invocations }
+}
+
+/**
+ * Runs operations directly through Jj. `commander/jj.test.ts` owns the argv
+ * contract; client tests compare against this to prove routing only.
+ */
+async function directJj(
+    operations: ReadonlyArray<(jj: JjService) => Effect.Effect<JjOperationResult, unknown>>,
+) {
+    const { layer, invocations } = recordingProcess()
+    const results = await Effect.runPromise(
+        Effect.forEach(operations, (operation) => Jj.use(operation)).pipe(
+            Effect.provide(JjLive),
+            Effect.provide(layer),
+        ),
+    )
+    return { invocations, commands: results.map((result) => result.command) }
 }
 
 describe("ApplicationClient", () => {
@@ -258,12 +290,8 @@ describe("ApplicationClient", () => {
     })
 
     test("routes the new family with explicit hook skipping", async () => {
-        const commands: string[] = []
+        const { layer, invocations } = recordingProcess()
         const skipped: string[] = []
-        const layer = makeAppProcessFake((command) => {
-            commands.push(command.args.join(" "))
-            return Effect.succeed(success)
-        })
         const observer: CommandObserver = {
             start: () => "command",
             append: () => {},
@@ -271,18 +299,19 @@ describe("ApplicationClient", () => {
             skip: (message) => skipped.push(message),
         }
         const client = makeApplicationClient(layer)
-        const options = {
-            cwd: "/tmp/repository",
-            verify: false,
-            observer,
-        }
+        const options = { cwd: "/tmp/repository", verify: false }
 
-        await client.jjNew("revision", options)
-        await client.jjNewBefore("before", options)
-        await client.jjNewAfter("after", options)
+        await client.jjNew("revision", { ...options, observer })
+        await client.jjNewBefore("before", { ...options, observer })
+        await client.jjNewAfter("after", { ...options, observer })
         await client.dispose()
 
-        expect(commands).toEqual(["new revision", "new -B before", "new -A after"])
+        const direct = await directJj([
+            (jj) => jj.new("revision", options),
+            (jj) => jj.new("before", { ...options, position: "before" }),
+            (jj) => jj.new("after", { ...options, position: "after" }),
+        ])
+        expect(invocations).toEqual(direct.invocations)
         expect(skipped).toEqual([
             "pre-hooks for jj.new skipped (--no-verify)",
             "pre-hooks for jj.new skipped (--no-verify)",
@@ -317,52 +346,32 @@ describe("ApplicationClient", () => {
     })
 
     test("routes push, undo, and redo through the supplied process", async () => {
-        const commands: string[] = []
-        const layer = makeAppProcessFake((command) => {
-            commands.push(`${command.cwd}:jj ${command.args.join(" ")}`)
-            return Effect.succeed(success)
-        })
+        const { layer, invocations } = recordingProcess()
         const client = makeApplicationClient(layer)
 
-        const push = await client.jjGitPush({
-            cwd: "/tmp/push",
-            bookmarks: ["main"],
-            dryRun: true,
-        })
-        const undo = await client.jjUndo({ cwd: "/tmp/undo" })
-        const redo = await client.jjRedo({ cwd: "/tmp/redo" })
-        const restore = await client.jjOpRestore("op-id", {
-            cwd: "/tmp/restore",
-        })
-        const repair = await client.jjWorkspaceUpdateStale({
-            cwd: "/tmp/repair",
-        })
+        const results = [
+            await client.jjGitPush({ cwd: "/tmp/push", bookmarks: ["main"], dryRun: true }),
+            await client.jjUndo({ cwd: "/tmp/undo" }),
+            await client.jjRedo({ cwd: "/tmp/redo" }),
+            await client.jjOpRestore("op-id", { cwd: "/tmp/restore" }),
+            await client.jjWorkspaceUpdateStale({ cwd: "/tmp/repair" }),
+        ]
         await client.dispose()
 
-        expect(commands).toEqual([
-            "/tmp/push:jj git push --bookmark main --dry-run",
-            "/tmp/undo:jj undo",
-            "/tmp/redo:jj redo",
-            "/tmp/restore:jj op restore op-id",
-            "/tmp/repair:jj workspace update-stale",
+        const direct = await directJj([
+            (jj) => jj.gitPush({ cwd: "/tmp/push", bookmarks: ["main"], dryRun: true }),
+            (jj) => jj.undo({ cwd: "/tmp/undo" }),
+            (jj) => jj.redo({ cwd: "/tmp/redo" }),
+            (jj) => jj.opRestore("op-id", { cwd: "/tmp/restore" }),
+            (jj) => jj.workspaceUpdateStale({ cwd: "/tmp/repair" }),
         ])
-        expect([push.command, undo.command, redo.command, restore.command, repair.command]).toEqual(
-            [
-                "jj git push --bookmark main --dry-run",
-                "jj undo",
-                "jj redo",
-                "jj op restore op-id",
-                "jj workspace update-stale",
-            ],
-        )
+        expect(invocations).toEqual(direct.invocations)
+        expect(results.map((result) => result.command)).toEqual(direct.commands)
+        expect(results.every((result) => result.success)).toBe(true)
     })
 
     test("routes revision and bookmark mutations", async () => {
-        const commands: string[] = []
-        const layer = makeAppProcessFake((command) => {
-            commands.push(`jj ${command.args.join(" ")}`)
-            return Effect.succeed(success)
-        })
+        const { layer, invocations } = recordingProcess()
         const client = makeApplicationClient(layer)
         const options = { cwd: "/tmp/repository" }
 
@@ -370,37 +379,31 @@ describe("ApplicationClient", () => {
         await client.jjDescribe("describe", "message", options)
         await client.jjSquash("squash", { ...options, into: "target" })
         await client.jjRebase("rebase", "target", options)
-        await client.jjBookmarkCreate("create", {
-            ...options,
-            revision: "revision",
-        })
+        await client.jjBookmarkCreate("create", { ...options, revision: "revision" })
         await client.jjBookmarkSet("set", "revision", options)
         await client.jjBookmarkDelete("delete", options)
         await client.jjBookmarkRename("old", "new", options)
         await client.jjBookmarkForget("forget", options)
         await client.jjDuplicate("duplicate", options)
         await client.jjAbandon("abandon", options)
-        await client.jjRestore(["path"], {
-            ...options,
-            from: "parent",
-            into: "revision",
-        })
+        await client.jjRestore(["path"], { ...options, from: "parent", into: "revision" })
         await client.dispose()
 
-        expect(commands).toEqual([
-            "jj edit edit",
-            "jj describe describe -m message",
-            "jj squash --from squash --into target",
-            "jj rebase -r rebase -d target",
-            "jj bookmark create create -r revision",
-            "jj bookmark set set -r revision",
-            "jj bookmark delete delete",
-            "jj bookmark rename old new",
-            "jj bookmark forget forget",
-            "jj duplicate duplicate",
-            "jj abandon abandon",
-            "jj restore --from parent --into revision path",
+        const direct = await directJj([
+            (jj) => jj.edit("edit", options),
+            (jj) => jj.describe("describe", "message", options),
+            (jj) => jj.squash("squash", { ...options, into: "target" }),
+            (jj) => jj.rebase("rebase", "target", options),
+            (jj) => jj.bookmarkCreate("create", { ...options, revision: "revision" }),
+            (jj) => jj.bookmarkSet("set", "revision", options),
+            (jj) => jj.bookmarkDelete("delete", options),
+            (jj) => jj.bookmarkRename("old", "new", options),
+            (jj) => jj.bookmarkForget("forget", options),
+            (jj) => jj.duplicate("duplicate", options),
+            (jj) => jj.abandon("abandon", options),
+            (jj) => jj.restore(["path"], { ...options, from: "parent", into: "revision" }),
         ])
+        expect(invocations).toEqual(direct.invocations)
     })
 
     test("routes interactive jj commands and preserves exit behavior", async () => {

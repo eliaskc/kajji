@@ -257,6 +257,7 @@ describe("Jj", () => {
                         ignoreImmutable: true,
                     }),
                 ),
+                Jj.use((jj) => jj.rebase("default-rev", "onto-rev", { cwd: "/tmp/repository" })),
             ],
             { concurrency: 1 },
         ).pipe(Effect.provide(JjLive), Effect.provide(processLayer))
@@ -285,12 +286,14 @@ describe("Jj", () => {
                 "--skip-emptied",
                 "--ignore-immutable",
             ],
+            ["rebase", "-r", "default-rev", "-d", "onto-rev"],
         ])
         expect(results.map((result) => result.command)).toEqual([
             "jj edit edit-rev --ignore-immutable",
             'jj describe describe-rev -m "..."',
             "jj squash --from squash-rev --into target-rev -u -k --ignore-immutable",
             "jj rebase -s rebase-rev -B destination-rev --skip-emptied --ignore-immutable",
+            "jj rebase -r default-rev -d onto-rev",
         ])
     })
 

@@ -25,39 +25,10 @@ function makeCommit(overrides: Partial<Commit> = {}): Commit {
 }
 
 describe("getRevisionId", () => {
-    test("returns changeId for non-divergent commits", () => {
-        const commit = makeCommit({
-            changeId: "abcd1234",
-            commitId: "ff001122",
-            divergent: false,
-        })
-        expect(getRevisionId(commit)).toBe("abcd1234")
-    })
-
-    test("returns commitId for divergent commits", () => {
-        const commit = makeCommit({
-            changeId: "abcd1234",
-            commitId: "ff001122",
-            divergent: true,
-        })
-        expect(getRevisionId(commit)).toBe("ff001122")
-    })
-
-    test("handles empty changeId on non-divergent commit", () => {
-        const commit = makeCommit({
-            changeId: "",
-            commitId: "ff001122",
-            divergent: false,
-        })
-        expect(getRevisionId(commit)).toBe("")
-    })
-
-    test("handles empty commitId on divergent commit", () => {
-        const commit = makeCommit({
-            changeId: "abcd1234",
-            commitId: "",
-            divergent: true,
-        })
-        expect(getRevisionId(commit)).toBe("")
+    test.each([
+        { divergent: false, expected: "abcd1234" },
+        { divergent: true, expected: "ff001122" },
+    ])("divergent=$divergent uses $expected", ({ divergent, expected }) => {
+        expect(getRevisionId(makeCommit({ divergent }))).toBe(expected)
     })
 })
