@@ -310,6 +310,9 @@ export function MainArea() {
 
     let scrollRef: ScrollBoxRenderable | undefined
     let headerRef: BoxRenderable | undefined
+    // Renderable.height is clamped to at least 1, but an empty header takes no rows.
+    const measuredHeaderHeight = () =>
+        headerRef ? headerRef.getLayoutNode().getComputedLayout().height : undefined
 
     const [scrollTop, setScrollTop] = createSignal(0)
     const [viewportHeight, setViewportHeight] = createSignal(30)
@@ -1090,7 +1093,7 @@ export function MainArea() {
         if (!scrollRef) return
         const currentScroll = scrollRef.scrollTop ?? 0
         const currentViewport = scrollRef.viewport?.height ?? 30
-        const currentHeaderHeight = headerRef?.height ?? 0
+        const currentHeaderHeight = measuredHeaderHeight() ?? 0
         const currentViewportWidth = scrollRef.viewport?.width ?? effectiveMainAreaWidth()
         const widthAdjustment = scrollRef.verticalScrollBar.visible
             ? SCROLLBAR_GUTTER
@@ -1124,7 +1127,7 @@ export function MainArea() {
         const anchor = modeScrollAnchor()
         if (!anchor || rowIndex === null) return
         const targetScrollTop =
-            (headerRef?.height ?? modeExpectedHeaderHeight) + rowIndex - anchor.viewportOffset
+            (measuredHeaderHeight() ?? modeExpectedHeaderHeight) + rowIndex - anchor.viewportOffset
         modeSemanticScrollTop = targetScrollTop
         setScrollTop(targetScrollTop)
         scrollRef?.scrollTo(targetScrollTop)
@@ -1148,7 +1151,7 @@ export function MainArea() {
         modeScrollRestoreTimer = setTimeout(() => {
             const correctedScrollTop =
                 modeSemanticScrollTop ??
-                (headerRef?.height ?? modeExpectedHeaderHeight) + preservedContentScrollTop
+                (measuredHeaderHeight() ?? modeExpectedHeaderHeight) + preservedContentScrollTop
             scrollRef?.scrollTo(correctedScrollTop)
             syncScrollMetrics()
             modeScrollRestorePending = false
