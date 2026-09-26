@@ -230,6 +230,7 @@ describe("RepositoryBootstrap recovery", () => {
                 expect(result.refreshState).toEqual({
                     operationId: "op-1",
                     workingCopyCommitId: "commit-1",
+                    untrackedLargeFiles: [],
                 })
                 expect(result.backups).toHaveLength(2)
                 const [jjBackup, gitBackup] = result.backups ?? []
@@ -264,7 +265,11 @@ describe("RepositoryBootstrap recovery", () => {
 
                 expect(result).toEqual({
                     success: true,
-                    refreshState: { operationId: "op-1", workingCopyCommitId: "commit-1" },
+                    refreshState: {
+                        operationId: "op-1",
+                        workingCopyCommitId: "commit-1",
+                        untrackedLargeFiles: [],
+                    },
                 })
                 expect(recoveryLeftovers(repository)).toEqual([])
                 expect(await readdir(join(repository, ".jj"))).toEqual(["repo"])

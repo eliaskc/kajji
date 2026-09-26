@@ -92,6 +92,7 @@ const setup = await testRender(
                             initialRefreshState={{
                                 operationId: "operation-a",
                                 workingCopyCommitId: commit.commitId,
+                                untrackedLargeFiles: [],
                             }}
                         >
                             <KeybindProvider>

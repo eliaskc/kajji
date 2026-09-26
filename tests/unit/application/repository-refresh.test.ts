@@ -32,7 +32,11 @@ describe("repository refresh", () => {
         )
         try {
             const state = await client.jjRefreshState(options)
-            expect(state).toEqual({ operationId: "operation-a", workingCopyCommitId: "commit-a" })
+            expect(state).toEqual({
+                operationId: "operation-a",
+                workingCopyCommitId: "commit-a",
+                untrackedLargeFiles: [],
+            })
             expect(commands).toHaveLength(2)
             expect(commands[0]?.args).not.toContain("--ignore-working-copy")
             expect(commands[1]?.args.slice(-2)).toEqual(["--at-operation", "operation-a"])
@@ -97,6 +101,7 @@ describe("repository refresh", () => {
             expect(await client.jjRefreshState(options)).toEqual({
                 operationId: "id",
                 workingCopyCommitId: "id",
+                untrackedLargeFiles: [],
             })
         } finally {
             await client.dispose()

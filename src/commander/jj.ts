@@ -1,3 +1,5 @@
+import { statSync } from "node:fs"
+import { resolve } from "node:path"
 import { Context, Data, Effect, Layer, RcMap, Schema, Stream } from "effect"
 import { Hooks } from "../hooks/runner"
 import { HookOperation } from "../hooks/types"
@@ -23,6 +25,12 @@ import {
     finalizeLogStream,
     parseLogOutput,
 } from "./log"
+import {
+    type UntrackedLargeFile,
+    hasRefusedSnapshotWarning,
+    mergeUntrackedLargeFiles,
+    parseRefusedSnapshotFiles,
+} from "./snapshot-warnings"
 import type { Commit, FileChange } from "./types"
 
 export type JjStreamEvent<A, R> =
@@ -44,7 +52,7 @@ export interface JjOperationOptions {
 }
 
 export interface JjRefreshOptions extends JjOperationOptions {
-    readonly previousState?: JjRefreshState
+    readonly previousState?: Pick<JjRefreshState, "operationId" | "workingCopyCommitId">
 }
 
 export interface JjGitFetchOptions extends JjOperationOptions {
@@ -134,6 +142,8 @@ export interface JjDescription {
 export interface JjRefreshState {
     readonly operationId: string
     readonly workingCopyCommitId: string
+    /** New working-copy files that jj refused to snapshot because they are too large. */
+    readonly untrackedLargeFiles: readonly UntrackedLargeFile[]
 }
 
 export interface JjCommitDetails {
@@ -448,6 +458,21 @@ export const JjLayer: Layer.Layer<Jj, never, AppProcess | Hooks> = Layer.effect(
         const appProcess = yield* AppProcess
         const hooks = yield* Hooks
 
+        // Large files jj refused to snapshot, per working directory. Any snapshotting
+        // command can report them, so every jj result feeds this map.
+        const untrackedLargeFiles = new Map<string, readonly UntrackedLargeFile[]>()
+        const fsmonitorEnabled = new Map<string, boolean>()
+        const recordRefusedSnapshotFiles = (cwd: string, stderr: string) => {
+            if (!hasRefusedSnapshotWarning(stderr)) return
+            untrackedLargeFiles.set(
+                cwd,
+                mergeUntrackedLargeFiles(
+                    untrackedLargeFiles.get(cwd) ?? [],
+                    parseRefusedSnapshotFiles(stderr),
+                ),
+            )
+        }
+
         const runRaw = Effect.fn("Jj.runRaw")(function* (
             args: readonly string[],
             options: JjOperationOptions,
@@ -488,6 +513,7 @@ export const JjLayer: Layer.Layer<Jj, never, AppProcess | Hooks> = Layer.effect(
                 ),
             )
 
+            recordRefusedSnapshotFiles(options.cwd, result.stderr)
             notify(() => options.sink?.finish(result))
             return { ...result, command }
         })
@@ -609,6 +635,66 @@ export const JjLayer: Layer.Layer<Jj, never, AppProcess | Hooks> = Layer.effect(
                 .trim()
         })
 
+        const isFsmonitorEnabled = Effect.fn("Jj.fsmonitorEnabled")(function* (cwd: string) {
+            const cached = fsmonitorEnabled.get(cwd)
+            if (cached !== undefined) return cached
+            const result = yield* runRaw(["config", "get", "fsmonitor.backend"], { cwd })
+            const backend = result.exitCode === 0 ? result.stdout.trim() : ""
+            const enabled = backend !== "" && backend !== "none"
+            fsmonitorEnabled.set(cwd, enabled)
+            return enabled
+        })
+
+        const isStillTooLarge = (cwd: string, file: UntrackedLargeFile) => {
+            try {
+                const stats = statSync(resolve(cwd, file.path))
+                return stats.isFile() && stats.size > file.maxSize
+            } catch {
+                return false
+            }
+        }
+
+        // Without an fsmonitor, every snapshot scans all files, so its report is complete.
+        // With one (e.g. Watchman), jj reports a refused file only when the file changes,
+        // so keep known files until they are gone, small enough, or tracked in `@`.
+        const reconcileUntrackedLargeFiles = Effect.fn("Jj.reconcileUntrackedLargeFiles")(
+            function* (cwd: string, reported: readonly UntrackedLargeFile[], operationId: string) {
+                const known = untrackedLargeFiles.get(cwd) ?? []
+                if (known.length === 0 && reported.length === 0) return known
+                if (!(yield* isFsmonitorEnabled(cwd))) {
+                    untrackedLargeFiles.set(cwd, reported)
+                    return reported
+                }
+                let files = mergeUntrackedLargeFiles(known, reported).filter((file) =>
+                    isStillTooLarge(cwd, file),
+                )
+                if (files.length > 0) {
+                    const result = yield* runRead(
+                        [
+                            "file",
+                            "list",
+                            "-r",
+                            "@",
+                            "--",
+                            ...toFilesetArgs(files.map((file) => file.path)),
+                        ],
+                        { cwd, atOperation: operationId },
+                    )
+                    if (result.exitCode === 0) {
+                        const tracked = new Set(
+                            result.stdout
+                                .split("\n")
+                                .map((line) => line.trim())
+                                .filter(Boolean),
+                        )
+                        files = files.filter((file) => !tracked.has(file.path))
+                    }
+                }
+                untrackedLargeFiles.set(cwd, files)
+                return files
+            },
+        )
+
         const readDiff = Effect.fn("Jj.diff")(function* (args: string[], options: JjDiffOptions) {
             if (options.paths?.length) {
                 args.push(...toFilesetArgs([...options.paths]))
@@ -686,7 +772,12 @@ export const JjLayer: Layer.Layer<Jj, never, AppProcess | Hooks> = Layer.effect(
                     operationId === key.previousOperationId && key.previousCommitId
                         ? key.previousCommitId
                         : yield* readWorkingCopyCommitId({ ...options, atOperation: operationId })
-                return { operationId, workingCopyCommitId }
+                const largeFiles = yield* reconcileUntrackedLargeFiles(
+                    key.cwd,
+                    parseRefusedSnapshotFiles(result.stderr),
+                    operationId,
+                )
+                return { operationId, workingCopyCommitId, untrackedLargeFiles: largeFiles }
             }),
         })
 

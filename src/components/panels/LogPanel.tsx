@@ -10,6 +10,7 @@ import { useCommandLog } from "../../context/commandlog"
 import { DIALOG_SIZE, useDialog } from "../../context/dialog"
 import { useFocus } from "../../context/focus"
 import { useKeybind } from "../../context/keybind"
+import { useLayout } from "../../context/layout"
 import { useStatus } from "../../context/status"
 import { useSync } from "../../context/sync"
 import { useTheme } from "../../context/theme"
@@ -28,6 +29,7 @@ import {
 import { blendColors } from "../../utils/color"
 import { createDoubleClickDetector } from "../../utils/double-click"
 import { isImmutableError } from "../../utils/error-parser"
+import { getFilesLayoutWeights } from "../../utils/layout"
 import { buildRowOffsets } from "../../utils/list-window"
 import { getRevisionRestorePlan } from "../../utils/revision-restore"
 import { type SelectionSource, shouldAutoScrollSelection } from "../../utils/scroll"
@@ -43,6 +45,7 @@ import { SetBookmarkModal } from "../modals/SetBookmarkModal"
 import { SquashModal } from "../modals/SquashModal"
 import { UndoModal } from "../modals/UndoModal"
 import { Panel } from "../Panel"
+import { UntrackedLargeFiles } from "../UntrackedLargeFiles"
 import { VirtualList } from "../VirtualList"
 
 type LogTab = "revisions" | "oplog"
@@ -207,8 +210,10 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
         bookmarkPrNumbers,
         refreshPullRequestMetadata,
         readOptions,
+        untrackedLargeFiles,
     } = useSync()
     const focus = useFocus()
+    const layout = useLayout()
     const command = useCommand()
     const commandLog = useCommandLog()
     const dialog = useDialog()
@@ -2687,6 +2692,14 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
 
     const renderFilesContent = () => {
         const hasChangedFiles = () => (fileTree()?.children.length ?? 0) > 0
+        // Refused files belong to the working copy, not to bookmark or multi-revision diffs.
+        const filesUntrackedLargeFiles = () =>
+            !activeBookmarkDiff() && selectedLogCommit()?.isWorkingCopy ? untrackedLargeFiles() : []
+        const filesPanelWidth = () => {
+            const weights = getFilesLayoutWeights(layout.terminalWidth())
+            const ratio = weights.files / (weights.files + weights.detail)
+            return Math.max(1, Math.floor(layout.terminalWidth() * ratio) - 4)
+        }
 
         return (
             <box flexDirection="column" flexGrow={1}>
@@ -2714,6 +2727,20 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                             filesFilterApi = api
                         }}
                     />
+                </Show>
+                <Show when={filesUntrackedLargeFiles().length > 0}>
+                    <box height={1} overflow="hidden" flexShrink={0}>
+                        <text fg={colors().backgroundElement} wrapMode="none">
+                            {"─".repeat(200)}
+                        </text>
+                    </box>
+                    <box paddingLeft={1} flexShrink={0}>
+                        <UntrackedLargeFiles
+                            files={filesUntrackedLargeFiles()}
+                            maxWidth={filesPanelWidth()}
+                            compact
+                        />
+                    </box>
                 </Show>
             </box>
         )

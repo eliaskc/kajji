@@ -29,6 +29,7 @@ import { StatusProvider, useStatus } from "./context/status"
 import { SyncProvider, useSync } from "./context/sync"
 import { ThemeProvider, useTheme } from "./context/theme"
 import { UpdateProvider, useUpdate } from "./context/update"
+import { useUntrackedLargeFilesLog } from "./hooks/untracked-large-files-log"
 import { getRepoPath, setRepoPath } from "./repo"
 import { getChangesSince, isMajorOrMinorUpdate, parseChangelog } from "./utils/changelog"
 import type { VersionBlock } from "./utils/changelog"
@@ -84,6 +85,7 @@ function AppContent({ onQuit }: Pick<AppProps, "onQuit">) {
     const status = useStatus()
     const { setTheme, setThemeMode, setSyntaxTheme } = useTheme()
     const [whatsNewChanges, setWhatsNewChanges] = createSignal<VersionBlock[] | null>(null)
+    useUntrackedLargeFilesLog()
 
     const visiblePanels = (): Panel[] =>
         viewMode() === "files" ? ["log", "detail"] : ["log", "refs", "detail", "commandlog"]

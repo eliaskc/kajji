@@ -13,7 +13,13 @@ import {
 } from "solid-js"
 import type { Bookmark } from "../commander/bookmarks"
 import type { GitHubPullRequestSummary } from "../commander/github"
-import type { JjDiffTarget, JjOperationOptions, JjRefreshState } from "../commander/jj"
+import type {
+    JjDiffTarget,
+    JjOperationOptions,
+    JjRefreshOptions,
+    JjRefreshState,
+} from "../commander/jj"
+import { type UntrackedLargeFile, sameUntrackedLargeFiles } from "../commander/snapshot-warnings"
 import { getRepoPath } from "../repo"
 import { findCommitIndex } from "../utils/commit-selection"
 import { connectedRevisionRange } from "../utils/revision-range"
@@ -153,6 +159,8 @@ interface SyncContextValue {
 
     refresh: (options?: RefreshOptions) => Promise<void>
     refreshCounter: () => number
+    /** New working-copy files that jj refused to snapshot because they are too large. */
+    untrackedLargeFiles: () => readonly UntrackedLargeFile[]
 }
 
 const SyncContext = createContext<SyncContextValue>()
@@ -266,6 +274,9 @@ export function SyncProvider(props: {
 
     const [commitDetails, setCommitDetails] = createSignal<CommitDetails | null>(null)
     const [refreshCounter, setRefreshCounter] = createSignal(0)
+    const [untrackedLargeFiles, setUntrackedLargeFiles] = createSignal<
+        readonly UntrackedLargeFile[]
+    >(props.initialRefreshState?.untrackedLargeFiles ?? [], { equals: sameUntrackedLargeFiles })
 
     const [revsetFilter, setRevsetFilterSignal] = createSignal<string | null>(null)
     const [revsetError, setRevsetError] = createSignal<string | null>(null)
@@ -352,7 +363,7 @@ export function SyncProvider(props: {
         cwd: getRepoPath(),
         atOperation: lastOpLogId || undefined,
     })
-    const previousState = (): JjRefreshState | undefined =>
+    const previousState = (): JjRefreshOptions["previousState"] =>
         lastOpLogId && lastWorkingCopyCommitId
             ? { operationId: lastOpLogId, workingCopyCommitId: lastWorkingCopyCommitId }
             : undefined
@@ -396,6 +407,7 @@ export function SyncProvider(props: {
                     signal: refreshAbort.signal,
                 }))
             if (syncDisposed) return
+            setUntrackedLargeFiles(refreshState.untrackedLargeFiles)
             if (refreshState.operationId) {
                 lastOpLogId = refreshState.operationId
             }
@@ -477,6 +489,7 @@ export function SyncProvider(props: {
                     signal: refreshAbort.signal,
                 })
                 if (disposed || generation !== refreshGeneration) return
+                setUntrackedLargeFiles(refreshState.untrackedLargeFiles)
                 if (!refreshState.operationId && !refreshState.workingCopyCommitId) {
                     return
                 }
@@ -1408,6 +1421,7 @@ export function SyncProvider(props: {
         readOptions,
         refresh: doFullRefresh,
         refreshCounter,
+        untrackedLargeFiles,
     }
 
     return <SyncContext.Provider value={value}>{props.children}</SyncContext.Provider>

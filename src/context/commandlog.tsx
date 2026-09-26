@@ -1,9 +1,14 @@
 import { createSignal } from "solid-js"
 import type { CommandKind, CommandObserver } from "../commander/observer"
+import {
+    type UntrackedLargeFile,
+    parseRefusedSnapshotFiles,
+    stripRefusedSnapshotWarning,
+} from "../commander/snapshot-warnings"
 import type { OperationResult } from "../process/operation-result"
 import { createSimpleContext } from "./helper"
 
-export type CommandLogStatus = "running" | "success" | "failure" | "skipped" | "info"
+export type CommandLogStatus = "running" | "success" | "failure" | "skipped" | "info" | "warning"
 
 export interface CommandLogEntry {
     id: string
@@ -44,6 +49,22 @@ export const { use: useCommandLog, provider: CommandLogProvider } = createSimple
     init: () => {
         const [entries, setEntries] = createSignal<CommandLogEntry[]>([])
 
+        // Commands that snapshot print jj's large-file warning. The log replaces that raw
+        // block with kajji's own entry, which listeners add (see untracked-large-files-log).
+        const largeFileListeners = new Set<(files: UntrackedLargeFile[]) => void>()
+        const onRefusedSnapshotFiles = (listener: (files: UntrackedLargeFile[]) => void) => {
+            largeFileListeners.add(listener)
+            return () => largeFileListeners.delete(listener)
+        }
+        const takeRefusedSnapshotFiles = (output: string) => {
+            const files = parseRefusedSnapshotFiles(output)
+            return { output: stripRefusedSnapshotWarning(output), files }
+        }
+        const reportRefusedSnapshotFiles = (files: UntrackedLargeFile[]) => {
+            if (files.length === 0) return
+            for (const listener of largeFileListeners) listener(files)
+        }
+
         const start = (command: string, kind?: CommandKind): string => {
             const id = crypto.randomUUID()
             setEntries((prev) =>
@@ -76,12 +97,16 @@ export const { use: useCommandLog, provider: CommandLogProvider } = createSimple
         }
 
         const finish = (id: string, result: OperationResult) => {
+            const current = entries().find((entry) => entry.id === id)
+            const { output, files } = takeRefusedSnapshotFiles(
+                current?.output || combinedOutput(result),
+            )
             setEntries((prev) =>
                 prev.map((entry) =>
                     entry.id === id
                         ? {
                               ...entry,
-                              output: entry.output || combinedOutput(result),
+                              output,
                               status: result.success ? "success" : "failure",
                               exitCode: result.exitCode,
                               completedAt: new Date(),
@@ -89,6 +114,7 @@ export const { use: useCommandLog, provider: CommandLogProvider } = createSimple
                         : entry,
                 ),
             )
+            reportRefusedSnapshotFiles(files)
         }
 
         const skip = (message: string) => {
@@ -121,22 +147,39 @@ export const { use: useCommandLog, provider: CommandLogProvider } = createSimple
             )
         }
 
+        const warn = (message: string, output = "") => {
+            setEntries((prev) =>
+                limitEntries([
+                    ...prev,
+                    {
+                        id: crypto.randomUUID(),
+                        message,
+                        output: limitOutput(output),
+                        status: "warning",
+                        timestamp: new Date(),
+                    },
+                ]),
+            )
+        }
+
         const addEntries = (newEntries: readonly CommandLogEntry[]) => {
             setEntries((prev) => limitEntries([...prev, ...newEntries]))
         }
 
         const addEntry = (result: OperationResult) => {
             if (result.logged) return
+            const { output, files } = takeRefusedSnapshotFiles(combinedOutput(result))
             const entry: CommandLogEntry = {
                 id: crypto.randomUUID(),
                 command: result.command,
-                output: combinedOutput(result),
+                output,
                 status: result.success ? "success" : "failure",
                 exitCode: result.exitCode,
                 timestamp: new Date(),
                 completedAt: new Date(),
             }
             setEntries((prev) => limitEntries([...prev, entry]))
+            reportRefusedSnapshotFiles(files)
         }
 
         const observer = (): CommandObserver => ({
@@ -162,6 +205,8 @@ export const { use: useCommandLog, provider: CommandLogProvider } = createSimple
             finish,
             skip,
             info,
+            warn,
+            onRefusedSnapshotFiles,
             observer,
             clear,
             latest,

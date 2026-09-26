@@ -14,6 +14,7 @@ import {
 import { benchmarkRegion, registerBenchmarkState } from "../../utils/benchmark"
 
 import type { JjDiffTarget } from "../../commander/jj"
+import type { UntrackedLargeFile } from "../../commander/snapshot-warnings"
 import type { Commit } from "../../commander/types"
 import { type AppConfig, onConfigChange, readConfig } from "../../config"
 import { useApplication } from "../../context/application"
@@ -49,6 +50,7 @@ import { openInEditor, shouldSuspendForEditor } from "../../utils/editor"
 import { orderFilesByPath } from "../../utils/file-tree"
 import { getFilesLayoutWeights } from "../../utils/layout"
 import { truncatePathMiddle } from "../../utils/path-truncate"
+import { REFUSED_TO_SNAPSHOT } from "../../utils/untracked-large-files"
 import { AnsiText } from "../AnsiText"
 import { VirtualizedSplitView, VirtualizedUnifiedView } from "../diff"
 import { DiffFileHeader } from "../diff/DiffFileHeader"
@@ -60,6 +62,7 @@ import {
     RevisionRangeHeader,
     stripEmail,
 } from "../RevisionHeader"
+import { UntrackedLargeFiles } from "../UntrackedLargeFiles"
 
 type DiffViewStyle = "unified" | "split"
 
@@ -124,7 +127,14 @@ class MacOSLikeScrollAccel {
     }
 }
 
-function FileStats(props: { stats: DiffStats; maxWidth: number }) {
+function FileStats(props: {
+    stats: DiffStats
+    maxWidth: number
+    /** Blank row above the stats. Off when a divider already separates them. */
+    leadingBlank?: boolean
+    /** Minimum path column, shared with the refused files above so the bars line up. */
+    minPathColumnWidth?: number
+}) {
     const { colors } = useTheme()
     const s = () => props.stats
 
@@ -139,7 +149,10 @@ function FileStats(props: { stats: DiffStats; maxWidth: number }) {
             maxLen = Math.max(maxLen, pathText.length)
             return { file, pathText }
         })
-        const pathColumnWidth = Math.min(maxPathWidth, maxLen)
+        const pathColumnWidth = Math.min(
+            maxPathWidth,
+            Math.max(maxLen, props.minPathColumnWidth ?? 1),
+        )
         const availableBarWidth = Math.max(
             1,
             props.maxWidth - pathColumnWidth - separatorWidth - barMargin,
@@ -171,7 +184,9 @@ function FileStats(props: { stats: DiffStats; maxWidth: number }) {
 
     return (
         <>
-            <text> </text>
+            <Show when={props.leadingBlank ?? true}>
+                <text> </text>
+            </Show>
             <For each={rows()}>
                 {(row) => {
                     const fileNameStart = row.pathText.lastIndexOf("/") + 1
@@ -209,6 +224,7 @@ function CommitHeader(props: {
     commit: Commit
     details: CommitDetails | null
     stats: DiffStats | null
+    untrackedLargeFiles: readonly UntrackedLargeFile[]
     maxWidth: number
 }) {
     const { colors } = useTheme()
@@ -221,6 +237,16 @@ function CommitHeader(props: {
     })
 
     const cleanRefLine = () => stripEmail(props.commit.refLine, props.commit.authorEmail)
+    // Refused files and file stats share one path column, so their ` | ` bars line up.
+    const pathColumnWidth = createMemo(() => {
+        const maxPathWidth = Math.max(1, Math.floor(props.maxWidth * 0.75))
+        const lengths = [
+            REFUSED_TO_SNAPSHOT.length,
+            ...(props.stats?.files ?? []).map((file) => file.path.length),
+            ...props.untrackedLargeFiles.map((file) => file.path.length),
+        ]
+        return Math.min(maxPathWidth, Math.max(1, ...lengths))
+    })
 
     return (
         <box flexDirection="column" flexShrink={0}>
@@ -251,10 +277,28 @@ function CommitHeader(props: {
                     </box>
                 )}
             </Show>
+            <Show when={props.untrackedLargeFiles.length > 0}>
+                <box flexDirection="column">
+                    <text> </text>
+                    <UntrackedLargeFiles
+                        files={props.untrackedLargeFiles}
+                        maxWidth={props.maxWidth}
+                        pathColumnWidth={pathColumnWidth()}
+                    />
+                    <text fg={colors().backgroundElement} wrapMode="none">
+                        {"─".repeat(props.maxWidth + 2)}
+                    </text>
+                </box>
+            </Show>
             <Show when={props.stats && props.stats.totalFiles > 0 ? props.stats : undefined}>
                 {(stats: () => DiffStats) => (
                     <box flexDirection="column">
-                        <FileStats stats={stats()} maxWidth={props.maxWidth} />
+                        <FileStats
+                            stats={stats()}
+                            maxWidth={props.maxWidth}
+                            leadingBlank={props.untrackedLargeFiles.length === 0}
+                            minPathColumnWidth={pathColumnWidth()}
+                        />
                     </box>
                 )}
             </Show>
@@ -280,6 +324,7 @@ export function MainArea() {
         multiSelectedCommits,
         multiSelectionRevsetIds,
         readOptions,
+        untrackedLargeFiles,
     } = useSync()
 
     // Takes over the detail panel while two or more revisions are marked.
@@ -1686,6 +1731,9 @@ export function MainArea() {
                                             commit={commit()}
                                             details={displayedCommitDetails()}
                                             stats={diffStats()}
+                                            untrackedLargeFiles={
+                                                commit().isWorkingCopy ? untrackedLargeFiles() : []
+                                            }
                                             maxWidth={Math.max(1, viewportWidth())}
                                         />
                                     )}

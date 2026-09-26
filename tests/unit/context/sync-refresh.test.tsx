@@ -52,7 +52,11 @@ for (const seeded of [false, true]) {
                                 <SyncProvider
                                     initialRefreshState={
                                         seeded
-                                            ? { operationId, workingCopyCommitId: "commit-id" }
+                                            ? {
+                                                  operationId,
+                                                  workingCopyCommitId: "commit-id",
+                                                  untrackedLargeFiles: [],
+                                              }
                                             : undefined
                                     }
                                 >

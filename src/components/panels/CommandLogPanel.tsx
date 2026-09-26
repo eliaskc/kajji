@@ -1,5 +1,6 @@
 import type { ScrollBoxRenderable } from "@opentui/core"
 import { For, Show, createMemo, createSignal, onCleanup } from "solid-js"
+import { stripRefusedSnapshotWarning } from "../../commander/snapshot-warnings"
 import { useCommand } from "../../context/command"
 import { useCommandLog } from "../../context/commandlog"
 import { useFocus } from "../../context/focus"
@@ -36,6 +37,7 @@ export function CommandLogPanel() {
     const entryColor = (entry: ReturnType<typeof commandLog.entries>[number]) => {
         if (entry.status === "failure") return colors().error
         if (entry.status === "success") return successColor(entry)
+        if (entry.status === "warning") return colors().warning
         if (entry.status === "skipped" || entry.status === "info") return colors().textMuted
         return colors().textMuted
     }
@@ -51,6 +53,10 @@ export function CommandLogPanel() {
             isCommand && entry.status === "failure" ? `  [exit ${entry.exitCode ?? 1}]` : ""
         return `${body}${suffix}`
     }
+
+    // Finished entries are already clean; strip streamed output while a command runs.
+    const displayOutput = (entry: ReturnType<typeof commandLog.entries>[number]) =>
+        entry.status === "running" ? stripRefusedSnapshotWarning(entry.output) : entry.output
 
     const shouldShowNoOutput = (entry: ReturnType<typeof commandLog.entries>[number]) =>
         entry.kind === "hook" && entry.status === "success" && entry.output.length === 0
@@ -183,12 +189,12 @@ export function CommandLogPanel() {
                                             </text>
                                             <Show
                                                 when={
-                                                    entry.output.length > 0 ||
+                                                    displayOutput(entry).length > 0 ||
                                                     shouldShowNoOutput(entry)
                                                 }
                                             >
                                                 <text fg={colors().text}>
-                                                    {entry.output || "[no output]"}
+                                                    {displayOutput(entry) || "[no output]"}
                                                 </text>
                                             </Show>
                                         </box>

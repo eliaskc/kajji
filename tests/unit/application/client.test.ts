@@ -120,7 +120,11 @@ describe("ApplicationClient", () => {
             brokenMetadata: null,
             startupError: null,
             repoPath: "/tmp/repository",
-            refreshState: { operationId: "snapshot-id", workingCopyCommitId: "snapshot-id" },
+            refreshState: {
+                operationId: "snapshot-id",
+                workingCopyCommitId: "snapshot-id",
+                untrackedLargeFiles: [],
+            },
         })
         await expect(
             client.initializeRepository("/tmp/new-repository", {
@@ -479,6 +483,7 @@ describe("ApplicationClient", () => {
         expect(await client.jjRefreshState(options)).toEqual({
             operationId: "op",
             workingCopyCommitId: "commit",
+            untrackedLargeFiles: [],
         })
         await client.dispose()
     })

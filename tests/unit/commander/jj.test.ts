@@ -605,6 +605,7 @@ describe("Jj", () => {
         expect(refreshState).toEqual({
             operationId: "operation-id",
             workingCopyCommitId: "commit-id",
+            untrackedLargeFiles: [],
         })
     })
 
@@ -913,6 +914,81 @@ describe("Jj", () => {
         await expect(Effect.runPromise(effect)).rejects.toBeInstanceOf(JjCommandError)
     })
 
+    describe("untracked large files", () => {
+        const refusedWarning = (path: string) =>
+            `Warning: Refused to snapshot some files:\n  ${path}: 5B (5 bytes); the maximum size allowed is 1B (1 bytes)\n`
+
+        function fakeRepository(fsmonitor: string) {
+            const state = { snapshotStderr: "", mutationStderr: "", tracked: "" }
+            const layer = makeAppProcessFake((command) => {
+                const args = command.args.join(" ")
+                const stdout = (value: string, stderr = "") =>
+                    Effect.succeed({ ...success, stdout: value, stderr })
+                if (args.startsWith("op log")) return stdout("operation-id", state.snapshotStderr)
+                if (args.startsWith("config get")) return stdout(`${fsmonitor}\n`)
+                if (args.startsWith("file list")) return stdout(state.tracked)
+                if (args.startsWith("abandon")) return stdout("", state.mutationStderr)
+                return stdout("commit-id")
+            })
+            return { state, layer }
+        }
+
+        const refreshFiles = (cwd: string) =>
+            Jj.use((jj) => jj.refreshState({ cwd })).pipe(
+                Effect.map((state) => state.untrackedLargeFiles.map((file) => file.path)),
+            )
+
+        test("uses each full snapshot report without an fsmonitor", async () => {
+            const repository = fakeRepository("none")
+            const paths = await Effect.runPromise(
+                Effect.gen(function* () {
+                    repository.state.snapshotStderr = refusedWarning("big.bin")
+                    const reported = yield* refreshFiles("/tmp/repository")
+                    repository.state.snapshotStderr = ""
+                    const cleared = yield* refreshFiles("/tmp/repository")
+                    return { reported, cleared }
+                }).pipe(Effect.provide(JjLive), Effect.provide(repository.layer)),
+            )
+
+            expect(paths).toEqual({ reported: ["big.bin"], cleared: [] })
+        })
+
+        test("keeps files with an fsmonitor until they are tracked or small enough", async () => {
+            const cwd = await mkdtemp(join(tmpdir(), "kajji-large-files-"))
+            try {
+                await writeFile(join(cwd, "big.bin"), "12345")
+                await writeFile(join(cwd, "other.bin"), "12345")
+                const repository = fakeRepository("watchman")
+                const paths = await Effect.runPromise(
+                    Effect.gen(function* () {
+                        // Any snapshotting command can report a refused file.
+                        repository.state.mutationStderr = refusedWarning("big.bin")
+                        yield* Jj.use((jj) => jj.abandon("revision", { cwd }))
+                        repository.state.snapshotStderr = refusedWarning("other.bin")
+                        const reported = yield* refreshFiles(cwd)
+                        // Watchman: later snapshots skip unchanged files, so they report nothing.
+                        repository.state.snapshotStderr = ""
+                        const unchanged = yield* refreshFiles(cwd)
+                        yield* Effect.promise(() => writeFile(join(cwd, "other.bin"), "1"))
+                        const shrunk = yield* refreshFiles(cwd)
+                        repository.state.tracked = "big.bin\n"
+                        const tracked = yield* refreshFiles(cwd)
+                        return { reported, unchanged, shrunk, tracked }
+                    }).pipe(Effect.provide(JjLive), Effect.provide(repository.layer)),
+                )
+
+                expect(paths).toEqual({
+                    reported: ["big.bin", "other.bin"],
+                    unchanged: ["big.bin", "other.bin"],
+                    shrunk: ["big.bin"],
+                    tracked: [],
+                })
+            } finally {
+                await rm(cwd, { recursive: true, force: true })
+            }
+        })
+    })
+
     test("reports output and exactly one completion to the sink", async () => {
         const events: string[] = []
         const sink: OperationSink = {
@@ -1000,6 +1076,26 @@ describe("Jj", () => {
     })
 })
 
+/** Real process execution with an isolated jj config. */
+function realJjProcessLayer(config: string) {
+    return Layer.effect(
+        AppProcess,
+        AppProcess.use((appProcess) =>
+            Effect.succeed(
+                AppProcess.of({
+                    run: (command) =>
+                        appProcess.run({ ...command, env: { ...command.env, JJ_CONFIG: config } }),
+                    stream: (command) =>
+                        appProcess.stream({
+                            ...command,
+                            env: { ...command.env, JJ_CONFIG: config },
+                        }),
+                }),
+            ),
+        ),
+    ).pipe(Layer.provide(AppProcessLive))
+}
+
 describe("Jj with real jj", () => {
     test("reads one summary per revision", async () => {
         const root = await mkdtemp(join(tmpdir(), "kajji-summaries-"))
@@ -1010,25 +1106,7 @@ describe("Jj with real jj", () => {
             const child = Bun.spawnSync(["jj", ...args], { cwd: root, env })
             if (!child.success) throw new Error(child.stderr.toString())
         }
-        const processLayer = Layer.effect(
-            AppProcess,
-            AppProcess.use((appProcess) =>
-                Effect.succeed(
-                    AppProcess.of({
-                        run: (command) =>
-                            appProcess.run({
-                                ...command,
-                                env: { ...command.env, JJ_CONFIG: config },
-                            }),
-                        stream: (command) =>
-                            appProcess.stream({
-                                ...command,
-                                env: { ...command.env, JJ_CONFIG: config },
-                            }),
-                    }),
-                ),
-            ),
-        ).pipe(Layer.provide(AppProcessLive))
+        const processLayer = realJjProcessLayer(config)
         try {
             run("git", "init")
             run("describe", "-m", "first")
@@ -1048,6 +1126,37 @@ describe("Jj with real jj", () => {
                 "first",
             ])
             expect(summaries.every((summary) => /^[0-9a-f]{40}$/.test(summary.commitId))).toBe(true)
+        } finally {
+            await rm(root, { recursive: true, force: true })
+        }
+    })
+
+    test("reports new files that jj refuses to snapshot", async () => {
+        const root = await mkdtemp(join(tmpdir(), "kajji-large-files-"))
+        const config = join(root, "jj.toml")
+        await writeFile(
+            config,
+            '[user]\nname="Test"\nemail="test@example.com"\n[snapshot]\nmax-new-file-size=10\n',
+        )
+        const env = { ...process.env, JJ_CONFIG: config }
+        const processLayer = realJjProcessLayer(config)
+        const repository = join(root, "repository")
+        try {
+            const init = Bun.spawnSync(["jj", "git", "init", repository], { env })
+            if (!init.success) throw new Error(init.stderr.toString())
+            await writeFile(join(repository, "big file.bin"), "01234567890123456789")
+            await writeFile(join(repository, "small.txt"), "ok")
+
+            const state = await Effect.runPromise(
+                Jj.use((jj) => jj.refreshState({ cwd: repository })).pipe(
+                    Effect.provide(JjLive),
+                    Effect.provide(processLayer),
+                ),
+            )
+
+            expect(state.untrackedLargeFiles).toEqual([
+                { path: "big file.bin", size: 20, maxSize: 10 },
+            ])
         } finally {
             await rm(root, { recursive: true, force: true })
         }
