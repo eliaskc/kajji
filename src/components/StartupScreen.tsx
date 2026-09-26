@@ -110,7 +110,7 @@ function GitRepoScreen(props: GitRepoScreenProps) {
                                     }}
                                 >
                                     <text fg={colors().text}>{option.label}</text>
-                                    <text fg={colors().primary}>{option.key}</text>
+                                    <text fg={colors().brand}>{option.key}</text>
                                 </box>
                             )
                         }}
@@ -273,7 +273,7 @@ function NoVcsScreen(props: NoVcsScreenProps) {
                     }}
                 >
                     <text fg={colors().text}>jj git init</text>
-                    <text fg={colors().primary}>i</text>
+                    <text fg={colors().brand}>i</text>
                 </box>
                 <Show
                     when={props.recentRepos.length > 0}
@@ -312,7 +312,7 @@ function NoVcsScreen(props: NoVcsScreenProps) {
                                                     handleDoubleClick()
                                                 }}
                                             >
-                                                <text fg={colors().primary} wrapMode="none">
+                                                <text fg={colors().brand} wrapMode="none">
                                                     {num}.{" "}
                                                 </text>
                                                 <text wrapMode="none" fg={colors().text}>

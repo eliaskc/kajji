@@ -227,7 +227,7 @@ function CommitHeader(props: {
             <AnsiText content={cleanRefLine()} wrapMode="none" />
             <text>
                 <span style={{ fg: colors().textMuted }}>{"Author: "}</span>
-                <span style={{ fg: colors().secondary }}>
+                <span style={{ fg: colors().accent }}>
                     {`${props.commit.author} <${props.commit.authorEmail}>`}
                 </span>
             </text>

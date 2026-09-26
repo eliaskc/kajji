@@ -88,9 +88,9 @@ export function StackPlanModal(props: StackPlanModalProps) {
                                             style={{
                                                 fg:
                                                     segment.kind === "action"
-                                                        ? colors().warning
+                                                        ? colors().highlight
                                                         : segment.kind === "identifier"
-                                                          ? colors().primary
+                                                          ? colors().brand
                                                           : colors().text,
                                             }}
                                         >

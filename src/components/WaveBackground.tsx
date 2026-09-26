@@ -85,7 +85,7 @@ export function WaveBackground(props: WaveBackgroundProps) {
         const { width, height } = dimensions()
         const t = tick()
         const bg = colors().background
-        const peak = props.peakColor ?? colors().primary
+        const peak = props.peakColor ?? colors().brand
         const opacity = props.peakOpacity ?? (mode() === "light" ? 0.85 : 0.5)
 
         const result: string[][] = []

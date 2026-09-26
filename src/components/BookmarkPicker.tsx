@@ -120,7 +120,7 @@ export function BookmarkPicker(props: BookmarkPickerProps) {
                                 onMouseDown={() => list.selectByMouse(index())}
                             >
                                 <text wrapMode="none">
-                                    <span style={{ fg: colors().primary }}>{bookmark.name}</span>
+                                    <span style={{ fg: colors().brand }}>{bookmark.name}</span>
                                     <span style={{ fg: colors().textMuted }}>
                                         {" "}
                                         {bookmark.changeId.slice(0, 8)}

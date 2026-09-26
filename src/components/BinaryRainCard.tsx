@@ -57,7 +57,7 @@ export function BinaryRainCard(props: BinaryRainCardProps) {
         const c = colors()
         switch (style) {
             case "heading":
-                return c.primary
+                return c.brand
             case "muted":
                 return c.textMuted
             default:

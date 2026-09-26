@@ -120,7 +120,7 @@ export function ActionMenuModal(props: ActionMenuModalProps) {
                                     {option.detail}
                                 </text>
                             ) : null}
-                            <text wrapMode="none" fg={colors().primary}>
+                            <text wrapMode="none" fg={colors().brand}>
                                 {option.key}
                             </text>
                         </box>

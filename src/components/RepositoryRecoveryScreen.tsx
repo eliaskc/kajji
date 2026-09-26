@@ -301,8 +301,7 @@ export function RepositoryRecoveryScreen(props: RepositoryRecoveryScreenProps) {
                             const selected = () => choice.selected() === optionIndex()
                             const labelColor = () => {
                                 if (locked() && !selected()) return colors().textMuted
-                                if (locked())
-                                    return option.danger ? colors().error : colors().primary
+                                if (locked()) return option.danger ? colors().error : colors().brand
                                 return colors().text
                             }
                             return (
@@ -375,7 +374,7 @@ export function RepositoryRecoveryScreen(props: RepositoryRecoveryScreenProps) {
                                     ? colors().error
                                     : entry.status === "success"
                                       ? colors().success
-                                      : colors().primary
+                                      : colors().brand
                             const statusIcon = () =>
                                 entry.status === "failure"
                                     ? "✕"
@@ -422,7 +421,7 @@ export function RepositoryRecoveryScreen(props: RepositoryRecoveryScreenProps) {
                 ? "Recovery failed"
                 : "Recovering repository"
             : "Broken repository metadata"
-    const titleColor = () => (showRecoveryLog() && !error() ? colors().primary : colors().error)
+    const titleColor = () => (showRecoveryLog() && !error() ? colors().brand : colors().error)
 
     return (
         <box

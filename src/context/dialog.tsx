@@ -95,7 +95,7 @@ export function StyledText(props: { content: string | StyledSegment[]; bold?: bo
                             return (
                                 <span
                                     style={{
-                                        fg: colors().warning,
+                                        fg: colors().highlight,
                                         attributes: TextAttributes.BOLD,
                                     }}
                                 >
@@ -106,7 +106,7 @@ export function StyledText(props: { content: string | StyledSegment[]; bold?: bo
                             return (
                                 <span
                                     style={{
-                                        fg: colors().primary,
+                                        fg: colors().brand,
                                         attributes: TextAttributes.BOLD,
                                     }}
                                 >
@@ -357,7 +357,7 @@ function DialogHints(props: { hints: DialogHint[] }) {
                     <For each={groupedHints()}>
                         {(hint, index) => (
                             <>
-                                <span style={{ fg: colors().primary }}>{hint.key}</span>{" "}
+                                <span style={{ fg: colors().brand }}>{hint.key}</span>{" "}
                                 <span style={{ fg: colors().textMuted }}>{hint.label}</span>
                                 <Show when={index() < groupedHints().length - 1}>
                                     <span

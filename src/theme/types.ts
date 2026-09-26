@@ -9,8 +9,10 @@ export interface DiffThemeColors {
 }
 
 export interface ThemeColors {
-    primary: string
-    secondary: string
+    /** kajji's own color: focused titles, status bar keys. */
+    brand: string
+    /** Secondary highlight, for example author names. */
+    accent: string
     background: string
     backgroundSecondary: string
     backgroundElement: string
@@ -19,19 +21,17 @@ export interface ThemeColors {
     textMuted: string
 
     border: string
-    borderFocused: string
 
     selectionBackground: string
     selectionText: string
 
     success: string
+    /** Warnings only. Use `highlight` for actions. */
     warning: string
     error: string
     info: string
-
-    purple: string
-    orange: string
-    green: string
+    /** Highlights actions in status messages and dialogs. */
+    highlight: string
 
     titleBarFocused: string
     titleTextFocused: string

@@ -42,7 +42,7 @@ function EmptyCopy() {
             alignItems="center"
         >
             <box flexDirection="column" alignItems="center">
-                <text fg={colors().primary}>NO CHANGES</text>
+                <text fg={colors().brand}>NO CHANGES</text>
                 <text fg={colors().textMuted}>this revision is empty</text>
             </box>
         </box>

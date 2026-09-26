@@ -19,9 +19,9 @@ export function BookmarkDiffHeader(props: { bookmark: string; from: string; to: 
         <box flexDirection="column" flexShrink={0}>
             <text>
                 <span style={{ fg: colors().textMuted }}>{"Diff: "}</span>
-                <span style={{ fg: colors().primary }}>{props.from}</span>
+                <span style={{ fg: colors().brand }}>{props.from}</span>
                 <span style={{ fg: colors().textMuted }}>{" → "}</span>
-                <span style={{ fg: colors().primary }}>{props.to}</span>
+                <span style={{ fg: colors().brand }}>{props.to}</span>
             </text>
             <text fg={colors().textMuted}>local vs origin for {props.bookmark}</text>
         </box>
@@ -100,7 +100,7 @@ export function RevisionRangeHeader(props: {
     return (
         <box flexDirection="column" flexShrink={0}>
             <text>
-                <span style={{ fg: colors().secondary }}>{`${totalCount()} revisions`}</span>
+                <span style={{ fg: colors().accent }}>{`${totalCount()} revisions`}</span>
                 <Show when={props.elidedCount > 0}>
                     <span style={{ fg: colors().textMuted }}>
                         {` (${props.elidedCount} elided)`}
@@ -112,11 +112,11 @@ export function RevisionRangeHeader(props: {
             </text>
             <text>
                 <span style={{ fg: colors().textMuted }}>{authors().label}</span>
-                <span style={{ fg: colors().secondary }}>{authors().text}</span>
+                <span style={{ fg: colors().accent }}>{authors().text}</span>
             </text>
             <text>
                 <span style={{ fg: colors().textMuted }}>{"Committed: "}</span>
-                <span style={{ fg: colors().secondary }}>{committed()}</span>
+                <span style={{ fg: colors().accent }}>{committed()}</span>
             </text>
             <Show when={props.stats && props.stats.totalFiles > 0 ? props.stats : undefined}>
                 {(stats: () => DiffStats) => (

@@ -503,7 +503,7 @@ function VirtualizedSplitRow(props: VirtualizedSplitRowProps) {
         const stats = props.fileStats.get(props.row.row.fileId)
         const statusColor = stats
             ? getStatusColor(getDiffStatusKey(stats.type as DiffFileStatus), colors())
-            : colors().primary
+            : colors().brand
         const statsWidth = stats?.isBinary
             ? 6
             : (stats?.additions ? `+${stats.additions}`.length : 0) +

@@ -43,7 +43,7 @@ export function FileList(props: FileListProps) {
                                 <span style={{ fg: statusColor }}>{indicator}</span>
                                 <span
                                     style={{
-                                        fg: isActive() ? colors().primary : colors().text,
+                                        fg: isActive() ? colors().brand : colors().text,
                                     }}
                                 >
                                     {" "}

@@ -143,7 +143,7 @@ export function RecentReposModal(props: RecentReposModalProps) {
                                         <span
                                             style={{
                                                 fg: isSelected()
-                                                    ? colors().primary
+                                                    ? colors().brand
                                                     : colors().textMuted,
                                             }}
                                         >

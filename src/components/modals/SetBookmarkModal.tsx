@@ -274,7 +274,7 @@ export function SetBookmarkModal(props: SetBookmarkModalProps) {
                 keyBindings={SINGLE_LINE_KEYBINDINGS}
                 wrapMode="none"
                 scrollMargin={0}
-                cursorColor={colors().primary}
+                cursorColor={colors().brand}
                 textColor={colors().text}
                 focusedTextColor={colors().text}
                 focusedBackgroundColor={RGBA.fromInts(0, 0, 0, 0)}
@@ -318,7 +318,7 @@ export function SetBookmarkModal(props: SetBookmarkModalProps) {
                                         onMouseDown={() => list.selectByMouse(index())}
                                     >
                                         <text wrapMode="none">
-                                            <span style={{ fg: colors().primary }}>
+                                            <span style={{ fg: colors().brand }}>
                                                 {bookmark.name}
                                             </span>
                                             <span

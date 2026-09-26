@@ -119,7 +119,7 @@ export function StackActionsModal(props: StackActionsModalProps) {
                                 </Show>
                                 <span style={{ fg: colors().text }}>{action.label}</span>
                             </text>
-                            <text wrapMode="none" fg={colors().primary}>
+                            <text wrapMode="none" fg={colors().brand}>
                                 {action.key}
                             </text>
                         </box>

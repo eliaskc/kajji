@@ -141,7 +141,7 @@ export function ErrorScreen(props: ErrorScreenProps) {
                             <text fg={colors().textMuted}>More info:</text>
                             <For each={parsedError().urls}>
                                 {(url) => (
-                                    <text fg={colors().primary} wrapMode="none">
+                                    <text fg={colors().brand} wrapMode="none">
                                         {url}
                                     </text>
                                 )}
@@ -165,7 +165,7 @@ export function ErrorScreen(props: ErrorScreenProps) {
                                 <text fg={isLoading() ? colors().textMuted : colors().text}>
                                     {isFixing() ? "Running..." : parsedError().fixCommand}
                                 </text>
-                                <text fg={colors().primary}>f</text>
+                                <text fg={colors().brand}>f</text>
                             </box>
                         </Show>
 
@@ -184,7 +184,7 @@ export function ErrorScreen(props: ErrorScreenProps) {
                                 <text fg={isLoading() ? colors().textMuted : colors().text}>
                                     {isRetrying() ? "Retrying..." : "retry"}
                                 </text>
-                                <text fg={colors().primary}>r</text>
+                                <text fg={colors().brand}>r</text>
                             </box>
                         </Show>
                     </box>

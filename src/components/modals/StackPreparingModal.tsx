@@ -79,7 +79,7 @@ export function StackPreparingModal(props: StackPreparingModalProps) {
         const rx = 18 * pulse
         const ry = 4.4 * pulse
         const bg = colors().background
-        const primary = colors().primary
+        const brand = colors().brand
 
         return Array.from({ length: HEIGHT }, (_, y) =>
             Array.from({ length: WIDTH }, (_, x) => {
@@ -109,7 +109,7 @@ export function StackPreparingModal(props: StackPreparingModalProps) {
                 const glyphIndex = Math.max(1, Math.min(4, Math.floor(intensity * 4.5)))
                 return {
                     char: glyphs[glyphIndex] ?? "░",
-                    color: lerpColor(bg, primary, 0.25 + intensity * 0.75),
+                    color: lerpColor(bg, brand, 0.25 + intensity * 0.75),
                 }
             }),
         )

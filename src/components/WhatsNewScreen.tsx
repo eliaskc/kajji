@@ -108,7 +108,7 @@ export function WhatsNewScreen(props: WhatsNewScreenProps) {
                         <For each={props.changes}>
                             {(block) => (
                                 <box flexDirection="column">
-                                    <text fg={colors().primary}>v{block.version}</text>
+                                    <text fg={colors().brand}>v{block.version}</text>
                                     <For
                                         each={[
                                             ...new Set(

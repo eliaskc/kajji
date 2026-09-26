@@ -140,7 +140,7 @@ export function BookmarkNameModal(props: BookmarkNameModalProps) {
                 keyBindings={SINGLE_LINE_KEYBINDINGS}
                 wrapMode="none"
                 scrollMargin={0}
-                cursorColor={colors().primary}
+                cursorColor={colors().brand}
                 textColor={colors().text}
                 focusedTextColor={colors().text}
                 focusedBackgroundColor={RGBA.fromInts(0, 0, 0, 0)}

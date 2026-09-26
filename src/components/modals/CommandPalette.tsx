@@ -285,7 +285,7 @@ export function CommandPalette() {
                     keyBindings={SINGLE_LINE_KEYBINDINGS}
                     placeholder="Search"
                     placeholderColor={colors().textMuted}
-                    cursorColor={colors().primary}
+                    cursorColor={colors().brand}
                     textColor={colors().textMuted}
                     focusedTextColor={colors().text}
                     focusedBackgroundColor={RGBA.fromInts(0, 0, 0, 0)}
@@ -308,7 +308,7 @@ export function CommandPalette() {
                         {(group) => (
                             <box flexDirection="column" marginBottom={1}>
                                 <box paddingLeft={2} paddingRight={2}>
-                                    <text fg={colors().primary}>{capitalize(group.label)}</text>
+                                    <text fg={colors().brand}>{capitalize(group.label)}</text>
                                 </box>
                                 <For each={group.commands}>
                                     {(cmd) => (

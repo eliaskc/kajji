@@ -80,7 +80,7 @@ export function DescribeModal(props: DescribeModalProps) {
                         if (subjectRef) setSubject(subjectRef.plainText)
                     }}
                     onSubmit={handleSave}
-                    cursorColor={colors().primary}
+                    cursorColor={colors().brand}
                     backgroundColor={colors().background}
                     textColor={colors().text}
                     focusedTextColor={colors().text}
@@ -102,7 +102,7 @@ export function DescribeModal(props: DescribeModalProps) {
                 onContentChange={() => {
                     if (bodyRef) setBody(bodyRef.plainText)
                 }}
-                cursorColor={colors().primary}
+                cursorColor={colors().brand}
                 backgroundColor={colors().background}
                 textColor={colors().text}
                 focusedTextColor={colors().text}

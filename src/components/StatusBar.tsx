@@ -101,9 +101,9 @@ export function StatusBar() {
     const segmentColor = (segment: Exclude<StyledSegment, string>) => {
         switch (segment.style) {
             case "action":
-                return colors().warning
+                return colors().highlight
             case "target":
-                return colors().primary
+                return colors().brand
             case "muted":
                 return colors().textMuted
             default:

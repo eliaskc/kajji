@@ -1,8 +1,8 @@
 import type { Theme, ThemeColors } from "../types"
 
 const dark: ThemeColors = {
-    primary: "#7FD962",
-    secondary: "#56b6c2",
+    brand: "#7FD962",
+    accent: "#56b6c2",
     background: "#0a0a0a",
     backgroundSecondary: "#141414",
     backgroundElement: "#1e1e1e",
@@ -10,19 +10,15 @@ const dark: ThemeColors = {
     textMuted: "#808080",
 
     border: "#bfbdb6",
-    borderFocused: "#7FD962",
 
     selectionBackground: "#323264",
     selectionText: "#eeeeee",
 
     success: "#7FD962",
-    warning: "#e5c07b",
+    warning: "#f0a35e",
     error: "#e06c75",
     info: "#56b6c2",
-
-    purple: "#c678dd",
-    orange: "#d19a66",
-    green: "#7FD962",
+    highlight: "#e5c07b",
 
     titleBarFocused: "#7FD962",
     titleTextFocused: "#0a0a0a",
@@ -45,8 +41,8 @@ const dark: ThemeColors = {
 }
 
 const light: ThemeColors = {
-    primary: "#6fcf57",
-    secondary: "#5fa8b8",
+    brand: "#6fcf57",
+    accent: "#5fa8b8",
     background: "#f7f7f7",
     backgroundSecondary: "#eeeeee",
     backgroundElement: "#e6e6e6",
@@ -54,19 +50,15 @@ const light: ThemeColors = {
     textMuted: "#7a7a7a",
 
     border: "#dddddd",
-    borderFocused: "#7FD962",
 
     selectionBackground: "#e4e0f2",
     selectionText: "#262631",
 
     success: "#62bd4a",
-    warning: "#d9ae55",
+    warning: "#cf7a2f",
     error: "#c94c57",
     info: "#5fa8b8",
-
-    purple: "#a982bd",
-    orange: "#d9ae55",
-    green: "#6fcf57",
+    highlight: "#d9ae55",
 
     titleBarFocused: "#7FD962",
     titleTextFocused: "#111111",

@@ -45,7 +45,7 @@ export function FilterInput(props: FilterInputProps) {
                     wrapMode="none"
                     scrollMargin={0}
                     height={1}
-                    cursorColor={colors().primary}
+                    cursorColor={colors().brand}
                     textColor={colors().text}
                     focusedTextColor={colors().text}
                     focusedBackgroundColor={RGBA.fromInts(0, 0, 0, 0)}
