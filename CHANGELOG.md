@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.18.0
+
+### breaking
+- the remote-only bookmark view toggle moved from `R` to `-`, which now cycles local, remote-only, and deleted-only views ([`8ee8915`](../../commit/8ee8915), [`4eb4266`](../../commit/4eb4266))
+- building from source now requires bun 1.4.2 ([`ccebb12`](../../commit/ccebb12))
+
+### new
+- reset bookmarks to origin from the bookmarks panel and compare-to-origin view (`R`), with a choice to abandon or keep local-only commits ([`8ee8915`](../../commit/8ee8915), [`3b4e35a`](../../commit/3b4e35a))
+- deleted-only bookmark view, with the active view shown in the panel header (`-`) ([`4eb4266`](../../commit/4eb4266))
+- show files that jj refused to snapshot because of their size in the detail header, files panel, and command log ([`fb5c3ef`](../../commit/fb5c3ef))
+- recovery screen for repositories with broken `.jj` or `.git` metadata, with backup or delete and a choice of init command ([`6e532c1`](../../commit/6e532c1))
+
+### improved
+- ux: select and visual shortcuts appear before filter in the log status bar ([`9a035b0`](../../commit/9a035b0))
+- layout: command log scales with terminal height and grows while focused ([`e9ff0c0`](../../commit/e9ff0c0))
+- theming: warnings use a separate amber color, and action words in status messages and dialogs use their own highlight color ([`3d2908d`](../../commit/3d2908d))
+
+### fixed
+- ux: panel keys are ignored while a dialog is open ([`8ee8915`](../../commit/8ee8915))
+- ux: enter no longer filters the log on a bookmark with no target ([`4eb4266`](../../commit/4eb4266))
+- ux: bookmark name submission works when text and enter arrive together ([`4faaf28`](../../commit/4faaf28))
+- ux: resolve is skipped when the revision has no conflicts ([`1338613`](../../commit/1338613))
+- ux: log selection stays on the same revision after refresh ([`9c13437`](../../commit/9c13437))
+- ux: switching diff layout keeps the top source line in view ([`25d05c1`](../../commit/25d05c1))
+- multi-revision reads parse each revision separately, which fixes reset-to-origin plans and the cli `changes` and `comment` commands ([`4d5581f`](../../commit/4d5581f))
+- detail summaries show all changed files ([`5c701e1`](../../commit/5c701e1))
+- layout: empty diff header no longer takes up space ([`08619b6`](../../commit/08619b6))
+- binary files with quoted paths are still detected ([`86ffa45`](../../commit/86ffa45))
+- detail caches are kept across refreshes ([`996dbf6`](../../commit/996dbf6))
+- perf: detail, file, filter, and visual-range reads cancel when obsolete, and prepared diffs are cached ([`81d3e83`](../../commit/81d3e83))
+- perf: working-copy snapshots and repository reads are coordinated ([`f2d02ab`](../../commit/f2d02ab))
+- perf: long lists are virtualized and ansi row rendering is bounded ([`42cb3be`](../../commit/42cb3be))
+- perf: faster diff scrolling with limited row and word-highlight preparation ([`e04b1d1`](../../commit/e04b1d1), [`1728890`](../../commit/1728890))
+
 ## 0.17.1
 
 ### improved
