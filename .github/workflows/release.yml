@@ -289,6 +289,9 @@ jobs:
 
           # Event SHAs are stable when jobs are re-run; do not resolve a moving main again.
           SHA=${COMMIT_SHA:-${MERGE_SHA:-$GITHUB_SHA}}
+          # checkout pins origin/main to the event SHA, which is older than a
+          # release commit pushed earlier in this run. Fetch the real main.
+          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
           git merge-base --is-ancestor "$SHA" origin/main || fail "$SHA is not on main"
           VERSION=$(git show "$SHA:package.json" | jq -r .version)
           TAG="v$VERSION"
