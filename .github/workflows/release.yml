@@ -1,257 +1,315 @@
 name: Release
 
+# npm trusted publishing is bound to this filename. Do not rename it.
+#
+# Manual run on main:
+#   prepare-and-release  agent drafts notes → commit to main → build → publish
+#   prepare-pr           agent drafts notes → PR (merging it releases)
+#   release              release the prepared, untagged package.json version on main
+# A merged PR with the `release` label also releases.
+
 on:
-  workflow_dispatch:
-    inputs:
-      mode:
-        description: "Draft a release PR or publish an existing tag."
-        required: true
-        type: choice
-        options:
-          - draft-release-pr
-          - publish-tag
-        default: draft-release-pr
-      release_tag:
-        description: "Existing vX.Y.Z tag to publish (required for publish-tag)."
-        required: false
-        default: ""
-      bump:
-        description: "Version bump (patch/minor/major/x.y.z). Empty = agent decides."
-        required: false
-        default: ""
-      model:
-        description: "pi model id (provider/model[:thinking]). Default: opencode/gpt-5.6-terra."
-        required: false
-        default: "opencode/gpt-5.6-terra"
   pull_request:
     types: [closed]
-  push:
-    tags:
-      - "v*"
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "What to do"
+        type: choice
+        options: [prepare-and-release, prepare-pr, release]
+        default: prepare-and-release
+      bump:
+        description: "Version bump for prepare actions. auto lets the agent decide."
+        type: choice
+        options: [auto, patch, minor, major]
+        default: auto
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
+
+env:
+  BUN_VERSION: "1.4.2"
+  JJ_VERSION: "0.45.1"
 
 jobs:
   # ---------------------------------------------------------------------------
-  # Manual trigger: run pi to write CHANGELOG.md + bump package.json,
-  # then open a PR. Maintainer reviews and merges.
+  # The agent gets read-only tools, no GitHub token, and no write access. It
+  # returns a JSON proposal that scripts/prepare-release.ts validates.
   # ---------------------------------------------------------------------------
-  draft-release-pr:
-    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'draft-release-pr'
+  propose:
+    if: >-
+      github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' &&
+      inputs.action != 'release'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PI_VERSION: ${{ vars.RELEASE_PI_VERSION || '0.87.1' }}
+      PI_MODEL: ${{ vars.RELEASE_PI_MODEL || 'opencode/claude-opus-5-5' }}
     steps:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: false
 
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version: ${{ env.BUN_VERSION }}
 
-      - name: Install dependencies
-        run: bun install
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          package-manager-cache: false
 
-      - name: Install pi
+      - name: Validate agent configuration
         run: |
-          npm install -g @earendil-works/pi-coding-agent
-          pi --version
+          [[ "$PI_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::RELEASE_PI_VERSION must be an exact x.y.z version"; exit 1; }
+          [[ "$PI_MODEL" == */* && "$PI_MODEL" != *$'\n'* ]] || { echo "::error::RELEASE_PI_MODEL must be provider/model"; exit 1; }
 
-      - name: Capture pre-state
-        id: pre
+      - name: Install pinned pi
+        run: npm install --global --ignore-scripts "@earendil-works/pi-coding-agent@$PI_VERSION"
+
+      - name: Test release preparation
+        run: bun test tests/unit/scripts/prepare-release.test.ts
+
+      - name: Collect release context
+        env:
+          BUMP: ${{ inputs.bump }}
         run: |
-          echo "old_version=$(jq -r .version package.json)" >> "$GITHUB_OUTPUT"
-          echo "old_changelog_sha=$(sha256sum CHANGELOG.md | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          mkdir -p "$RUNNER_TEMP/release-proposal"
+          bun run scripts/prepare-release.ts context --bump "$BUMP" --output "$RUNNER_TEMP/release-proposal/context.json"
 
-      - name: Run pi to generate changelog and bump version
+      - name: Draft release proposal
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PI_OFFLINE: "0"
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          PI_CODING_AGENT_DIR: ${{ runner.temp }}/release-pi
+          PI_OFFLINE: "1"
         run: |
-          set -euo pipefail
-          # Pass the bump arg as positional ($1) to the prompt template.
-          # Quoted so an empty bump arrives as an empty string and the prompt
-          # treats it as "agent decides".
-          pi -p \
-            --model "${{ inputs.model }}" \
-            --tools read,bash,edit,write,grep,find,ls \
-            --no-skills \
-            --no-context-files \
-            --no-extensions \
-            --no-session \
-            @.github/workflows/release-notes-prompt.md "${{ inputs.bump }}"
+          pi --version
+          pi -p --model "$PI_MODEL" --tools read,grep,find,ls \
+            --no-approve --no-skills --no-context-files --no-extensions \
+            --no-prompt-templates --no-themes --no-session \
+            @.github/release-notes-prompt.md "@$RUNNER_TEMP/release-proposal/context.json" \
+            > "$RUNNER_TEMP/release-proposal/proposal.json"
 
-      - name: Verify pi did its job
-        id: post
+      - name: Validate proposal
+        env:
+          BUMP: ${{ inputs.bump }}
         run: |
-          set -euo pipefail
-          NEW_VERSION=$(jq -r .version package.json)
-          OLD_VERSION="${{ steps.pre.outputs.old_version }}"
-          NEW_CHANGELOG_SHA=$(sha256sum CHANGELOG.md | cut -d' ' -f1)
-          OLD_CHANGELOG_SHA="${{ steps.pre.outputs.old_changelog_sha }}"
+          bun run scripts/prepare-release.ts apply \
+            --context "$RUNNER_TEMP/release-proposal/context.json" \
+            --proposal "$RUNNER_TEMP/release-proposal/proposal.json" \
+            --body "$RUNNER_TEMP/release-body.md"
+          cat "$RUNNER_TEMP/release-body.md" >> "$GITHUB_STEP_SUMMARY"
+          printf -- '- pi `%s`, model `%s`\n- bump input: `%s`\n- triggered by @%s\n' \
+            "$PI_VERSION" "$PI_MODEL" "$BUMP" "$GITHUB_ACTOR" > "$RUNNER_TEMP/release-proposal/agent.md"
 
-          if [[ "$NEW_VERSION" == "$OLD_VERSION" ]]; then
-            echo "::error::Agent did not bump version in package.json (still $OLD_VERSION)"
-            exit 1
-          fi
-
-          if [[ "$NEW_CHANGELOG_SHA" == "$OLD_CHANGELOG_SHA" ]]; then
-            echo "::error::Agent did not update CHANGELOG.md"
-            exit 1
-          fi
-
-          if ! grep -q "^## ${NEW_VERSION}\$" CHANGELOG.md; then
-            echo "::error::CHANGELOG.md is missing a section for ${NEW_VERSION}"
-            exit 1
-          fi
-
-          # Make sure the agent didn't accidentally touch other files.
-          UNEXPECTED=$(git status --porcelain | awk '{print $2}' \
-            | grep -vE '^(package\.json|CHANGELOG\.md)$' || true)
-          if [[ -n "$UNEXPECTED" ]]; then
-            echo "::warning::Agent modified unexpected files:"
-            echo "$UNEXPECTED"
-            # Revert anything outside the allowlist so the PR stays scoped.
-            for f in $UNEXPECTED; do
-              git checkout -- "$f" 2>/dev/null || rm -f "$f"
-            done
-          fi
-
-          echo "version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
-
-      - name: Show diff
-        run: |
-          echo "::group::package.json diff"
-          git --no-pager diff -- package.json || true
-          echo "::endgroup::"
-          echo "::group::CHANGELOG.md diff"
-          git --no-pager diff -- CHANGELOG.md || true
-          echo "::endgroup::"
-
-      - name: Extract release notes for PR body
-        id: notes
-        run: |
-          set -euo pipefail
-          NOTES=$(bun run scripts/extract-release-notes.ts "${{ steps.post.outputs.version }}")
-          {
-            echo "notes<<RELEASE_NOTES_EOF"
-            echo "$NOTES"
-            echo "RELEASE_NOTES_EOF"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Open release PR
-        uses: peter-evans/create-pull-request@v8
+      - uses: actions/upload-artifact@v6
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          branch: release/v${{ steps.post.outputs.version }}
-          delete-branch: true
-          commit-message: "release: v${{ steps.post.outputs.version }}"
-          title: "release: v${{ steps.post.outputs.version }}"
-          labels: release
-          body: |
-            Auto-generated release PR for **v${{ steps.post.outputs.version }}**.
-
-            - Generated by `pi` using model `${{ inputs.model }}`
-            - Bump input: `${{ inputs.bump || '(agent-decided)' }}`
-            - Triggered by @${{ github.actor }}
-
-            ---
-
-            ${{ steps.notes.outputs.notes }}
-
-            ---
-
-            **Merge this PR to publish.** On merge with the `release` label, a single workflow run will:
-            1. Build binaries for darwin-{arm64,x64} and linux-{x64,arm64} on native runners
-            2. Publish all 5 npm packages (`kajji` + 4 platform packages)
-            3. Tag `v${{ steps.post.outputs.version }}` at the merge commit
-            4. Create the GitHub release with these notes and binary archives
+          name: release-proposal
+          path: ${{ runner.temp }}/release-proposal/
+          retention-days: 7
+          if-no-files-found: error
 
   # ---------------------------------------------------------------------------
-  # When the release PR is merged, validate the version and expose it to the
-  # build. The tag is deliberately created later, after build and npm publish
-  # succeed, so failed releases do not leave a release tag behind.
+  # prepare-pr: apply the proposal on a fresh checkout and open the release PR.
   # ---------------------------------------------------------------------------
-  prepare-release:
-    if: >-
-      github.event_name == 'pull_request' &&
-      github.event.pull_request.merged == true &&
-      contains(github.event.pull_request.labels.*.name, 'release')
+  prepare-pr:
+    needs: propose
+    if: inputs.action == 'prepare-pr'
     runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.release.outputs.version }}
-      ref: ${{ github.event.pull_request.merge_commit_sha }}
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ github.event.pull_request.merge_commit_sha }}
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: false
 
-      - name: Validate release version
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: release-proposal
+          path: ${{ runner.temp }}/release-proposal
+
+      - name: Apply validated proposal
         id: release
         run: |
+          VERSION=$(bun run scripts/prepare-release.ts apply \
+            --context "$RUNNER_TEMP/release-proposal/context.json" \
+            --proposal "$RUNNER_TEMP/release-proposal/proposal.json" \
+            --body "$RUNNER_TEMP/release-body.md")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          printf '\n' >> "$RUNNER_TEMP/release-body.md"
+          cat "$RUNNER_TEMP/release-proposal/agent.md" >> "$RUNNER_TEMP/release-body.md"
+
+      - uses: peter-evans/create-pull-request@v8
+        with:
+          token: ${{ github.token }}
+          branch: release/next
+          base: main
+          delete-branch: true
+          add-paths: |
+            package.json
+            CHANGELOG.md
+          commit-message: "release: v${{ steps.release.outputs.version }}"
+          title: "release: v${{ steps.release.outputs.version }}"
+          labels: release
+          body-path: ${{ runner.temp }}/release-body.md
+
+  # ---------------------------------------------------------------------------
+  # Unit tests, typecheck, and lint on the commit being released (or, for
+  # prepare-and-release, on the base commit before the release commit is
+  # pushed; the release commit only changes package.json and CHANGELOG.md).
+  # ---------------------------------------------------------------------------
+  verify:
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' &&
+       inputs.action != 'prepare-pr') ||
+      (github.event_name == 'pull_request' && github.event.pull_request.merged == true &&
+       contains(github.event.pull_request.labels.*.name, 'release'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Install jj
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
           set -euo pipefail
-          VERSION=$(jq -r .version package.json)
+          mkdir -p "$RUNNER_TEMP/jj"
+          gh release download "v$JJ_VERSION" --repo jj-vcs/jj \
+            --pattern "jj-v$JJ_VERSION-x86_64-unknown-linux-musl.tar.gz" --output - \
+            | tar -xz -C "$RUNNER_TEMP/jj" ./jj
+          echo "$RUNNER_TEMP/jj" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/jj/jj" --version
+
+      - run: bun install --frozen-lockfile
+      - run: bun check
+      - run: bun lint
+      - name: Unit tests
+        env:
+          JJ_USER: kajji-ci
+          JJ_EMAIL: kajji-ci@users.noreply.github.com
+        run: bun run test
+
+  # ---------------------------------------------------------------------------
+  # prepare-and-release: commit the validated proposal directly to main after
+  # verify passes. Fails if main moved since the proposal; run again then.
+  # ---------------------------------------------------------------------------
+  commit:
+    needs: [propose, verify]
+    if: inputs.action == 'prepare-and-release'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    outputs:
+      sha: ${{ steps.commit.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: release-proposal
+          path: ${{ runner.temp }}/release-proposal
+
+      - name: Commit and push release
+        id: commit
+        run: |
+          set -euo pipefail
+          VERSION=$(bun run scripts/prepare-release.ts apply \
+            --context "$RUNNER_TEMP/release-proposal/context.json" \
+            --proposal "$RUNNER_TEMP/release-proposal/proposal.json" \
+            --body "$RUNNER_TEMP/release-body.md")
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json CHANGELOG.md
+          git commit -m "release: v$VERSION"
+          # Not forced: fails if main moved after the proposal was drafted.
+          git push origin HEAD:refs/heads/main
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+  # ---------------------------------------------------------------------------
+  # Resolve the commit and version to release.
+  # ---------------------------------------------------------------------------
+  source:
+    needs: commit
+    if: >-
+      !cancelled() && (
+        (github.event_name == 'pull_request' && github.event.pull_request.merged == true &&
+         contains(github.event.pull_request.labels.*.name, 'release')) ||
+        (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' &&
+         inputs.action == 'release') ||
+        (inputs.action == 'prepare-and-release' && needs.commit.result == 'success')
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      sha: ${{ steps.source.outputs.sha }}
+      version: ${{ steps.source.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Resolve release source
+        id: source
+        env:
+          COMMIT_SHA: ${{ needs.commit.outputs.sha }}
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+        run: |
+          set -euo pipefail
+          fail() { echo "::error::$1"; exit 1; }
+
+          # Event SHAs are stable when jobs are re-run; do not resolve a moving main again.
+          SHA=${COMMIT_SHA:-${MERGE_SHA:-$GITHUB_SHA}}
+          git merge-base --is-ancestor "$SHA" origin/main || fail "$SHA is not on main"
+          VERSION=$(git show "$SHA:package.json" | jq -r .version)
           TAG="v$VERSION"
 
-          if git rev-parse "$TAG" >/dev/null 2>&1; then
-            echo "::error::Tag $TAG already exists"
-            exit 1
+          # A tag at the same commit means a re-run after the tag was pushed.
+          if EXISTING=$(git rev-parse --verify --quiet "refs/tags/$TAG^{commit}"); then
+            [[ "$EXISTING" == "$SHA" ]] || fail "$TAG is already released at $EXISTING. Run prepare-and-release or prepare-pr."
           fi
+          git show "$SHA:CHANGELOG.md" | grep -qx "## $VERSION" || fail "CHANGELOG.md has no section for $VERSION"
 
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          printf -- '- version: `%s`\n- source: `%s`\n' "$VERSION" "$SHA" >> "$GITHUB_STEP_SUMMARY"
 
   # ---------------------------------------------------------------------------
-  # Validate manual recovery input before starting the build matrix.
-  # ---------------------------------------------------------------------------
-  validate-release-tag:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - name: Validate tag format
-        if: github.event_name == 'workflow_dispatch' && inputs.mode == 'publish-tag'
-        run: |
-          if [[ ! "${{ inputs.release_tag }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "::error::release_tag must be an existing vX.Y.Z tag"
-            exit 1
-          fi
-
-      - uses: actions/checkout@v5
-        if: github.event_name == 'workflow_dispatch' && inputs.mode == 'publish-tag'
-        with:
-          ref: refs/tags/${{ inputs.release_tag }}
-
-      - name: Verify tag matches package version
-        if: github.event_name == 'workflow_dispatch' && inputs.mode == 'publish-tag'
-        run: |
-          VERSION=$(jq -r .version package.json)
-          if [[ "v$VERSION" != "${{ inputs.release_tag }}" ]]; then
-            echo "::error::Tag ${{ inputs.release_tag }} does not match package.json version $VERSION"
-            exit 1
-          fi
-
-  # ---------------------------------------------------------------------------
-  # Build platform binaries on native runners. Triggered by either:
-  #   (a) PR-merge path: chained after prepare-release in the same run
-  #   (b) Tag-push path: developer manually pushes a vX.Y.Z tag from their
-  #       machine (recovery / hotfix).
+  # Build platform binaries on native runners and smoke-test each one.
   # ---------------------------------------------------------------------------
   build:
-    needs: [prepare-release, validate-release-tag]
-    if: |
-      !cancelled() &&
-      (
-        needs.prepare-release.result == 'success' ||
-        (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
-        (github.event_name == 'workflow_dispatch' && inputs.mode == 'publish-tag')
-      )
+    needs: [source, verify]
+    if: >-
+      !cancelled() && needs.source.result == 'success' && needs.verify.result == 'success'
     name: Build ${{ matrix.target }}
     runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
     strategy:
       fail-fast: true
       matrix:
@@ -265,29 +323,27 @@ jobs:
           - target: linux-arm64
             runner: ubuntu-24.04-arm
     steps:
-      - name: Resolve checkout ref
-        id: ref
-        run: |
-          if [[ "${{ github.event_name }}" == "push" ]]; then
-            echo "ref=${{ github.ref }}" >> "$GITHUB_OUTPUT"
-          elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            echo "ref=refs/tags/${{ inputs.release_tag }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "ref=${{ needs.prepare-release.outputs.ref }}" >> "$GITHUB_OUTPUT"
-          fi
-
       - uses: actions/checkout@v5
         with:
-          ref: ${{ steps.ref.outputs.ref }}
+          ref: ${{ needs.source.outputs.sha }}
+          persist-credentials: false
 
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version: ${{ env.BUN_VERSION }}
 
-      - run: bun install
+      - run: bun install --frozen-lockfile
 
       - name: Build binary
         run: bun run scripts/build.ts --target ${{ matrix.target }}
+
+      - name: Smoke-test binary
+        env:
+          VERSION: ${{ needs.source.outputs.version }}
+        run: |
+          OUTPUT=$("dist/kajji-${{ matrix.target }}/bin/kajji" --version)
+          echo "$OUTPUT"
+          [[ "$OUTPUT" == *"$VERSION"* ]] || { echo "::error::binary reports '$OUTPUT', expected $VERSION"; exit 1; }
 
       - name: Upload platform package
         uses: actions/upload-artifact@v6
@@ -298,38 +354,33 @@ jobs:
           retention-days: 7
 
   # ---------------------------------------------------------------------------
-  # Gather all artifacts, publish to npm, create GH release. Same dual-trigger
-  # logic as `build`.
+  # Publish npm packages, then tag, create the GitHub release, and update
+  # Homebrew. Every step is safe to re-run after a partial failure.
   # ---------------------------------------------------------------------------
   publish:
-    needs: [prepare-release, build]
-    if: |
-      !cancelled() &&
-      needs.build.result == 'success'
+    needs: [source, build]
+    if: >-
+      !cancelled() && needs.source.result == 'success' && needs.build.result == 'success'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      group: kajji-release
+      cancel-in-progress: false
     permissions:
       contents: write
       id-token: write
+    env:
+      VERSION: ${{ needs.source.outputs.version }}
+      SHA: ${{ needs.source.outputs.sha }}
     steps:
-      - name: Resolve checkout ref
-        id: ref
-        run: |
-          if [[ "${{ github.event_name }}" == "push" ]]; then
-            echo "ref=${{ github.ref }}" >> "$GITHUB_OUTPUT"
-          elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            echo "ref=refs/tags/${{ inputs.release_tag }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "ref=${{ needs.prepare-release.outputs.ref }}" >> "$GITHUB_OUTPUT"
-          fi
-
       - uses: actions/checkout@v5
         with:
-          ref: ${{ steps.ref.outputs.ref }}
+          ref: ${{ needs.source.outputs.sha }}
           fetch-depth: 0
 
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version: ${{ env.BUN_VERSION }}
 
       - uses: actions/setup-node@v6
         with:
@@ -337,11 +388,12 @@ jobs:
           registry-url: "https://registry.npmjs.org"
           package-manager-cache: false
 
-      - run: bun install
+      - run: bun install --frozen-lockfile
 
-      - name: Download all platform artifacts
+      - name: Download platform artifacts
         uses: actions/download-artifact@v7
         with:
+          pattern: kajji-*
           path: artifacts
 
       - name: Reassemble dist/
@@ -352,70 +404,55 @@ jobs:
             target=$(basename "$dir")
             mkdir -p "dist/$target"
             cp -r "$dir"/. "dist/$target"/
-            chmod +x "dist/$target/bin/kajji" || true
+            chmod +x "dist/$target/bin/kajji"
           done
           ls -la dist/
 
-      - name: Verify checkout matches expected version
+      - name: Extract release notes
         run: |
           set -euo pipefail
-          PKG_VERSION=$(jq -r .version package.json)
-          if [[ "${{ github.event_name }}" == "push" ]]; then
-            EXPECTED="${GITHUB_REF#refs/tags/v}"
-          elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            EXPECTED="${{ inputs.release_tag }}"
-            EXPECTED="${EXPECTED#v}"
-          else
-            EXPECTED="${{ needs.prepare-release.outputs.version }}"
-          fi
-          if [[ "$EXPECTED" != "$PKG_VERSION" ]]; then
-            echo "::error::Expected v$EXPECTED but package.json is $PKG_VERSION"
-            exit 1
-          fi
-          echo "version=$PKG_VERSION"
+          bun run scripts/extract-release-notes.ts "$VERSION" > "$RUNNER_TEMP/release-notes.md"
+          cat "$RUNNER_TEMP/release-notes.md" >> "$GITHUB_STEP_SUMMARY"
 
+      # publish.ts also writes the release archives that the tap formula hashes.
       - name: Publish to npm
         env:
           SKIP_BUILD: "1"
         run: bun run scripts/publish.ts --skip-build
 
-      - name: Extract release notes
-        id: notes
-        run: |
-          set -euo pipefail
-          VERSION=$(jq -r .version package.json)
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          bun run scripts/extract-release-notes.ts "$VERSION" > /tmp/release-notes.md
-          echo "::group::Release notes"
-          cat /tmp/release-notes.md
-          echo "::endgroup::"
-
-      # Pre-flight: render the formula and verify we can clone+commit the tap
-      # locally. Aborts the release if the tap is misconfigured (bad token,
-      # missing repo, etc.) before we publish anything.
+      # Abort before tagging if the tap is misconfigured. npm publish is
+      # idempotent, so a re-run after fixing the tap continues from here.
       - name: Pre-flight Homebrew tap
         env:
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-        run: bun run scripts/update-homebrew-tap.ts --check "${{ steps.notes.outputs.version }}"
+        run: bun run scripts/update-homebrew-tap.ts --check "$VERSION"
 
+      # The tag is created only after npm publish succeeds, so a failed
+      # release does not leave a tag behind.
       - name: Create and push release tag
-        if: github.event_name == 'pull_request'
         run: |
           set -euo pipefail
-          TAG="v${{ steps.notes.outputs.version }}"
+          TAG="v$VERSION"
+          git fetch --tags --force origin
+          if EXISTING=$(git rev-parse --verify --quiet "refs/tags/$TAG^{commit}"); then
+            [[ "$EXISTING" == "$SHA" ]] || { echo "::error::$TAG already exists at $EXISTING"; exit 1; }
+            echo "$TAG already points at $SHA"
+            exit 0
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag -a "$TAG" -m "Release $TAG"
-          git push origin "$TAG"
-          echo "Pushed tag $TAG after build and npm publish succeeded"
+          git tag -a "$TAG" -m "Release $TAG" "$SHA"
+          git push origin "refs/tags/$TAG"
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ steps.notes.outputs.version }}
-          name: v${{ steps.notes.outputs.version }}
-          body_path: /tmp/release-notes.md
+          tag_name: v${{ env.VERSION }}
+          name: v${{ env.VERSION }}
+          body_path: ${{ runner.temp }}/release-notes.md
           prerelease: false
+          overwrite_files: true
+          fail_on_unmatched_files: true
           files: |
             dist/kajji-darwin-arm64.zip
             dist/kajji-darwin-x64.zip
@@ -427,4 +464,4 @@ jobs:
       - name: Push Homebrew tap update
         env:
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-        run: bun run scripts/update-homebrew-tap.ts --push "${{ steps.notes.outputs.version }}"
+        run: bun run scripts/update-homebrew-tap.ts --push "$VERSION"

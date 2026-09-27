@@ -1,55 +1,54 @@
 # Releasing kajji
 
-Releases are driven by GitHub Actions ([`.github/workflows/release.yml`](../.github/workflows/release.yml)). The normal flow is gated on a manual review of a release PR.
+One GitHub Actions workflow, [`release.yml`](../.github/workflows/release.yml), prepares and publishes releases. Run it manually on `main` and select an **action**:
+
+| Action | Result |
+|---|---|
+| `prepare-and-release` (default) | The agent drafts the version and notes. The workflow commits them to `main` and publishes. No review. |
+| `prepare-pr` | The agent drafts the version and notes and opens a PR from `release/next` with the `release` label. Merging the PR publishes. |
+| `release` | Publish the version in `package.json` on `main`. Use it after you prepare a release by hand, or to finish a failed release. |
+
+**bump** (`auto`, `patch`, `minor`, `major`) applies to the two prepare actions. With `auto`, the agent decides.
 
 ```
-workflow_dispatch  ──►  draft-release-pr  ──►  PR opened  ──►  human review/merge
-                                                                         │
-                                                  ┌──────────────────────┘
-                                                  ▼
-                                          prepare-release  ──►  build (×4 platforms)
-                                                                         │
-                                                  ┌──────────────────────┘
-                                                  ▼
-                                      publish npm  ──►  tag vX.Y.Z  ──►  GH release
+propose ──► prepare-pr: open PR ──► merge PR (release label) ──► new run: verify ─┐
+        └─► commit to main (after verify passes) ────────────────────────────────┤
+release action ──────────────────────────────────────────────────────────────────┤
+                                                                                 ▼
+                    source ──► build (×4 platforms) ──► publish npm ──► tag vX.Y.Z ──► GH release ──► Homebrew
 ```
 
-## Cutting a release
+## Jobs
 
-1. Open https://github.com/eliaskc/kajji/actions/workflows/release.yml
-2. Click **Run workflow** on `main` and fill the inputs:
-   - **mode**: leave as `draft-release-pr` for a normal release.
-   - **bump**: `patch`, `minor`, `major`, an explicit `x.y.z`, or **leave empty** to let the agent decide based on commits since the last tag.
-   - **model**: pi model id. Default is `opencode/gpt-5.6-terra`. Any pi-supported model works as long as the matching API key is in repo secrets.
-3. Wait ~1–2 minutes. The `draft-release-pr` job runs `pi` against [`.github/workflows/release-notes-prompt.md`](../.github/workflows/release-notes-prompt.md), which:
-   - reads commits since the last tag (with progressive context-gathering via `git show` / `gh pr view`)
-   - decides the bump (if not specified)
-   - prepends a section to `CHANGELOG.md` and bumps `package.json`
-   - is **not** allowed to commit, push, tag, or open PRs — the workflow does that programmatically
-4. The job opens a PR titled `release: vX.Y.Z` with the `release` label and posts the generated notes in the PR body.
-5. **Review the PR.** Edit `CHANGELOG.md` directly on the branch if the agent's wording, categorisation, or version bump is off. The PR is pretty printable.
-6. **Merge the PR** (squash or merge — both work). The `release` label is what triggers the rest.
-7. The `prepare-release` job validates the version, then the `build` matrix runs on native runners (darwin-arm64, darwin-x64, linux-x64, linux-arm64).
-8. After every build succeeds, the `publish` job downloads the artifacts and runs `scripts/publish.ts --skip-build` to push 5 packages (`kajji-{platform}` × 4 + `kajji` wrapper) to npm.
-9. Only after publishing succeeds does the workflow tag the merge commit as `vX.Y.Z`, create the GitHub release with archives and notes from `CHANGELOG.md`, and update Homebrew.
+1. **`propose`** (prepare actions only):
+   - `scripts/prepare-release.ts context` collects every commit since the latest `vX.Y.Z` tag (subject, body, changed files). It fails if there are no commits, or if `package.json` is ahead of the latest tag (a release is pending).
+   - A pinned `pi` with read-only tools and no GitHub token reads [`.github/release-notes-prompt.md`](../.github/release-notes-prompt.md) and returns only `{ "version", "notes" }`.
+   - The script validates the proposal: the version must be an allowed bump, the notes must use the `breaking`/`new`/`improved`/`fixed` sections in order, and commit links must point into the release range. With `auto`, a `0.x` release stays below `1.0.0`.
+2. **`prepare-pr`**: applies the proposal on a fresh checkout and opens or updates the release PR. Edit `CHANGELOG.md` or `package.json` on the branch if necessary.
+3. **`verify`**: `bun check`, `bun lint`, and the unit tests (`bun run test`, no E2E) with a pinned `jj`. For `prepare-and-release` it runs on the base commit at the same time as `propose`, so a failure does not leave a release commit on `main`.
+4. **`commit`** (`prepare-and-release` only): applies the proposal and pushes `release: vX.Y.Z` to `main`. The push is not forced, so it fails if `main` moved during the run. Then run the workflow again.
+5. **`source`**: resolves the commit and version, and checks that `CHANGELOG.md` has a section for the version. It fails if the tag already exists at a different commit.
+6. **`build`**: compiles and smoke-tests (`kajji --version`) each binary on native runners (darwin-arm64, darwin-x64, linux-x64, linux-arm64).
+7. **`publish`**: publishes the 5 npm packages, then tags the commit as `vX.Y.Z`, creates the GitHub release, and updates Homebrew. The tag is created only after npm publish succeeds.
 
-## Manually publishing an existing tag
+## Recovery
 
-Use this recovery path when a tag exists but its build or publish did not complete:
+Every publish step is safe to re-run: `publish.ts` skips package versions that already exist, the tag step accepts a tag that already points at the release commit, and the GitHub release step overwrites assets. After a partial failure, use **Re-run failed jobs**, or run the workflow with the `release` action.
 
-1. Open https://github.com/eliaskc/kajji/actions/workflows/release.yml.
-2. Click **Run workflow** on a branch containing the trusted-publishing workflow.
-3. Set **mode** to `publish-tag`.
-4. Set **release_tag** to the existing tag, such as `v0.15.0`.
+A version that reached npm cannot be published again. To fix a bad release, merge the fix and prepare a new release.
 
-Before starting any platform builds, the workflow verifies that the tag has a valid `vX.Y.Z` format, exists in the repository, and matches the version in its `package.json`. It then builds all four platform packages and publishes the missing npm packages. It does not create or move tags. The publish script skips package versions that already exist, making this safe for partially completed releases.
+## Configuration
 
-## Required secrets and publishing access
-
-| Secret | Used by | Notes |
+| Name | Kind | Notes |
 |---|---|---|
-| `OPENCODE_API_KEY` | `draft-release-pr` | Get one at https://opencode.ai. If you switch models to a non-OpenCode provider, add the matching env var (e.g. `ANTHROPIC_API_KEY`) and update `release.yml` accordingly. |
-| `GITHUB_TOKEN` | all jobs | Auto-provided by Actions. Needs `contents: write` and `pull-requests: write` (set in workflow). |
+| `OPENCODE_API_KEY` | secret | Used by `propose` for the default model. `OPENAI_API_KEY` and `ANTHROPIC_API_KEY` are also passed through if you use those providers. |
+| `HOMEBREW_TAP_TOKEN` | secret | Push access to `eliaskc/homebrew-tap`. |
+| `RELEASE_PI_MODEL` | variable (optional) | `provider/model` for release notes. Default: `opencode/claude-opus-5-5`. |
+| `RELEASE_PI_VERSION` | variable (optional) | Exact pi version. Default: the version pinned in `release.yml`. |
+
+Bun and jj versions are pinned in the workflow `env` block (`BUN_VERSION`, `JJ_VERSION`).
+
+`prepare-and-release` pushes to `main` with `GITHUB_TOKEN`. If you enable branch protection on `main`, allow GitHub Actions to bypass it, or use `prepare-pr`.
 
 npm publishing uses OIDC trusted publishing instead of a repository secret. Configure GitHub Actions as the trusted publisher for each of `kajji`, `kajji-darwin-arm64`, `kajji-darwin-x64`, `kajji-linux-arm64`, and `kajji-linux-x64` with:
 
@@ -100,10 +99,9 @@ This requires you to have all four target platforms buildable locally, which is 
 
 ## Troubleshooting
 
-- **`draft-release-pr` failed during `pi` step.** The agent likely hit a constraint check (empty commit range, downgrade attempt, missing CHANGELOG section). Re-read the job logs — the verify step prints what's missing.
-- **Agent picked the wrong bump.** Either re-run the workflow with `bump` set explicitly, or just edit `package.json` and `CHANGELOG.md` on the PR branch.
-- **Agent edited unexpected files.** The workflow auto-reverts anything outside `package.json` / `CHANGELOG.md` and warns. If something useful was discarded, edit it back into the PR manually.
-- **Tag pushed but `publish` didn't run.** Check the `build` matrix — `publish` needs all four platforms green. If a runner is having a bad day, re-run failed jobs.
-- **Recovering a stuck release (tag exists on origin but no build/publish run).** Run the workflow with `mode` set to `publish-tag` and provide the existing `release_tag`. Do not delete or move the tag.
+- **`propose` failed at "Collect release context".** Either there are no commits since the latest tag, or `package.json` is ahead of the latest tag. For the second case, run the `release` action to finish the pending release.
+- **`propose` failed at "Validate proposal".** The agent returned an invalid proposal. The log shows the reason. Run again, set `bump` explicitly, or change `RELEASE_PI_MODEL`.
+- **`commit` or `prepare-pr` failed with "Release context changed", or the push was rejected.** `main` moved during the run. Run the workflow again.
+- **Wrong bump or wording after `prepare-and-release`.** Edit the GitHub release notes and `CHANGELOG.md` by hand. Use `prepare-pr` when you want to review first.
+- **`publish` did not run.** It needs `verify` and all four builds to pass. Re-run failed jobs.
 - **Wrapper `kajji` package failed to publish but platform packages succeeded.** `publish.ts` deliberately skips the wrapper if any platform publish failed (so users never get a broken `npm i kajji`). Fix the platform package(s) and re-run.
-- **Need to re-publish the same version.** npm doesn't allow it. Bump to the next patch and ship again.
