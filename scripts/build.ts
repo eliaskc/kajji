@@ -78,6 +78,10 @@ for (const target of targets) {
             compile: {
                 target: bunTarget as "bun-darwin-arm64",
                 outfile: outfile,
+                // kajji runs inside arbitrary repositories. Do not apply their
+                // bunfig.toml (e.g. preloads) or .env files to the binary.
+                autoloadBunfig: false,
+                autoloadDotenv: false,
             },
         })
 

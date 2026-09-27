@@ -33,6 +33,7 @@
 - perf: working-copy snapshots and repository reads are coordinated ([`f2d02ab`](../../commit/f2d02ab))
 - perf: long lists are virtualized and ansi row rendering is bounded ([`42cb3be`](../../commit/42cb3be))
 - perf: faster diff scrolling with limited row and word-highlight preparation ([`e04b1d1`](../../commit/e04b1d1), [`1728890`](../../commit/1728890))
+- build: kajji no longer reads bunfig.toml or .env from the current directory
 
 ## 0.17.1
 
