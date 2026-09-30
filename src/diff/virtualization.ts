@@ -147,7 +147,7 @@ export function shouldShowStickyFileHeader(
     scrollTop: number,
     leadingContentHeight: number,
 ): boolean {
-    return scrollTop > 0 && scrollTop + 1 >= leadingContentHeight
+    return scrollTop > 0 && scrollTop >= leadingContentHeight
 }
 
 export interface DiffPosition {
@@ -349,18 +349,13 @@ export function getCurrentDiffPosition(
     return { fileId: file.fileId, lineNumber }
 }
 
-export function getCurrentFileId<Row extends { row: { fileId: FileId; type?: string } }>(
+export function getCurrentFileId<Row extends { row: { fileId: FileId } }>(
     rows: { length: number; at: (index: number) => Row | undefined },
     scrollTop: number,
 ): FileId | null {
     if (rows.length === 0) return null
     const index = Math.min(rows.length - 1, Math.max(0, Math.floor(scrollTop)))
-    const current = rows.at(index)?.row
-    if (!current) return null
-    if (current.type === "file-gap") {
-        return rows.at(index + 1)?.row.fileId ?? current.fileId
-    }
-    return current.fileId
+    return rows.at(index)?.row.fileId ?? null
 }
 
 export function getFileScrollTailHeight(

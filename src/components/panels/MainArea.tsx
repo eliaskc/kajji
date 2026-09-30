@@ -718,7 +718,7 @@ export function MainArea() {
         const rowOffset = fileRowOffsets().get(targetFile.fileId)
         if (rowOffset === undefined) return
         setFileNavigationTarget(targetFile.fileId)
-        const targetScrollTop = headerHeight() + Math.max(0, rowOffset - 1)
+        const targetScrollTop = headerHeight() + rowOffset
         scrollRef?.scrollTo(targetScrollTop)
         if (scrollRef) setScrollTop(scrollRef.scrollTop)
     }
@@ -1057,7 +1057,7 @@ export function MainArea() {
         hunkNavigationTarget = null
         setFileNavigationTarget(file.fileId)
         handledFileNavigationRequest = request.id
-        const targetScrollTop = headerHeight() + Math.max(0, rowOffset - 1)
+        const targetScrollTop = headerHeight() + rowOffset
         scrollRef?.scrollTo(targetScrollTop)
         if (scrollRef) setScrollTop(scrollRef.scrollTop)
     })

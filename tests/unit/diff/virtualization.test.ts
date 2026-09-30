@@ -148,23 +148,6 @@ describe("getFileScrollTailHeight", () => {
     })
 })
 
-describe("shouldShowStickyFileHeader", () => {
-    test("covers the final leading-header row before diff content reaches the top", () => {
-        expect(shouldShowStickyFileHeader(4, 6)).toBe(false)
-        expect(shouldShowStickyFileHeader(5, 6)).toBe(true)
-        expect(shouldShowStickyFileHeader(6, 6)).toBe(true)
-    })
-
-    test("leaves the inline file header visible at the initial zero offset", () => {
-        expect(shouldShowStickyFileHeader(0, 0)).toBe(false)
-        expect(shouldShowStickyFileHeader(1, 0)).toBe(true)
-    })
-
-    test("does not cover the inline header when content cannot scroll", () => {
-        expect(shouldShowStickyFileHeader(0, 0)).toBe(false)
-    })
-})
-
 describe("getCurrentDiffPosition", () => {
     const first = "first" as FileId
     const second = "second" as FileId
@@ -227,6 +210,57 @@ describe("semantic diff scroll anchors", () => {
     })
 })
 
+describe("sticky file header", () => {
+    const file = (fileId: string, lines: number): FlattenedFile => ({
+        fileId: fileId as FileId,
+        name: `${fileId}.txt`,
+        type: "change",
+        additions: lines,
+        deletions: 0,
+        hunks: [
+            {
+                hunkId: `${fileId}:1` as HunkId,
+                oldStart: 1,
+                oldLines: 0,
+                newStart: 1,
+                newLines: lines,
+                lines: Array.from({ length: lines }, (_, index) => ({
+                    type: "addition" as const,
+                    content: `${fileId} ${index}`,
+                    hunkId: `${fileId}:1` as HunkId,
+                    newLineNumber: index + 1,
+                })),
+            },
+        ],
+    })
+    const rows = flattenToRows([file("a", 3), file("b", 2), file("c", 4)]).map((row) => ({
+        row,
+    }))
+
+    test("stays hidden when the view is not scrolled", () => {
+        // Also covers diffs that fit the viewport and cannot scroll.
+        expect(shouldShowStickyFileHeader(0, 0)).toBe(false)
+    })
+
+    for (const leadingHeight of [0, 1, 6]) {
+        test(`never duplicates or hides an inline header (leading height ${leadingHeight})`, () => {
+            for (let scrollTop = 1; scrollTop < leadingHeight + rows.length; scrollTop++) {
+                const contentTop = scrollTop - leadingHeight
+                const visible = shouldShowStickyFileHeader(scrollTop, leadingHeight)
+                // Show as soon as diff content reaches the top, and never earlier.
+                expect(visible).toBe(contentTop >= 0)
+                if (!visible) continue
+                const sticky = getCurrentFileId(rows, contentTop)
+                const covered = rows[contentTop]?.row
+                const below = rows[contentTop + 1]?.row
+                // The sticky header covers row 0. It may cover only its own inline header.
+                if (covered?.type === "file-header") expect(covered.fileId).toBe(sticky!)
+                if (below?.type === "file-header") expect(below.fileId).not.toBe(sticky!)
+            }
+        })
+    }
+})
+
 describe("getCurrentFileId", () => {
     const rows = [
         { row: { fileId: "first" as FileId } },
@@ -238,16 +272,6 @@ describe("getCurrentFileId", () => {
         expect(getCurrentFileId(rows, 0)).toBe("first")
         expect(getCurrentFileId(rows, 1.9)).toBe("first")
         expect(getCurrentFileId(rows, 2)).toBe("second")
-    })
-
-    test("treats the separator before a file as part of that file", () => {
-        const rowsWithGap = [
-            { row: { fileId: "first" as FileId, type: "content" } },
-            { row: { fileId: "first" as FileId, type: "file-gap" } },
-            { row: { fileId: "second" as FileId, type: "file-header" } },
-        ]
-
-        expect(getCurrentFileId(rowsWithGap, 1)).toBe("second")
     })
 
     test("clamps offsets and handles empty rows", () => {
