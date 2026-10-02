@@ -738,7 +738,6 @@ function AppContent({ onQuit }: Pick<AppProps, "onQuit">) {
                 {(err: () => string) => (
                     <ErrorScreen
                         error={err()}
-                        onRetry={handleRetry}
                         onFix={parseJjError(err()).fixCommand ? handleFix : undefined}
                         onQuit={onQuit}
                     />

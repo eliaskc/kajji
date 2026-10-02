@@ -1,6 +1,7 @@
 export type MockMode =
     | null
     | "error-stale"
+    | "error-unknown"
     | "startup-no-vcs"
     | "startup-git"
     | "update-success"

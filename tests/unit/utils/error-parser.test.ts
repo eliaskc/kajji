@@ -53,3 +53,27 @@ describe("stale working copy errors", () => {
         expect(shouldShowCriticalError("unrecognized failure", true)).toBe(false)
     })
 })
+
+describe("unknown errors", () => {
+    test("keeps the cause chain as details", () => {
+        const parsed = parseJjError(
+            [
+                "Internal error: Unexpected error from backend",
+                "Caused by:",
+                "1: Could not write object of type commit",
+                "2: Signing error",
+                "Hint: Check your signing config",
+                "",
+            ].join("\n"),
+        )
+
+        expect(parsed.title).toBe("Internal error: Unexpected error from backend")
+        expect(parsed.details).toEqual([
+            "Caused by:",
+            "1: Could not write object of type commit",
+            "2: Signing error",
+        ])
+        expect(parsed.hints).toEqual(["Check your signing config"])
+        expect(parsed.fixCommand).toBeNull()
+    })
+})

@@ -8,26 +8,22 @@ import { WaveBackground } from "./WaveBackground"
 
 export interface ErrorScreenProps {
     error: string
-    onRetry: () => void | Promise<void>
     onFix?: () => Promise<void>
     onQuit: () => void
 }
 
+/**
+ * Full-screen error. Known errors offer a fix command; unknown errors show
+ * the full jj output so the user can act on it outside kajji.
+ */
 export function ErrorScreen(props: ErrorScreenProps) {
     const { colors } = useTheme()
     const [isFixing, setIsFixing] = createSignal(false)
-    const [isRetrying, setIsRetrying] = createSignal(false)
     const [attempts, setAttempts] = createSignal(1)
-
-    const isLoading = () => isFixing() || isRetrying()
 
     const parsedError = (): ParsedJjError => parseJjError(props.error)
 
-    const canFix = () => parsedError().fixCommand !== null && props.onFix
-    const showRetry = () => !canFix()
-
-    type Action = "fix" | "retry"
-    const [selectedAction, setSelectedAction] = createSignal<Action>(canFix() ? "fix" : "retry")
+    const canFix = () => parsedError().fixCommand !== null && props.onFix !== undefined
 
     const handleFix = async () => {
         if (!props.onFix) return
@@ -40,51 +36,18 @@ export function ErrorScreen(props: ErrorScreenProps) {
         }
     }
 
-    const handleRetry = async () => {
-        setIsRetrying(true)
-        try {
-            await Promise.resolve(props.onRetry())
-            setAttempts((n) => n + 1)
-        } finally {
-            setIsRetrying(false)
-        }
-    }
-
     useKeyboard((evt) => {
-        if (isLoading()) return
+        if (isFixing()) return
 
-        if (evt.name === "q") {
+        const isEnter = evt.name === "return" || evt.name === "enter"
+        if (evt.name === "q" || (isEnter && !canFix())) {
             evt.preventDefault()
             evt.stopPropagation()
             props.onQuit()
-        } else if (evt.name === "r" && showRetry()) {
-            evt.preventDefault()
-            evt.stopPropagation()
-            handleRetry()
-        } else if (evt.name === "f" && canFix()) {
+        } else if ((evt.name === "f" || isEnter) && canFix()) {
             evt.preventDefault()
             evt.stopPropagation()
             handleFix()
-        } else if (evt.name === "j" || evt.name === "down") {
-            evt.preventDefault()
-            evt.stopPropagation()
-            if (canFix() && showRetry()) {
-                setSelectedAction((a) => (a === "fix" ? "retry" : "fix"))
-            }
-        } else if (evt.name === "k" || evt.name === "up") {
-            evt.preventDefault()
-            evt.stopPropagation()
-            if (canFix() && showRetry()) {
-                setSelectedAction((a) => (a === "fix" ? "retry" : "fix"))
-            }
-        } else if (evt.name === "return" || evt.name === "enter") {
-            evt.preventDefault()
-            evt.stopPropagation()
-            if (selectedAction() === "fix" && canFix()) {
-                handleFix()
-            } else {
-                handleRetry()
-            }
         }
     })
 
@@ -117,12 +80,24 @@ export function ErrorScreen(props: ErrorScreenProps) {
                         Error
                     </text>
                     <box flexDirection="column">
-                        <text fg={colors().error}>
+                        <text fg={colors().error} wrapMode="word">
                             {attempts() > 1
                                 ? `${parsedError().title} [${attempts()}]`
                                 : parsedError().title}
                         </text>
                     </box>
+
+                    <Show when={!canFix() && parsedError().details.length > 0}>
+                        <box flexDirection="column">
+                            <For each={parsedError().details}>
+                                {(line) => (
+                                    <text fg={colors().textMuted} wrapMode="char">
+                                        {line}
+                                    </text>
+                                )}
+                            </For>
+                        </box>
+                    </Show>
 
                     <Show when={parsedError().hints.length > 0}>
                         <box flexDirection="column">
@@ -136,7 +111,7 @@ export function ErrorScreen(props: ErrorScreenProps) {
                         </box>
                     </Show>
 
-                    <Show when={parsedError().urls.length > 0}>
+                    <Show when={canFix() && parsedError().urls.length > 0}>
                         <box flexDirection="column">
                             <text fg={colors().textMuted}>More info:</text>
                             <For each={parsedError().urls}>
@@ -149,50 +124,30 @@ export function ErrorScreen(props: ErrorScreenProps) {
                         </box>
                     </Show>
 
-                    <box flexDirection="column">
-                        <Show when={canFix()}>
-                            <box
-                                flexDirection="row"
-                                justifyContent="space-between"
-                                paddingLeft={1}
-                                paddingRight={1}
-                                backgroundColor={
-                                    selectedAction() === "fix" && !isLoading()
-                                        ? colors().selectionBackground
-                                        : undefined
-                                }
-                            >
-                                <text fg={isLoading() ? colors().textMuted : colors().text}>
-                                    {isFixing() ? "Running..." : parsedError().fixCommand}
-                                </text>
-                                <text fg={colors().brand}>f</text>
-                            </box>
-                        </Show>
+                    <Show when={canFix()}>
+                        <box
+                            flexDirection="row"
+                            justifyContent="space-between"
+                            paddingLeft={1}
+                            paddingRight={1}
+                            backgroundColor={isFixing() ? undefined : colors().selectionBackground}
+                        >
+                            <text fg={isFixing() ? colors().textMuted : colors().text}>
+                                {isFixing() ? "Running..." : parsedError().fixCommand}
+                            </text>
+                            <text fg={colors().brand}>f</text>
+                        </box>
+                    </Show>
 
-                        <Show when={showRetry()}>
-                            <box
-                                flexDirection="row"
-                                justifyContent="space-between"
-                                paddingLeft={1}
-                                paddingRight={1}
-                                backgroundColor={
-                                    selectedAction() === "retry" && !isLoading()
-                                        ? colors().selectionBackground
-                                        : undefined
-                                }
-                            >
-                                <text fg={isLoading() ? colors().textMuted : colors().text}>
-                                    {isRetrying() ? "Retrying..." : "retry"}
-                                </text>
-                                <text fg={colors().brand}>r</text>
-                            </box>
-                        </Show>
-                    </box>
                     <FooterHints
-                        hints={[
-                            { key: "enter", label: "run" },
-                            { key: "q", label: "quit" },
-                        ]}
+                        hints={
+                            canFix()
+                                ? [
+                                      { key: "enter", label: "run" },
+                                      { key: "q", label: "quit" },
+                                  ]
+                                : [{ key: "enter/q", label: "quit" }]
+                        }
                     />
                 </box>
             </box>

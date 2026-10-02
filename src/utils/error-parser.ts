@@ -9,6 +9,8 @@ export interface ParsedJjError {
     title: string
     /** Full error message text */
     message: string
+    /** Remaining non-hint lines after the title, such as jj's "Caused by:" chain */
+    details: string[]
     /** Extracted hint text (from "Hint:" lines) */
     hints: string[]
     /** Extracted URLs from the error message */
@@ -71,12 +73,15 @@ export function parseJjError(errorMessage: string): ParsedJjError {
         title = parenMatch[1].trim()
     }
 
-    // Extract hints (lines starting with "Hint:")
+    // Extract hints (lines starting with "Hint:") and keep other lines as details
     const hints: string[] = []
-    for (const line of lines) {
+    const details: string[] = []
+    for (const line of lines.slice(1)) {
         const hintMatch = line.match(/^Hint:\s*(.+)$/i)
         if (hintMatch?.[1]) {
             hints.push(hintMatch[1].trim())
+        } else if (line.trim()) {
+            details.push(line.trimEnd())
         }
     }
 
@@ -99,6 +104,7 @@ export function parseJjError(errorMessage: string): ParsedJjError {
     return {
         title,
         message: errorMessage,
+        details,
         hints,
         urls,
         errorType,

@@ -38,6 +38,12 @@ const MOCK_ERRORS = {
     "error-stale": `jj log failed: Error: The working copy is stale (not updated since operation abc123).
 Hint: Run \`jj workspace update-stale\` to update it.
 For more information, see https://martinvonz.github.io/jj/latest/working-copy/`,
+    "error-unknown": `Internal error: Unexpected error from backend
+Caused by:
+1: Could not write object of type commit
+2: Signing error
+3: SSH sign failed with exit status: 255:
+No private key found for "/var/folders/nv/bn6jhqr94ln883f2j65yrlhm0000gn/T/jj-signing-key-iKCQW2"`,
 }
 
 _trace("before extend()")
@@ -91,6 +97,7 @@ export async function runTui(args: string[]): Promise<void> {
             } else if (
                 [
                     "error-stale",
+                    "error-unknown",
                     "startup-no-vcs",
                     "startup-git",
                     "update-success",
@@ -225,16 +232,20 @@ export async function runTui(args: string[]): Promise<void> {
         }
 
         // Mock error screen
+        if (mockMode === "error-unknown") {
+            return (
+                <ThemeProvider>
+                    <ErrorScreen error={MOCK_ERRORS["error-unknown"]} onQuit={handleQuit} />
+                </ThemeProvider>
+            )
+        }
+
         if (mockMode === "error-stale") {
             const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
             return (
                 <ThemeProvider>
                     <ErrorScreen
                         error={MOCK_ERRORS["error-stale"]}
-                        onRetry={async () => {
-                            await sleep(1000)
-                            // In real usage, parent would update error prop or unmount
-                        }}
                         onFix={async () => {
                             await sleep(1000)
                             // In real usage, parent would update error prop or unmount
@@ -243,18 +254,6 @@ export async function runTui(args: string[]): Promise<void> {
                     />
                 </ThemeProvider>
             )
-        }
-
-        const handleRetryStartup = async () => {
-            const status = await application.repositoryStatus(getRepoPath())
-            if (status.repoPath !== getRepoPath()) {
-                setRepoPath(status.repoPath)
-            }
-            setInitialRefreshState(status.refreshState)
-            setStartupError(status.startupError)
-            setHasGitRepo(status.hasGitRepo)
-            setBrokenMetadata(status.brokenMetadata)
-            if (!status.startupError) setIsJjRepo(status.isJjRepo)
         }
 
         const handleFixStartup = async () => {
@@ -307,12 +306,7 @@ export async function runTui(args: string[]): Promise<void> {
             >
                 {(error: () => string) => (
                     <ThemeProvider>
-                        <ErrorScreen
-                            error={error()}
-                            onRetry={handleRetryStartup}
-                            onFix={handleFixStartup}
-                            onQuit={handleQuit}
-                        />
+                        <ErrorScreen error={error()} onFix={handleFixStartup} onQuit={handleQuit} />
                     </ThemeProvider>
                 )}
             </Show>
