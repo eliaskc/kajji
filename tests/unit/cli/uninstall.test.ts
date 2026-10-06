@@ -15,6 +15,12 @@ describe("getUninstallCommand", () => {
         expect(getUninstallCommand("bun")).toEqual(["bun", "remove", "-g", "kajji"])
         expect(getUninstallCommand("pnpm")).toEqual(["pnpm", "uninstall", "-g", "kajji"])
         expect(getUninstallCommand("yarn")).toEqual(["yarn", "global", "remove", "kajji"])
+        expect(getUninstallCommand("mise")).toEqual([
+            "mise",
+            "unuse",
+            "--global",
+            "github:eliaskc/kajji",
+        ])
     })
 
     test("returns null for curl/unknown", () => {

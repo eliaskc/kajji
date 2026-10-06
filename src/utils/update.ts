@@ -5,8 +5,14 @@ import { readState, writeState } from "./state"
 
 const GITHUB_RELEASES_URL = "https://api.github.com/repos/eliaskc/kajji/releases/latest"
 const UPDATE_CHECK_INTERVAL_MS = 30 * 60 * 1000
+export const MISE_TOOL = "github:eliaskc/kajji"
 
-export type PackageManager = "npm" | "bun" | "pnpm" | "yarn" | "brew" | "curl" | "unknown"
+export type PackageManager = "npm" | "bun" | "pnpm" | "yarn" | "brew" | "mise" | "curl" | "unknown"
+
+/** mise installs tools under `<data dir>/installs/<tool-slug>/<version>/`. */
+export function isMiseInstallPath(execPath: string): boolean {
+    return /[\\/]mise[\\/]installs[\\/]/i.test(execPath)
+}
 
 export function getCurrentVersion(): string {
     return process.env.KAJJI_VERSION ?? "0.0.0"
@@ -14,6 +20,8 @@ export function getCurrentVersion(): string {
 
 export async function detectPackageManager(): Promise<PackageManager> {
     const execPath = process.execPath.toLowerCase()
+
+    if (isMiseInstallPath(execPath)) return "mise"
 
     if (execPath.includes(join(".kajji", "bin")) || execPath.includes(join(".local", "bin"))) {
         return "curl"
@@ -76,6 +84,9 @@ export function getUpdateCommand(pm: PackageManager, version: string): string | 
             // Homebrew always installs whatever the tap currently pins, so the
             // `version` arg is intentionally ignored here.
             return "brew upgrade kajji"
+        case "mise":
+            // mise respects the version range pinned in the user's config.
+            return `mise upgrade ${MISE_TOOL}`
         case "curl":
             return "curl -fsSL https://kajji.sh/install.sh | bash"
         default:
@@ -171,6 +182,9 @@ async function runUpdate(
             break
         case "brew":
             result = await $`brew upgrade kajji`.quiet().nothrow()
+            break
+        case "mise":
+            result = await $`mise upgrade ${MISE_TOOL}`.quiet().nothrow()
             break
         case "curl":
             result = await $`curl -fsSL https://kajji.sh/install.sh | bash`

@@ -16,6 +16,9 @@ Kajji gives jj a fast, keyboard-first interface with a commit graph, file tree, 
 # recommended if you use Homebrew
 brew install eliaskc/tap/kajji
 
+# or via mise (installs the GitHub release binary)
+mise use -g github:eliaskc/kajji
+
 # standalone binary installer, no package manager required
 curl -fsSL https://kajji.sh/install.sh | bash
 

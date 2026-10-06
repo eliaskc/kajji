@@ -5,7 +5,7 @@ import { stdin as input, stdout as output } from "node:process"
 import { createInterface } from "node:readline/promises"
 import { $ } from "bun"
 import { defineCommand } from "citty"
-import { type PackageManager, detectPackageManager } from "../utils/update"
+import { MISE_TOOL, type PackageManager, detectPackageManager } from "../utils/update"
 
 interface RemovalTarget {
     path: string
@@ -131,6 +131,9 @@ export function getUninstallCommand(pm: PackageManager): string[] | null {
     switch (pm) {
         case "brew":
             return ["brew", "uninstall", "kajji"]
+        case "mise":
+            // Removes the tool from the global config and prunes unused installs.
+            return ["mise", "unuse", "--global", MISE_TOOL]
         case "npm":
             return ["npm", "uninstall", "-g", "kajji"]
         case "bun":
