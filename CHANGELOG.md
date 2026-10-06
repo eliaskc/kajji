@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.19.0
+
+### new
+- mise installs supported: auto-update runs `mise upgrade` and uninstall detects mise installs ([`696e411`](../../commit/696e411))
+
+### improved
+- ux: error screen shows the full jj output for unknown errors ([`3527d1c`](../../commit/3527d1c))
+
+### fixed
+- layout: diff file headers no longer appear twice; sticky header shows only when a file header reaches the top, and file navigation scrolls to the header ([`25acf13`](../../commit/25acf13))
+
 ## 0.18.0
 
 ### breaking
