@@ -78,6 +78,21 @@ const UNIFIED_RIGHT_PADDING = 0
 const SPLIT_RIGHT_PADDING = 0
 const SCROLLBAR_GUTTER = 1
 const HORIZONTAL_SCROLL_STEP = 5
+// Each stat row is a renderable; OpenTUI has a fixed native handle budget.
+const MAX_FILE_STAT_ROWS = 200
+// How long a slow diff may keep the previous revision on screen.
+const PENDING_SOURCE_SWITCH_MS = 150
+
+/** Same revision across rewrites (a working-copy snapshot keeps the change ID). */
+function sourceIdentity(
+    commit: Commit | undefined,
+    bookmarkDiff: BookmarkDiffView | null,
+    multi: MultiDiffView | null,
+) {
+    if (bookmarkDiff) return `${bookmarkDiff.from}..${bookmarkDiff.to}`
+    if (multi) return `multi:${multi.revset}`
+    return commit?.changeId
+}
 
 // Mirrors OpenTUI's MacOSScrollAccel defaults. We keep this local because
 // @opentui/core does not export the acceleration helper through its package
@@ -144,11 +159,13 @@ function FileStats(props: {
     const fileRows = createMemo(() => {
         const maxPathWidth = Math.max(1, Math.floor(props.maxWidth * 0.75))
         let maxLen = 1
-        const rows = s().files.map((file) => {
-            const pathText = truncatePathMiddle(file.path, maxPathWidth)
-            maxLen = Math.max(maxLen, pathText.length)
-            return { file, pathText }
-        })
+        const rows = s()
+            .files.slice(0, MAX_FILE_STAT_ROWS)
+            .map((file) => {
+                const pathText = truncatePathMiddle(file.path, maxPathWidth)
+                maxLen = Math.max(maxLen, pathText.length)
+                return { file, pathText }
+            })
         const pathColumnWidth = Math.min(
             maxPathWidth,
             Math.max(maxLen, props.minPathColumnWidth ?? 1),
@@ -161,6 +178,7 @@ function FileStats(props: {
     })
 
     const rows = () => fileRows().rows
+    const overflow = () => s().files.length - rows().length
     const pathColumnWidth = () => fileRows().pathColumnWidth
     const availableBarWidth = () => fileRows().availableBarWidth
 
@@ -214,6 +232,11 @@ function FileStats(props: {
                     )
                 }}
             </For>
+            <Show when={overflow() > 0}>
+                <text fg={colors().textMuted} wrapMode="none">
+                    {`…and ${overflow()} more files`}
+                </text>
+            </Show>
             <DiffStatsSummary stats={s()} />
             <text fg={colors().textMuted}>{"─".repeat(props.maxWidth + 2)}</text>
         </>
@@ -240,12 +263,14 @@ function CommitHeader(props: {
     // Refused files and file stats share one path column, so their ` | ` bars line up.
     const pathColumnWidth = createMemo(() => {
         const maxPathWidth = Math.max(1, Math.floor(props.maxWidth * 0.75))
-        const lengths = [
-            REFUSED_TO_SNAPSHOT.length,
-            ...(props.stats?.files ?? []).map((file) => file.path.length),
-            ...props.untrackedLargeFiles.map((file) => file.path.length),
-        ]
-        return Math.min(maxPathWidth, Math.max(1, ...lengths))
+        let longest = REFUSED_TO_SNAPSHOT.length
+        for (const file of props.stats?.files.slice(0, MAX_FILE_STAT_ROWS) ?? []) {
+            longest = Math.max(longest, file.path.length)
+        }
+        for (const file of props.untrackedLargeFiles) {
+            longest = Math.max(longest, file.path.length)
+        }
+        return Math.min(maxPathWidth, longest)
     })
 
     return (
@@ -742,6 +767,8 @@ export function MainArea() {
     // Track current fetch to prevent stale updates
     let currentFetchKey: string | null = null
     let detailAbort: AbortController | null = null
+    let pendingSourceTimer: ReturnType<typeof setTimeout> | undefined
+    onCleanup(() => clearTimeout(pendingSourceTimer))
     let benchmarkDiffReady = false
     onCleanup(
         registerBenchmarkState(() => ({
@@ -849,6 +876,7 @@ export function MainArea() {
         const cwd = getRepoPath()
         const columns = showJjFormatter ? Math.max(1, viewportWidth()) : undefined
         if (!commit && !bookmarkDiff && !multi) {
+            clearTimeout(pendingSourceTimer)
             detailAbort?.abort()
             structuralAbort?.abort()
             currentFetchKey = null
@@ -875,6 +903,7 @@ export function MainArea() {
               : "custom"
         const fetchKey = JSON.stringify([cwd, sourceKey, mode, columns, refreshVersion])
         if (fetchKey === currentFetchKey) return
+        clearTimeout(pendingSourceTimer)
         detailAbort?.abort()
         const controller = new AbortController()
         detailAbort = controller
@@ -898,6 +927,22 @@ export function MainArea() {
 
         if (!displayedCommit() && !displayedBookmarkDiff() && !displayedMultiDiff()) {
             updateDisplayedSource(commit, bookmarkDiff, multi, false)
+        } else if (
+            sourceIdentity(commit, bookmarkDiff, multi) !==
+            sourceIdentity(displayedCommit(), displayedBookmarkDiff(), displayedMultiDiff())
+        ) {
+            // Keep the previous revision on screen for fast loads to avoid flicker,
+            // but never let a slow diff leave the header showing the wrong revision.
+            pendingSourceTimer = setTimeout(() => {
+                if (currentFetchKey !== fetchKey) return
+                batch(() => {
+                    setParsedFiles([])
+                    setRawDiffOutput("")
+                    setParsedDiffError(null)
+                    setDiffLoading(true)
+                    updateDisplayedSource(commit, bookmarkDiff, multi, false)
+                })
+            }, PENDING_SOURCE_SWITCH_MS)
         }
         setParsedDiffError(null)
 
@@ -921,6 +966,7 @@ export function MainArea() {
         fetcher
             .then((result) => {
                 if (controller.signal.aborted || currentFetchKey !== fetchKey) return
+                clearTimeout(pendingSourceTimer)
 
                 const fetchMs = performance.now() - fetchStart
 
@@ -1029,17 +1075,16 @@ export function MainArea() {
             })
             .catch((err) => {
                 if (controller.signal.aborted || currentFetchKey !== fetchKey) return
-                setDiffLoading(false)
-                setParsedDiffError(err.message)
-                if (multi) {
-                    // jj refuses to diff revsets with gaps; clear the stale
-                    // diff so the error isn't shown above unrelated content.
-                    batch(() => {
-                        setParsedFiles([])
-                        setRawDiffOutput("")
-                        updateDisplayedSource(commit, bookmarkDiff, multi, false)
-                    })
-                }
+                clearTimeout(pendingSourceTimer)
+                // Clear the previous diff so the error isn't shown above unrelated content
+                // (e.g. jj refusing to diff revsets with gaps, or a render failure).
+                batch(() => {
+                    setDiffLoading(false)
+                    setParsedDiffError(err instanceof Error ? err.message : String(err))
+                    setParsedFiles([])
+                    setRawDiffOutput("")
+                    updateDisplayedSource(commit, bookmarkDiff, multi, false)
+                })
             })
     })
 
@@ -1071,14 +1116,11 @@ export function MainArea() {
     })
 
     createEffect(() => {
-        const commit = displayedCommit()
-        const bookmarkDiff = displayedBookmarkDiff()
-        const multi = displayedMultiDiff()
-        const nextId = bookmarkDiff
-            ? `${bookmarkDiff.from}..${bookmarkDiff.to}`
-            : multi
-              ? `multi:${multi.revset}`
-              : commit?.changeId
+        const nextId = sourceIdentity(
+            displayedCommit(),
+            displayedBookmarkDiff(),
+            displayedMultiDiff(),
+        )
         if (nextId && nextId !== currentCommitId()) {
             hunkNavigationTarget = null
             setFileNavigationTarget(null)
