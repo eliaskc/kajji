@@ -66,7 +66,12 @@ export async function runTui(args: string[]): Promise<void> {
         shutdownPromise = application.dispose().finally(async () => {
             process.off("SIGINT", handleSigint)
             process.off("SIGTERM", handleSigterm)
-            destroyRenderer()
+            process.off("SIGHUP", handleSighup)
+            try {
+                destroyRenderer()
+            } catch {
+                // After SIGHUP the terminal may already be gone; exit regardless.
+            }
             try {
                 await stopBenchmark()
             } catch {
@@ -79,8 +84,12 @@ export async function runTui(args: string[]): Promise<void> {
     }
     const handleSigint = () => void shutdown(130)
     const handleSigterm = () => void shutdown(143)
+    // Closing the terminal sends SIGHUP. jj children run in their own process
+    // groups, so they would outlive kajji unless disposal terminates them.
+    const handleSighup = () => void shutdown(129)
     process.once("SIGINT", handleSigint)
     process.once("SIGTERM", handleSigterm)
+    process.once("SIGHUP", handleSighup)
 
     let mockWhatsNewVersion: string | null = null
 
