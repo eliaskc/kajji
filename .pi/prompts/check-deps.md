@@ -13,7 +13,7 @@ Check for useful dependency updates. Give OpenTUI and Effect the most attention.
 | `@pierre/diffs` | Check package.json | https://github.com/pierrecomputer/pierre/releases | `git clone https://github.com/pierrecomputer/pierre /tmp/pierre` |
 | `effect` | Check package.json and bun.lock | https://github.com/Effect-TS/effect/blob/main/packages/effect/CHANGELOG.md (Effect 4; verify the current upstream) | `git clone https://github.com/Effect-TS/effect /tmp/effect` |
 | `solid-js` + `babel-preset-solid` | Check package.json and bun.lock | https://github.com/solidjs/solid/releases | `git clone https://github.com/solidjs/solid /tmp/solid` |
-| `shiki` + `@shikijs/langs` + `@shikijs/themes` | Check package.json and bun.lock | https://github.com/shikijs/shiki/releases | `git clone https://github.com/shikijs/shiki /tmp/shiki` |
+| `@pierre/highlights` | Check package.json (pinned, pre-1.0) | https://github.com/pierrecomputer/pierre/releases (package source: `packages/highlights`) | `git clone https://github.com/pierrecomputer/pierre /tmp/pierre` |
 | `zod` | Check package.json and bun.lock | https://github.com/colinhacks/zod/releases | `git clone https://github.com/colinhacks/zod /tmp/zod` |
 | `diff` | Check package.json and bun.lock | https://github.com/kpdecker/jsdiff/releases | `git clone https://github.com/kpdecker/jsdiff /tmp/jsdiff` |
 | `bun` | Run `bun --version` | https://github.com/oven-sh/bun/releases | `git clone https://github.com/oven-sh/bun /tmp/bun` |
@@ -89,10 +89,12 @@ Include a row for every dependency group checked. Mark unavailable evidence or i
 - JSX compilation and compatibility with the OpenTUI Solid integration
 - Runtime/compiler version compatibility
 
-### Shiki + language/theme packages
-- Highlighting correctness and language/theme changes
-- Large-file performance, memory use, and loading behavior
-- Compatibility with Pierre/Diffs; keep related Shiki packages aligned
+### Pierre/Highlights
+- Pre-1.0: check every release for breaking API changes; the version is pinned
+- Highlighting correctness, language additions, and lexer fixes
+- Theme changes, especially Ayu Dark and GitHub Light (used in `src/diff/syntax-worker.ts`)
+- `codeToTokens` output shape, line splitting, and lexer state across lines (hunk-block tokenization)
+- Performance, memory use, and Bun/compiled-binary compatibility
 
 ### Zod
 - Configuration parsing, validation errors, and compatibility
