@@ -1482,7 +1482,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                     status.show("No conflicts to resolve.")
                     return
                 }
-                renderer.suspend?.()
+                await renderer.suspend?.()
                 const revId = getRevisionId(commit)
                 const result = await app
                     .jjResolveInteractive({
@@ -1606,7 +1606,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                                     }
 
                                     // Interactive mode needs to suspend the TUI
-                                    renderer.suspend?.()
+                                    await renderer.suspend?.()
                                     try {
                                         const result = await app.jjSquashInteractive(revset, {
                                             cwd: getRepoPath(),
@@ -1629,7 +1629,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                                             loadOpLog()
                                         }
                                     } finally {
-                                        renderer.resume?.()
+                                        await renderer.resume?.()
                                     }
                                 } else {
                                     // Non-interactive squash
@@ -1846,14 +1846,14 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                     ignoreImmutable = true
                 }
 
-                renderer.suspend?.()
+                await renderer.suspend?.()
                 try {
                     await app.jjSplitInteractive(getRevisionId(commit), {
                         cwd: getRepoPath(),
                         ignoreImmutable,
                     })
                 } finally {
-                    renderer.resume?.()
+                    await renderer.resume?.()
                     refresh()
                     loadOpLog()
                 }

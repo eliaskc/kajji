@@ -8,8 +8,7 @@ function _trace(label: string) {
 _trace("tui.tsx top (imports starting)")
 
 import { ConsolePosition } from "@opentui/core"
-import { extend, render, useRenderer } from "@opentui/solid"
-import { GhosttyTerminalRenderable } from "ghostty-opentui/terminal-buffer"
+import { render, useRenderer } from "@opentui/solid"
 import { Show, createSignal } from "solid-js"
 import { App } from "./App"
 import { makeApplicationClient } from "./application/client"
@@ -48,7 +47,6 @@ No private key found for "/var/folders/nv/bn6jhqr94ln883f2j65yrlhm0000gn/T/jj-si
 
 _trace("before extend()")
 disableOpenTuiSelection()
-extend({ "ghostty-terminal": GhosttyTerminalRenderable })
 _trace("after extend()")
 
 _trace("before initHighlighter()")

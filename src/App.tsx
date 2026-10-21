@@ -505,11 +505,11 @@ function AppContent({ onQuit }: Pick<AppProps, "onQuit">) {
             execute: async () => {
                 const configPath = createDefaultConfig()
                 const shouldSuspend = shouldSuspendForEditor()
-                if (shouldSuspend) renderer.suspend?.()
+                if (shouldSuspend) await renderer.suspend?.()
                 try {
                     await openInEditor([configPath])
                 } finally {
-                    if (shouldSuspend) renderer.resume?.()
+                    if (shouldSuspend) await renderer.resume?.()
                 }
                 reloadConfig()
             },
@@ -522,11 +522,11 @@ function AppContent({ onQuit }: Pick<AppProps, "onQuit">) {
             visibleIn: ["palette"] as const,
             execute: async () => {
                 const shouldSuspend = shouldSuspendForEditor()
-                if (shouldSuspend) renderer.suspend?.()
+                if (shouldSuspend) await renderer.suspend?.()
                 try {
                     await openInEditor([getLogPath()])
                 } finally {
-                    if (shouldSuspend) renderer.resume?.()
+                    if (shouldSuspend) await renderer.resume?.()
                 }
             },
         },

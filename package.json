@@ -56,8 +56,8 @@
     "dependencies": {
         "@babel/core": "^7.28.5",
         "@babel/preset-typescript": "^7.28.5",
-        "@opentui/core": "^0.5.12",
-        "@opentui/solid": "^0.5.12",
+        "@opentui/core": "^0.6.6",
+        "@opentui/solid": "^0.6.6",
         "@pierre/diffs": "^1.6.1",
         "@pierre/highlights": "0.2.0",
         "babel-preset-solid": "1.9.12",

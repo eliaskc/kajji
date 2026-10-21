@@ -381,8 +381,7 @@ export function MainArea() {
     let scrollRef: ScrollBoxRenderable | undefined
     let headerRef: BoxRenderable | undefined
     // Renderable.height is clamped to at least 1, but an empty header takes no rows.
-    const measuredHeaderHeight = () =>
-        headerRef ? headerRef.getLayoutNode().getComputedLayout().height : undefined
+    const measuredHeaderHeight = () => (headerRef ? headerRef.getLayout().height : undefined)
 
     const [scrollTop, setScrollTop] = createSignal(0)
     const [viewportHeight, setViewportHeight] = createSignal(30)
@@ -1152,7 +1151,7 @@ export function MainArea() {
     })
 
     let scrollSyncTimer: ReturnType<typeof setTimeout> | undefined
-    let modeScrollRestoreTimer: ReturnType<typeof setTimeout> | undefined
+    let modeScrollRestore = 0
     let previousViewMode = viewMode()
     let preservedContentScrollTop = 0
     let normalHeaderHeight = headerHeight()
@@ -1234,8 +1233,11 @@ export function MainArea() {
         setScrollTop(fallbackScrollTop)
         scrollRef?.scrollTo(fallbackScrollTop)
 
-        clearTimeout(modeScrollRestoreTimer)
-        modeScrollRestoreTimer = setTimeout(() => {
+        // Restore after the renderer has laid out the new mode; OpenTUI computes
+        // layout during the frame, so a short timer can still see the old layout.
+        const restore = ++modeScrollRestore
+        void renderer.idle().then(() => {
+            if (restore !== modeScrollRestore) return
             const correctedScrollTop =
                 modeSemanticScrollTop ??
                 (measuredHeaderHeight() ?? modeExpectedHeaderHeight) + preservedContentScrollTop
@@ -1243,7 +1245,7 @@ export function MainArea() {
             syncScrollMetrics()
             modeScrollRestorePending = false
             setModeScrollAnchor(null)
-        }, 1)
+        })
     })
 
     const toggleDiffStyle = () => {
@@ -1324,7 +1326,7 @@ export function MainArea() {
         onCleanup(() => {
             clearInterval(pollInterval)
             clearTimeout(scrollSyncTimer)
-            clearTimeout(modeScrollRestoreTimer)
+            modeScrollRestore++
         })
     })
 
@@ -1370,7 +1372,7 @@ export function MainArea() {
         }
 
         const shouldSuspend = shouldSuspendForEditor()
-        if (shouldSuspend) renderer.suspend?.()
+        if (shouldSuspend) await renderer.suspend?.()
         try {
             const result = await openInEditor(editorPaths, {
                 cwd: repoPath,
@@ -1382,7 +1384,7 @@ export function MainArea() {
                 stderr: result.success ? "" : `Editor exited with code ${result.exitCode}`,
             })
         } finally {
-            if (shouldSuspend) renderer.resume?.()
+            if (shouldSuspend) await renderer.resume?.()
         }
 
         await refresh()
