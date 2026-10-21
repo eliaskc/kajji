@@ -60,6 +60,7 @@ export {
     initHighlighter,
     isHighlighterReady,
     tokenizeLine,
+    tokenizeDiffLineSync,
     tokenizeLineSync,
     tokenVersion,
     type SyntaxToken,

@@ -1,5 +1,6 @@
 import type { FileId, HunkId } from "./identifiers"
 import type { FlattenedFile } from "./parser"
+import type { SyntaxLineRef } from "./syntax"
 import type { WordDiffSegment } from "./word-diff"
 
 /** Visual and virtual row height reserved for each inline binary preview. */
@@ -27,6 +28,7 @@ export interface DiffRow {
     fileName: string
     gapLines?: number
     wordDiff?: WordDiffSegment[]
+    syntax?: SyntaxLineRef
 }
 
 export function flattenToRows(files: FlattenedFile[]): DiffRow[] {
@@ -115,6 +117,7 @@ export function flattenToRows(files: FlattenedFile[]): DiffRow[] {
                     rowIndex: rowIndex++,
                     fileName: file.name,
                     wordDiff: line.wordDiff,
+                    syntax: line.syntax,
                 })
             }
 

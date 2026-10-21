@@ -23,7 +23,7 @@ import {
     getVisibleRange,
     highlighterReady,
     tokenVersion,
-    tokenizeLineSync,
+    tokenizeDiffLineSync,
 } from "../../diff"
 import { prepareLineTokens, sliceTokens } from "../../diff/line-tokens"
 import { buildRowWindow, lineContentLength } from "../../diff/row-window"
@@ -688,7 +688,13 @@ function SplitContentRow(props: SplitContentRowProps) {
             side === "left" ? "removed" : "added",
             colors().text,
             props.highlighterReady()
-                ? (content) => tokenizeLineSync(content, language(), syntaxTheme())
+                ? (content) =>
+                      tokenizeDiffLineSync(
+                          content,
+                          props.row.row[side]?.syntax,
+                          language(),
+                          syntaxTheme(),
+                      )
                 : undefined,
         )
     }
@@ -856,7 +862,13 @@ function UnifiedContentRow(props: UnifiedContentRowProps) {
             props.row.line.type === "deletion" ? "removed" : "added",
             colors().text,
             props.highlighterReady()
-                ? (content) => tokenizeLineSync(content, language(), syntaxTheme())
+                ? (content) =>
+                      tokenizeDiffLineSync(
+                          content,
+                          props.row.line.syntax,
+                          language(),
+                          syntaxTheme(),
+                      )
                 : undefined,
         )
     })

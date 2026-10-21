@@ -24,28 +24,49 @@ export function prepareLineTokens(
         // long line (or its emphasis fragments) to the syntax worker.
         return [{ content, color: defaultColor, emphasis: wordDiff ? true : undefined }]
     }
-    const plain = (text: string) => tokenize?.(text) ?? [{ content: text, color: defaultColor }]
-    if (!wordDiff)
-        return plain(content).map((token) => ({ ...token, color: token.color ?? defaultColor }))
-
     // Structural emphasis is supplied externally. Bound its total text as well as
-    // segment count before processing any segment.
+    // segment count before tokenizing.
     let chars = 0
-    for (const segment of wordDiff) {
+    for (const segment of wordDiff ?? []) {
         chars += segment.text.length
         if (chars > MAX_HIGHLIGHT_LINE_LENGTH) {
             return [{ content, color: defaultColor, emphasis: true }]
         }
     }
+    const tokens = (tokenize?.(content) ?? [{ content }]).map((token) => ({
+        content: token.content,
+        color: token.color ?? defaultColor,
+    }))
+    if (!wordDiff) return tokens
+
+    // Split the line's syntax tokens at segment boundaries. Segments may also
+    // cover the line terminator, which is not part of `content`.
     const result: TokenWithEmphasis[] = []
+    let tokenIndex = 0
+    let tokenOffset = 0
     for (const segment of wordDiff) {
-        for (const token of plain(segment.text)) {
-            result.push({
-                content: token.content,
-                color: token.color ?? defaultColor,
-                emphasis: segment.type === emphasisType,
-            })
+        let remaining = segment.text.length
+        while (remaining > 0 && tokenIndex < tokens.length) {
+            const token = tokens[tokenIndex]!
+            const take = Math.min(remaining, token.content.length - tokenOffset)
+            if (take > 0)
+                result.push({
+                    content: token.content.slice(tokenOffset, tokenOffset + take),
+                    color: token.color,
+                    emphasis: segment.type === emphasisType,
+                })
+            remaining -= take
+            tokenOffset += take
+            if (tokenOffset === token.content.length) {
+                tokenIndex++
+                tokenOffset = 0
+            }
         }
+    }
+    for (; tokenIndex < tokens.length; tokenIndex++, tokenOffset = 0) {
+        const token = tokens[tokenIndex]!
+        if (tokenOffset < token.content.length)
+            result.push({ content: token.content.slice(tokenOffset), color: token.color })
     }
     return result
 }

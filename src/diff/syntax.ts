@@ -3,7 +3,7 @@ import { createSignal } from "solid-js"
 import type { SyntaxThemeName } from "../theme/syntax"
 import { registerBenchmarkState } from "../utils/benchmark"
 import { MAX_HIGHLIGHT_LINE_LENGTH } from "./preparation-limits"
-import type { WorkerRequest, WorkerResponse } from "./syntax-worker"
+import type { BlockTokens, WorkerRequest, WorkerResponse } from "./syntax-worker"
 
 export interface SyntaxToken {
     content: string
@@ -56,6 +56,76 @@ function setCachedTokens(cacheKey: string, tokens: SyntaxToken[]): void {
         tokenCache.delete(oldestKey)
         tokenCacheKeyChars -= oldestKey.length
     }
+}
+
+/**
+ * Consecutive lines from one side of a hunk. They are tokenized together so
+ * multi-line constructs such as block comments keep their lexer state.
+ * Lines are stored without terminators; long lines are blanked.
+ */
+export interface SyntaxBlock {
+    readonly lines: string[]
+    /** Content hash, computed on first use. */
+    hash?: string
+}
+
+/** One line's position within a {@link SyntaxBlock}. */
+export interface SyntaxLineRef {
+    block: SyntaxBlock
+    index: number
+}
+
+// Block tokens keyed by "theme:language:hash". Bounded by total token count.
+const MAX_BLOCK_CACHE_TOKENS = 2_000_000
+const blockCache = new Map<string, BlockTokens>()
+let blockCacheTokens = 0
+
+function getBlockKey(block: SyntaxBlock, language: SupportedLanguages, theme: SyntaxThemeName) {
+    if (block.hash === undefined) {
+        let hash = 0n
+        for (const line of block.lines) hash = Bun.hash(line, hash) as bigint
+        block.hash = `${hash.toString(36)}:${block.lines.length}`
+    }
+    return `${theme}:${language}:${block.hash}`
+}
+
+function setCachedBlock(key: string, tokens: BlockTokens): void {
+    const previous = blockCache.get(key)
+    if (previous) {
+        blockCache.delete(key)
+        blockCacheTokens -= previous.lengths.length
+    }
+    blockCache.set(key, tokens)
+    blockCacheTokens += tokens.lengths.length
+    while (blockCache.size > 1 && blockCacheTokens > MAX_BLOCK_CACHE_TOKENS) {
+        const oldestKey = blockCache.keys().next().value
+        if (!oldestKey) break
+        blockCacheTokens -= blockCache.get(oldestKey)?.lengths.length ?? 0
+        blockCache.delete(oldestKey)
+    }
+}
+
+function lineTokensFromBlock(
+    tokens: BlockTokens,
+    index: number,
+    content: string,
+): SyntaxToken[] | undefined {
+    const start = tokens.lineStarts[index]
+    const end = tokens.lineStarts[index + 1]
+    if (start === undefined || end === undefined) return undefined
+    const result: SyntaxToken[] = []
+    let offset = 0
+    for (let token = start; token < end; token++) {
+        const length = tokens.lengths[token]!
+        const color = tokens.colors[tokens.colorIds[token]!]
+        result.push({
+            content: content.slice(offset, offset + length),
+            color: color || undefined,
+        })
+        offset += length
+    }
+    // The block was built from the same line text; anything else is stale.
+    return offset === content.length ? result : undefined
 }
 
 export function getTokenCacheStats(): {
@@ -111,6 +181,17 @@ function handleWorkerMessage(event: MessageEvent<WorkerResponse>) {
                 requestToCacheKey.delete(msg.id)
                 pendingRequests.delete(cacheKey)
                 // Trigger re-render by incrementing version
+                setTokenVersion((v) => v + 1)
+            }
+            break
+        }
+
+        case "block-tokens": {
+            const cacheKey = requestToCacheKey.get(msg.id)
+            if (cacheKey) {
+                setCachedBlock(cacheKey, msg)
+                requestToCacheKey.delete(msg.id)
+                pendingRequests.delete(cacheKey)
                 setTokenVersion((v) => v + 1)
             }
             break
@@ -221,6 +302,38 @@ export function tokenizeLineSync(
 }
 
 /**
+ * Get tokens for a diff line, using its hunk-side block when available so the
+ * line is highlighted with the lexer state of the lines above it.
+ * Returns plain text and queues the whole block while tokens are pending.
+ */
+export function tokenizeDiffLineSync(
+    content: string,
+    ref: SyntaxLineRef | undefined,
+    language: SupportedLanguages,
+    theme: SyntaxThemeName,
+): SyntaxToken[] {
+    if (!ref) return tokenizeLineSync(content, language, theme)
+    if (content.length > MAX_HIGHLIGHT_LINE_LENGTH) return [{ content }]
+    const key = getBlockKey(ref.block, language, theme)
+    const cached = blockCache.get(key)
+    if (cached) return lineTokensFromBlock(cached, ref.index, content) ?? [{ content }]
+
+    if (highlighterReady() && worker && !pendingRequests.has(key)) {
+        pendingRequests.add(key)
+        const id = requestId++
+        requestToCacheKey.set(id, key)
+        worker.postMessage({
+            type: "tokenize-block",
+            id,
+            lines: ref.block.lines,
+            language,
+            theme,
+        } satisfies WorkerRequest)
+    }
+    return [{ content }]
+}
+
+/**
  * Async version - waits for tokenization to complete.
  * Prefer tokenizeLineSync for rendering.
  */
@@ -294,5 +407,7 @@ export function isHighlighterReady(): boolean {
 export function clearTokenCache(): void {
     tokenCache.clear()
     tokenCacheKeyChars = 0
+    blockCache.clear()
+    blockCacheTokens = 0
     setTokenVersion((v) => v + 1)
 }

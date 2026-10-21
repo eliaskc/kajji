@@ -8,6 +8,9 @@ import {
 } from "@pierre/diffs"
 import { findBinaryFiles } from "../utils/diff-binary"
 import { type FileId, type HunkId, fileId, hunkId } from "./identifiers"
+import { MAX_HIGHLIGHT_LINE_LENGTH } from "./preparation-limits"
+import { lineContentLength } from "./row-window"
+import type { SyntaxBlock, SyntaxLineRef } from "./syntax"
 import type { WordDiffSegment } from "./word-diff"
 
 // Re-export types for convenience
@@ -76,6 +79,24 @@ export interface DiffLine {
     // Precomputed inline emphasis segments (structural engine only).
     // The textual engine computes word diffs positionally in the split view.
     wordDiff?: WordDiffSegment[]
+    // Position in the hunk side this line is highlighted with.
+    syntax?: SyntaxLineRef
+}
+
+/**
+ * Give each hunk side one syntax block so lines are highlighted with the lexer
+ * state of the lines above them. A context line on both sides uses the new side.
+ */
+export function attachSyntaxBlocks(oldSide: DiffLine[], newSide: DiffLine[]): void {
+    for (const side of [oldSide, newSide]) {
+        const block: SyntaxBlock = {
+            lines: side.map((line) => {
+                const length = lineContentLength(line.content)
+                return length > MAX_HIGHLIGHT_LINE_LENGTH ? "" : line.content.slice(0, length)
+            }),
+        }
+        for (const [index, line] of side.entries()) line.syntax = { block, index }
+    }
 }
 
 /**
@@ -169,6 +190,11 @@ export function flattenHunk(file: FileDiffMetadata, hunk: Hunk): FlattenedHunk {
             }
         }
     }
+
+    attachSyntaxBlocks(
+        lines.filter((line) => line.type !== "addition"),
+        lines.filter((line) => line.type !== "deletion"),
+    )
 
     return {
         hunkId: id,

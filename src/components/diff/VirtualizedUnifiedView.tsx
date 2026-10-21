@@ -21,7 +21,7 @@ import {
     getVisibleRange,
     highlighterReady,
     tokenVersion,
-    tokenizeLineSync,
+    tokenizeDiffLineSync,
 } from "../../diff"
 import { prepareLineTokens, sliceTokens } from "../../diff/line-tokens"
 import { buildRowWindow, lineContentLength } from "../../diff/row-window"
@@ -385,7 +385,8 @@ function DiffLineRow(props: DiffLineRowProps) {
             props.row.type === "deletion" ? "removed" : "added",
             colors().text,
             props.highlighterReady()
-                ? (content) => tokenizeLineSync(content, language(), syntaxTheme())
+                ? (content) =>
+                      tokenizeDiffLineSync(content, props.row.syntax, language(), syntaxTheme())
                 : undefined,
         )
     })

@@ -5,6 +5,7 @@ import {
     type FlattenedFile,
     type FlattenedHunk,
     TAB_WIDTH,
+    attachSyntaxBlocks,
     expandTabs,
 } from "../parser"
 import type { WordDiffSegment } from "../word-diff"
@@ -302,6 +303,11 @@ export function flattenStructuralFile(
             if (right) lines.push(right)
             alignedRows.push({ left, right })
         }
+
+        attachSyntaxBlocks(
+            alignedRows.flatMap((row) => (row.left ? [row.left] : [])),
+            alignedRows.flatMap((row) => (row.right ? [row.right] : [])),
+        )
 
         return {
             hunkId,

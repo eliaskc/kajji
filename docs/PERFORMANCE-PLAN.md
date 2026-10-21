@@ -297,6 +297,13 @@ from Zed's Ayu Dark and GitHub Light themes, so they differ slightly from the
 Shiki/VS Code versions. All 30 previously bundled languages are supported.
 Oniguruma was not adopted. The package is pinned because it is pre-1.0.
 
+**Follow-up, 2026-10-21:** each hunk side is now tokenized as one block, so
+block comments and multi-line strings keep their lexer state. Tokens are returned
+as transferable typed arrays and cached per block by content hash. Compared with
+per-line Highlights (one B→C run, not A→B→A): `highlightedReadyOutputMs` fell
+3–5% and peak RSS fell 10–24% in diff/log scenarios; scrolling did not change
+beyond run variation.
+
 **Start at:** `src/diff/syntax-worker.ts`, `src/diff/syntax.ts`, `scripts/build.ts`.
 
 ## P07 — Parse and publish bookmark streams incrementally
