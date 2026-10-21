@@ -29,7 +29,7 @@ permissions:
   contents: read
 
 env:
-  BUN_VERSION: "1.4.2"
+  BUN_VERSION: "1.4.3"
   JJ_VERSION: "0.45.1"
 
 jobs:
