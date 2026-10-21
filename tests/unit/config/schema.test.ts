@@ -22,13 +22,13 @@ describe("ConfigSchema", () => {
             ui: {
                 theme: "kajji",
                 themeMode: "light",
-                syntaxTheme: { dark: "ayu-dark", light: "github-light" },
+                syntaxTheme: { dark: "catppuccin-mocha", light: "github-light" },
             },
         })
         expect(config.ui.theme).toBe("kajji")
         expect(config.ui.themeMode).toBe("light")
         expect(config.ui.syntaxTheme).toEqual({
-            dark: "ayu-dark",
+            dark: "catppuccin-mocha",
             light: "github-light",
         })
         expect(config.diff.layout).toBe("auto")

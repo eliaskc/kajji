@@ -88,7 +88,7 @@ export const kajjiTheme: Theme = {
     },
     syntax: {
         dark: "ayu-dark",
-        light: "github-light",
+        light: "ayu-light",
     },
     style: {
         panel: {

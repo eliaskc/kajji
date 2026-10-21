@@ -1,5 +1,7 @@
 import { expect, test } from "bun:test"
+import * as bundledThemes from "@pierre/highlights/themes"
 import type { BlockTokens } from "../../../src/diff/syntax-worker"
+import { syntaxThemeNames } from "../../../src/theme/syntax"
 
 test("syntax worker highlights code with both bundled themes", async () => {
     const worker = new Worker(new URL("../../../src/diff/syntax-worker.ts", import.meta.url).href)
@@ -86,6 +88,47 @@ test("syntax worker carries lexer state across the lines of a block", async () =
         expect([...lineColors(2)]).toEqual(commentColor)
         expect(lineColors(3).has(commentColor[0]!)).toBe(false)
         expect(block.lineStarts[4]).toBe(block.lineStarts[5])
+    } finally {
+        worker.terminate()
+    }
+})
+
+test("every bundled Highlights theme is selectable and resolves in the worker", async () => {
+    const exported = Object.keys(bundledThemes).filter(
+        (name) => name !== "cssVariables" && name !== "toCSS",
+    )
+    const listed = syntaxThemeNames.map((name) =>
+        name.replace(/-(\w)/g, (_, char: string) => char.toUpperCase()),
+    )
+    expect([...listed].sort()).toEqual(exported.sort())
+
+    const worker = new Worker(new URL("../../../src/diff/syntax-worker.ts", import.meta.url).href)
+    const responses = new Map<number, Array<{ content: string; color?: string }>>()
+    const done = new Promise<void>((resolve, reject) => {
+        worker.onmessage = (event) => {
+            if (event.data.type !== "tokens") return
+            responses.set(event.data.id, event.data.tokens)
+            if (responses.size === syntaxThemeNames.length) resolve()
+        }
+        worker.onerror = (event) => reject(new Error(event.message))
+    })
+    try {
+        worker.postMessage({ type: "init" })
+        for (const [id, theme] of syntaxThemeNames.entries()) {
+            worker.postMessage({
+                type: "tokenize",
+                id,
+                content: "const answer = 42 // note",
+                language: "typescript",
+                theme,
+            })
+        }
+        await done
+        // An unresolved theme falls back to one uncolored token.
+        const unresolved = syntaxThemeNames.filter((_, id) =>
+            responses.get(id)!.every((token) => !token.color),
+        )
+        expect(unresolved).toEqual([])
     } finally {
         worker.terminate()
     }

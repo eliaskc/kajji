@@ -2,8 +2,7 @@ declare const self: Worker
 
 import type { SupportedLanguages } from "@pierre/diffs"
 import { type Theme, type ThemedToken, codeToTokens, isSupportedLanguage } from "@pierre/highlights"
-import ayuDark from "@pierre/highlights/themes/ayu-dark"
-import githubLight from "@pierre/highlights/themes/github-light"
+import * as bundledThemes from "@pierre/highlights/themes"
 import type { SyntaxThemeName } from "../theme/syntax"
 import { MAX_HIGHLIGHT_LINE_LENGTH } from "./preparation-limits"
 
@@ -48,10 +47,15 @@ export type WorkerResponse =
     | { type: "error"; id: number; message: string }
 
 // @pierre/highlights compiles its WebAssembly lexers at import, so the worker
-// is ready as soon as it receives "init".
-const THEMES: Record<SyntaxThemeName, Theme> = {
-    "ayu-dark": ayuDark,
-    "github-light": githubLight,
+// is ready as soon as it receives "init". Importing every bundled theme costs
+// a few milliseconds here, off the UI thread, and keeps tokenization synchronous.
+const THEMES = bundledThemes as unknown as Record<string, Theme>
+
+/** Resolve a theme by its file name, e.g. "synthwave-84" -> synthwave84. */
+function resolveSyntaxTheme(name: SyntaxThemeName): Theme {
+    const theme = THEMES[name.replace(/-(\w)/g, (_, char: string) => char.toUpperCase())]
+    if (!theme) throw new Error(`Unknown syntax theme: ${name}`)
+    return theme
 }
 
 function tokenize(
@@ -66,7 +70,7 @@ function tokenize(
     }
 
     try {
-        const result = codeToTokens(content, { lang: language, theme: THEMES[theme] })
+        const result = codeToTokens(content, { lang: language, theme: resolveSyntaxTheme(theme) })
 
         const tokens: Array<{ content: string; color?: string }> = []
         for (const line of result.tokens) {
@@ -107,7 +111,7 @@ function tokenizeBlockLines(
         try {
             const result = codeToTokens(lines.join("\n"), {
                 lang: language,
-                theme: THEMES[theme],
+                theme: resolveSyntaxTheme(theme),
             })
             // A line containing another line terminator (such as a lone "\r")
             // would shift every following line. Tokenize lines separately then.
@@ -116,8 +120,10 @@ function tokenizeBlockLines(
                     ? result.tokens
                     : lines.map(
                           (line) =>
-                              codeToTokens(line, { lang: language, theme: THEMES[theme] })
-                                  .tokens[0] ?? [],
+                              codeToTokens(line, {
+                                  lang: language,
+                                  theme: resolveSyntaxTheme(theme),
+                              }).tokens[0] ?? [],
                       )
         } catch {}
     }

@@ -129,7 +129,7 @@ Kajji reads JSONC config from `~/.config/kajji/config.json` (comments and traili
 Common settings include:
 
 - `ui.themeMode`: `system`, `dark`, or `light`
-- `ui.syntaxTheme.dark` / `ui.syntaxTheme.light`: syntax highlighting theme names
+- `ui.syntaxTheme.dark` / `ui.syntaxTheme.light`: syntax highlighting theme for each mode (defaults `ayu-dark` / `ayu-light`); any theme bundled with [Highlights](https://diffs.com/highlights), such as `catppuccin-mocha`, `gruvbox-dark-medium`, `tokyo-night`, or `solarized-light` (see the schema for the full list)
 - `ui.showFileTree`: show files as a tree or flat list
 - `diff.layout`: `auto`, `unified`, or `split`
 - `diff.autoSwitchWidth`: terminal width where `auto` switches to split view
