@@ -1,40 +1,9 @@
 declare const self: Worker
 
 import type { SupportedLanguages } from "@pierre/diffs"
-import bash from "@shikijs/langs/bash"
-import c from "@shikijs/langs/c"
-import cpp from "@shikijs/langs/cpp"
-import css from "@shikijs/langs/css"
-import dockerfile from "@shikijs/langs/dockerfile"
-import elixir from "@shikijs/langs/elixir"
-import go from "@shikijs/langs/go"
-import haskell from "@shikijs/langs/haskell"
-import hcl from "@shikijs/langs/hcl"
-import html from "@shikijs/langs/html"
-import java from "@shikijs/langs/java"
-import javascript from "@shikijs/langs/javascript"
-import json from "@shikijs/langs/json"
-import jsx from "@shikijs/langs/jsx"
-import kotlin from "@shikijs/langs/kotlin"
-import lua from "@shikijs/langs/lua"
-import markdown from "@shikijs/langs/markdown"
-import objectiveC from "@shikijs/langs/objective-c"
-import php from "@shikijs/langs/php"
-import python from "@shikijs/langs/python"
-import ruby from "@shikijs/langs/ruby"
-import rust from "@shikijs/langs/rust"
-import scala from "@shikijs/langs/scala"
-import sql from "@shikijs/langs/sql"
-import swift from "@shikijs/langs/swift"
-import toml from "@shikijs/langs/toml"
-import tsx from "@shikijs/langs/tsx"
-import typescript from "@shikijs/langs/typescript"
-import yaml from "@shikijs/langs/yaml"
-import zig from "@shikijs/langs/zig"
-import ayuDark from "@shikijs/themes/ayu-dark"
-import githubLight from "@shikijs/themes/github-light"
-import type { BundledLanguage } from "shiki"
-import { type Highlighter, createHighlighter, createJavaScriptRegexEngine } from "shiki"
+import { type Theme, codeToTokens, isSupportedLanguage } from "@pierre/highlights"
+import ayuDark from "@pierre/highlights/themes/ayu-dark"
+import githubLight from "@pierre/highlights/themes/github-light"
 import type { SyntaxThemeName } from "../theme/syntax"
 import { MAX_HIGHLIGHT_LINE_LENGTH } from "./preparation-limits"
 
@@ -58,61 +27,11 @@ export type WorkerResponse =
       }
     | { type: "error"; id: number; message: string }
 
-// Note: We previously had warmup code that pre-tokenized sample code for each language.
-// Testing showed it didn't noticeably improve first-highlight latency, but it did delay
-// the "ready" signal, making the first file's highlights appear slower. Removed.
-
-const LANG_MODULES = [
-    typescript,
-    tsx,
-    javascript,
-    jsx,
-    json,
-    html,
-    css,
-    markdown,
-    yaml,
-    toml,
-    bash,
-    c,
-    cpp,
-    rust,
-    go,
-    zig,
-    java,
-    kotlin,
-    scala,
-    swift,
-    objectiveC,
-    python,
-    ruby,
-    php,
-    lua,
-    elixir,
-    haskell,
-    sql,
-    dockerfile,
-    hcl,
-]
-
-let highlighter: Highlighter | null = null
-
-async function init() {
-    try {
-        highlighter = await createHighlighter({
-            themes: [ayuDark, githubLight],
-            langs: LANG_MODULES.flat(),
-            engine: createJavaScriptRegexEngine(),
-        })
-
-        self.postMessage({ type: "ready" } satisfies WorkerResponse)
-    } catch (error) {
-        self.postMessage({
-            type: "error",
-            id: -1,
-            message: error instanceof Error ? error.message : String(error),
-        } satisfies WorkerResponse)
-    }
+// @pierre/highlights compiles its WebAssembly lexers at import, so the worker
+// is ready as soon as it receives "init".
+const THEMES: Record<SyntaxThemeName, Theme> = {
+    "ayu-dark": ayuDark,
+    "github-light": githubLight,
 }
 
 function tokenize(
@@ -121,38 +40,13 @@ function tokenize(
     language: SupportedLanguages,
     theme: SyntaxThemeName,
 ) {
-    if (content.length > MAX_HIGHLIGHT_LINE_LENGTH) {
+    if (content.length > MAX_HIGHLIGHT_LINE_LENGTH || !isSupportedLanguage(language)) {
         self.postMessage({ type: "tokens", id, tokens: [{ content }] } satisfies WorkerResponse)
-        return
-    }
-    if (!highlighter) {
-        self.postMessage({
-            type: "error",
-            id,
-            message: "Highlighter not initialized",
-        } satisfies WorkerResponse)
         return
     }
 
     try {
-        const loadedLangs = highlighter.getLoadedLanguages()
-        if (!loadedLangs.includes(language)) {
-            // Language not loaded, return plain
-            self.postMessage({
-                type: "tokens",
-                id,
-                tokens: [{ content }],
-            } satisfies WorkerResponse)
-            return
-        }
-
-        // @pierre/diffs 1.1+ widened SupportedLanguages to include custom
-        // string languages. We only pass loaded bundled languages here (guarded
-        // above), so the cast is safe.
-        const result = highlighter.codeToTokens(content, {
-            lang: language as BundledLanguage,
-            theme,
-        })
+        const result = codeToTokens(content, { lang: language, theme: THEMES[theme] })
 
         const tokens: Array<{ content: string; color?: string }> = []
         for (const line of result.tokens) {
@@ -183,7 +77,7 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
 
     switch (msg.type) {
         case "init":
-            init()
+            self.postMessage({ type: "ready" } satisfies WorkerResponse)
             break
         case "tokenize":
             tokenize(msg.id, msg.content, msg.language, msg.theme)

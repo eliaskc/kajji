@@ -81,6 +81,10 @@ plan to track completion; this file retains the earlier observations.
   supported engines in the full app, test more languages and compiled builds,
   and review maintenance risks. These isolated results are not proof of a
   600 ms whole-app startup improvement.
+- **Follow-up, 2026-10-21:** Switching the worker to `@pierre/highlights`
+  reduced full-app `highlightedReadyOutputMs` on the stress fixture from about
+  1.63 s to 0.97 s. The remaining gap after content readiness is about 50 ms.
+  See the P06 result.
 
 ## Open: log navigation has substantial detail recovery in a reference repository
 

@@ -51,7 +51,7 @@ export {
     type WordDiffSegment,
 } from "./word-diff"
 
-// Syntax highlighting (worker-based shiki)
+// Syntax highlighting (worker-based @pierre/highlights)
 export {
     clearTokenCache,
     getLanguage,

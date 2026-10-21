@@ -284,6 +284,19 @@ improvement without correctness, packaging, maintenance, or repeated-use regress
 Record the chosen engine and rejected alternatives. Adoption of Oniguruma is not
 pre-decided.
 
+**Result, 2026-10-21:** replaced Shiki in the syntax worker with
+`@pierre/highlights` 0.2.0 (hand-written Wasm lexers, no TextMate grammars), not
+another Shiki regex engine. Default stress fixture, A→B→A with five measured
+processes per scenario: `highlightedReadyOutputMs` fell from 1.61–1.64 s to
+0.96–0.98 s (about −40%) in diff, log, and bookmarks, while `contentReadyOutputMs`
+was unchanged. Peak RSS fell 8–13%. Line scrolling did not change beyond run
+variation. A 300-step diff page scroll halved the first-pass downward
+`updateGapMaxMs` (59 → 31 ms median); the warm second pass did not change. The
+compiled darwin-arm64 binary highlighted correctly in both themes. Colours come
+from Zed's Ayu Dark and GitHub Light themes, so they differ slightly from the
+Shiki/VS Code versions. All 30 previously bundled languages are supported.
+Oniguruma was not adopted. The package is pinned because it is pre-1.0.
+
 **Start at:** `src/diff/syntax-worker.ts`, `src/diff/syntax.ts`, `scripts/build.ts`.
 
 ## P07 — Parse and publish bookmark streams incrementally
