@@ -58,18 +58,18 @@
         "@babel/preset-typescript": "^7.28.5",
         "@opentui/core": "^0.5.12",
         "@opentui/solid": "^0.5.12",
-        "@pierre/diffs": "^1.5.1",
+        "@pierre/diffs": "^1.6.1",
         "@pierre/highlights": "0.2.0",
         "babel-preset-solid": "1.9.12",
         "citty": "^0.2.0",
         "diff": "^9.0.0",
-        "effect": "4.0.0-rc.117",
+        "effect": "4.0.5",
         "fuzzysort": "^3.1.0",
         "ghostty-opentui": "^1.4.12",
         "jsonc-parser": "^3.3.1",
         "nanoid": "^5.1.6",
         "solid-js": "1.9.12",
-        "zod": "^4.6.5"
+        "zod": "^4.6.7"
     },
     "keywords": [
         "jj",
