@@ -44,7 +44,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      PI_VERSION: ${{ vars.RELEASE_PI_VERSION || '0.87.1' }}
+      PI_VERSION: ${{ vars.RELEASE_PI_VERSION || '1.5.1' }}
       PI_MODEL: ${{ vars.RELEASE_PI_MODEL || 'opencode/claude-opus-5-5' }}
     steps:
       - uses: actions/checkout@v5
