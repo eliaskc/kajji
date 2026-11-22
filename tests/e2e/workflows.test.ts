@@ -190,6 +190,18 @@ test("keeps the top source line when toggling diff style", async () => {
                 const after = await session.screen.capture()
                 expect(after.text.match(/ui detail marker \d+/)?.[0]).toBe(topMarker)
             }
+            // A second toggle can arrive before the first one has settled its scroll position.
+            // Start from split, so the first toggle of each pair grows the content.
+            await session.keyboard.type("v")
+            await session.screen.waitForIdle({ quietForMs: 250, timeoutMs: 5_000 })
+            for (const gapMs of [10, 20, 30, 40]) {
+                await session.keyboard.type("v")
+                await Bun.sleep(gapMs)
+                await session.keyboard.type("v")
+                await session.screen.waitForIdle({ quietForMs: 250, timeoutMs: 5_000 })
+                const after = await session.screen.capture()
+                expect(after.text.match(/ui detail marker \d+/)?.[0]).toBe(topMarker)
+            }
         },
         (repository, home) => {
             const configDir = join(home, ".config", "kajji")

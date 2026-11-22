@@ -5,6 +5,7 @@ import { useDialogCommands } from "../context/command"
 import { useDialog } from "../context/dialog"
 import { useTheme } from "../context/theme"
 import { createHorizontalCropScroll } from "../hooks/horizontal-crop-scroll"
+import { observeScrollBox } from "../hooks/scroll-viewport"
 import { createSelectableList } from "../hooks/selectable-list"
 import { getVisibleWidth } from "../utils/ansi"
 import { AnsiText } from "./AnsiText"
@@ -97,12 +98,15 @@ export function RevisionPicker(props: RevisionPickerProps) {
     })
 
     onMount(() => {
-        setTimeout(() => scrollToIndex(selectedIndex(), true), 1)
-        const interval = setInterval(() => {
-            list.syncScrollTop()
-            horizontal.syncViewportWidth()
-        }, 100)
-        onCleanup(() => clearInterval(interval))
+        if (!scrollRef) return
+        // Runs after the first layout and before its paint, so the list opens at the selection.
+        scrollRef.afterLayout(() => scrollToIndex(selectedIndex(), true))
+        onCleanup(
+            observeScrollBox(scrollRef, () => {
+                list.syncScrollTop()
+                horizontal.syncViewportWidth()
+            }),
+        )
     })
 
     createEffect(() => {

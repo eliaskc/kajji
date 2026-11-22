@@ -1,7 +1,7 @@
 import type { ScrollBoxRenderable, TextareaRenderable } from "@opentui/core"
 import { useKeyboard } from "@opentui/solid"
 import fuzzysort from "fuzzysort"
-import { Show, createEffect, createMemo, createSignal, on, onCleanup, onMount } from "solid-js"
+import { Show, createEffect, createMemo, createSignal, on, onCleanup, untrack } from "solid-js"
 import type { Bookmark } from "../../commander/bookmarks"
 import { getRevisionId } from "../../commander/types"
 import { useApplication } from "../../context/application"
@@ -696,7 +696,10 @@ export function BookmarksPanel() {
     })
 
     let listScrollRef: ScrollBoxRenderable | undefined
-    const listViewport = createScrollViewport()
+    const listViewport = createScrollViewport({
+        defaultWidth: 40,
+        onChange: () => bookmarkHorizontal.syncViewportWidth(),
+    })
     onCleanup(
         registerBenchmarkState(() => ({
             bookmarkIndex: currentSelectedIndex(),
@@ -704,14 +707,10 @@ export function BookmarksPanel() {
             ...benchmarkRegion("bookmarks", listScrollRef),
         })),
     )
-    let listScrollResizeCleanup: (() => void) | undefined
-
-    const [listViewportHeight, setListViewportHeight] = createSignal(30)
-    const [listViewportWidth, setListViewportWidth] = createSignal(40)
     const [listSelectionSource, setListSelectionSource] =
         createSignal<SelectionSource>("programmatic")
     const listThreshold = createMemo(() => {
-        const buffer = Math.max(20, listViewportHeight() * 4)
+        const buffer = Math.max(20, listViewport.height() * 4)
         return Math.max(0, listTotalRows() - buffer)
     })
     const bookmarkContentText = (row: BookmarkRow) => {
@@ -732,7 +731,7 @@ export function BookmarksPanel() {
             getVisibleWidth(row.bookmark.nameDisplay || row.bookmark.name),
             Math.max(
                 1,
-                Math.max(8, Math.floor(listViewportWidth() * 0.6)) -
+                Math.max(8, Math.floor(listViewport.width() * 0.6)) -
                     bookmarkOriginChangedWidth(row),
             ),
         )
@@ -764,32 +763,9 @@ export function BookmarksPanel() {
             Math.max(1, bookmarkHorizontal.viewportWidth() - bookmarkMaxGutterWidth()),
     })
 
-    const syncListViewport = () => {
-        if (!listScrollRef) return
-        const currentViewport = listScrollRef.viewport?.height ?? 30
-        if (currentViewport !== listViewportHeight()) {
-            setListViewportHeight(currentViewport)
-        }
-        const currentViewportWidth = listScrollRef.viewport?.width ?? 40
-        if (currentViewportWidth !== listViewportWidth()) {
-            setListViewportWidth(currentViewportWidth)
-        }
-        bookmarkHorizontal.syncViewportWidth()
-    }
-
     const setListScrollRef = (ref: ScrollBoxRenderable) => {
-        listScrollResizeCleanup?.()
         listScrollRef = ref
         listViewport.attach(ref)
-        const resizeable = ref as ScrollBoxRenderable & {
-            on?: (event: "resize", callback: () => void) => void
-            off?: (event: "resize", callback: () => void) => void
-        }
-        const handleResize = () => syncListViewport()
-        resizeable.on?.("resize", handleResize)
-        listScrollResizeCleanup = () => resizeable.off?.("resize", handleResize)
-        syncListViewport()
-        queueMicrotask(syncListViewport)
     }
 
     createEffect(
@@ -808,25 +784,13 @@ export function BookmarksPanel() {
         ),
     )
 
-    onCleanup(() => {
-        setListViewportHeight(30)
-        listScrollResizeCleanup?.()
-        listScrollResizeCleanup = undefined
-    })
-
-    onMount(() => {
-        const pollInterval = setInterval(() => {
-            if (!listScrollRef) return
-            const currentScroll = listScrollRef.scrollTop ?? 0
-            syncListViewport()
-
-            if (!bookmarksLoadingMore() && canPageBookmarks()) {
-                if (currentScroll + listViewportHeight() >= listThreshold()) {
-                    loadMoreBookmarks()
-                }
-            }
-        }, 100)
-        onCleanup(() => clearInterval(pollInterval))
+    // Load the next page when the view comes near the end of the loaded rows. The viewport
+    // signals follow native scroll and resize events, so this runs without a poll.
+    createEffect(() => {
+        if (bookmarksLoadingMore() || !canPageBookmarks()) return
+        if (listViewport.top() + listViewport.height() < listThreshold()) return
+        if (listViewport.ref()?.isDestroyed !== false) return
+        untrack(() => void loadMoreBookmarks())
     })
 
     const viewLabel = () => BOOKMARK_VIEW_LABELS[bookmarkView()]

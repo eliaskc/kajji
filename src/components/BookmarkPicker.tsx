@@ -4,6 +4,7 @@ import type { Bookmark } from "../commander/bookmarks"
 import { useDialogCommands } from "../context/command"
 import { useDialog } from "../context/dialog"
 import { useTheme } from "../context/theme"
+import { observeScrollBox } from "../hooks/scroll-viewport"
 import { createSelectableList } from "../hooks/selectable-list"
 
 export interface BookmarkPickerProps {
@@ -54,9 +55,10 @@ export function BookmarkPicker(props: BookmarkPickerProps) {
     })
 
     onMount(() => {
-        setTimeout(() => scrollToIndex(selectedIndex(), true), 1)
-        const interval = setInterval(list.syncScrollTop, 100)
-        onCleanup(() => clearInterval(interval))
+        if (!scrollRef) return
+        // Runs after the first layout and before its paint, so the list opens at the selection.
+        scrollRef.afterLayout(() => scrollToIndex(selectedIndex(), true))
+        onCleanup(observeScrollBox(scrollRef, list.syncScrollTop))
     })
 
     createEffect(() => {

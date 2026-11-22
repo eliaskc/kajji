@@ -8,9 +8,11 @@ import {
     createEffect,
     createMemo,
     createSignal,
+    on,
     onCleanup,
     onMount,
 } from "solid-js"
+import { observeScrollBox } from "../../hooks/scroll-viewport"
 import { benchmarkRegion, registerBenchmarkState } from "../../utils/benchmark"
 
 import type { JjDiffTarget } from "../../commander/jj"
@@ -238,7 +240,10 @@ function FileStats(props: {
                 </text>
             </Show>
             <DiffStatsSummary stats={s()} />
-            <text fg={colors().textMuted}>{"─".repeat(props.maxWidth + 2)}</text>
+            <text fg={colors().textMuted} wrapMode="none">
+                {"─".repeat(props.maxWidth + 2)}
+            </text>
+            <text> </text>
         </>
     )
 }
@@ -1180,7 +1185,10 @@ export function MainArea() {
         const currentScroll = scrollRef.scrollTop ?? 0
         const currentViewport = scrollRef.viewport?.height ?? 30
         const currentHeaderHeight = measuredHeaderHeight() ?? 0
-        const currentViewportWidth = scrollRef.viewport?.width ?? effectiveMainAreaWidth()
+        // The viewport width includes its right padding, the gap before the scrollbar.
+        const currentViewportWidth = scrollRef.viewport
+            ? scrollRef.viewport.width - SCROLLBAR_GUTTER
+            : effectiveMainAreaWidth()
         const widthAdjustment = scrollRef.verticalScrollBar.visible
             ? SCROLLBAR_GUTTER
             : SCROLLBAR_GUTTER + 1
@@ -1208,6 +1216,13 @@ export function MainArea() {
         }
     }
 
+    // The metrics also depend on these signals. Measure after the layout they cause.
+    createEffect(
+        on([viewMode, displayedDiffSourceKey, effectiveMainAreaWidth], () => {
+            if (scrollRef && !scrollRef.isDestroyed) scrollRef.afterLayout(syncScrollMetrics)
+        }),
+    )
+
     const handleScrollAnchorRowChange = (rowIndex: number | null, style: DiffViewStyle) => {
         if (style !== viewStyle()) return
         const anchor = modeScrollAnchor()
@@ -1217,6 +1232,11 @@ export function MainArea() {
         modeSemanticScrollTop = targetScrollTop
         setScrollTop(targetScrollTop)
         scrollRef?.scrollTo(targetScrollTop)
+        // The new rows are not laid out yet, so this scroll is clamped to the old content
+        // height. Apply it again after the layout and before the paint.
+        scrollRef?.afterLayout(() => {
+            if (modeSemanticScrollTop === targetScrollTop) scrollRef?.scrollTo(targetScrollTop)
+        })
     }
 
     createEffect(() => {
@@ -1249,8 +1269,10 @@ export function MainArea() {
     })
 
     const toggleDiffStyle = () => {
-        // Capture from the old layout before the style signal replaces its rows.
-        syncScrollMetrics()
+        // Capture from the old layout before the style signal replaces its rows. While an
+        // earlier toggle is still settling, the native position can be a clamped one, and
+        // the signal already holds the target.
+        if (!modeScrollAnchor()) syncScrollMetrics()
         modeSemanticScrollTop = null
         batch(() => {
             captureScrollAnchor()
@@ -1321,10 +1343,10 @@ export function MainArea() {
         headerRef?.on("resize", handleDetailResize)
         onCleanup(() => scrollRef?.off("resize", handleDetailResize))
         onCleanup(() => headerRef?.off("resize", handleDetailResize))
+        // Native scroll, viewport and content size changes replace a 100 ms poll.
+        if (scrollRef) onCleanup(observeScrollBox(scrollRef, syncScrollMetrics))
 
-        const pollInterval = setInterval(syncScrollMetrics, 100)
         onCleanup(() => {
-            clearInterval(pollInterval)
             clearTimeout(scrollSyncTimer)
             modeScrollRestore++
         })
@@ -1719,8 +1741,9 @@ export function MainArea() {
             topRight={renderRepoInfo}
         >
             <Show when={hasDisplayedSource()}>
-                <box flexGrow={1} paddingRight={SCROLLBAR_GUTTER}>
+                <box flexGrow={1}>
                     <scrollbox
+                        viewportOptions={{ paddingRight: SCROLLBAR_GUTTER }}
                         ref={scrollRef}
                         focused={isFocused()}
                         flexGrow={1}

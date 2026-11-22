@@ -1,6 +1,16 @@
 import type { MouseEvent, ScrollBoxRenderable, TextareaRenderable } from "@opentui/core"
 import { useKeyboard, useRenderer } from "@opentui/solid"
-import { For, Show, createEffect, createMemo, createSignal, on, onCleanup, onMount } from "solid-js"
+import {
+    For,
+    Show,
+    createEffect,
+    createMemo,
+    createSignal,
+    on,
+    onCleanup,
+    onMount,
+    untrack,
+} from "solid-js"
 import { type Bookmark, isBookmarkBackwardsError } from "../../commander/bookmarks"
 import { type OpLogEntry, parseOpLog } from "../../commander/op-log"
 import { type Commit, getRevisionId } from "../../commander/types"
@@ -262,7 +272,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
     const errorContent = () => {
         const err = revsetError()
         if (err === null) return null
-        const width = Math.max(0, logViewportWidth() - 2)
+        const width = Math.max(0, logViewport.width() - 2)
         const trimmed = err.length > width ? err.slice(0, width) : err
         const padding = " ".repeat(Math.max(0, width - trimmed.length))
         return trimmed + padding
@@ -867,8 +877,6 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
 
     let scrollRef: ScrollBoxRenderable | undefined
     onCleanup(registerBenchmarkState(() => benchmarkRegion("log", scrollRef)))
-    const [logViewportHeight, setLogViewportHeight] = createSignal(30)
-    const [logViewportWidth, setLogViewportWidth] = createSignal(80)
     const [logScrollLeft, setLogScrollLeft] = createSignal(0)
     const [logSelectionSource, setLogSelectionSource] =
         createSignal<SelectionSource>("programmatic")
@@ -884,7 +892,6 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
     const logTotalLines = () => logOffsets().at(-1) ?? 0
 
     let opLogScrollRef: ScrollBoxRenderable | undefined
-    const [opLogViewportWidth, setOpLogViewportWidth] = createSignal(80)
     const [opLogScrollLeft, setOpLogScrollLeft] = createSignal(0)
     let filesFilterApi: FilterableFileTreeApi | undefined
 
@@ -927,7 +934,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
     })
 
     const logContentViewportWidth = createMemo(() =>
-        Math.max(1, logViewportWidth() - logMaxGutterWidth()),
+        Math.max(1, logViewport.width() - logMaxGutterWidth()),
     )
 
     const opLogMaxLineLength = createMemo(() => {
@@ -1039,34 +1046,15 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
         }),
     )
 
-    onMount(() => {
-        const pollInterval = setInterval(() => {
-            if (!scrollRef) return
-            const currentScroll = scrollRef.scrollTop ?? 0
-            const currentViewport = scrollRef.viewport?.height ?? 30
-            const currentViewportWidth = scrollRef.viewport?.width ?? 80
-            if (currentViewport !== logViewportHeight()) {
-                setLogViewportHeight(currentViewport)
-            }
-            if (currentViewportWidth !== logViewportWidth()) {
-                setLogViewportWidth(currentViewportWidth)
-            }
-            if (opLogScrollRef) {
-                const opViewportWidth = opLogScrollRef.viewport?.width ?? 80
-                if (opViewportWidth !== opLogViewportWidth()) {
-                    setOpLogViewportWidth(opViewportWidth)
-                }
-            }
-
-            if (!logLoadingMore() && logHasMore()) {
-                const buffer = Math.max(20, logViewportHeight() * 4)
-                const threshold = Math.max(0, logTotalLines() - buffer)
-                if (currentScroll + currentViewport >= threshold) {
-                    loadMoreLog()
-                }
-            }
-        }, 100)
-        onCleanup(() => clearInterval(pollInterval))
+    // Load the next page when the view comes near the end of the loaded rows. The viewport
+    // signals follow native scroll and resize events, so this runs without a poll.
+    createEffect(() => {
+        if (logLoadingMore() || !logHasMore()) return
+        const height = logViewport.height()
+        const threshold = Math.max(0, logTotalLines() - Math.max(20, height * 4))
+        if (logViewport.top() + height < threshold) return
+        if (logViewport.ref()?.isDestroyed !== false) return
+        untrack(() => void loadMoreLog())
     })
 
     createEffect(() => {
@@ -1077,7 +1065,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
 
     createEffect(() => {
         setOpLogScrollLeft(
-            clampScrollLeft(opLogScrollLeft(), opLogMaxLineLength(), opLogViewportWidth()),
+            clampScrollLeft(opLogScrollLeft(), opLogMaxLineLength(), opLogViewport.width()),
         )
     })
 
@@ -2377,7 +2365,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                 <For each={props.commit.displayLines.slice(props.from?.() ?? 0, props.to?.())}>
                     {(line) => {
                         const gutterWidth = () => stripAnsi(line.gutter).length
-                        const contentWidth = () => Math.max(1, logViewportWidth() - gutterWidth())
+                        const contentWidth = () => Math.max(1, logViewport.width() - gutterWidth())
                         const defaultFg = () =>
                             props.selected() && isLogSelectionFocused()
                                 ? colors().selectionText
@@ -2630,7 +2618,7 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                     opLogScrollLeft,
                     setOpLogScrollLeft,
                     opLogMaxLineLength,
-                    opLogViewportWidth,
+                    opLogViewport.width,
                     () => opLogScrollRef,
                 )}
                 scrollbarOptions={{ visible: false }}
@@ -2672,11 +2660,11 @@ export function LogPanel(props: { filesWithRevisions?: boolean } = {}) {
                                                     opLogScrollLeft,
                                                     setOpLogScrollLeft,
                                                     opLogMaxLineLength,
-                                                    opLogViewportWidth,
+                                                    opLogViewport.width,
                                                     () => opLogScrollRef,
                                                 )}
                                                 cropStart={opLogScrollLeft()}
-                                                cropWidth={Math.max(1, opLogViewportWidth())}
+                                                cropWidth={Math.max(1, opLogViewport.width())}
                                             />
                                         </box>
                                     )}
