@@ -54,7 +54,8 @@ const THEMES = bundledThemes as unknown as Record<string, Theme>
 /** Resolve a theme by its file name, e.g. "synthwave-84" -> synthwave84. */
 function resolveSyntaxTheme(name: SyntaxThemeName): Theme {
     const theme = THEMES[name.replace(/-(\w)/g, (_, char: string) => char.toUpperCase())]
-    if (!theme) throw new Error(`Unknown syntax theme: ${name}`)
+    // The themes module also exports helper functions; only an object is a theme.
+    if (!theme || typeof theme !== "object") throw new Error(`Unknown syntax theme: ${name}`)
     return theme
 }
 

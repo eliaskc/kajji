@@ -59,7 +59,7 @@
         "@opentui/core": "^0.9.7",
         "@opentui/solid": "^0.9.7",
         "@pierre/diffs": "^1.6.1",
-        "@pierre/highlights": "0.2.0",
+        "@pierre/highlights": "0.5.2",
         "babel-preset-solid": "1.9.19",
         "citty": "^0.2.0",
         "diff": "^9.0.0",

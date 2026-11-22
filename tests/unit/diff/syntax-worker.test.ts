@@ -94,9 +94,10 @@ test("syntax worker carries lexer state across the lines of a block", async () =
 })
 
 test("every bundled Highlights theme is selectable and resolves in the worker", async () => {
-    const exported = Object.keys(bundledThemes).filter(
-        (name) => name !== "cssVariables" && name !== "toCSS",
-    )
+    // The themes module also exports helper functions, such as toCSS and getFontStyle.
+    const exported = Object.entries(bundledThemes)
+        .filter(([name, value]) => name !== "cssVariables" && typeof value !== "function")
+        .map(([name]) => name)
     const listed = syntaxThemeNames.map((name) =>
         name.replace(/-(\w)/g, (_, char: string) => char.toUpperCase()),
     )
