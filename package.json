@@ -63,7 +63,7 @@
         "babel-preset-solid": "1.9.12",
         "citty": "^0.2.0",
         "diff": "^9.0.0",
-        "effect": "4.0.5",
+        "effect": "4.1.5",
         "fuzzysort": "^3.1.0",
         "ghostty-opentui": "^1.4.12",
         "jsonc-parser": "^3.3.1",
