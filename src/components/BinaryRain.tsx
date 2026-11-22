@@ -1,6 +1,7 @@
 import { useRenderer } from "@opentui/solid"
 import { For, createMemo, createSignal, onCleanup, onMount } from "solid-js"
 import { useTheme } from "../context/theme"
+import { createAnimationTick } from "../hooks/animation-tick"
 
 function parseHex(hex: string) {
     const h = hex.replace("#", "")
@@ -81,7 +82,9 @@ export interface BinaryRainProps {
 export function BinaryRain(props: BinaryRainProps) {
     const renderer = useRenderer()
     const { colors } = useTheme()
-    const [tick, setTick] = createSignal(0)
+    const clockTick = createAnimationTick(1000 / (props.interval ?? 300))
+    const [resizeTick, setResizeTick] = createSignal(0)
+    const tick = () => clockTick() + resizeTick()
 
     // Per-column stream state persists across ticks
     let streams: Stream[] = []
@@ -89,11 +92,8 @@ export function BinaryRain(props: BinaryRainProps) {
     let lastHeight = 0
 
     onMount(() => {
-        const intervalMs = props.interval ?? 300
-        const interval = setInterval(() => setTick((t) => t + 1), intervalMs)
-        onCleanup(() => clearInterval(interval))
         // Nudge repaints to follow renderer resize so the effect stays live
-        const handleResize = () => setTick((t) => t + 1)
+        const handleResize = () => setResizeTick((t) => t + 1)
         renderer.on("resize", handleResize)
         onCleanup(() => renderer.off("resize", handleResize))
     })

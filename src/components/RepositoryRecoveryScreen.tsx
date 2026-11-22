@@ -5,6 +5,7 @@ import { For, Show, createMemo, createSignal, onCleanup } from "solid-js"
 import type { CommandObserver } from "../commander/observer"
 import type { CommandLogEntry } from "../context/commandlog"
 import { useTheme } from "../context/theme"
+import { createAnimationTick } from "../hooks/animation-tick"
 import {
     type BrokenRepositoryMetadata,
     RECOVERY_BACKUP_DIRECTORY,
@@ -58,15 +59,11 @@ export function RepositoryRecoveryScreen(props: RepositoryRecoveryScreenProps) {
     const [showRecoveryLog, setShowRecoveryLog] = createSignal(false)
     const [error, setError] = createSignal<string | null>(null)
     const [logEntries, setLogEntries] = createSignal<CommandLogEntry[]>([])
-    const [spinnerTick, setSpinnerTick] = createSignal(0)
     let nextLogId = 0
     let recoveryLogTimer: ReturnType<typeof setTimeout> | undefined
 
-    const spinnerTimer = setInterval(() => {
-        if (running()) setSpinnerTick((tick) => tick + 1)
-    }, 80)
+    const spinnerTick = createAnimationTick(12.5, running)
     onCleanup(() => {
-        clearInterval(spinnerTimer)
         if (recoveryLogTimer) clearTimeout(recoveryLogTimer)
     })
     const spinner = () => spinnerFrames[spinnerTick() % spinnerFrames.length] ?? "⠋"

@@ -1,6 +1,7 @@
 import { useRenderer } from "@opentui/solid"
 import { For, createMemo, createSignal, onCleanup, onMount } from "solid-js"
 import { useTheme } from "../context/theme"
+import { createAnimationTick } from "../hooks/animation-tick"
 
 function parseHex(hex: string) {
     const h = hex.replace("#", "")
@@ -43,16 +44,13 @@ export interface WaveBackgroundProps {
 export function WaveBackground(props: WaveBackgroundProps) {
     const renderer = useRenderer()
     const { colors, mode } = useTheme()
-    const [tick, setTick] = createSignal(0)
+    const tick = createAnimationTick(60)
     const [dimensions, setDimensions] = createSignal({
         width: renderer.width,
         height: renderer.height,
     })
 
     onMount(() => {
-        const interval = setInterval(() => setTick((t) => t + 1), 16)
-        onCleanup(() => clearInterval(interval))
-
         const handleResize = (w: number, h: number) => setDimensions({ width: w, height: h })
         renderer.on("resize", handleResize)
         onCleanup(() => renderer.off("resize", handleResize))

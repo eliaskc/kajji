@@ -1,5 +1,6 @@
-import { For, createMemo, createSignal, onCleanup, onMount } from "solid-js"
+import { For, createMemo, createSignal } from "solid-js"
 import { useTheme } from "../../context/theme"
+import { createAnimationTick } from "../../hooks/animation-tick"
 
 interface StackPreparingModalProps {
     kind: "sync"
@@ -63,13 +64,9 @@ function lerpColor(from: string, to: string, t: number) {
 
 export function StackPreparingModal(props: StackPreparingModalProps) {
     const { colors } = useTheme()
-    const [tick, setTick] = createSignal(0)
+    // The same rate as the command log spinner, so both tick in the same frames.
+    const tick = createAnimationTick(12.5)
     const [message] = createSignal(randomLoadingMessage())
-
-    onMount(() => {
-        const interval = setInterval(() => setTick((value) => value + 1), 90)
-        onCleanup(() => clearInterval(interval))
-    })
 
     const rows = createMemo(() => {
         const t = tick()

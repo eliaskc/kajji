@@ -1,11 +1,12 @@
 import { TextAttributes } from "@opentui/core"
-import { For, Show, createMemo, createSignal, onCleanup } from "solid-js"
+import { For, Show, createMemo } from "solid-js"
 import { useCommand } from "../context/command"
 import type { StyledSegment } from "../context/dialog"
 import { useStatus } from "../context/status"
 import { useSync } from "../context/sync"
 import { useTheme } from "../context/theme"
 import { useUpdate } from "../context/update"
+import { createAnimationTick } from "../hooks/animation-tick"
 import { blendColors } from "../utils/color"
 import { getCurrentVersion } from "../utils/update"
 
@@ -15,14 +16,10 @@ export function StatusBar() {
     const { viewMode, visualMode } = useSync()
     const update = useUpdate()
     const { colors, style } = useTheme()
-    const [animationTick, setAnimationTick] = createSignal(0)
-    const timer = setInterval(() => {
+    const animationTick = createAnimationTick(5, () => {
         const status = update.state().status
-        if (status === "checking" || status === "updating" || status === "success") {
-            setAnimationTick((index) => index + 1)
-        }
-    }, 200)
-    onCleanup(() => clearInterval(timer))
+        return status === "checking" || status === "updating" || status === "success"
+    })
 
     const relevantCommands = createMemo(() => {
         const all = command.activeForSurface("statusBar")

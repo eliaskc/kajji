@@ -1,6 +1,7 @@
-import { For, Show, createMemo, createSignal, onCleanup, onMount } from "solid-js"
+import { For, Show, createMemo } from "solid-js"
 
 import { useTheme } from "../context/theme"
+import { createAnimationTick } from "../hooks/animation-tick"
 import { blendColors } from "../utils/color"
 
 interface EmptyDiffStateProps {
@@ -14,17 +15,6 @@ interface Particle {
     y: number
     char: "+" | "−"
     color: string
-}
-
-function useAmbientTick(intervalMs = 140) {
-    const [tick, setTick] = createSignal(0)
-
-    onMount(() => {
-        const interval = setInterval(() => setTick((value) => value + 1), intervalMs)
-        onCleanup(() => clearInterval(interval))
-    })
-
-    return tick
 }
 
 function EmptyCopy() {
@@ -58,7 +48,7 @@ function copyAttenuation(x: number, y: number, width: number, height: number) {
 
 export function EmptyDiffState(props: EmptyDiffStateProps) {
     const { colors } = useTheme()
-    const tick = useAmbientTick()
+    const tick = createAnimationTick(1000 / 140)
 
     const particles = createMemo<Particle[]>(() => {
         const width = Math.max(1, props.width)

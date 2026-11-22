@@ -1,10 +1,11 @@
 import type { ScrollBoxRenderable } from "@opentui/core"
-import { For, Show, createMemo, createSignal, onCleanup } from "solid-js"
+import { For, Show, createMemo, createSignal } from "solid-js"
 import { stripRefusedSnapshotWarning } from "../../commander/snapshot-warnings"
 import { useCommand } from "../../context/command"
 import { useCommandLog } from "../../context/commandlog"
 import { useFocus } from "../../context/focus"
 import { useTheme } from "../../context/theme"
+import { createAnimationTick } from "../../hooks/animation-tick"
 import { blendColors } from "../../utils/color"
 import { Panel } from "../Panel"
 
@@ -18,21 +19,15 @@ export function CommandLogPanel() {
     const [scrollTop, setScrollTop] = createSignal(0)
 
     const isFocused = () => focus.isPanel("commandlog")
-    const [animationTick, setAnimationTick] = createSignal(0)
-    const spinnerTimer = setInterval(() => {
-        if (
-            commandLog
-                .entries()
-                .some(
-                    (entry) =>
-                        entry.status === "running" ||
-                        (entry.status === "success" && entry.completedAt),
-                )
-        ) {
-            setAnimationTick((index) => index + 1)
-        }
-    }, 80)
-    onCleanup(() => clearInterval(spinnerTimer))
+    const animationTick = createAnimationTick(12.5, () =>
+        commandLog
+            .entries()
+            .some(
+                (entry) =>
+                    entry.status === "running" ||
+                    (entry.status === "success" && entry.completedAt !== undefined),
+            ),
+    )
 
     const entryColor = (entry: ReturnType<typeof commandLog.entries>[number]) => {
         if (entry.status === "failure") return colors().error
