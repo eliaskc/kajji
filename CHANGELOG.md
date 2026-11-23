@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.20.0
+
+### improved
+- theming: syntax highlighting supports every bundled theme, and the default kajji theme now uses ayu-light in light mode ([`929a6a7`](../../commit/929a6a7))
+- theming: diff syntax highlighting carries state across lines, so multi-line strings and comments in hunks are colored correctly ([`20d54dc`](../../commit/20d54dc))
+
+### fixed
+- perf: diffs highlight faster with @pierre/highlights instead of shiki ([`f69181f`](../../commit/f69181f), [`aeca44a`](../../commit/aeca44a))
+- jj child processes no longer keep running after kajji closes on sighup ([`f5c2f23`](../../commit/f5c2f23))
+- layout: detail header switches right away when a diff is slow or fails to load ([`c596db6`](../../commit/c596db6))
+- ux: scroll position is kept when switching view mode or toggling the diff style quickly ([`61530aa`](../../commit/61530aa), [`5952cb6`](../../commit/5952cb6))
+
 ## 0.19.0
 
 ### new
