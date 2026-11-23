@@ -43,6 +43,11 @@ jobs:
       inputs.action != 'release'
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # id-token lets the job prove to OpenCode that it is this workflow. It grants
+    # no access to the repository.
+    permissions:
+      contents: read
+      id-token: write
     env:
       PI_VERSION: ${{ vars.RELEASE_PI_VERSION || '1.6.0' }}
       PI_MODEL: ${{ vars.RELEASE_PI_MODEL || 'opencode/claude-opus-5-5' }}
@@ -82,9 +87,29 @@ jobs:
           mkdir -p "$RUNNER_TEMP/release-proposal"
           bun run scripts/prepare-release.ts context --bump "$BUMP" --output "$RUNNER_TEMP/release-proposal/context.json"
 
+      # The OpenCode service account trusts this repository. The job exchanges its
+      # GitHub OIDC token for a short-lived OpenCode token, so no API key is stored.
+      - name: Sign in to OpenCode
+        id: opencode
+        if: startsWith(env.PI_MODEL, 'opencode/')
+        env:
+          AUDIENCE: https://opencode.ai/console
+          CLIENT_ID: ${{ vars.OPENCODE_CLIENT_ID || 'sk_7c0f11d3-2bda-484f-9c44-a77d171d79d3' }}
+        run: |
+          set -euo pipefail
+          oidc=$(curl -sSf --oauth2-bearer "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=$AUDIENCE" | jq -er .value)
+          token=$(curl -sSf https://opencode.ai/console/auth/oauth/token \
+            -d grant_type=urn:ietf:params:oauth:grant-type:token-exchange \
+            -d subject_token_type=urn:ietf:params:oauth:token-type:jwt \
+            -d client_id="$CLIENT_ID" \
+            --data-urlencode subject_token="$oidc" | jq -er .access_token)
+          echo "::add-mask::$token"
+          echo "token=$token" >> "$GITHUB_OUTPUT"
+
       - name: Draft release proposal
         env:
-          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          OPENCODE_API_KEY: ${{ steps.opencode.outputs.token }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           PI_CODING_AGENT_DIR: ${{ runner.temp }}/release-pi

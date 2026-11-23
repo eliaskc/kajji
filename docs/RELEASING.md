@@ -41,7 +41,8 @@ A version that reached npm cannot be published again. To fix a bad release, merg
 
 | Name | Kind | Notes |
 |---|---|---|
-| `OPENCODE_API_KEY` | secret | Used by `propose` for the default model. `OPENAI_API_KEY` and `ANTHROPIC_API_KEY` are also passed through if you use those providers. |
+| OpenCode service account | OIDC, no secret | `propose` exchanges its GitHub OIDC token for a short-lived OpenCode token. The service account must trust this repository. Its client ID is in `release.yml`; set the `OPENCODE_CLIENT_ID` variable to use another. |
+| `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` | secret (optional) | Only if `RELEASE_PI_MODEL` uses those providers. |
 | `HOMEBREW_TAP_TOKEN` | secret | Push access to `eliaskc/homebrew-tap`. |
 | `RELEASE_PI_MODEL` | variable (optional) | `provider/model` for release notes. Default: `opencode/claude-opus-5-5`. |
 | `RELEASE_PI_VERSION` | variable (optional) | Exact pi version. Default: the version pinned in `release.yml`. |
